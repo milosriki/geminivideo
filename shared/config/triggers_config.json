@@ -1,0 +1,59 @@
+{
+  "primaryDrivers": [
+    {
+      "id": "aspirational_identity",
+      "name": "Aspirational Identity",
+      "description": "Desire to become a better version of oneself",
+      "weight": 0.3,
+      "indicators": ["transformation", "before_after", "success_story"]
+    },
+    {
+      "id": "social_belonging",
+      "name": "Social Belonging",
+      "description": "Need to fit in and be part of a community",
+      "weight": 0.25,
+      "indicators": ["community", "tribe", "group", "together"]
+    },
+    {
+      "id": "fear_of_missing_out",
+      "name": "Fear of Missing Out (FOMO)",
+      "description": "Anxiety about missing opportunities",
+      "weight": 0.2,
+      "indicators": ["limited", "exclusive", "now", "today"]
+    },
+    {
+      "id": "pain_avoidance",
+      "name": "Pain Avoidance",
+      "description": "Desire to avoid negative outcomes",
+      "weight": 0.15,
+      "indicators": ["without", "avoid", "prevent", "stop"]
+    },
+    {
+      "id": "curiosity",
+      "name": "Curiosity",
+      "description": "Desire to learn and discover",
+      "weight": 0.1,
+      "indicators": ["discover", "secret", "revealed", "how_to"]
+    }
+  ],
+  "secondaryDrivers": [
+    {
+      "id": "time_efficiency",
+      "name": "Time Efficiency",
+      "description": "Save time and effort",
+      "indicators": ["quick", "fast", "minutes", "easy"]
+    },
+    {
+      "id": "status_elevation",
+      "name": "Status Elevation",
+      "description": "Increase social status",
+      "indicators": ["premium", "elite", "exclusive", "luxury"]
+    },
+    {
+      "id": "validation",
+      "name": "Validation",
+      "description": "Receive approval and recognition",
+      "indicators": ["proven", "verified", "certified", "guaranteed"]
+    }
+  ]
+}

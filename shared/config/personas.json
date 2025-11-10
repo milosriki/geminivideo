@@ -1,0 +1,72 @@
+{
+  "personas": [
+    {
+      "id": "busy_professional_dubai",
+      "name": "Busy Professional",
+      "location": "Dubai",
+      "demographics": {
+        "age_range": "28-45",
+        "income": "high",
+        "occupation": "corporate_executive"
+      },
+      "psychographics": {
+        "goals": ["maintain_fitness", "time_efficient_workouts", "stress_relief"],
+        "pain_points": ["limited_time", "irregular_schedule", "travel_frequently"],
+        "values": ["efficiency", "results", "premium_experience"]
+      },
+      "triggers": ["time_efficiency", "status_elevation", "aspirational_identity"],
+      "hook_preferences": ["urgency", "transformation"]
+    },
+    {
+      "id": "fitness_enthusiast_dubai",
+      "name": "Fitness Enthusiast",
+      "location": "Dubai",
+      "demographics": {
+        "age_range": "22-35",
+        "income": "medium_to_high",
+        "occupation": "varied"
+      },
+      "psychographics": {
+        "goals": ["build_muscle", "aesthetic_physique", "athletic_performance"],
+        "pain_points": ["plateau", "lack_of_variety", "motivation"],
+        "values": ["community", "authenticity", "progress"]
+      },
+      "triggers": ["social_belonging", "aspirational_identity", "validation"],
+      "hook_preferences": ["transformation", "social_proof"]
+    },
+    {
+      "id": "wellness_seeker_dubai",
+      "name": "Wellness Seeker",
+      "location": "Dubai",
+      "demographics": {
+        "age_range": "30-50",
+        "income": "high",
+        "occupation": "entrepreneur_or_executive"
+      },
+      "psychographics": {
+        "goals": ["holistic_health", "longevity", "mental_clarity"],
+        "pain_points": ["stress", "burnout", "lack_of_balance"],
+        "values": ["wellness", "mindfulness", "sustainable_lifestyle"]
+      },
+      "triggers": ["pain_avoidance", "aspirational_identity", "curiosity"],
+      "hook_preferences": ["curiosity", "transformation"]
+    },
+    {
+      "id": "beginner_fitness_dubai",
+      "name": "Fitness Beginner",
+      "location": "Dubai",
+      "demographics": {
+        "age_range": "25-40",
+        "income": "medium",
+        "occupation": "varied"
+      },
+      "psychographics": {
+        "goals": ["weight_loss", "get_started", "build_confidence"],
+        "pain_points": ["intimidation", "lack_of_knowledge", "fear_of_judgment"],
+        "values": ["support", "guidance", "safety"]
+      },
+      "triggers": ["social_belonging", "fear_of_missing_out", "curiosity"],
+      "hook_preferences": ["social_proof", "curiosity"]
+    }
+  ]
+}

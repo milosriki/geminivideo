@@ -1,0 +1,68 @@
+# Scoring weights for ad concept evaluation
+# Values are normalized and sum to 1.0
+
+psychology_weight: 0.35
+compliance_weight: 0.25
+diversification_weight: 0.20
+novelty_weight: 0.20
+
+# Thresholds for evaluation
+thresholds:
+  minimum_score: 0.6
+  excellent_score: 0.85
+  
+# Psychology scoring factors
+psychology_factors:
+  hook_relevance: 0.4
+  trigger_alignment: 0.3
+  persona_match: 0.3
+
+# Compliance scoring factors  
+compliance_factors:
+  aspect_ratio_match: 0.3
+  resolution_quality: 0.25
+  duration_range: 0.25
+  file_size: 0.2
+
+# Diversification scoring factors
+diversification_factors:
+  hook_variety: 0.35
+  visual_variety: 0.35
+  persona_coverage: 0.30
+
+# Novelty scoring factors
+novelty_factors:
+  embedding_distance: 0.6
+  template_reuse: 0.4
+
+# Platform-specific requirements
+platform_specs:
+  meta_feed:
+    aspect_ratio: "1:1"
+    min_resolution: "1080x1080"
+    max_resolution: "1920x1920"
+    min_duration_sec: 5
+    max_duration_sec: 60
+    max_file_size_mb: 100
+  
+  meta_story:
+    aspect_ratio: "9:16"
+    min_resolution: "1080x1920"
+    max_resolution: "1080x1920"
+    min_duration_sec: 3
+    max_duration_sec: 15
+    max_file_size_mb: 30
+  
+  meta_reel:
+    aspect_ratio: "9:16"
+    min_resolution: "1080x1920"
+    max_resolution: "1080x1920"
+    min_duration_sec: 3
+    max_duration_sec: 90
+    max_file_size_mb: 100
+
+# Learning parameters
+learning:
+  adjustment_rate: 0.05
+  min_samples_for_update: 10
+  lookback_days: 7
