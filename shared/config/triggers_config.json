@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "psychological_triggers": {
+    "curiosity_gap": {
+      "keywords": ["secret", "hidden", "revealed", "truth", "mystery", "discover", "find out"],
+      "patterns": ["you won't believe", "shocking", "surprising", "amazing"],
+      "weight": 1.0
+    },
+    "social_proof": {
+      "keywords": ["million", "thousand", "customers", "users", "people", "everyone"],
+      "patterns": ["\\d+[km]?\\+?\\s*(people|users|customers)", "join.*others", "trusted by"],
+      "weight": 0.9
+    },
+    "urgency": {
+      "keywords": ["now", "today", "hurry", "fast", "quick", "limited", "ending", "expires"],
+      "patterns": ["\\d+\\s*(hours?|days?|minutes?)\\s*(left|remaining)", "until.*ends", "don't miss"],
+      "weight": 0.95
+    },
+    "scarcity": {
+      "keywords": ["limited", "exclusive", "rare", "only", "few", "last chance", "running out"],
+      "patterns": ["only \\d+ (left|remaining)", "\\d+% sold out", "limited (time|stock|quantity)"],
+      "weight": 0.9
+    },
+    "authority": {
+      "keywords": ["expert", "professional", "certified", "proven", "tested", "research", "science"],
+      "patterns": ["\\d+ years? (of )?experience", "as seen on", "featured in"],
+      "weight": 0.85
+    },
+    "fear_of_missing_out": {
+      "keywords": ["don't miss", "miss out", "before it's gone", "last chance", "final"],
+      "patterns": ["what are you waiting for", "act now or", "don't be left"],
+      "weight": 0.8
+    },
+    "value_emphasis": {
+      "keywords": ["free", "save", "discount", "deal", "offer", "bonus", "gift"],
+      "patterns": ["\\d+%\\s*off", "save \\$\\d+", "up to \\d+"],
+      "weight": 0.75
+    },
+    "question": {
+      "keywords": ["how", "why", "what", "when", "where", "who"],
+      "patterns": ["^(how|why|what|when|where|who)\\s", "\\?$"],
+      "weight": 0.7
+    },
+    "numbers": {
+      "keywords": [],
+      "patterns": ["^\\d+\\s+(reasons?|ways?|tips?|tricks?|secrets?)", "top \\d+", "#\\d+"],
+      "weight": 0.65
+    },
+    "transformation": {
+      "keywords": ["before", "after", "transform", "change", "results", "success"],
+      "patterns": ["from .* to .*", "\\d+ (days?|weeks?|months?) (later|transformation)"],
+      "weight": 0.8
+    }
+  },
+  "trigger_stacking": {
+    "min_for_strong": 3,
+    "min_for_moderate": 2,
+    "bonus_multiplier": 1.2
+  }
+}

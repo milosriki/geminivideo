@@ -1,0 +1,82 @@
+version: "1.0"
+last_updated: "2025-01-01T00:00:00Z"
+
+# Scene ranking weights and configuration
+weights:
+  motion_score: 0.25
+  object_relevance: 0.20
+  ocr_relevance: 0.15
+  novelty: 0.20
+  duration_optimal: 0.10
+  audio_presence: 0.10
+
+# Optimal duration range (seconds)
+optimal_duration:
+  min: 3.0
+  max: 15.0
+  target: 8.0
+
+# Object detection relevance keywords
+relevant_objects:
+  high_priority:
+    - person
+    - face
+    - hand
+    - product
+    - logo
+    - phone
+    - computer
+    - car
+  medium_priority:
+    - food
+    - animal
+    - building
+    - text
+    - sign
+    - clock
+    - sports
+  low_priority:
+    - background
+    - sky
+    - floor
+    - wall
+
+# OCR token relevance patterns
+ocr_patterns:
+  high_value:
+    - "\\d+%"  # Percentages
+    - "\\$\\d+"  # Prices
+    - "free"
+    - "save"
+    - "new"
+    - "limited"
+    - "exclusive"
+    - "now"
+    - "today"
+  medium_value:
+    - "sale"
+    - "offer"
+    - "deal"
+    - "discount"
+    - "bonus"
+  low_value:
+    - "the"
+    - "and"
+    - "or"
+    - "in"
+    - "on"
+
+# Novelty and clustering
+clustering:
+  enabled: true
+  similarity_threshold: 0.85
+  min_cluster_size: 2
+  method: "cosine"
+
+# Motion score thresholds
+motion_thresholds:
+  static: 0.0
+  low: 0.1
+  medium: 0.3
+  high: 0.5
+  very_high: 0.7

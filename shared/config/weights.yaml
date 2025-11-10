@@ -1,0 +1,33 @@
+version: "1.0"
+last_updated: "2025-01-01T00:00:00Z"
+
+# Master weights for prediction model
+prediction_weights:
+  psychology_score: 0.30
+  technical_score: 0.25
+  hook_strength: 0.25
+  demographic_match: 0.20
+
+# CTR band thresholds (predicted probability)
+ctr_bands:
+  low:
+    min: 0.0
+    max: 0.02
+  mid:
+    min: 0.02
+    max: 0.05
+  high:
+    min: 0.05
+    max: 1.0
+
+# Confidence calculation
+confidence:
+  min_samples_for_high: 100
+  min_samples_for_medium: 20
+  decay_factor: 0.95
+
+# Learning rate for weight updates
+learning:
+  max_delta_per_update: 0.05
+  min_confidence_for_update: 0.6
+  smoothing_factor: 0.8

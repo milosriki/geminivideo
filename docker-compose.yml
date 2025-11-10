@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  drive-intel:
+    build:
+      context: ./services/drive-intel
+      dockerfile: Dockerfile
+    container_name: drive-intel
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data/cache:/app/data/cache
+      - ./shared:/app/shared:ro
+      - ./logs:/app/logs
+    environment:
+      - USE_GOOGLE_DRIVE=${USE_GOOGLE_DRIVE:-false}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
+      - DRIVE_FOLDER_ID=${DRIVE_FOLDER_ID}
+      - MAX_DRIVE_VIDEOS=${MAX_DRIVE_VIDEOS:-500}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  video-agent:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: video-agent
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./data/cache:/app/data/cache:ro
+      - ./data/outputs:/app/data/outputs
+      - ./shared:/app/shared:ro
+    environment:
+      - ENABLE_GPU=${ENABLE_GPU:-false}
+      - FFMPEG_THREADS=${FFMPEG_THREADS:-4}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  gateway-api:
+    build:
+      context: ./services/gateway-api
+      dockerfile: Dockerfile
+    container_name: gateway-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./logs:/app/logs
+    environment:
+      - DRIVE_INTEL_URL=http://drive-intel:8001
+      - VIDEO_AGENT_URL=http://video-agent:8002
+      - META_PUBLISHER_URL=http://meta-publisher:8003
+      - ENABLE_LLM_FALLBACK=${ENABLE_LLM_FALLBACK:-false}
+      - NODE_ENV=${NODE_ENV:-production}
+    depends_on:
+      - drive-intel
+      - video-agent
+      - meta-publisher
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  meta-publisher:
+    build:
+      context: ./services/meta-publisher
+      dockerfile: Dockerfile
+    container_name: meta-publisher
+    ports:
+      - "8003:8003"
+    environment:
+      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN}
+      - META_APP_ID=${META_APP_ID}
+      - META_APP_SECRET=${META_APP_SECRET}
+      - META_AD_ACCOUNT_ID=${META_AD_ACCOUNT_ID}
+      - META_DRY_RUN=${META_DRY_RUN:-true}
+      - NODE_ENV=${NODE_ENV:-production}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_GATEWAY_API_URL=http://localhost:8080
+    depends_on:
+      - gateway-api
+    restart: unless-stopped
+
+volumes:
+  cache_data:
+  output_data:
