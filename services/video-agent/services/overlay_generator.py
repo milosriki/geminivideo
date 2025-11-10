@@ -69,7 +69,8 @@ class OverlayGenerator:
             })
         
         # Store overlay data (in real implementation, would render to video)
-        overlay_file = tempfile.mktemp(suffix=".json")
+        overlay_fd, overlay_file = tempfile.mkstemp(suffix=".json")
+        os.close(overlay_fd)
         with open(overlay_file, 'w') as f:
             json.dump(overlays, f)
         

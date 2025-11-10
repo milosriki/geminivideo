@@ -27,10 +27,13 @@ class VideoRenderer:
         Returns:
             Path to concatenated video
         """
-        output_path = tempfile.mktemp(suffix=".mp4")
+        # Use secure temporary file creation
+        output_fd, output_path = tempfile.mkstemp(suffix=".mp4")
+        os.close(output_fd)
         
         # Create concat file
-        concat_file = tempfile.mktemp(suffix=".txt")
+        concat_fd, concat_file = tempfile.mkstemp(suffix=".txt")
+        os.close(concat_fd)
         with open(concat_file, 'w') as f:
             for scene in scenes:
                 f.write(f"file '{scene.video_path}'\n")
