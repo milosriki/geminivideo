@@ -1,0 +1,27 @@
+{
+  "hookTemplates": {
+    "urgency": [
+      "Don't miss out on {{benefit}}",
+      "Limited time: {{offer}}",
+      "Only {{timeframe}} left to {{action}}"
+    ],
+    "curiosity": [
+      "What if you could {{benefit}}?",
+      "The secret to {{goal}} revealed",
+      "{{number}} ways to {{achievement}}"
+    ],
+    "social_proof": [
+      "Join {{number}}+ who achieved {{result}}",
+      "{{testimonial_person}} got {{result}}",
+      "Trusted by {{number}} {{audience}}"
+    ],
+    "transformation": [
+      "From {{before}} to {{after}}",
+      "Transform your {{aspect}} in {{timeframe}}",
+      "{{result}} without {{pain_point}}"
+    ]
+  },
+  "noveltyThreshold": 0.75,
+  "embeddingModel": "text-embedding-004",
+  "maxHooksPerConcept": 5
+}

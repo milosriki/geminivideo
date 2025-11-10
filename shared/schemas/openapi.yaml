@@ -1,0 +1,322 @@
+openapi: 3.0.0
+info:
+  title: AI Ad Intelligence & Creation Suite API
+  version: 1.0.0
+  description: API for video ad intelligence, creation, and publishing
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://gateway-api-{project}.run.app
+    description: Cloud Run production
+
+paths:
+  /ingest/drive/sync:
+    post:
+      summary: Sync videos from Google Drive or local folder
+      tags:
+        - Ingest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source:
+                  type: string
+                  enum: [drive, local]
+                folderId:
+                  type: string
+      responses:
+        '200':
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assetsIngested:
+                    type: integer
+                  message:
+                    type: string
+
+  /assets:
+    get:
+      summary: List all ingested assets
+      tags:
+        - Assets
+      responses:
+        '200':
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asset'
+
+  /assets/{id}/clips:
+    get:
+      summary: Get clips for a specific asset
+      tags:
+        - Assets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of clips
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Clip'
+
+  /render/remix:
+    post:
+      summary: Create a new video remix from storyboard
+      tags:
+        - Render
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemixRequest'
+      responses:
+        '202':
+          description: Remix job created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  status:
+                    type: string
+
+  /render/jobs/{id}:
+    get:
+      summary: Get status of a render job
+      tags:
+        - Render
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderJob'
+
+  /publish/meta:
+    post:
+      summary: Publish video to Meta platforms
+      tags:
+        - Publishing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                videoUrl:
+                  type: string
+                caption:
+                  type: string
+                platform:
+                  type: string
+                  enum: [feed, story, reel]
+      responses:
+        '200':
+          description: Publishing initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  creativeId:
+                    type: string
+                  status:
+                    type: string
+
+  /performance/metrics:
+    get:
+      summary: Get performance metrics for published ads
+      tags:
+        - Analytics
+      parameters:
+        - name: creativeId
+          in: query
+          schema:
+            type: string
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+      responses:
+        '200':
+          description: Performance metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Metrics'
+
+  /internal/learning/update:
+    post:
+      summary: Update weights based on performance data
+      tags:
+        - Internal
+      responses:
+        '200':
+          description: Weights updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  weightsUpdated:
+                    type: object
+
+components:
+  schemas:
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        duration:
+          type: number
+        resolution:
+          type: string
+        aspectRatio:
+          type: string
+        fileSize:
+          type: integer
+        path:
+          type: string
+        thumbnail:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    Clip:
+      type: object
+      properties:
+        id:
+          type: string
+        assetId:
+          type: string
+        startTime:
+          type: number
+        endTime:
+          type: number
+        duration:
+          type: number
+        tags:
+          type: array
+          items:
+            type: string
+        sceneType:
+          type: string
+        objects:
+          type: array
+          items:
+            type: string
+        transcript:
+          type: string
+
+    RemixRequest:
+      type: object
+      required:
+        - storyboard
+        - assetMap
+      properties:
+        storyboard:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoryboardClip'
+        assetMap:
+          type: object
+        outputFormat:
+          type: string
+        overlays:
+          type: object
+
+    StoryboardClip:
+      type: object
+      required:
+        - clipId
+        - duration
+      properties:
+        clipId:
+          type: string
+        duration:
+          type: number
+        transition:
+          type: string
+        effects:
+          type: array
+          items:
+            type: string
+
+    RenderJob:
+      type: object
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        progress:
+          type: number
+        outputUrl:
+          type: string
+        error:
+          type: string
+        createdAt:
+          type: string
+        completedAt:
+          type: string
+
+    Metrics:
+      type: object
+      properties:
+        creativeId:
+          type: string
+        impressions:
+          type: integer
+        clicks:
+          type: integer
+        conversions:
+          type: integer
+        ctr:
+          type: number
+        cvr:
+          type: number
+        cpc:
+          type: number
+        cpa:
+          type: number
+        spend:
+          type: number
+        date:
+          type: string
