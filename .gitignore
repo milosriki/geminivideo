@@ -4,6 +4,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Python virtual environments
+venv/
+env/
+ENV/
+.venv
+
 # Build outputs
 dist/
 build/
@@ -37,6 +43,7 @@ data/input/*
 services/video-agent/outputs/
 services/*/dist/
 services/*/node_modules/
+services/*/venv/
 
 # Frontend
 frontend/dist/
