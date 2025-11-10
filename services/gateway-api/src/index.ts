@@ -139,9 +139,19 @@ app.get('/performance/metrics', async (req, res) => {
   }
 });
 
-// POST /internal/learning/update
+// POST /internal/learning/update - Rate limited endpoint
+let learningUpdateLastCall = 0;
+const LEARNING_UPDATE_RATE_LIMIT_MS = 60000; // 1 minute
+
 app.post('/internal/learning/update', async (req, res) => {
   try {
+    // Rate limiting
+    const now = Date.now();
+    if (now - learningUpdateLastCall < LEARNING_UPDATE_RATE_LIMIT_MS) {
+      return res.status(429).json({ error: 'Rate limit exceeded. Try again later.' });
+    }
+    learningUpdateLastCall = now;
+    
     // Read current weights
     let weights: Weights;
     try {
@@ -190,7 +200,7 @@ app.post('/internal/learning/update', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Learning update error:', error.message);
-    res.status(500).json({ error: 'Failed to update learning weights', details: error.message });
+    res.status(500).json({ error: 'Failed to update learning weights' });
   }
 });
 
