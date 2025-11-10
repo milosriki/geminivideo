@@ -1,1 +1,213 @@
-# geminivideo
+# Gemini Video - AI Ad Intelligence & Creation Suite
+
+Production-quality AI-powered video analysis and ad creation platform for fitness/personal training vertical.
+
+## 🚀 Features
+
+- **Scene Enrichment & Feature Extraction** - Automated shot detection, object recognition, OCR, motion analysis
+- **Predictive Scoring Engine** - Psychology-based content analysis with CTR prediction
+- **Multi-Format Rendering** - Automated video remix with overlays, subtitles, and compliance checks
+- **Meta Integration** - Direct publishing to Instagram/Facebook with insights ingestion
+- **Analytics Dashboards** - Comprehensive analysis, diversification tracking, and reliability monitoring
+- **Self-Learning Loop** - Automated weight calibration based on actual performance data
+
+## 📋 Quick Start
+
+### Prerequisites
+
+- Docker & Docker Compose
+- (Optional) Google Drive API credentials for Drive ingestion
+- (Optional) Meta API access token for publishing
+
+### Local Development
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/milosriki/geminivideo.git
+cd geminivideo
+```
+
+2. **Set environment variables** (optional)
+```bash
+# Create .env file
+cat > .env << EOF
+META_ACCESS_TOKEN=your_meta_token_here
+CONFIG_PATH=/app/config
+EOF
+```
+
+3. **Start all services**
+```bash
+docker-compose up --build
+```
+
+Services will be available at:
+- Frontend: http://localhost:3000
+- Gateway API: http://localhost:8000
+- Drive Intel: http://localhost:8001
+- Video Agent: http://localhost:8002
+- Meta Publisher: http://localhost:8003
+
+### Basic Workflow
+
+1. **Ingest Videos**
+   - Go to "Assets & Ingest" tab
+   - Enter path to video folder (must be accessible to container)
+   - Click "Ingest Folder"
+
+2. **View Ranked Clips**
+   - Go to "Ranked Clips" tab
+   - Select an asset
+   - View clips ranked by composite score
+
+3. **Semantic Search**
+   - Go to "Semantic Search" tab
+   - Enter natural language query
+   - Get semantically similar clips
+
+4. **Score Content**
+   - Go to "Analysis" tab
+   - View comprehensive scoring breakdown
+   - See predicted CTR band and confidence
+
+5. **Render Video**
+   - Go to "Render Job" tab
+   - Create render job (sample provided)
+   - Monitor job progress and compliance
+
+6. **Track Metrics**
+   - "Diversification" tab - Content variety metrics
+   - "Reliability" tab - Prediction accuracy tracking
+
+## 🏗️ Architecture
+
+### Services
+
+- **drive-intel** (Python/FastAPI) - Scene detection, feature extraction, semantic search
+- **video-agent** (Python/FastAPI) - Video rendering, overlays, compliance checks
+- **gateway-api** (Node/Express) - Unified API, scoring engine, reliability logging
+- **meta-publisher** (Node/Express) - Meta Marketing API integration
+- **frontend** (React/Vite) - Analytics dashboards and controls
+
+### Configuration
+
+All services use shared configuration in `shared/config/`:
+- `scene_ranking.yaml` - Scene ranking weights and thresholds
+- `hook_templates.json` - Text overlay templates
+- `weights.yaml` - Scoring weights (auto-updated by learning loop)
+- `triggers_config.json` - Psychology driver keywords
+- `personas.json` - Target audience definitions
+
+See `shared/config/README.md` for details.
+
+## 🧪 Testing
+
+### Run Services Individually
+
+```bash
+# Drive Intel
+cd services/drive-intel
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8001
+
+# Gateway API
+cd services/gateway-api
+npm install
+npm run dev
+
+# Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+### API Examples
+
+```bash
+# Ingest local folder
+curl -X POST http://localhost:8000/api/ingest/local/folder \
+  -H "Content-Type: application/json" \
+  -d '{"folder_path": "/path/to/videos"}'
+
+# Get ranked clips
+curl http://localhost:8000/api/assets/{asset_id}/clips?ranked=true&top=10
+
+# Search clips
+curl -X POST http://localhost:8000/api/search/clips \
+  -H "Content-Type: application/json" \
+  -d '{"query": "person doing squats", "top_k": 5}'
+
+# Score storyboard
+curl -X POST http://localhost:8000/api/score/storyboard \
+  -H "Content-Type: application/json" \
+  -d '{"scenes": [...], "metadata": {}}'
+
+# Create render job
+curl -X POST http://localhost:8000/api/render/remix \
+  -H "Content-Type: application/json" \
+  -d '{"scenes": [...], "variant": "reels"}'
+```
+
+## 📊 Scoring System
+
+### Psychology Score (30%)
+- Pain point keywords
+- Transformation language
+- Urgency triggers
+- Authority signals
+- Social proof
+
+### Hook Strength (25%)
+- Numbers in first 3s
+- Questions
+- Motion spikes
+- Text length compliance
+
+### Technical Score (20%)
+- Resolution quality
+- Audio quality
+- Lighting
+- Stabilization
+
+### Demographic Match (15%)
+- Persona keyword alignment
+- Age range fit
+- Fitness level match
+
+### Novelty Score (10%)
+- Semantic uniqueness
+- Visual diversity
+
+## 🔄 Learning Loop
+
+The system automatically improves over time:
+
+1. **Prediction Logging** - All scores logged to `logs/predictions.jsonl`
+2. **Insights Ingestion** - Meta performance data linked to predictions
+3. **Calibration** - System tracks in-band vs out-of-band predictions
+4. **Weight Updates** - Automated adjustment when sufficient data available
+
+Trigger learning update:
+```bash
+curl -X POST http://localhost:8000/api/internal/learning/update
+```
+
+## 🚢 Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment guide including:
+- GCP setup (Cloud Run, Artifact Registry, Secret Manager)
+- GitHub Actions CI/CD pipeline
+- Environment configuration
+- Monitoring and logging
+
+## 📝 License
+
+MIT License - see LICENSE file for details.
+
+## 🤝 Contributing
+
+Issues and pull requests welcome! See the [GitHub Issues](https://github.com/milosriki/geminivideo/issues) for epic #2 and sub-issues #12-#18.
+
+## 📧 Support
+
+For questions or issues, please open a GitHub issue or contact the maintainers.

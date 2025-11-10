@@ -74,19 +74,19 @@ services:
     networks:
       - geminivideo-net
 
-  # Frontend (to be added in next phase)
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - VITE_API_URL=http://localhost:8000
-  #   depends_on:
-  #     - gateway-api
-  #   networks:
-  #     - geminivideo-net
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=http://gateway-api:8000
+    depends_on:
+      - gateway-api
+    networks:
+      - geminivideo-net
 
 networks:
   geminivideo-net:
