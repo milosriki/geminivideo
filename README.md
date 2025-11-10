@@ -19,11 +19,11 @@ The AI Ad Intelligence & Creation Suite combines video intelligence, psychologic
 
 ### Prerequisites
 
-- Docker and Docker Compose v2
-- Node.js 20+ (for frontend development)
-- Python 3.11+ (optional, for service development)
+- Node.js 20+ (for frontend and backend services)
+- Python 3.11+ (for Python services)
+- Docker and Docker Compose v2 (optional, for containerized deployment)
 
-### Running with Docker Compose
+### Option 1: Local Development (Recommended for Development)
 
 1. Clone the repository:
 ```bash
@@ -31,25 +31,77 @@ git clone https://github.com/milosriki/geminivideo.git
 cd geminivideo
 ```
 
-2. Start all services:
+2. Run the setup script:
 ```bash
-docker compose up --build
+./dev-start.sh
 ```
 
-This will start:
-- Gateway API at `http://localhost:8080`
-- Video Agent at `http://localhost:8001`
-- Drive Intel at `http://localhost:8002`
-- Meta Publisher at `http://localhost:8003`
+This will:
+- Install dependencies for all services
+- Build TypeScript code
+- Set up Python virtual environments
+- Display commands to start each service
 
-3. Run the frontend separately:
+3. Start services in separate terminals:
+
+**Terminal 1 - Gateway API:**
+```bash
+cd services/gateway-api
+VIDEO_AGENT_URL=http://localhost:8001 \
+DRIVE_INTEL_URL=http://localhost:8002 \
+META_PUBLISHER_URL=http://localhost:8003 \
+WEIGHTS_PATH=../../shared/config/weights.yaml \
+PORT=8080 node dist/index.js
+```
+
+**Terminal 2 - Video Agent:**
+```bash
+cd services/video-agent
+source venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8001
+```
+
+**Terminal 3 - Drive Intel:**
+```bash
+cd services/drive-intel
+source venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8002
+```
+
+**Terminal 4 - Meta Publisher:**
+```bash
+cd services/meta-publisher
+PORT=8003 node dist/index.js
+```
+
+**Terminal 5 - Frontend (optional):**
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Frontend will be available at `http://localhost:5173`
+4. Test the APIs:
+```bash
+./test-api.sh
+```
+
+Services will be available at:
+- Gateway API: `http://localhost:8080`
+- Video Agent: `http://localhost:8001`
+- Drive Intel: `http://localhost:8002`
+- Meta Publisher: `http://localhost:8003`
+- Frontend: `http://localhost:5173`
+
+### Option 2: Docker Compose (For Containerized Testing)
+
+Note: Docker builds may require adjustments for your environment.
+
+```bash
+docker compose up --build
+```
+
+This will start all services in containers with the same port mappings as above.
 
 ### Testing the System
 
