@@ -1,0 +1,91 @@
+{
+  "version": "1.0",
+  "personas": [
+    {
+      "id": "young_professional",
+      "name": "Young Professional",
+      "age_range": [25, 35],
+      "interests": ["career", "productivity", "technology", "fitness", "travel", "networking"],
+      "keywords": ["career", "growth", "professional", "success", "goals", "efficiency", "work-life balance"],
+      "pain_points": ["time management", "stress", "competition", "burnout"],
+      "preferred_content": ["how-to", "tips", "productivity hacks", "success stories"],
+      "weight": 1.0
+    },
+    {
+      "id": "parent",
+      "name": "Busy Parent",
+      "age_range": [30, 50],
+      "interests": ["parenting", "family", "education", "health", "home", "budget"],
+      "keywords": ["kids", "family", "parent", "children", "school", "safe", "healthy", "affordable"],
+      "pain_points": ["time constraints", "budget", "child safety", "balance"],
+      "preferred_content": ["solutions", "reviews", "testimonials", "value"],
+      "weight": 1.0
+    },
+    {
+      "id": "gen_z",
+      "name": "Gen Z Consumer",
+      "age_range": [18, 24],
+      "interests": ["social media", "gaming", "music", "fashion", "activism", "memes"],
+      "keywords": ["trending", "viral", "aesthetic", "vibe", "authentic", "sustainable", "inclusive"],
+      "pain_points": ["authenticity", "social acceptance", "future uncertainty"],
+      "preferred_content": ["short-form", "authentic", "entertaining", "relatable"],
+      "weight": 0.95
+    },
+    {
+      "id": "entrepreneur",
+      "name": "Entrepreneur",
+      "age_range": [25, 45],
+      "interests": ["business", "investing", "innovation", "leadership", "growth", "networking"],
+      "keywords": ["business", "startup", "scale", "revenue", "ROI", "growth", "investment", "strategy"],
+      "pain_points": ["scaling", "funding", "competition", "resources"],
+      "preferred_content": ["case studies", "data", "strategies", "expert insights"],
+      "weight": 0.9
+    },
+    {
+      "id": "health_enthusiast",
+      "name": "Health & Wellness Enthusiast",
+      "age_range": [25, 55],
+      "interests": ["fitness", "nutrition", "wellness", "yoga", "mental health", "organic"],
+      "keywords": ["healthy", "natural", "organic", "wellness", "fitness", "nutrition", "mindfulness"],
+      "pain_points": ["health concerns", "energy", "stress", "aging"],
+      "preferred_content": ["transformations", "science-backed", "testimonials", "education"],
+      "weight": 0.85
+    },
+    {
+      "id": "bargain_hunter",
+      "name": "Bargain Hunter",
+      "age_range": [25, 65],
+      "interests": ["deals", "savings", "shopping", "value", "comparison"],
+      "keywords": ["deal", "discount", "save", "cheap", "affordable", "value", "free", "sale"],
+      "pain_points": ["budget", "value for money", "hidden costs"],
+      "preferred_content": ["deals", "comparisons", "savings", "limited offers"],
+      "weight": 0.8
+    },
+    {
+      "id": "tech_enthusiast",
+      "name": "Tech Enthusiast",
+      "age_range": [20, 40],
+      "interests": ["technology", "gadgets", "AI", "software", "gaming", "innovation"],
+      "keywords": ["tech", "AI", "smart", "innovative", "app", "device", "digital", "automation"],
+      "pain_points": ["complexity", "compatibility", "obsolescence"],
+      "preferred_content": ["specs", "demos", "reviews", "comparisons"],
+      "weight": 0.9
+    },
+    {
+      "id": "luxury_seeker",
+      "name": "Luxury Seeker",
+      "age_range": [35, 60],
+      "interests": ["luxury", "premium", "exclusivity", "quality", "status"],
+      "keywords": ["luxury", "premium", "exclusive", "high-end", "designer", "elite", "prestige"],
+      "pain_points": ["authenticity", "quality", "status"],
+      "preferred_content": ["exclusivity", "craftsmanship", "prestige", "limited editions"],
+      "weight": 0.75
+    }
+  ],
+  "matching_algorithm": {
+    "keyword_weight": 0.6,
+    "interest_weight": 0.4,
+    "min_match_score": 0.3,
+    "top_k": 3
+  }
+}

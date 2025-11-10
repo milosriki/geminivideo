@@ -1,0 +1,149 @@
+{
+  "version": "1.0",
+  "templates": {
+    "hook_phase": {
+      "duration_range": [0, 3],
+      "triggers": ["question", "number", "curiosity_gap", "pattern_interrupt"],
+      "text_overlays": [
+        {
+          "template": "Did you know {{fact}}?",
+          "position": "top_third",
+          "style": "bold_large"
+        },
+        {
+          "template": "{{number}} reasons why {{topic}}",
+          "position": "center",
+          "style": "impact"
+        },
+        {
+          "template": "Stop! {{warning}}",
+          "position": "center",
+          "style": "urgent"
+        },
+        {
+          "template": "What if {{scenario}}?",
+          "position": "bottom_third",
+          "style": "question"
+        }
+      ],
+      "constraints": {
+        "max_chars": 38,
+        "min_contrast_ratio": 4.5,
+        "safe_zones": {
+          "top": 60,
+          "bottom": 60,
+          "left": 40,
+          "right": 40
+        }
+      }
+    },
+    "authority_proof_phase": {
+      "duration_range": [3, 8],
+      "triggers": ["social_proof", "authority", "data", "testimonial"],
+      "text_overlays": [
+        {
+          "template": "{{stat}} customers trust us",
+          "position": "lower_third",
+          "style": "stat"
+        },
+        {
+          "template": "As seen on {{media}}",
+          "position": "top_banner",
+          "style": "badge"
+        },
+        {
+          "template": "Rated {{rating}}/5 stars",
+          "position": "corner",
+          "style": "rating"
+        }
+      ],
+      "constraints": {
+        "max_chars": 50,
+        "min_contrast_ratio": 4.5
+      }
+    },
+    "cta_phase": {
+      "duration_range": [8, 15],
+      "triggers": ["urgency", "scarcity", "action"],
+      "text_overlays": [
+        {
+          "template": "Shop Now",
+          "position": "center_bottom",
+          "style": "button"
+        },
+        {
+          "template": "Limited Time: {{offer}}",
+          "position": "banner",
+          "style": "urgent_banner"
+        },
+        {
+          "template": "Get {{discount}} Off Today",
+          "position": "lower_third",
+          "style": "offer"
+        },
+        {
+          "template": "Swipe Up to Learn More",
+          "position": "bottom",
+          "style": "instruction"
+        }
+      ],
+      "constraints": {
+        "max_chars": 30,
+        "min_contrast_ratio": 4.5,
+        "required_elements": ["action_verb", "value_prop"]
+      }
+    }
+  },
+  "styles": {
+    "bold_large": {
+      "font_size": 72,
+      "font_weight": "bold",
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 3
+    },
+    "impact": {
+      "font_size": 84,
+      "font_weight": "black",
+      "color": "#FFFF00",
+      "outline_color": "#000000",
+      "outline_width": 4
+    },
+    "urgent": {
+      "font_size": 68,
+      "font_weight": "bold",
+      "color": "#FF0000",
+      "background_color": "#FFFFFF",
+      "padding": 10
+    },
+    "question": {
+      "font_size": 60,
+      "font_weight": "medium",
+      "color": "#FFFFFF",
+      "outline_color": "#333333",
+      "outline_width": 2
+    },
+    "stat": {
+      "font_size": 56,
+      "font_weight": "bold",
+      "color": "#00FF00",
+      "outline_color": "#000000",
+      "outline_width": 2
+    },
+    "button": {
+      "font_size": 64,
+      "font_weight": "bold",
+      "color": "#FFFFFF",
+      "background_color": "#007AFF",
+      "border_radius": 12,
+      "padding": 20
+    },
+    "urgent_banner": {
+      "font_size": 52,
+      "font_weight": "bold",
+      "color": "#FFFFFF",
+      "background_color": "#FF3B30",
+      "padding": 15
+    }
+  }
+}
