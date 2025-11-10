@@ -36,6 +36,15 @@ class IngestService:
         Returns:
             Dict with ingestion results
         """
+        # Validate and sanitize folder path
+        folder_path = os.path.abspath(folder_path)
+        
+        # Security: Ensure path is within allowed directories
+        # In production, configure ALLOWED_PATHS environment variable
+        allowed_paths = os.getenv('ALLOWED_INGEST_PATHS', '/data/inputs').split(':')
+        if not any(folder_path.startswith(os.path.abspath(allowed)) for allowed in allowed_paths):
+            raise ValueError(f"Folder path not in allowed directories: {folder_path}")
+        
         if not os.path.exists(folder_path):
             raise ValueError(f"Folder not found: {folder_path}")
         

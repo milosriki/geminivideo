@@ -19,6 +19,18 @@ const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN || '';
 const META_API_VERSION = process.env.META_API_VERSION || 'v18.0';
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
+// Helper function to validate Meta API URLs
+function validateMetaApiUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    // Only allow official Facebook Graph API domains
+    return parsed.hostname === 'graph.facebook.com' && 
+           parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
   res.json({
@@ -53,6 +65,11 @@ app.post('/publish/meta', async (req: Request, res: Response) => {
         },
         input: req.body
       });
+    }
+
+    // Validate API base URL
+    if (!validateMetaApiUrl(META_API_BASE)) {
+      throw new Error('Invalid Meta API base URL');
     }
 
     // Step 1: Create Ad Creative
@@ -143,6 +160,11 @@ app.get('/insights', async (req: Request, res: Response) => {
           }
         }
       });
+    }
+
+    // Validate API base URL
+    if (!validateMetaApiUrl(META_API_BASE)) {
+      throw new Error('Invalid Meta API base URL');
     }
 
     const response = await axios.get(

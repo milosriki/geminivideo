@@ -51,9 +51,28 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
+// Helper function to validate service URLs
+function validateServiceUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    // Only allow HTTP/HTTPS and specific internal service patterns
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+           (parsed.hostname === 'localhost' || 
+            parsed.hostname.includes('drive-intel') ||
+            parsed.hostname.includes('video-agent') ||
+            parsed.hostname.includes('meta-publisher') ||
+            parsed.hostname.includes('.run.app')); // Cloud Run domains
+  } catch {
+    return false;
+  }
+}
+
 // Proxy to drive-intel service
 app.get('/api/assets', async (req: Request, res: Response) => {
   try {
+    if (!validateServiceUrl(DRIVE_INTEL_URL)) {
+      throw new Error('Invalid service URL');
+    }
     const response = await axios.get(`${DRIVE_INTEL_URL}/assets`, {
       params: req.query
     });
@@ -136,6 +155,9 @@ app.post('/api/score/storyboard', async (req: Request, res: Response) => {
 // Proxy to video-agent service
 app.post('/api/render/remix', async (req: Request, res: Response) => {
   try {
+    if (!validateServiceUrl(VIDEO_AGENT_URL)) {
+      throw new Error('Invalid service URL');
+    }
     const response = await axios.post(
       `${VIDEO_AGENT_URL}/render/remix`,
       req.body

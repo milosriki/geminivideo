@@ -25,7 +25,8 @@ class SubtitleGenerator:
         Returns:
             Path to SRT subtitle file
         """
-        subtitle_file = tempfile.mktemp(suffix=".srt")
+        subtitle_fd, subtitle_file = tempfile.mkstemp(suffix=".srt")
+        os.close(subtitle_fd)
         
         # Extract subtitle entries from driver signals or scene features
         entries = []
