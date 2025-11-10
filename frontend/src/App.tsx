@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api, Asset, Clip, RenderJob } from './services/api';
+import { api, type Asset, type Clip, type RenderJob } from './services/api';
 import './App.css';
 
 function App() {
