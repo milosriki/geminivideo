@@ -77,9 +77,16 @@ export class MetaService {
       };
     }
 
+    // Validate videoPath to prevent path traversal
+    const path = require('path');
+    const normalizedPath = path.normalize(videoPath);
+    if (normalizedPath.includes('..') || !normalizedPath.startsWith('/app/data/outputs')) {
+      throw new Error('Invalid video path');
+    }
+
     try {
       const formData = new FormData();
-      formData.append('source', fs.createReadStream(videoPath));
+      formData.append('source', fs.createReadStream(normalizedPath));
       formData.append('access_token', config.metaAccessToken);
 
       const response = await axios.post(
@@ -104,6 +111,17 @@ export class MetaService {
 
   private async uploadVideoFromUrl(videoUrl: string, pageId: string): Promise<string> {
     try {
+      // Validate pageId to prevent URL injection
+      if (!/^[0-9]+$/.test(pageId)) {
+        throw new Error('Invalid page ID format');
+      }
+
+      // Validate video URL scheme
+      const url = new URL(videoUrl);
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        throw new Error('Invalid video URL protocol');
+      }
+
       const response = await axios.post(
         `${this.baseUrl}/${pageId}/videos`,
         {
@@ -182,6 +200,11 @@ export class MetaService {
         }],
         dryRun: true
       };
+    }
+
+    // Validate adId to prevent URL injection
+    if (!/^[0-9]+$/.test(adId)) {
+      throw new Error('Invalid ad ID format');
     }
 
     try {

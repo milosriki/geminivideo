@@ -25,6 +25,11 @@ assetsRouter.get('/:id/clips', async (req: Request, res: Response) => {
     const { id } = req.params;
     const { ranked, top } = req.query;
     
+    // Validate ID to prevent URL injection
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return res.status(400).json({ error: 'Invalid asset ID format' });
+    }
+    
     const response = await axios.get(
       `${config.driveIntelUrl}/assets/${id}/clips`,
       { params: { ranked, top } }

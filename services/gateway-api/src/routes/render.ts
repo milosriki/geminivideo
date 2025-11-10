@@ -26,6 +26,12 @@ renderRouter.post('/remix', async (req: Request, res: Response) => {
 renderRouter.get('/jobs/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    
+    // Validate ID to prevent URL injection
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return res.status(400).json({ error: 'Invalid job ID format' });
+    }
+    
     const response = await axios.get(
       `${config.videoAgentUrl}/render/jobs/${id}`
     );
