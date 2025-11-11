@@ -18,7 +18,11 @@ class TestDriveIntelIntegration:
     @pytest.fixture
     def client(self):
         """Create FastAPI test client"""
-        from services.drive_intel.src.main import app
+        # Import using sys.path manipulation to handle service names with hyphens
+        drive_intel_path = Path(__file__).parent.parent / "services" / "drive-intel"
+        if str(drive_intel_path) not in sys.path:
+            sys.path.insert(0, str(drive_intel_path))
+        from src.main import app
         return TestClient(app)
     
     def test_health_check(self, client):
@@ -82,7 +86,15 @@ class TestVideoAgentIntegration:
     @pytest.fixture
     def client(self):
         """Create FastAPI test client"""
-        from services.video_agent.src.index import app
+        import importlib.util
+        # Import using importlib to handle service names with hyphens
+        video_agent_spec = importlib.util.spec_from_file_location(
+            "video_agent_index",
+            Path(__file__).parent.parent / "services" / "video-agent" / "src" / "index.py"
+        )
+        video_agent_module = importlib.util.module_from_spec(video_agent_spec)
+        video_agent_spec.loader.exec_module(video_agent_module)
+        app = video_agent_module.app
         return TestClient(app)
     
     def test_health_check(self, client):
@@ -175,9 +187,26 @@ class TestEndToEndFlow:
     
     def test_ingest_rank_render_flow(self):
         """Test complete flow: ingest -> rank -> render"""
-        from services.drive_intel.src.main import app as drive_app
-        from services.video_agent.src.index import app as video_app
         import time
+        import importlib.util
+        
+        # Import drive-intel app using importlib
+        drive_intel_spec = importlib.util.spec_from_file_location(
+            "drive_main",
+            Path(__file__).parent.parent / "services" / "drive-intel" / "src" / "main.py"
+        )
+        drive_intel_module = importlib.util.module_from_spec(drive_intel_spec)
+        drive_intel_spec.loader.exec_module(drive_intel_module)
+        drive_app = drive_intel_module.app
+        
+        # Import video-agent app using importlib
+        video_agent_spec = importlib.util.spec_from_file_location(
+            "video_index",
+            Path(__file__).parent.parent / "services" / "video-agent" / "src" / "index.py"
+        )
+        video_agent_module = importlib.util.module_from_spec(video_agent_spec)
+        video_agent_spec.loader.exec_module(video_agent_module)
+        video_app = video_agent_module.app
         
         drive_client = TestClient(drive_app)
         video_client = TestClient(video_app)
