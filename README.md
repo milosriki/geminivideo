@@ -2,6 +2,16 @@
 
 Complete end-to-end platform for AI-powered video ad creation, optimization, and publishing.
 
+## 🎯 Phase 1: Core Foundation (IMPLEMENTED)
+
+✅ **Real Scene Detection** - PySceneDetect for accurate scene boundaries  
+✅ **Emotion Recognition** - DeepFace with 7-emotion classification  
+✅ **PostgreSQL Persistence** - Real database with SQLAlchemy  
+✅ **FFmpeg Rendering** - Actual video processing and concatenation  
+✅ **Frontend Integration** - Live emotion display and scoring  
+
+[**→ See detailed SETUP.md for Phase 1 installation guide**](SETUP.md)
+
 ## 🚀 Quickstart
 
 ### Local Development
@@ -55,8 +65,11 @@ Complete end-to-end platform for AI-powered video ad creation, optimization, and
 ### Docker Compose (Recommended)
 
 ```bash
-# Build and start all services
+# Build and start all services (includes PostgreSQL)
 docker-compose up --build
+
+# Initialize database (first time only)
+docker-compose exec drive-intel python /app/shared/db.py
 
 # Access services
 # Frontend: http://localhost:80
@@ -64,15 +77,22 @@ docker-compose up --build
 # Drive Intel: http://localhost:8081
 # Video Agent: http://localhost:8082
 # Meta Publisher: http://localhost:8083
+# PostgreSQL: localhost:5432
 ```
+
+### Manual Setup
+
+For detailed setup instructions including PostgreSQL, see [SETUP.md](SETUP.md)
 
 ## 📋 Features
 
 ### 🎬 Video Intelligence
 - **Asset Ingestion**: Ingest from local folders or Google Drive
-- **Scene Detection**: Automatic scene boundary detection
-- **Feature Extraction**: Motion, faces, objects, text, embeddings
-- **FAISS Indexing**: Fast similarity search
+- **Real Scene Detection**: PySceneDetect with ContentDetector (threshold: 27.0)
+- **Emotion Recognition**: DeepFace with 7 emotions (happy, sad, angry, fear, surprise, neutral, disgust)
+- **Feature Extraction**: Motion energy, emotion scores, scene complexity
+- **Database Storage**: PostgreSQL with Assets, Clips, and Emotions tables
+- **FAISS Indexing**: Fast similarity search (planned)
 
 ### 🎯 AI Scoring & Ranking
 - **Psychology Scoring**: Curiosity, urgency, social proof, surprise, empathy
@@ -82,9 +102,10 @@ docker-compose up --build
 
 ### 🎨 Video Creation
 - **Storyboard Builder**: Visual clip sequencing
-- **Automated Rendering**: Background job queue with ffmpeg
-- **Transition Effects**: Fade, crossfade, and more
-- **Compliance Checking**: Content policy validation
+- **Real FFmpeg Rendering**: Clip extraction and concatenation
+- **Transition Effects**: Fade transitions with configurable duration
+- **Compliance Checking**: Content policy validation (duration, clip count)
+- **Background Processing**: Async job queue with status tracking
 
 ### 📊 Publishing & Analytics
 - **Meta Publishing**: Automated ad publishing to Facebook/Instagram
