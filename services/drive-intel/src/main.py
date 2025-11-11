@@ -55,6 +55,34 @@ app = FastAPI(title="Drive Intel Service", version="1.0.0")
 assets_db: Dict[str, Any] = {}
 clips_db: Dict[str, List[Any]] = {}
 
+# Allowed video directories for security (prevent path traversal)
+ALLOWED_VIDEO_DIRS = [
+    "/tmp/test_videos",
+    "/tmp/geminivideo",
+    "/app/videos",
+    os.path.expanduser("~/Videos"),
+]
+
+
+def validate_video_path(path: str) -> bool:
+    """
+    Validate video path to prevent path injection attacks
+    Only allows paths within ALLOWED_VIDEO_DIRS
+    """
+    try:
+        # Resolve to absolute path
+        abs_path = os.path.abspath(path)
+        
+        # Check if path is within allowed directories
+        for allowed_dir in ALLOWED_VIDEO_DIRS:
+            allowed_abs = os.path.abspath(allowed_dir)
+            if abs_path.startswith(allowed_abs):
+                return True
+        
+        return False
+    except Exception:
+        return False
+
 
 class IngestRequest(BaseModel):
     path: str
@@ -111,15 +139,23 @@ async def ingest_local_folder(request: IngestRequest):
     - Triggers scene detection and feature extraction
     """
     try:
+        # Validate path to prevent path injection
+        if not validate_video_path(request.path):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Path not allowed. Video must be in one of: {', '.join(ALLOWED_VIDEO_DIRS)}"
+            )
+        
         asset_id = str(uuid.uuid4())
         filename = request.path.split("/")[-1] or "video.mp4"
         
         # Get video metadata if file exists
+        # Note: Path has been validated above to be within ALLOWED_VIDEO_DIRS
         duration = 30.0
         resolution = "1920x1080"
         size_bytes = 10485760
         
-        if os.path.exists(request.path):
+        if os.path.exists(request.path):  # Safe: path validated above
             try:
                 cap = cv2.VideoCapture(request.path)
                 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -128,7 +164,7 @@ async def ingest_local_folder(request: IngestRequest):
                 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 duration = total_frames / fps if fps > 0 else 30.0
                 resolution = f"{width}x{height}"
-                size_bytes = os.path.getsize(request.path)
+                size_bytes = os.path.getsize(request.path)  # Safe: path validated above
                 cap.release()
             except Exception as e:
                 print(f"Error reading video metadata: {e}")
