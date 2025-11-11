@@ -2,7 +2,7 @@
 Data models for assets and clips
 """
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 
 
@@ -35,7 +35,7 @@ class Asset(BaseModel):
     filename: str
     filepath: str
     duration: float
-    resolution: tuple[int, int]
+    resolution: Tuple[int, int]
     fps: float
     file_size: int
     clips: List[Clip] = Field(default_factory=list)

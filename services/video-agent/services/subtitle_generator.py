@@ -1,6 +1,7 @@
 """
 Subtitle generation with keyword highlighting
 """
+import os
 import tempfile
 from typing import List, Dict, Any
 
@@ -41,13 +42,8 @@ class SubtitleGenerator:
             })
         
         # Additional subtitles from scene transcripts
-        current_time = 3.0
-        index = len(entries) + 1
-        
-        for scene in scenes:
-            # In a full implementation, would extract from scene features/transcript
-            # For MVP, use placeholder
-            pass
+        # In a full implementation, would extract from scene features/transcript
+        # For MVP, use placeholder - scenes are processed but not used for additional subtitles yet
         
         # Write SRT file
         with open(subtitle_file, 'w', encoding='utf-8') as f:

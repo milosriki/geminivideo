@@ -3,9 +3,9 @@ Ingestion service for processing video files
 """
 import os
 import uuid
-from typing import List, Dict, Any
+from typing import Dict, Any
 from pathlib import Path
-from models.asset import Asset, Clip, ClipFeatures
+from models.asset import Asset, Clip
 from models.persistence import PersistenceLayer
 
 

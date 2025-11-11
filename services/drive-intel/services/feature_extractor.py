@@ -5,7 +5,6 @@ Motion, objects (YOLO), text (OCR), transcript (Whisper), embeddings
 import cv2
 import numpy as np
 from typing import List, Dict, Tuple
-import os
 from models.asset import ClipFeatures
 
 
@@ -49,12 +48,7 @@ class FeatureExtractorService:
         except Exception as e:
             print(f"Warning: Could not load embedding model: {e}")
         
-        # Whisper is optional for MVP
-        # try:
-        #     from faster_whisper import WhisperModel
-        #     self.whisper_model = WhisperModel("base", device="cpu")
-        # except Exception as e:
-        #     print(f"Warning: Could not load Whisper model: {e}")
+        # Whisper is optional for MVP (not implemented in this version)
     
     def extract_features(
         self, 

@@ -4,10 +4,19 @@
 set -e
 
 # Configuration
+# IMPORTANT: Set GCP_PROJECT_ID environment variable before running this script
+# Example: export GCP_PROJECT_ID="your-actual-project-id"
 PROJECT_ID="${GCP_PROJECT_ID:-your-project-id}"
 REGION="${GCP_REGION:-us-central1}"
 REGISTRY_NAME="${REGISTRY_NAME:-geminivideo}"
 IMAGE_PREFIX="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REGISTRY_NAME}"
+
+# Validate PROJECT_ID is set
+if [ "$PROJECT_ID" == "your-project-id" ]; then
+    echo "ERROR: GCP_PROJECT_ID is not set. Please set it before running this script."
+    echo "Example: export GCP_PROJECT_ID='your-actual-project-id'"
+    exit 1
+fi
 
 # Colors for output
 RED='\033[0;31m'

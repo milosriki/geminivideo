@@ -1,7 +1,7 @@
 """
 Scene detection using PySceneDetect
 """
-from scenedetect import detect, ContentDetector, split_video_ffmpeg
+from scenedetect import detect, ContentDetector
 from typing import List, Tuple
 import cv2
 import os

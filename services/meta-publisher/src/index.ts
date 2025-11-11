@@ -4,8 +4,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import axios from 'axios';
-import * as fs from 'fs';
-import FormData from 'form-data';
 
 const app = express();
 const PORT = process.env.PORT || 8003;
@@ -47,11 +45,11 @@ app.post('/publish/meta', async (req: Request, res: Response) => {
     const {
       videoUrl,
       fileHash,
-      campaignId,
       adSetId,
-      pageId,
-      placements = ['instagram_reels', 'facebook_reels']
+      pageId
     } = req.body;
+    
+    const placements = req.body.placements || ['instagram_reels', 'facebook_reels'];
 
     // Dry-run mode if no access token
     if (!META_ACCESS_TOKEN) {
