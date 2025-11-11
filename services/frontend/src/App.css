@@ -154,6 +154,55 @@
   margin-left: 0.5rem;
 }
 
+.emotion-info {
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  background: #2a2a2a;
+  border-radius: 4px;
+}
+
+.emotion-label {
+  color: #ddd;
+  margin-right: 0.5rem;
+}
+
+.emotion-value {
+  font-weight: bold;
+  text-transform: capitalize;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+}
+
+.emotion-happy {
+  color: #ffd700;
+}
+
+.emotion-surprise {
+  color: #ff69b4;
+}
+
+.emotion-neutral {
+  color: #b0b0b0;
+}
+
+.emotion-sad {
+  color: #4682b4;
+}
+
+.emotion-angry {
+  color: #ff4444;
+}
+
+.emotion-fear {
+  color: #9370db;
+}
+
+.confidence {
+  color: #888;
+  font-size: 0.9rem;
+  margin-left: 0.25rem;
+}
+
 .features {
   display: flex;
   gap: 1rem;

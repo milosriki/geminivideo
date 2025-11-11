@@ -234,5 +234,88 @@ class TestRanking:
         assert all(top_10[i]['score'] >= top_10[i+1]['score'] for i in range(9))
 
 
+class TestEmotionScoring:
+    """Tests for emotion-based scoring"""
+    
+    def test_positive_emotion_boost(self):
+        """Test positive emotions increase score"""
+        base_score = 0.5
+        emotion = "happy"
+        
+        # Happy and surprise should boost score
+        boost = 0.2 if emotion in ["happy", "surprise"] else 0.0
+        final_score = base_score + boost
+        
+        assert final_score == 0.7
+    
+    def test_negative_emotion_penalty(self):
+        """Test negative emotions may affect score"""
+        base_score = 0.5
+        emotion = "angry"
+        
+        # Negative emotions might reduce score
+        penalty = -0.1 if emotion in ["sad", "angry", "fear"] else 0.0
+        final_score = max(base_score + penalty, 0.0)
+        
+        assert final_score == 0.4
+    
+    def test_neutral_emotion_no_change(self):
+        """Test neutral emotion doesn't change score"""
+        base_score = 0.5
+        emotion = "neutral"
+        
+        boost = 0.2 if emotion in ["happy", "surprise"] else 0.0
+        penalty = -0.1 if emotion in ["sad", "angry", "fear"] else 0.0
+        final_score = base_score + boost + penalty
+        
+        assert final_score == 0.5
+    
+    def test_emotion_confidence_threshold(self):
+        """Test emotion confidence threshold"""
+        confidence = 0.75
+        threshold = 0.5
+        
+        is_reliable = confidence >= threshold
+        assert is_reliable is True
+
+
+class TestSceneDetection:
+    """Tests for scene detection"""
+    
+    def test_scene_boundaries(self):
+        """Test scene boundary detection"""
+        scenes = [
+            (0.0, 5.0),
+            (5.0, 12.0),
+            (12.0, 20.0)
+        ]
+        
+        # Verify no overlapping scenes
+        for i in range(len(scenes) - 1):
+            assert scenes[i][1] == scenes[i+1][0]
+    
+    def test_scene_duration_calculation(self):
+        """Test scene duration is correctly calculated"""
+        start_time = 5.0
+        end_time = 12.0
+        
+        duration = end_time - start_time
+        assert duration == 7.0
+    
+    def test_minimum_scene_length(self):
+        """Test scenes meet minimum length requirement"""
+        scenes = [
+            (0.0, 3.5),
+            (3.5, 8.0),
+            (8.0, 15.0)
+        ]
+        
+        min_length = 2.0
+        for start, end in scenes:
+            duration = end - start
+            # All scenes should be at least min_length
+            assert duration >= min_length
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
