@@ -106,7 +106,7 @@ export default function RenderJob() {
       <div className="render-controls">
         <button 
           onClick={startRender} 
-          disabled={loading || storyboard.length === 0 || (job && job.status === 'processing')}
+          disabled={loading || storyboard.length === 0 || (job?.status === 'processing')}
         >
           {loading ? 'Starting...' : 'Start Render'}
         </button>

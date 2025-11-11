@@ -74,3 +74,4 @@ credentials.json
 
 # Docker
 .dockerignore
+logs/*.jsonl
