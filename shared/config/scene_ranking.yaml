@@ -1,0 +1,70 @@
+# Scene Ranking Configuration
+# Defines how scenes are scored and ranked for ad creation
+
+version: "1.0.0"
+
+# Ranking algorithm parameters
+ranking:
+  algorithm: "weighted_composite"
+  normalization: "min_max"
+  
+  # Feature weights for composite score
+  feature_weights:
+    visual_appeal: 0.30
+    motion_dynamics: 0.25
+    face_engagement: 0.20
+    audio_quality: 0.15
+    text_clarity: 0.10
+
+# Visual appeal scoring
+visual_appeal:
+  brightness:
+    optimal_range: [40, 200]
+    weight: 0.3
+  contrast:
+    min_threshold: 30
+    weight: 0.3
+  color_saturation:
+    optimal_range: [0.3, 0.8]
+    weight: 0.4
+
+# Motion dynamics
+motion_dynamics:
+  energy_threshold: 0.5
+  smoothness_bonus: 0.2
+  direction_consistency: 0.3
+
+# Face engagement
+face_engagement:
+  min_size_ratio: 0.05
+  emotion_detection: true
+  eye_contact_bonus: 0.3
+  expression_diversity: 0.2
+
+# Audio quality
+audio_quality:
+  min_loudness_db: -30
+  max_loudness_db: -10
+  clarity_threshold: 0.6
+  music_detection_bonus: 0.2
+
+# Text clarity
+text_clarity:
+  min_confidence: 0.7
+  readability_score: 0.5
+  position_preference: "lower_third"
+
+# Scene filtering
+filters:
+  min_duration_seconds: 1.0
+  max_duration_seconds: 10.0
+  min_composite_score: 0.3
+  exclude_static: true
+  exclude_black_frames: true
+
+# Ranking output
+output:
+  top_k: 10
+  include_thumbnails: true
+  include_scores: true
+  group_by_similarity: false
