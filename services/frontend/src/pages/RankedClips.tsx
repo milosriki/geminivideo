@@ -10,8 +10,11 @@ interface Clip {
   scene_score: number;
   features: {
     motion_energy: number;
-    face_detected: boolean;
-    text_overlay: boolean;
+    face_detected?: boolean;
+    text_overlay?: boolean;
+    emotion?: string;
+    emotion_confidence?: number;
+    emotion_scores?: Record<string, number>;
     [key: string]: any;
   };
 }
@@ -102,16 +105,35 @@ export default function RankedClips() {
                   <span className="score-label">Scene Score:</span>
                   <span className="score-value">{(clip.scene_score * 100).toFixed(0)}%</span>
                 </div>
+                {clip.features.emotion && (
+                  <div className="emotion-info">
+                    <span className="emotion-label">😊 Emotion:</span>
+                    <span className={`emotion-value emotion-${clip.features.emotion}`}>
+                      {clip.features.emotion}
+                    </span>
+                    {clip.features.emotion_confidence && (
+                      <span className="confidence">
+                        ({(clip.features.emotion_confidence * 100).toFixed(0)}%)
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div className="features">
-                  <span className={clip.features.face_detected ? 'feature-active' : 'feature-inactive'}>
-                    👤 Face
-                  </span>
-                  <span className={clip.features.text_overlay ? 'feature-active' : 'feature-inactive'}>
-                    📝 Text
-                  </span>
-                  <span className="feature-active">
-                    ⚡ Motion: {(clip.features.motion_energy * 100).toFixed(0)}%
-                  </span>
+                  {clip.features.face_detected !== undefined && (
+                    <span className={clip.features.face_detected ? 'feature-active' : 'feature-inactive'}>
+                      👤 Face
+                    </span>
+                  )}
+                  {clip.features.text_overlay !== undefined && (
+                    <span className={clip.features.text_overlay ? 'feature-active' : 'feature-inactive'}>
+                      📝 Text
+                    </span>
+                  )}
+                  {clip.features.motion_energy !== undefined && (
+                    <span className="feature-active">
+                      ⚡ Motion: {(clip.features.motion_energy * 100).toFixed(0)}%
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

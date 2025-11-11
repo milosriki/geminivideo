@@ -74,3 +74,18 @@ credentials.json
 
 # Docker
 .dockerignore
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# DeepFace models cache
+.deepface/
+
+# Video outputs and temp files
+outputs/
+/tmp/geminivideo/
+
+# PostgreSQL data
+postgres_data/
