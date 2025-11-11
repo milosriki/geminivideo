@@ -1,0 +1,59 @@
+# AI Ad Intelligence Scoring Weights Configuration
+# Last updated: 2025-11-11
+# Auto-adjusted by nightly_learning.py based on actual performance
+
+version: "1.0.0"
+
+# Psychology scoring weights
+psychology:
+  curiosity: 0.85
+  urgency: 0.78
+  social_proof: 0.72
+  surprise: 0.68
+  empathy: 0.75
+  fomo: 0.80
+  authority: 0.70
+  scarcity: 0.76
+
+# Hook strength weights by type
+hooks:
+  curiosity_gap: 0.85
+  urgency_scarcity: 0.78
+  social_proof: 0.72
+  pattern_interrupt: 0.68
+  emotional_story: 0.75
+
+# Feature importance for ranking
+features:
+  motion_energy: 0.25
+  face_presence: 0.20
+  text_overlay: 0.15
+  audio_peak: 0.15
+  scene_novelty: 0.25
+
+# Novelty scoring parameters
+novelty:
+  embedding_threshold: 0.85
+  temporal_decay: 0.95
+  diversity_bonus: 0.10
+
+# Predicted performance bands
+performance_bands:
+  viral:
+    min_score: 0.85
+    expected_ctr: 0.08
+  high:
+    min_score: 0.70
+    expected_ctr: 0.05
+  medium:
+    min_score: 0.50
+    expected_ctr: 0.03
+  low:
+    min_score: 0.00
+    expected_ctr: 0.01
+
+# Calibration settings
+calibration:
+  learning_rate: 0.05
+  min_samples: 100
+  confidence_interval: 0.95
