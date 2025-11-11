@@ -116,6 +116,7 @@ class ComplianceChecker:
                     'text': first_text[:50]
                 }
         except Exception:
+            # Exception handled - return default values if SRT parsing fails
             pass
         
         return {'passed': True, 'length': 0}

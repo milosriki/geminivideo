@@ -215,8 +215,8 @@ export class ScoringEngine {
     const bands = this.weightsConfig.probability_bands;
 
     // Determine band
-    let band = 'mid';
-    let confidence = 0.7;
+    let band: string;
+    let confidence: number;
 
     if (compositeScore < bands.low.max) {
       band = 'low';

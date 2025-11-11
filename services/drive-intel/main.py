@@ -2,10 +2,10 @@
 Drive Intel Service - Scene Enrichment & Feature Extraction
 Handles video ingestion, shot detection, and feature extraction
 """
-from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 import os
 import yaml
 from datetime import datetime
@@ -15,7 +15,6 @@ from services.scene_detector import SceneDetectorService
 from services.feature_extractor import FeatureExtractorService
 from services.ranking import RankingService
 from services.search import SearchService
-from models.asset import Asset, Clip, ClipFeatures
 from models.persistence import PersistenceLayer
 
 app = FastAPI(title="Drive Intel Service", version="1.0.0")

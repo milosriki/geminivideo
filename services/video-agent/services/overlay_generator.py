@@ -1,6 +1,7 @@
 """
 Overlay generation for Hook -> Proof -> CTA phases
 """
+import os
 import json
 import tempfile
 from typing import Dict, Any, List, Optional
