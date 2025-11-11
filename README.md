@@ -11,42 +11,57 @@ Production-quality AI-powered video analysis and ad creation platform for fitnes
 - **Analytics Dashboards** - Comprehensive analysis, diversification tracking, and reliability monitoring
 - **Self-Learning Loop** - Automated weight calibration based on actual performance data
 
-## 📋 Quick Start
+## 📋 Quick Start - Connect All Services & Deploy
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- (Optional) Google Drive API credentials for Drive ingestion
-- (Optional) Meta API access token for publishing
+- Docker & Docker Compose (required)
+- At least 8GB RAM and 10GB disk space
+- (Optional) Meta API access token for live publishing
 
-### Local Development
+### 🚀 One-Command Start (Easiest)
 
-1. **Clone the repository**
+Connect and start all 5 services with automatic health checks:
+
 ```bash
+# Clone and start
 git clone https://github.com/milosriki/geminivideo.git
 cd geminivideo
+
+# Start everything with connection verification
+./scripts/start-all.sh
 ```
 
-2. **Set environment variables** (optional)
+This will:
+- ✅ Build all Docker images
+- ✅ Start all 5 services connected via Docker network
+- ✅ Verify service health and connections
+- ✅ Display all service URLs
+
+**Services connected and running at:**
+- 🎨 **Frontend Dashboard**: http://localhost:3000 *(Start here!)*
+- 🚪 **Gateway API**: http://localhost:8000
+- 🎬 **Drive Intel**: http://localhost:8001
+- 🎥 **Video Agent**: http://localhost:8002
+- 📱 **Meta Publisher**: http://localhost:8003
+
+### Manual Start (Alternative)
+
 ```bash
-# Create .env file
-cat > .env << EOF
-META_ACCESS_TOKEN=your_meta_token_here
-CONFIG_PATH=/app/config
-EOF
+# Start all services
+docker-compose up -d --build
+
+# Test connections
+./scripts/test-connections.sh
 ```
 
-3. **Start all services**
-```bash
-docker-compose up --build
-```
+### 📘 Complete Guide
 
-Services will be available at:
-- Frontend: http://localhost:3000
-- Gateway API: http://localhost:8000
-- Drive Intel: http://localhost:8001
-- Video Agent: http://localhost:8002
-- Meta Publisher: http://localhost:8003
+See [QUICKSTART.md](QUICKSTART.md) for:
+- Step-by-step setup instructions
+- Connection testing
+- Troubleshooting
+- API usage examples
 
 ### Basic Workflow
 
@@ -192,13 +207,44 @@ Trigger learning update:
 curl -X POST http://localhost:8000/api/internal/learning/update
 ```
 
-## 🚢 Deployment
+## 🚢 Cloud Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment guide including:
-- GCP setup (Cloud Run, Artifact Registry, Secret Manager)
-- GitHub Actions CI/CD pipeline
-- Environment configuration
-- Monitoring and logging
+### Deploy to Google Cloud Platform
+
+Deploy all connected services to GCP Cloud Run with one command:
+
+```bash
+# Configure your GCP project
+export GCP_PROJECT_ID="your-project-id"
+export GCP_REGION="us-central1"
+
+# Deploy all services
+./scripts/deploy.sh
+```
+
+This will:
+- ✅ Deploy all 5 services to Cloud Run
+- ✅ Configure service networking and URLs
+- ✅ Set up environment variables
+- ✅ Display production URLs
+
+**Or use GitHub Actions:**
+- Push to `main` branch triggers automatic deployment
+- Images built and pushed to Artifact Registry
+- Services deployed to Cloud Run
+
+### Deployment Options
+
+1. **Local (Development)**: `./scripts/start-all.sh` - Docker Compose
+2. **GCP Cloud Run (Production)**: `./scripts/deploy.sh` - Managed services
+3. **CI/CD (Automated)**: GitHub Actions on push to main
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete guide including:
+- GCP project setup and API enablement
+- Artifact Registry configuration
+- Secret Manager for tokens
+- Monitoring and logging setup
+- Cost optimization tips
 
 ## 📝 License
 
