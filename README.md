@@ -1,229 +1,259 @@
-# AI Ad Intelligence & Creation Suite
+# Gemini Video - AI Ad Intelligence & Creation Suite
 
-Complete end-to-end platform for AI-powered video ad creation, optimization, and publishing.
+Production-quality AI-powered video analysis and ad creation platform for fitness/personal training vertical.
 
-## 🚀 Quickstart
+## 🚀 Features
 
-### Local Development
+- **Scene Enrichment & Feature Extraction** - Automated shot detection, object recognition, OCR, motion analysis
+- **Predictive Scoring Engine** - Psychology-based content analysis with CTR prediction
+- **Multi-Format Rendering** - Automated video remix with overlays, subtitles, and compliance checks
+- **Meta Integration** - Direct publishing to Instagram/Facebook with insights ingestion
+- **Analytics Dashboards** - Comprehensive analysis, diversification tracking, and reliability monitoring
+- **Self-Learning Loop** - Automated weight calibration based on actual performance data
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/milosriki/geminivideo.git
-   cd geminivideo
-   ```
+## 📋 Quick Start - Connect All Services & Deploy
 
-2. **Start Gateway API**
-   ```bash
-   cd services/gateway-api
-   npm install
-   npm run dev
-   # Runs on http://localhost:8080
-   ```
+### Prerequisites
 
-3. **Start Drive Intel Service**
-   ```bash
-   cd services/drive-intel
-   pip install -r requirements.txt
-   python -m uvicorn src.main:app --reload --port 8081
-   # Runs on http://localhost:8081
-   ```
+- Docker & Docker Compose (required)
+- At least 8GB RAM and 10GB disk space
+- (Optional) Meta API access token for live publishing
 
-4. **Start Video Agent Service**
-   ```bash
-   cd services/video-agent
-   pip install -r requirements.txt
-   python -m uvicorn src.index:app --reload --port 8082
-   # Runs on http://localhost:8082
-   ```
+### 🚀 One-Command Start (Easiest)
 
-5. **Start Meta Publisher Service**
-   ```bash
-   cd services/meta-publisher
-   npm install
-   npm run dev
-   # Runs on http://localhost:8083
-   ```
-
-6. **Start Frontend**
-   ```bash
-   cd services/frontend
-   npm install
-   npm run dev
-   # Runs on http://localhost:5173
-   ```
-
-### Docker Compose (Recommended)
+Connect and start all 5 services with automatic health checks:
 
 ```bash
-# Build and start all services
-docker-compose up --build
+# Clone and start
+git clone https://github.com/milosriki/geminivideo.git
+cd geminivideo
 
-# Access services
-# Frontend: http://localhost:80
-# Gateway API: http://localhost:8080
-# Drive Intel: http://localhost:8081
-# Video Agent: http://localhost:8082
-# Meta Publisher: http://localhost:8083
+# Start everything with connection verification
+./scripts/start-all.sh
 ```
 
-## 📋 Features
+This will:
+- ✅ Build all Docker images
+- ✅ Start all 5 services connected via Docker network
+- ✅ Verify service health and connections
+- ✅ Display all service URLs
 
-### 🎬 Video Intelligence
-- **Asset Ingestion**: Ingest from local folders or Google Drive
-- **Scene Detection**: Automatic scene boundary detection
-- **Feature Extraction**: Motion, faces, objects, text, embeddings
-- **FAISS Indexing**: Fast similarity search
+**Services connected and running at:**
+- 🎨 **Frontend Dashboard**: http://localhost:3000 *(Start here!)*
+- 🚪 **Gateway API**: http://localhost:8000
+- 🎬 **Drive Intel**: http://localhost:8001
+- 🎥 **Video Agent**: http://localhost:8002
+- 📱 **Meta Publisher**: http://localhost:8003
 
-### 🎯 AI Scoring & Ranking
-- **Psychology Scoring**: Curiosity, urgency, social proof, surprise, empathy
-- **Hook Strength Analysis**: Detect and score engagement hooks
-- **Novelty Detection**: Embedding-based uniqueness scoring
-- **Composite Ranking**: Multi-factor clip ranking
+### Manual Start (Alternative)
 
-### 🎨 Video Creation
-- **Storyboard Builder**: Visual clip sequencing
-- **Automated Rendering**: Background job queue with ffmpeg
-- **Transition Effects**: Fade, crossfade, and more
-- **Compliance Checking**: Content policy validation
+```bash
+# Start all services
+docker-compose up -d --build
 
-### 📊 Publishing & Analytics
-- **Meta Publishing**: Automated ad publishing to Facebook/Instagram
-- **Performance Tracking**: Real-time CTR and engagement metrics
-- **Prediction Logging**: Track predicted vs actual performance
+# Test connections
+./scripts/test-connections.sh
+```
 
-### 🤖 Continuous Learning
-- **Nightly Calibration**: Auto-adjust scoring weights based on actual performance
-- **Pattern Mining**: Extract patterns from successful ads
-- **Model Improvement**: Iterative learning from published ad data
+### 📘 Complete Guide
+
+See [QUICKSTART.md](QUICKSTART.md) for:
+- Step-by-step setup instructions
+- Connection testing
+- Troubleshooting
+- API usage examples
+
+### Basic Workflow
+
+1. **Ingest Videos**
+   - Go to "Assets & Ingest" tab
+   - Enter path to video folder (must be accessible to container)
+   - Click "Ingest Folder"
+
+2. **View Ranked Clips**
+   - Go to "Ranked Clips" tab
+   - Select an asset
+   - View clips ranked by composite score
+
+3. **Semantic Search**
+   - Go to "Semantic Search" tab
+   - Enter natural language query
+   - Get semantically similar clips
+
+4. **Score Content**
+   - Go to "Analysis" tab
+   - View comprehensive scoring breakdown
+   - See predicted CTR band and confidence
+
+5. **Render Video**
+   - Go to "Render Job" tab
+   - Create render job (sample provided)
+   - Monitor job progress and compliance
+
+6. **Track Metrics**
+   - "Diversification" tab - Content variety metrics
+   - "Reliability" tab - Prediction accuracy tracking
 
 ## 🏗️ Architecture
 
-```
-┌─────────────┐
-│   Frontend  │ (React/Vite)
-└──────┬──────┘
-       │
-┌──────▼──────────┐
-│   Gateway API   │ (Node/Express + TypeScript)
-│   - Knowledge   │
-│   - Scoring     │
-│   - Routing     │
-└─────┬─┬─┬───────┘
-      │ │ │
-  ┌───┘ │ └────┐
-  │     │      │
-┌─▼─────▼──┐ ┌─▼──────────┐ ┌──────────────┐
-│Drive Intel│ │Video Agent │ │Meta Publisher│
-│(FastAPI)  │ │(FastAPI)   │ │(Express)     │
-│- Ingest   │ │- Render    │ │- Publish     │
-│- Detect   │ │- Jobs      │ │- Insights    │
-│- Extract  │ │- Compliance│ │- Tracking    │
-└───────────┘ └────────────┘ └──────────────┘
-```
+### Services
 
-## 📁 Project Structure
+- **drive-intel** (Python/FastAPI) - Scene detection, feature extraction, semantic search
+- **video-agent** (Python/FastAPI) - Video rendering, overlays, compliance checks
+- **gateway-api** (Node/Express) - Unified API, scoring engine, reliability logging
+- **meta-publisher** (Node/Express) - Meta Marketing API integration
+- **frontend** (React/Vite) - Analytics dashboards and controls
 
-```
-geminivideo/
-├── .github/workflows/       # CI/CD workflows
-│   └── deploy-cloud-run.yml
-├── services/
-│   ├── gateway-api/         # Gateway & Knowledge Router
-│   ├── drive-intel/         # Video Intelligence Service
-│   ├── video-agent/         # Rendering Service
-│   ├── meta-publisher/      # Publishing & Analytics
-│   └── frontend/            # React UI
-├── shared/config/           # Shared configuration
-│   ├── hooks/
-│   ├── drivers/
-│   ├── personas/
-│   ├── weights.yaml
-│   └── scene_ranking.yaml
-├── knowledge/               # Knowledge base
-│   └── README.md
-├── scripts/                 # Automation scripts
-│   ├── nightly_learning.py
-│   └── meta_ads_library_pattern_miner.py
-├── tests/                   # Test suites
-├── logs/                    # Prediction logs
-└── DEPLOYMENT.md            # Deployment guide
-```
+### Configuration
 
-## 🔧 Configuration
+All services use shared configuration in `shared/config/`:
+- `scene_ranking.yaml` - Scene ranking weights and thresholds
+- `hook_templates.json` - Text overlay templates
+- `weights.yaml` - Scoring weights (auto-updated by learning loop)
+- `triggers_config.json` - Psychology driver keywords
+- `personas.json` - Target audience definitions
 
-### Environment Variables
-
-**Gateway API:**
-- `PROJECT_ID` - GCP project ID
-- `GCS_BUCKET` - GCS bucket for knowledge storage
-- `GCS_MOCK_MODE` - Enable mock mode for local dev
-
-**Services:**
-- `PORT` - Service port
-- `GATEWAY_URL` - Gateway API URL
-- `META_ACCESS_TOKEN` - Meta Marketing API token
-
-See each service's README for detailed configuration.
-
-## 📖 Documentation
-
-- [Deployment Guide](DEPLOYMENT.md) - Complete GCP deployment instructions
-- [Knowledge Base](knowledge/README.md) - Knowledge management system
-- [Gateway API](services/gateway-api/README.md) - API documentation
-- [Drive Intel](services/drive-intel/README.md) - Video intelligence
-- [Video Agent](services/video-agent/README.md) - Rendering service
-- [Meta Publisher](services/meta-publisher/README.md) - Publishing service
-- [Frontend](services/frontend/README.md) - UI documentation
+See `shared/config/README.md` for details.
 
 ## 🧪 Testing
 
-```bash
-# Run unit tests
-cd tests
-python -m pytest test_ranking.py
-
-# Run integration tests
-python -m pytest test_integration.py
-
-# Smoke test
-./scripts/smoke_test.sh
-```
-
-## 🚀 Deployment
-
-### Google Cloud Platform
-
-Automated deployment via GitHub Actions on push to `main`:
+### Run Services Individually
 
 ```bash
-# Manual deployment
-gcloud run deploy gateway-api \
-  --image=us-west1-docker.pkg.dev/PROJECT_ID/cloud-run-repo/gateway-api:latest \
-  --region=us-west1 \
-  --platform=managed
+# Drive Intel
+cd services/drive-intel
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8001
+
+# Gateway API
+cd services/gateway-api
+npm install
+npm run dev
+
+# Frontend
+cd frontend
+npm install
+npm run dev
 ```
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for complete instructions.
+### API Examples
 
-## 🤝 Contributing
+```bash
+# Ingest local folder
+curl -X POST http://localhost:8000/api/ingest/local/folder \
+  -H "Content-Type: application/json" \
+  -d '{"folder_path": "/path/to/videos"}'
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+# Get ranked clips
+curl http://localhost:8000/api/assets/{asset_id}/clips?ranked=true&top=10
+
+# Search clips
+curl -X POST http://localhost:8000/api/search/clips \
+  -H "Content-Type: application/json" \
+  -d '{"query": "person doing squats", "top_k": 5}'
+
+# Score storyboard
+curl -X POST http://localhost:8000/api/score/storyboard \
+  -H "Content-Type: application/json" \
+  -d '{"scenes": [...], "metadata": {}}'
+
+# Create render job
+curl -X POST http://localhost:8000/api/render/remix \
+  -H "Content-Type: application/json" \
+  -d '{"scenes": [...], "variant": "reels"}'
+```
+
+## 📊 Scoring System
+
+### Psychology Score (30%)
+- Pain point keywords
+- Transformation language
+- Urgency triggers
+- Authority signals
+- Social proof
+
+### Hook Strength (25%)
+- Numbers in first 3s
+- Questions
+- Motion spikes
+- Text length compliance
+
+### Technical Score (20%)
+- Resolution quality
+- Audio quality
+- Lighting
+- Stabilization
+
+### Demographic Match (15%)
+- Persona keyword alignment
+- Age range fit
+- Fitness level match
+
+### Novelty Score (10%)
+- Semantic uniqueness
+- Visual diversity
+
+## 🔄 Learning Loop
+
+The system automatically improves over time:
+
+1. **Prediction Logging** - All scores logged to `logs/predictions.jsonl`
+2. **Insights Ingestion** - Meta performance data linked to predictions
+3. **Calibration** - System tracks in-band vs out-of-band predictions
+4. **Weight Updates** - Automated adjustment when sufficient data available
+
+Trigger learning update:
+```bash
+curl -X POST http://localhost:8000/api/internal/learning/update
+```
+
+## 🚢 Cloud Deployment
+
+### Deploy to Google Cloud Platform
+
+Deploy all connected services to GCP Cloud Run with one command:
+
+```bash
+# Configure your GCP project
+export GCP_PROJECT_ID="your-project-id"
+export GCP_REGION="us-central1"
+
+# Deploy all services
+./scripts/deploy.sh
+```
+
+This will:
+- ✅ Deploy all 5 services to Cloud Run
+- ✅ Configure service networking and URLs
+- ✅ Set up environment variables
+- ✅ Display production URLs
+
+**Or use GitHub Actions:**
+- Push to `main` branch triggers automatic deployment
+- Images built and pushed to Artifact Registry
+- Services deployed to Cloud Run
+
+### Deployment Options
+
+1. **Local (Development)**: `./scripts/start-all.sh` - Docker Compose
+2. **GCP Cloud Run (Production)**: `./scripts/deploy.sh` - Managed services
+3. **CI/CD (Automated)**: GitHub Actions on push to main
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete guide including:
+- GCP project setup and API enablement
+- Artifact Registry configuration
+- Secret Manager for tokens
+- Monitoring and logging setup
+- Cost optimization tips
 
 ## 📝 License
 
-This project is licensed under the MIT License.
+MIT License - see LICENSE file for details.
 
-## 🔗 Related Issues
+## 🤝 Contributing
 
-- Epic #2: AI Ad Intelligence & Creation Suite
-- Issues: #12 #13 #14 #15 #16 #17 #18
+Issues and pull requests welcome! See the [GitHub Issues](https://github.com/milosriki/geminivideo/issues) for epic #2 and sub-issues #12-#18.
 
 ## 📧 Support
 
-For issues and questions:
-- GitHub Issues: [Create an issue](https://github.com/milosriki/geminivideo/issues)
-- Documentation: See individual service READMEs
+For questions or issues, please open a GitHub issue or contact the maintainers.

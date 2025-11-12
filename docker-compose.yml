@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: geminivideo-postgres
+    environment:
+      POSTGRES_USER: geminivideo
+      POSTGRES_PASSWORD: geminivideo
+      POSTGRES_DB: geminivideo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geminivideo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  drive-intel:
+    build:
+      context: ./services/drive-intel
+      dockerfile: Dockerfile
+    container_name: geminivideo-drive-intel
+    environment:
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      PORT: 8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared
+      - ./services/drive-intel/src:/app/src
+
+  gateway-api:
+    build:
+      context: ./services/gateway-api
+      dockerfile: Dockerfile
+    container_name: geminivideo-gateway-api
+    environment:
+      PORT: 8080
+      DRIVE_INTEL_URL: http://drive-intel:8081
+      VIDEO_AGENT_URL: http://video-agent:8082
+      ML_SERVICE_URL: http://ml-service:8003
+      META_PUBLISHER_URL: http://meta-publisher:8083
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./shared:/app/shared
+
+  video-agent:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: geminivideo-video-agent
+    environment:
+      PORT: 8082
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared
+      - ./services/video-agent/src:/app/src
+
+  ml-service:
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
+    container_name: geminivideo-ml-service
+    environment:
+      PORT: 8003
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared
+      - ./services/ml-service/models:/app/models
+
+  meta-publisher:
+    build:
+      context: ./services/meta-publisher
+      dockerfile: Dockerfile
+    container_name: geminivideo-meta-publisher
+    environment:
+      PORT: 8083
+      GATEWAY_URL: http://gateway-api:8080
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./shared:/app/shared
+
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+    container_name: geminivideo-frontend
+    environment:
+      VITE_GATEWAY_URL: http://localhost:8080
+      VITE_DRIVE_INTEL_URL: http://localhost:8081
+    ports:
+      - "80:80"
+    depends_on:
+      - gateway-api
+      - drive-intel
+
+volumes:
+  postgres_data:
