@@ -30,16 +30,67 @@ app.add_middleware(
 
 # Load configuration
 config_path = os.getenv("CONFIG_PATH", "../../shared/config")
-with open(f"{config_path}/scene_ranking.yaml", "r") as f:
-    ranking_config = yaml.safe_load(f)
+try:
+    with open(f"{config_path}/scene_ranking.yaml", "r") as f:
+        ranking_config = yaml.safe_load(f)
+        print(f"✅ Loaded config from {config_path}/scene_ranking.yaml")
+except (FileNotFoundError, IOError) as e:
+    print(f"⚠️  Config file not found at {config_path}/scene_ranking.yaml, using defaults: {e}")
+    ranking_config = {
+        "weights": {
+            "psychology": 0.3,
+            "hook": 0.25,
+            "technical": 0.2,
+            "demographic": 0.15,
+            "novelty": 0.1
+        }
+    }
 
-# Initialize services
-persistence = PersistenceLayer()
-ingest_service = IngestService(persistence)
-scene_detector = SceneDetectorService()
-feature_extractor = FeatureExtractorService()
-ranking_service = RankingService(ranking_config)
-search_service = SearchService()
+# Initialize services with error handling
+print("🔧 Initializing services...")
+try:
+    persistence = PersistenceLayer()
+    print("✅ Persistence layer initialized")
+except Exception as e:
+    print(f"⚠️  Persistence layer failed, using in-memory fallback: {e}")
+    persistence = None
+
+try:
+    ingest_service = IngestService(persistence) if persistence else None
+    print("✅ Ingest service initialized")
+except Exception as e:
+    print(f"⚠️  Ingest service failed: {e}")
+    ingest_service = None
+
+try:
+    scene_detector = SceneDetectorService()
+    print("✅ Scene detector initialized")
+except Exception as e:
+    print(f"⚠️  Scene detector failed: {e}")
+    scene_detector = None
+
+try:
+    feature_extractor = FeatureExtractorService()
+    print("✅ Feature extractor initialized")
+except Exception as e:
+    print(f"⚠️  Feature extractor failed: {e}")
+    feature_extractor = None
+
+try:
+    ranking_service = RankingService(ranking_config)
+    print("✅ Ranking service initialized")
+except Exception as e:
+    print(f"⚠️  Ranking service failed: {e}")
+    ranking_service = None
+
+try:
+    search_service = SearchService()
+    print("✅ Search service initialized")
+except Exception as e:
+    print(f"⚠️  Search service failed: {e}")
+    search_service = None
+
+print("🚀 Drive Intel service ready!")
 
 
 # Request/Response Models
@@ -188,7 +239,15 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "assets_count": len(persistence.assets)
+        "assets_count": len(persistence.assets) if persistence else 0,
+        "services": {
+            "persistence": persistence is not None,
+            "ingest": ingest_service is not None,
+            "scene_detector": scene_detector is not None,
+            "feature_extractor": feature_extractor is not None,
+            "ranking": ranking_service is not None,
+            "search": search_service is not None
+        }
     }
 
 
