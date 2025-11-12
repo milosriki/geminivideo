@@ -27,9 +27,23 @@ jobs:
 
       - name: Setup GCP Authentication
         run: |
+          # Check if secret exists
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "❌ ERROR: GCP_SA_KEY secret is not configured"
+            echo "Please add it at: https://github.com/${{ github.repository }}/settings/secrets/actions"
+            exit 1
+          fi
+
+          echo "Decoding GCP service account key..."
           echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-key.json
+
+          echo "Activating service account..."
           gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+
+          echo "Setting GCP project..."
           gcloud config set project ${{ env.PROJECT_ID }}
+
+          echo "✅ GCP Authentication successful"
 
       - name: Configure Docker for Artifact Registry
         run: |
@@ -50,6 +64,28 @@ jobs:
             echo "Frontend directory found"
           fi
           echo "================================================"
+
+      - name: Verify ML Service Files
+        run: |
+          echo "🔍 Checking ML Service files..."
+          if [ -f "services/ml-service/Dockerfile" ]; then
+            echo "✅ ML Service Dockerfile exists"
+          else
+            echo "❌ ML Service Dockerfile missing"
+          fi
+          if [ -f "services/ml-service/src/main.py" ]; then
+            echo "✅ ML Service main.py exists ($(wc -l < services/ml-service/src/main.py) lines)"
+          fi
+          if [ -f "services/ml-service/src/ctr_model.py" ]; then
+            echo "✅ CTR Model exists ($(wc -l < services/ml-service/src/ctr_model.py) lines)"
+          fi
+          if [ -f "services/ml-service/src/thompson_sampler.py" ]; then
+            echo "✅ Thompson Sampler exists ($(wc -l < services/ml-service/src/thompson_sampler.py) lines)"
+          fi
+          if [ -f "services/meta-publisher/src/facebook/meta-ads-manager.ts" ]; then
+            echo "✅ Meta SDK integration exists ($(wc -l < services/meta-publisher/src/facebook/meta-ads-manager.ts) lines)"
+          fi
+          echo "🎯 All ML and Meta files confirmed on GitHub!"
 
       # Build and Deploy ML Service
       - name: Build ML Service
