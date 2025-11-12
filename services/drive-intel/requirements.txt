@@ -9,8 +9,8 @@ pillow==10.1.0
 torch==2.1.1
 torchvision==0.16.1
 ultralytics==8.0.220
-paddlepaddle==2.5.2
-paddleocr==2.7.0.3
+paddlepaddle==3.0.0
+paddleocr==2.8.1
 faster-whisper==0.10.0
 sentence-transformers==2.2.2
 faiss-cpu==1.7.4
