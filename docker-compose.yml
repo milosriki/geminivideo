@@ -1,97 +1,98 @@
 version: '3.8'
 
 services:
-  # Drive Intel Service - Scene Enrichment & Feature Extraction
+  postgres:
+    image: postgres:15-alpine
+    container_name: geminivideo-postgres
+    environment:
+      POSTGRES_USER: geminivideo
+      POSTGRES_PASSWORD: geminivideo
+      POSTGRES_DB: geminivideo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geminivideo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   drive-intel:
     build:
       context: ./services/drive-intel
       dockerfile: Dockerfile
-    ports:
-      - "8001:8001"
-    volumes:
-      - ./data:/app/data
-      - ./shared/config:/app/config:ro
-      - ./logs:/app/logs
+    container_name: geminivideo-drive-intel
     environment:
-      - CONFIG_PATH=/app/config
-      - DATA_DIR=/app/data
-      - LOG_DIR=/app/logs
-    networks:
-      - geminivideo-net
-
-  # Video Agent Service - Rendering & Compliance
-  video-agent:
-    build:
-      context: ./services/video-agent
-      dockerfile: Dockerfile
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      PORT: 8081
     ports:
-      - "8002:8002"
-    volumes:
-      - ./data:/app/data
-      - ./shared/config:/app/config:ro
-      - ./logs:/app/logs
-    environment:
-      - CONFIG_PATH=/app/config
-      - OUTPUT_DIR=/app/data/outputs
+      - "8081:8081"
     depends_on:
-      - drive-intel
-    networks:
-      - geminivideo-net
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared
+      - ./services/drive-intel/src:/app/src
 
-  # Gateway API - Scoring Engine & Proxy
   gateway-api:
     build:
       context: ./services/gateway-api
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./shared/config:/app/config:ro
-      - ./logs:/app/logs
+    container_name: geminivideo-gateway-api
     environment:
-      - CONFIG_PATH=/app/config
-      - LOG_DIR=/app/logs
-      - DRIVE_INTEL_URL=http://drive-intel:8001
-      - VIDEO_AGENT_URL=http://video-agent:8002
-      - META_PUBLISHER_URL=http://meta-publisher:8003
-    depends_on:
-      - drive-intel
-      - video-agent
-      - meta-publisher
-    networks:
-      - geminivideo-net
+      PORT: 8080
+      DRIVE_INTEL_URL: http://drive-intel:8081
+      VIDEO_AGENT_URL: http://video-agent:8082
+      META_PUBLISHER_URL: http://meta-publisher:8083
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./shared:/app/shared
 
-  # Meta Publisher Service - Creative Publishing & Insights
+  video-agent:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: geminivideo-video-agent
+    environment:
+      PORT: 8082
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared
+      - ./services/video-agent/src:/app/src
+
   meta-publisher:
     build:
       context: ./services/meta-publisher
       dockerfile: Dockerfile
-    ports:
-      - "8003:8003"
+    container_name: geminivideo-meta-publisher
     environment:
-      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN:-}
-      - META_API_VERSION=v18.0
-    networks:
-      - geminivideo-net
+      PORT: 8083
+      GATEWAY_URL: http://gateway-api:8080
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./shared:/app/shared
 
-  # Frontend
   frontend:
     build:
-      context: ./frontend
+      context: ./services/frontend
       dockerfile: Dockerfile
-    ports:
-      - "3000:80"
+    container_name: geminivideo-frontend
     environment:
-      - VITE_API_URL=http://gateway-api:8000
+      VITE_GATEWAY_URL: http://localhost:8080
+      VITE_DRIVE_INTEL_URL: http://localhost:8081
+    ports:
+      - "80:80"
     depends_on:
       - gateway-api
-    networks:
-      - geminivideo-net
-
-networks:
-  geminivideo-net:
-    driver: bridge
+      - drive-intel
 
 volumes:
-  data:
-  logs:
+  postgres_data:
