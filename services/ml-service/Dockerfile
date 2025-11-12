@@ -2,9 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for building Python packages
+# vowpalwabbit requires boost-python, cmake, and zlib
 RUN apt-get update && apt-get install -y \
     build-essential \
+    cmake \
+    libboost-dev \
+    libboost-python-dev \
+    libboost-system-dev \
+    libboost-thread-dev \
+    libboost-program-options-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies

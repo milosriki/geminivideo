@@ -2,9 +2,9 @@
 # Agent 1 & Agent 6 - Setup & Dependencies
 
 # Web Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.2
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.10.0
 
 # XGBoost & ML Dependencies (Agent 1)
 xgboost==2.0.3
