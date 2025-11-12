@@ -1,28 +1,30 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.10.0
 pydantic-settings==2.1.0
 scenedetect[opencv]==0.6.3
-opencv-python==4.8.1.78
-numpy==1.24.3
-pillow==10.1.0
-torch==2.1.1
-torchvision==0.16.1
-ultralytics==8.0.220
+opencv-python==4.10.0.84
+numpy==1.26.4
+pillow==10.4.0
+torch==2.5.1
+torchvision==0.20.1
+ultralytics==8.3.50
 paddlepaddle==3.0.0
 paddleocr==2.8.1
-faster-whisper==0.10.0
-sentence-transformers==2.2.2
-faiss-cpu==1.7.4
-PyYAML==6.0.1
-aiofiles==23.2.1
-python-multipart==0.0.6
-httpx==0.25.2
+faster-whisper==1.1.0
+sentence-transformers==3.3.1
+faiss-cpu==1.9.0.post1
+PyYAML==6.0.2
+aiofiles==24.1.0
+python-multipart==0.0.20
+httpx==0.28.1
 
 # Database (from build branch)
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 
 # Emotion Recognition (from build branch)
-deepface==0.0.79
-tf-keras==2.15.0
+# deepface and tf-keras temporarily removed due to TensorFlow compatibility issues
+# Can be re-added later if needed for emotion detection
+# deepface==0.0.93
+# tensorflow==2.18.0
