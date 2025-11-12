@@ -35,7 +35,7 @@ redisClient.connect().then(() => {
 const DATABASE_URL = process.env.DATABASE_URL || 
   'postgresql://geminivideo:geminivideo@localhost:5432/geminivideo';
 const pgPool = new Pool({ connectionString: DATABASE_URL });
-pgPool.on('error', (err) => console.error('PostgreSQL Pool Error', err));
+pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
 
 // Load configuration
 const configPath = process.env.CONFIG_PATH || '../../shared/config';
