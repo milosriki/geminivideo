@@ -3,20 +3,10 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies for ML packages
-# - build-essential: C/C++ compilers for building Python extensions
-# - cmake: Required for vowpalwabbit
-# - libboost-all-dev: Boost libraries required by vowpalwabbit
-# - libboost-python-dev: Boost.Python bindings for Python 3.11
-# - python3-dev: Python development headers
-# - zlib1g-dev: Compression library
-# - libgomp1: OpenMP library for parallel processing
+# - build-essential: C/C++ compilers for Python extensions (numpy, scipy, xgboost)
+# - libgomp1: OpenMP library for parallel processing in ML libraries
 RUN apt-get update && apt-get install -y \
     build-essential \
-    cmake \
-    libboost-all-dev \
-    libboost-python-dev \
-    python3-dev \
-    zlib1g-dev \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
