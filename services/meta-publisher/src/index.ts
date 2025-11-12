@@ -1,12 +1,14 @@
 /**
  * Meta Publisher Service - Creative Publishing & Insights Ingestion
+ * Agents 11-15: Real Facebook SDK Integration
  */
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import axios from 'axios';
+import { MetaAdsManager } from './facebook/meta-ads-manager';
 
 const app = express();
-const PORT = process.env.PORT || 8003;
+const PORT = process.env.PORT || 8083;
 
 // Middleware
 app.use(cors());
@@ -14,8 +16,23 @@ app.use(express.json());
 
 // Meta API configuration
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN || '';
+const META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID || '';
+const META_PAGE_ID = process.env.META_PAGE_ID || '';
 const META_API_VERSION = process.env.META_API_VERSION || 'v18.0';
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
+
+// Initialize Meta Ads Manager if credentials are available
+let metaAdsManager: MetaAdsManager | null = null;
+if (META_ACCESS_TOKEN && META_AD_ACCOUNT_ID && META_PAGE_ID) {
+  metaAdsManager = new MetaAdsManager({
+    accessToken: META_ACCESS_TOKEN,
+    adAccountId: META_AD_ACCOUNT_ID,
+    pageId: META_PAGE_ID
+  });
+  console.log('Meta Ads Manager initialized with real Facebook SDK');
+} else {
+  console.log('Warning: Meta credentials not configured - running in dry-run mode');
+}
 
 // Helper function to validate Meta API URLs
 function validateMetaApiUrl(url: string): boolean {
@@ -34,9 +51,319 @@ app.get('/', (req: Request, res: Response) => {
   res.json({
     service: 'meta-publisher',
     status: 'running',
-    version: '1.0.0',
-    dry_run_mode: !META_ACCESS_TOKEN
+    version: '2.0.0',
+    real_sdk_enabled: !!metaAdsManager,
+    dry_run_mode: !META_ACCESS_TOKEN,
+    endpoints: {
+      campaigns: '/api/campaigns',
+      adsets: '/api/adsets',
+      ads: '/api/ads',
+      video_ads: '/api/video-ads',
+      insights: '/api/insights',
+      legacy_publish: '/publish/meta (deprecated)',
+      legacy_insights: '/insights (deprecated)'
+    }
   });
+});
+
+// Agent 12: Create Campaign
+app.post('/api/campaigns', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured',
+        message: 'Set META_ACCESS_TOKEN, META_AD_ACCOUNT_ID, and META_PAGE_ID'
+      });
+    }
+
+    const { name, objective, status, specialAdCategories } = req.body;
+
+    const campaignId = await metaAdsManager.createCampaign({
+      name,
+      objective,
+      status,
+      specialAdCategories
+    });
+
+    res.json({
+      status: 'success',
+      campaign_id: campaignId,
+      message: 'Campaign created successfully'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Agent 12: Create AdSet
+app.post('/api/adsets', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const {
+      name,
+      campaignId,
+      bidAmount,
+      dailyBudget,
+      targeting,
+      optimizationGoal,
+      billingEvent,
+      status
+    } = req.body;
+
+    const adSetId = await metaAdsManager.createAdSet({
+      name,
+      campaignId,
+      bidAmount,
+      dailyBudget,
+      targeting,
+      optimizationGoal,
+      billingEvent,
+      status
+    });
+
+    res.json({
+      status: 'success',
+      adset_id: adSetId,
+      message: 'AdSet created successfully'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Agent 13: Create Video Ad (Complete Workflow)
+app.post('/api/video-ads', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const {
+      videoPath,
+      campaignId,
+      adSetId,
+      creative,
+      adName
+    } = req.body;
+
+    const result = await metaAdsManager.createVideoAd(
+      videoPath,
+      campaignId,
+      adSetId,
+      creative,
+      adName
+    );
+
+    res.json({
+      status: 'success',
+      ...result,
+      message: 'Video ad created successfully'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Agent 13: Upload Video Only
+app.post('/api/videos/upload', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const { videoPath } = req.body;
+
+    const videoId = await metaAdsManager.uploadVideo(videoPath);
+
+    res.json({
+      status: 'success',
+      video_id: videoId,
+      message: 'Video uploaded successfully'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Agent 13: Create Ad from existing creative
+app.post('/api/ads', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const { name, adSetId, creativeId, status } = req.body;
+
+    const adId = await metaAdsManager.createAd({
+      name,
+      adSetId,
+      creativeId,
+      status
+    });
+
+    res.json({
+      status: 'success',
+      ad_id: adId,
+      message: 'Ad created successfully'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Agent 14: Get Ad Insights
+app.get('/api/insights/ad/:adId', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const { adId } = req.params;
+    const { datePreset = 'last_7d' } = req.query;
+
+    const insights = await metaAdsManager.getAdInsights(
+      adId,
+      datePreset as string
+    );
+
+    res.json({
+      status: 'success',
+      insights
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Agent 14: Get Campaign Insights
+app.get('/api/insights/campaign/:campaignId', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const { campaignId } = req.params;
+    const { datePreset = 'last_7d' } = req.query;
+
+    const insights = await metaAdsManager.getCampaignInsights(
+      campaignId,
+      datePreset as string
+    );
+
+    res.json({
+      status: 'success',
+      insights
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Agent 14: Get AdSet Insights
+app.get('/api/insights/adset/:adSetId', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const { adSetId } = req.params;
+    const { datePreset = 'last_7d' } = req.query;
+
+    const insights = await metaAdsManager.getAdSetInsights(
+      adSetId,
+      datePreset as string
+    );
+
+    res.json({
+      status: 'success',
+      insights
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update Ad Status
+app.patch('/api/ads/:adId/status', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const { adId } = req.params;
+    const { status } = req.body;
+
+    await metaAdsManager.updateAdStatus(adId, status);
+
+    res.json({
+      status: 'success',
+      message: `Ad ${adId} status updated to ${status}`
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update AdSet Budget
+app.patch('/api/adsets/:adSetId/budget', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const { adSetId } = req.params;
+    const { dailyBudget } = req.body;
+
+    await metaAdsManager.updateAdSetBudget(adSetId, dailyBudget);
+
+    res.json({
+      status: 'success',
+      message: `AdSet ${adSetId} budget updated`
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get Account Info
+app.get('/api/account/info', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const info = await metaAdsManager.getAccountInfo();
+
+    res.json({
+      status: 'success',
+      account: info
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Publish to Meta
