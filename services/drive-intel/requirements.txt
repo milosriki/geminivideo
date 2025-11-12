@@ -25,6 +25,12 @@ httpx==0.28.1
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 
+# Redis for async queues
+redis==5.0.1
+
+# Google Cloud Vision for emotion detection
+google-cloud-vision==3.7.2
+
 # Emotion Recognition (from build branch)
 # deepface and tf-keras temporarily removed due to TensorFlow compatibility issues
 # Can be re-added later if needed for emotion detection

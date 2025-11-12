@@ -53,6 +53,7 @@ class Clip(Base):
     end_time = Column(Float, nullable=False)
     duration = Column(Float, nullable=False)
     scene_score = Column(Float, default=0.0)
+    ctr_score = Column(Float, default=0.0, index=True)  # CTR prediction score
     thumbnail_url = Column(String)
     features = Column(JSON, default={})
     created_at = Column(DateTime, default=datetime.utcnow)

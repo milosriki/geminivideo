@@ -6,6 +6,11 @@ export default function RenderJobPanel() {
   const [jobStatus, setJobStatus] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [checking, setChecking] = useState(false);
+  
+  // Story arc state
+  const [assetId, setAssetId] = useState('');
+  const [arcName, setArcName] = useState('fitness_transformation');
+  const [creatingStoryArc, setCreatingStoryArc] = useState(false);
 
   const handleCreateJob = async () => {
     setCreating(true);
@@ -37,6 +42,37 @@ export default function RenderJobPanel() {
       alert(`Error: ${err.message}`);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleCreateStoryArc = async () => {
+    if (!assetId) {
+      alert('Please enter an asset ID');
+      return;
+    }
+
+    setCreatingStoryArc(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080'}/api/render/story_arc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          asset_id: assetId,
+          arc_name: arcName
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setJobId(result.job_id);
+      alert(`Story arc render job created: ${result.job_id}\nSelected ${result.selected_clips.length} clips`);
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setCreatingStoryArc(false);
     }
   };
 
@@ -76,6 +112,53 @@ export default function RenderJobPanel() {
           </p>
           <button className="button" onClick={handleCreateJob} disabled={creating}>
             {creating ? 'Creating Job...' : 'Create Sample Render Job'}
+          </button>
+        </div>
+
+        <div className="card" style={{ border: '1px solid #007bff', marginBottom: '20px' }}>
+          <h3 style={{ marginBottom: '15px', color: '#007bff' }}>🎬 Create Story Arc Ad</h3>
+          <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
+            Generate a transformation ad using emotion-based story arcs. Clips are automatically 
+            selected based on emotional progression (sad → neutral → happy).
+          </p>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold' }}>
+              Asset ID:
+            </label>
+            <input
+              type="text"
+              className="input"
+              placeholder="Enter asset ID with analyzed clips"
+              value={assetId}
+              onChange={(e) => setAssetId(e.target.value)}
+              style={{ marginBottom: '15px' }}
+            />
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold' }}>
+              Story Arc Template:
+            </label>
+            <select 
+              className="input" 
+              value={arcName}
+              onChange={(e) => setArcName(e.target.value)}
+              style={{ marginBottom: '15px' }}
+            >
+              <option value="fitness_transformation">Fitness Transformation (30s)</option>
+              <option value="motivation_arc">Motivation Arc (20s)</option>
+              <option value="quick_win">Quick Win (15s)</option>
+            </select>
+          </div>
+          
+          <button 
+            className="button" 
+            onClick={handleCreateStoryArc} 
+            disabled={creatingStoryArc || !assetId}
+            style={{ background: '#007bff' }}
+          >
+            {creatingStoryArc ? 'Creating Transformation Ad...' : '🎥 Render Transformation Ad'}
           </button>
         </div>
 
