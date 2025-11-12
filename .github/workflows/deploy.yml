@@ -124,8 +124,10 @@ jobs:
             --platform=managed \
             --ingress=internal \
             --allow-unauthenticated \
-            --memory=2Gi \
+            --memory=4Gi \
             --cpu=2 \
+            --timeout=600 \
+            --startup-cpu-boost \
             --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},CONFIG_PATH=/app/config"
 
       # Build and Deploy Video Agent
