@@ -15,6 +15,10 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download ML models during build to avoid runtime delays
+RUN python3 -c "from ultralytics import YOLO; YOLO('yolov8n.pt')" || echo "YOLO model download skipped"
+RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')" || echo "Sentence transformer download skipped"
+
 # Copy application code
 COPY . .
 
