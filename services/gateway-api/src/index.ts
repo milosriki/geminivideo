@@ -40,7 +40,8 @@ const learningService = new LearningService(weightsConfig);
 // Service URLs
 const DRIVE_INTEL_URL = process.env.DRIVE_INTEL_URL || 'http://localhost:8001';
 const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || 'http://localhost:8002';
-const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8003';
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
+const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
@@ -57,9 +58,10 @@ function validateServiceUrl(url: string): boolean {
     const parsed = new URL(url);
     // Only allow HTTP/HTTPS and specific internal service patterns
     return (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-           (parsed.hostname === 'localhost' || 
+           (parsed.hostname === 'localhost' ||
             parsed.hostname.includes('drive-intel') ||
             parsed.hostname.includes('video-agent') ||
+            parsed.hostname.includes('ml-service') ||
             parsed.hostname.includes('meta-publisher') ||
             parsed.hostname.includes('.run.app')); // Cloud Run domains
   } catch {
@@ -126,25 +128,50 @@ app.post('/api/search/clips', async (req: Request, res: Response) => {
   }
 });
 
-// Scoring endpoint
+// Scoring endpoint with XGBoost integration (Agent 4)
 app.post('/api/score/storyboard', async (req: Request, res: Response) => {
   try {
     const { scenes, metadata } = req.body;
-    
-    // Calculate scores
+
+    // Calculate rule-based scores
     const scores = scoringEngine.scoreStoryboard(scenes, metadata);
-    
+
+    // Get XGBoost CTR prediction
+    let xgboostPrediction = null;
+    try {
+      const mlResponse = await axios.post(`${ML_SERVICE_URL}/api/ml/predict-ctr`, {
+        clip_data: {
+          ...scores,
+          ...metadata,
+          scene_count: scenes.length
+        },
+        include_confidence: true
+      });
+      xgboostPrediction = mlResponse.data;
+    } catch (mlError: any) {
+      console.warn('XGBoost prediction failed, using rule-based scores only:', mlError.message);
+    }
+
+    // Combine scores
+    const finalScores = {
+      ...scores,
+      xgboost_ctr: xgboostPrediction?.predicted_ctr || null,
+      xgboost_confidence: xgboostPrediction?.confidence || null,
+      // Use XGBoost prediction if available, otherwise use rule-based
+      final_ctr_prediction: xgboostPrediction?.predicted_ctr || scores.win_probability?.value || 0.02
+    };
+
     // Log prediction
     const predictionId = reliabilityLogger.logPrediction({
       scenes,
-      scores,
+      scores: finalScores,
       metadata,
       timestamp: new Date().toISOString()
     });
-    
+
     res.json({
       prediction_id: predictionId,
-      scores,
+      scores: finalScores,
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {

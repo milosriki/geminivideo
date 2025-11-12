@@ -44,6 +44,7 @@ services:
       PORT: 8080
       DRIVE_INTEL_URL: http://drive-intel:8081
       VIDEO_AGENT_URL: http://video-agent:8082
+      ML_SERVICE_URL: http://ml-service:8003
       META_PUBLISHER_URL: http://meta-publisher:8083
     ports:
       - "8080:8080"
@@ -66,6 +67,23 @@ services:
     volumes:
       - ./shared:/app/shared
       - ./services/video-agent/src:/app/src
+
+  ml-service:
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
+    container_name: geminivideo-ml-service
+    environment:
+      PORT: 8003
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared
+      - ./services/ml-service/models:/app/models
 
   meta-publisher:
     build:
