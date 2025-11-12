@@ -15,8 +15,8 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Expose port
-EXPOSE 8003
+# Expose port (Cloud Run will set PORT env var)
+EXPOSE 8080
 
 # Start the application
 CMD ["npm", "start"]
