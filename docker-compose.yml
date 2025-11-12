@@ -100,7 +100,7 @@ services:
 
   frontend:
     build:
-      context: ./services/frontend
+      context: ./frontend
       dockerfile: Dockerfile
     container_name: geminivideo-frontend
     environment:
