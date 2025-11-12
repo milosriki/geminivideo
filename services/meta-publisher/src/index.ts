@@ -1,204 +1,244 @@
-import express, { Express, Request, Response } from 'express';
+/**
+ * Meta Publisher Service - Creative Publishing & Insights Ingestion
+ */
+import express, { Request, Response } from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import dotenv from 'dotenv';
 import axios from 'axios';
-import * as fs from 'fs';
-import * as path from 'path';
 
-dotenv.config();
-
-const app: Express = express();
-const PORT = process.env.PORT || 8083;
+const app = express();
+const PORT = process.env.PORT || 8003;
 
 // Middleware
-app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-interface PublishRequest {
-  video_url: string;
-  caption: string;
-  targeting: {
-    age_range?: [number, number];
-    interests?: string[];
-    locations?: string[];
-  };
-  budget: {
-    daily_budget: number;
-    currency: string;
-  };
-  prediction_id?: string;
+// Meta API configuration
+const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN || '';
+const META_API_VERSION = process.env.META_API_VERSION || 'v18.0';
+const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
+
+// Helper function to validate Meta API URLs
+function validateMetaApiUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    // Only allow official Facebook Graph API domains
+    return parsed.hostname === 'graph.facebook.com' && 
+           parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
-interface InsightData {
-  ad_id: string;
-  impressions: number;
-  clicks: number;
-  ctr: number;
-  spend: number;
-  reach: number;
-  engagement: number;
-}
-
-// Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+// Root endpoint
+app.get('/', (req: Request, res: Response) => {
   res.json({
-    status: 'healthy',
     service: 'meta-publisher',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    status: 'running',
+    version: '1.0.0',
+    dry_run_mode: !META_ACCESS_TOKEN
   });
 });
 
-/**
- * POST /publish/meta
- * Publish video ad to Meta (Facebook/Instagram)
- */
+// Publish to Meta
 app.post('/publish/meta', async (req: Request, res: Response) => {
   try {
-    const publishReq: PublishRequest = req.body;
-
-    if (!publishReq.video_url || !publishReq.caption) {
-      return res.status(400).json({ error: 'Missing required fields: video_url, caption' });
-    }
-
-    // In production, would use Meta Marketing API:
-    // const response = await axios.post(
-    //   `https://graph.facebook.com/v18.0/${adAccountId}/adcreatives`,
-    //   {
-    //     access_token: process.env.META_ACCESS_TOKEN,
-    //     object_story_spec: {
-    //       video_data: {
-    //         video_id: uploadedVideoId,
-    //         message: publishReq.caption
-    //       }
-    //     },
-    //     ...targeting and budget config
-    //   }
-    // );
-
-    // Mock response
-    const adId = `ad_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const {
+      videoUrl,
+      fileHash,
+      adSetId,
+      pageId
+    } = req.body;
     
-    const response = {
-      ad_id: adId,
-      status: 'active',
-      platform: 'meta',
-      created_at: new Date().toISOString(),
-      prediction_id: publishReq.prediction_id,
-      video_url: publishReq.video_url,
-      targeting: publishReq.targeting,
-      budget: publishReq.budget
-    };
+    const placements = req.body.placements || ['instagram_reels', 'facebook_reels'];
 
-    res.json(response);
-  } catch (error) {
-    console.error('Publish error:', error);
-    res.status(500).json({ 
-      error: 'Publish failed', 
-      details: (error as Error).message 
-    });
-  }
-});
-
-/**
- * GET /insights
- * Fetch ad performance insights from Meta
- * Updates prediction logs with actual CTR
- */
-app.get('/insights', async (req: Request, res: Response) => {
-  try {
-    const adId = req.query.ad_id as string;
-    const predictionId = req.query.prediction_id as string;
-
-    if (!adId) {
-      return res.status(400).json({ error: 'Missing ad_id parameter' });
+    // Dry-run mode if no access token
+    if (!META_ACCESS_TOKEN) {
+      return res.json({
+        status: 'dry_run',
+        message: 'No META_ACCESS_TOKEN provided - dry run mode',
+        would_create: {
+          creative_id: 'dry_run_creative_123',
+          ad_id: 'dry_run_ad_456',
+          status: 'PAUSED'
+        },
+        input: req.body
+      });
     }
 
-    // In production, would fetch from Meta Insights API:
-    // const response = await axios.get(
-    //   `https://graph.facebook.com/v18.0/${adId}/insights`,
-    //   {
-    //     params: {
-    //       access_token: process.env.META_ACCESS_TOKEN,
-    //       fields: 'impressions,clicks,ctr,spend,reach,engagement'
-    //     }
-    //   }
-    // );
-
-    // Mock insights data
-    const insights: InsightData = {
-      ad_id: adId,
-      impressions: Math.floor(Math.random() * 100000) + 10000,
-      clicks: Math.floor(Math.random() * 5000) + 500,
-      ctr: 0.03 + Math.random() * 0.05, // 3-8% CTR
-      spend: Math.floor(Math.random() * 500) + 100,
-      reach: Math.floor(Math.random() * 50000) + 5000,
-      engagement: Math.floor(Math.random() * 3000) + 300
-    };
-
-    // Update prediction log if prediction_id provided
-    if (predictionId) {
-      await updatePredictionLog(predictionId, insights.ctr);
+    // Validate API base URL
+    if (!validateMetaApiUrl(META_API_BASE)) {
+      throw new Error('Invalid Meta API base URL');
     }
+
+    // Step 1: Create Ad Creative
+    const creativeResponse = await axios.post(
+      `${META_API_BASE}/${pageId}/adcreatives`,
+      {
+        name: `Remix Creative ${new Date().toISOString()}`,
+        object_story_spec: {
+          page_id: pageId,
+          video_data: {
+            video_id: fileHash || videoUrl,
+            call_to_action: {
+              type: 'LEARN_MORE',
+              value: {
+                link: 'https://example.com'
+              }
+            }
+          }
+        }
+      },
+      {
+        params: { access_token: META_ACCESS_TOKEN }
+      }
+    );
+
+    const creativeId = creativeResponse.data.id;
+
+    // Step 2: Create Ad (PAUSED)
+    const adResponse = await axios.post(
+      `${META_API_BASE}/${adSetId}/ads`,
+      {
+        name: `Remix Ad ${new Date().toISOString()}`,
+        adset_id: adSetId,
+        creative: { creative_id: creativeId },
+        status: 'PAUSED'
+      },
+      {
+        params: { access_token: META_ACCESS_TOKEN }
+      }
+    );
+
+    const adId = adResponse.data.id;
 
     res.json({
+      status: 'success',
+      creative_id: creativeId,
       ad_id: adId,
-      insights,
-      updated_at: new Date().toISOString()
+      ad_status: 'PAUSED',
+      message: 'Ad created successfully (PAUSED)'
     });
-  } catch (error) {
-    console.error('Insights error:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch insights', 
-      details: (error as Error).message 
+
+  } catch (error: any) {
+    console.error('Error publishing to Meta:', error.response?.data || error.message);
+    res.status(500).json({
+      error: error.response?.data?.error?.message || error.message,
+      details: error.response?.data
     });
   }
 });
 
-/**
- * Helper function to update prediction log with actual CTR
- * Links back to gateway's prediction logging system
- */
-async function updatePredictionLog(predictionId: string, actualCTR: number): Promise<void> {
+// Get Insights
+app.get('/insights', async (req: Request, res: Response) => {
   try {
-    const logsPath = path.join(__dirname, '../../../logs/predictions.jsonl');
-    
-    if (!fs.existsSync(logsPath)) {
-      console.warn('Prediction log file not found');
-      return;
+    const { adId, datePreset = 'last_7d' } = req.query;
+
+    if (!adId) {
+      return res.status(400).json({ error: 'adId is required' });
     }
 
-    // Read all logs
-    const content = fs.readFileSync(logsPath, 'utf8');
-    const lines = content.split('\n').filter(line => line.trim());
-    
-    // Update matching entry
-    const updatedLines = lines.map(line => {
-      try {
-        const entry = JSON.parse(line);
-        if (entry.prediction_id === predictionId) {
-          entry.actual_ctr = actualCTR;
-          entry.updated_at = new Date().toISOString();
+    // Dry-run mode
+    if (!META_ACCESS_TOKEN) {
+      return res.json({
+        status: 'dry_run',
+        message: 'No META_ACCESS_TOKEN provided - dry run mode',
+        mock_data: {
+          ad_id: adId,
+          impressions: 1000,
+          clicks: 50,
+          ctr: 0.05,
+          spend: 25.50,
+          actions: [
+            { action_type: 'link_click', value: 45 },
+            { action_type: 'video_view', value: 800 }
+          ],
+          video_metrics: {
+            video_30_sec_watched_actions: 600,
+            video_avg_time_watched_actions: 8.5
+          }
         }
-        return JSON.stringify(entry);
-      } catch {
-        return line;
+      });
+    }
+
+    // Validate API base URL
+    if (!validateMetaApiUrl(META_API_BASE)) {
+      throw new Error('Invalid Meta API base URL');
+    }
+
+    const response = await axios.get(
+      `${META_API_BASE}/${adId}/insights`,
+      {
+        params: {
+          access_token: META_ACCESS_TOKEN,
+          date_preset: datePreset,
+          fields: 'impressions,clicks,ctr,spend,actions,video_30_sec_watched_actions,video_avg_time_watched_actions'
+        }
       }
+    );
+
+    const insights = response.data.data[0] || {};
+
+    // Normalize metrics
+    const normalizedInsights = {
+      ad_id: adId,
+      impressions: parseInt(insights.impressions || '0'),
+      clicks: parseInt(insights.clicks || '0'),
+      ctr: parseFloat(insights.ctr || '0'),
+      spend: parseFloat(insights.spend || '0'),
+      actions: insights.actions || [],
+      video_metrics: {
+        video_30_sec_watched: insights.video_30_sec_watched_actions?.[0]?.value || 0,
+        video_avg_time_watched: insights.video_avg_time_watched_actions?.[0]?.value || 0
+      }
+    };
+
+    res.json(normalizedInsights);
+
+  } catch (error: any) {
+    console.error('Error fetching insights:', error.response?.data || error.message);
+    res.status(500).json({
+      error: error.response?.data?.error?.message || error.message
+    });
+  }
+});
+
+// Link insights to predictions
+app.post('/insights/link-prediction', async (req: Request, res: Response) => {
+  try {
+    const { predictionId, adId, insights } = req.body;
+
+    // Calculate actual CTR
+    const actualCTR = insights.clicks / insights.impressions;
+
+    // In a full implementation, would update the prediction log
+    // For now, return the linkage info
+    res.json({
+      status: 'linked',
+      prediction_id: predictionId,
+      ad_id: adId,
+      actual_ctr: actualCTR,
+      message: 'Insights linked to prediction (stub implementation)'
     });
 
-    // Write back
-    fs.writeFileSync(logsPath, updatedLines.join('\n') + '\n', 'utf8');
-    console.log(`Updated prediction ${predictionId} with actual CTR: ${actualCTR}`);
-  } catch (error) {
-    console.error('Failed to update prediction log:', error);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
-}
+});
 
-// Start server
+// Health check
+app.get('/health', (req: Request, res: Response) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    meta_configured: !!META_ACCESS_TOKEN
+  });
+});
+
 app.listen(PORT, () => {
-  console.log(`Meta Publisher service listening on port ${PORT}`);
+  console.log(`Meta Publisher listening on port ${PORT}`);
+  if (!META_ACCESS_TOKEN) {
+    console.log('Warning: Running in dry-run mode (no META_ACCESS_TOKEN)');
+  }
 });
 
 export default app;

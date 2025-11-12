@@ -1,52 +1,255 @@
-import express, { Express, Request, Response } from 'express';
+/**
+ * Gateway API - Prediction & Scoring Engine
+ * Unified proxy to internal services with scoring capabilities
+ */
+import express, { Request, Response } from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import dotenv from 'dotenv';
-import knowledgeRouter from './knowledge';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as yaml from 'js-yaml';
+import axios from 'axios';
 
-dotenv.config();
+import { ScoringEngine } from './services/scoring-engine';
+import { ReliabilityLogger } from './services/reliability-logger';
+import { LearningService } from './services/learning-service';
 
-const app: Express = express();
-const PORT = process.env.PORT || 8080;
+const app = express();
+const PORT = process.env.PORT || 8000;
 
 // Middleware
-app.use(helmet());
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+// Load configuration
+const configPath = process.env.CONFIG_PATH || '../../shared/config';
+const weightsConfig = yaml.load(
+  fs.readFileSync(path.join(configPath, 'weights.yaml'), 'utf8')
+) as any;
+const triggersConfig = JSON.parse(
+  fs.readFileSync(path.join(configPath, 'triggers_config.json'), 'utf8')
+);
+const personasConfig = JSON.parse(
+  fs.readFileSync(path.join(configPath, 'personas.json'), 'utf8')
+);
+
+// Initialize services
+const scoringEngine = new ScoringEngine(weightsConfig, triggersConfig, personasConfig);
+const reliabilityLogger = new ReliabilityLogger();
+const learningService = new LearningService(weightsConfig);
+
+// Service URLs
+const DRIVE_INTEL_URL = process.env.DRIVE_INTEL_URL || 'http://localhost:8001';
+const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || 'http://localhost:8002';
+const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8003';
+
+// Root endpoint
+app.get('/', (req: Request, res: Response) => {
   res.json({
-    status: 'healthy',
     service: 'gateway-api',
-    timestamp: new Date().toISOString(),
+    status: 'running',
     version: '1.0.0'
   });
 });
 
-// Knowledge router
-app.use('/knowledge', knowledgeRouter);
+// Helper function to validate service URLs
+function validateServiceUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    // Only allow HTTP/HTTPS and specific internal service patterns
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+           (parsed.hostname === 'localhost' || 
+            parsed.hostname.includes('drive-intel') ||
+            parsed.hostname.includes('video-agent') ||
+            parsed.hostname.includes('meta-publisher') ||
+            parsed.hostname.includes('.run.app')); // Cloud Run domains
+  } catch {
+    return false;
+  }
+}
 
-// Example scoring endpoint
-app.post('/score/clip', (req: Request, res: Response) => {
-  const { clip_id, features } = req.body;
-  
-  // Placeholder response
+// Proxy to drive-intel service
+app.get('/api/assets', async (req: Request, res: Response) => {
+  try {
+    if (!validateServiceUrl(DRIVE_INTEL_URL)) {
+      throw new Error('Invalid service URL');
+    }
+    const response = await axios.get(`${DRIVE_INTEL_URL}/assets`, {
+      params: req.query
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/assets/:assetId/clips', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(
+      `${DRIVE_INTEL_URL}/assets/${req.params.assetId}/clips`,
+      { params: req.query }
+    );
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/ingest/local/folder', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.post(
+      `${DRIVE_INTEL_URL}/ingest/local/folder`,
+      req.body
+    );
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/search/clips', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.post(
+      `${DRIVE_INTEL_URL}/search/clips`,
+      req.body
+    );
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+// Scoring endpoint
+app.post('/api/score/storyboard', async (req: Request, res: Response) => {
+  try {
+    const { scenes, metadata } = req.body;
+    
+    // Calculate scores
+    const scores = scoringEngine.scoreStoryboard(scenes, metadata);
+    
+    // Log prediction
+    const predictionId = reliabilityLogger.logPrediction({
+      scenes,
+      scores,
+      metadata,
+      timestamp: new Date().toISOString()
+    });
+    
+    res.json({
+      prediction_id: predictionId,
+      scores,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Proxy to video-agent service
+app.post('/api/render/remix', async (req: Request, res: Response) => {
+  try {
+    if (!validateServiceUrl(VIDEO_AGENT_URL)) {
+      throw new Error('Invalid service URL');
+    }
+    const response = await axios.post(
+      `${VIDEO_AGENT_URL}/render/remix`,
+      req.body
+    );
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/render/status/:jobId', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(
+      `${VIDEO_AGENT_URL}/render/status/${req.params.jobId}`
+    );
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+// Proxy to meta-publisher service
+app.post('/api/publish/meta', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.post(
+      `${META_PUBLISHER_URL}/publish/meta`,
+      req.body
+    );
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/insights', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(
+      `${META_PUBLISHER_URL}/insights`,
+      { params: req.query }
+    );
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+// Learning loop endpoint
+app.post('/api/internal/learning/update', async (req: Request, res: Response) => {
+  try {
+    const result = await learningService.updateWeights();
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Diversification metrics
+app.get('/api/metrics/diversification', (req: Request, res: Response) => {
+  try {
+    const metrics = reliabilityLogger.getDiversificationMetrics();
+    res.json(metrics);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reliability metrics
+app.get('/api/metrics/reliability', (req: Request, res: Response) => {
+  try {
+    const metrics = reliabilityLogger.getReliabilityMetrics();
+    res.json(metrics);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health check
+app.get('/health', (req: Request, res: Response) => {
   res.json({
-    clip_id,
-    scores: {
-      psychology: { composite: 0.75 },
-      hook_strength: { strength: 0.80 },
-      novelty: { composite: 0.70 },
-      composite: 0.75
-    },
-    predicted_band: 'high',
-    predicted_ctr: 0.05
+    status: 'healthy',
+    timestamp: new Date().toISOString()
   });
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`Gateway API listening on port ${PORT}`);
 });
