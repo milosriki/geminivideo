@@ -26,5 +26,7 @@ sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 
 # Emotion Recognition (from build branch)
-deepface==0.0.79
-tf-keras==2.15.0
+# deepface and tf-keras temporarily removed due to TensorFlow compatibility issues
+# Can be re-added later if needed for emotion detection
+# deepface==0.0.93
+# tensorflow==2.18.0
