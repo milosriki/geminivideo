@@ -123,6 +123,14 @@ jobs:
           docker tag $IMAGE "${IMAGE%:*}:latest"
           docker push "${IMAGE%:*}:latest"
 
+      - name: Build and push ml-service
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/ml-service:${{ github.sha }}"
+          docker build -t $IMAGE ./services/ml-service
+          docker push $IMAGE
+          docker tag $IMAGE "${IMAGE%:*}:latest"
+          docker push "${IMAGE%:*}:latest"
+
       - name: Build and push frontend
         run: |
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/frontend:${{ github.sha }}"
