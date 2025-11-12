@@ -2,10 +2,18 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including cmake for vowpalwabbit
+# Install system dependencies for ML packages
+# - build-essential: C/C++ compilers for building Python extensions
+# - cmake: Required for vowpalwabbit
+# - libboost-all-dev: Boost libraries required by vowpalwabbit
+# - zlib1g-dev: Compression library
+# - libgomp1: OpenMP library for parallel processing
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
+    libboost-all-dev \
+    zlib1g-dev \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
