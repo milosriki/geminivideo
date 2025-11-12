@@ -6,13 +6,14 @@ scenedetect[opencv]==0.6.3
 opencv-python==4.10.0.84
 numpy==1.26.4
 pillow==10.4.0
-torch==2.5.1
-torchvision==0.20.1
-ultralytics==8.3.50
-paddlepaddle==3.0.0
-paddleocr==2.8.1
-faster-whisper==1.1.0
-sentence-transformers==3.3.1
+# Heavy ML packages temporarily disabled for faster startup
+# torch==2.5.1
+# torchvision==0.20.1
+# ultralytics==8.3.50
+# paddlepaddle==3.0.0
+# paddleocr==2.8.1
+# faster-whisper==1.1.0
+# sentence-transformers==3.3.1
 faiss-cpu==1.9.0.post1
 PyYAML==6.0.2
 aiofiles==24.1.0
