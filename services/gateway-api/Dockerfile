@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:18-slim
 
 WORKDIR /app
 
@@ -7,16 +7,16 @@ COPY package*.json ./
 COPY tsconfig.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm install
 
 # Copy source code
-COPY src ./src
+COPY . .
 
 # Build TypeScript
 RUN npm run build
 
 # Expose port
-EXPOSE 8080
+EXPOSE 8000
 
-# Run the application
+# Start the application
 CMD ["npm", "start"]

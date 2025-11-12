@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # Drive Intel Service - Scene Enrichment & Feature Extraction
+  drive-intel:
+    build:
+      context: ./services/drive-intel
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data:/app/data
+      - ./shared/config:/app/config:ro
+      - ./logs:/app/logs
+    environment:
+      - CONFIG_PATH=/app/config
+      - DATA_DIR=/app/data
+      - LOG_DIR=/app/logs
+    networks:
+      - geminivideo-net
+
+  # Video Agent Service - Rendering & Compliance
+  video-agent:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./data:/app/data
+      - ./shared/config:/app/config:ro
+      - ./logs:/app/logs
+    environment:
+      - CONFIG_PATH=/app/config
+      - OUTPUT_DIR=/app/data/outputs
+    depends_on:
+      - drive-intel
+    networks:
+      - geminivideo-net
+
+  # Gateway API - Scoring Engine & Proxy
+  gateway-api:
+    build:
+      context: ./services/gateway-api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./shared/config:/app/config:ro
+      - ./logs:/app/logs
+    environment:
+      - CONFIG_PATH=/app/config
+      - LOG_DIR=/app/logs
+      - DRIVE_INTEL_URL=http://drive-intel:8001
+      - VIDEO_AGENT_URL=http://video-agent:8002
+      - META_PUBLISHER_URL=http://meta-publisher:8003
+    depends_on:
+      - drive-intel
+      - video-agent
+      - meta-publisher
+    networks:
+      - geminivideo-net
+
+  # Meta Publisher Service - Creative Publishing & Insights
+  meta-publisher:
+    build:
+      context: ./services/meta-publisher
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN:-}
+      - META_API_VERSION=v18.0
+    networks:
+      - geminivideo-net
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=http://gateway-api:8000
+    depends_on:
+      - gateway-api
+    networks:
+      - geminivideo-net
+
+networks:
+  geminivideo-net:
+    driver: bridge
+
+volumes:
+  data:
+  logs:

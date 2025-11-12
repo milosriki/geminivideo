@@ -1,59 +1,60 @@
-# AI Ad Intelligence Scoring Weights Configuration
-# Last updated: 2025-11-11
-# Auto-adjusted by nightly_learning.py based on actual performance
+# Scoring Weights Configuration
+# Version-controlled weights for predictive scoring engine
 
 version: "1.0.0"
+last_updated: "2025-11-10"
 
-# Psychology scoring weights
-psychology:
-  curiosity: 0.85
-  urgency: 0.78
-  social_proof: 0.72
-  surprise: 0.68
-  empathy: 0.75
-  fomo: 0.80
-  authority: 0.70
-  scarcity: 0.76
+# Psychology-based scoring weights
+psychology_weights:
+  pain_point: 0.30
+  transformation: 0.25
+  urgency: 0.20
+  authority: 0.15
+  social_proof: 0.10
 
-# Hook strength weights by type
-hooks:
-  curiosity_gap: 0.85
-  urgency_scarcity: 0.78
-  social_proof: 0.72
-  pattern_interrupt: 0.68
-  emotional_story: 0.75
+# Hook strength weights
+hook_weights:
+  has_number: 0.35
+  has_question: 0.25
+  motion_spike: 0.20
+  first_3s_text: 0.20
 
-# Feature importance for ranking
-features:
-  motion_energy: 0.25
-  face_presence: 0.20
-  text_overlay: 0.15
-  audio_peak: 0.15
-  scene_novelty: 0.25
+# Technical quality weights
+technical_weights:
+  resolution_score: 0.30
+  audio_quality: 0.25
+  lighting: 0.20
+  stabilization: 0.25
 
-# Novelty scoring parameters
-novelty:
-  embedding_threshold: 0.85
-  temporal_decay: 0.95
-  diversity_bonus: 0.10
+# Demographic matching weights
+demographic_weights:
+  persona_match: 0.40
+  age_range: 0.25
+  fitness_level: 0.20
+  trigger_alignment: 0.15
 
-# Predicted performance bands
-performance_bands:
-  viral:
-    min_score: 0.85
-    expected_ctr: 0.08
-  high:
-    min_score: 0.70
-    expected_ctr: 0.05
-  medium:
-    min_score: 0.50
-    expected_ctr: 0.03
+# Novelty and diversity weights
+novelty_weights:
+  semantic_uniqueness: 0.60
+  visual_diversity: 0.40
+
+# Win probability bands
+probability_bands:
   low:
-    min_score: 0.00
-    expected_ctr: 0.01
+    min: 0.0
+    max: 0.3
+    confidence_threshold: 0.6
+  mid:
+    min: 0.3
+    max: 0.7
+    confidence_threshold: 0.7
+  high:
+    min: 0.7
+    max: 1.0
+    confidence_threshold: 0.8
 
-# Calibration settings
-calibration:
-  learning_rate: 0.05
-  min_samples: 100
-  confidence_interval: 0.95
+# Learning parameters
+learning:
+  min_samples_for_update: 50
+  max_weight_delta: 0.1
+  learning_rate: 0.01
