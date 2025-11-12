@@ -18,6 +18,17 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: geminivideo-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   drive-intel:
     build:
       context: ./services/drive-intel
@@ -25,11 +36,14 @@ services:
     container_name: geminivideo-drive-intel
     environment:
       DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
       PORT: 8081
     ports:
       - "8081:8081"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./shared:/app/shared
@@ -46,8 +60,15 @@ services:
       VIDEO_AGENT_URL: http://video-agent:8082
       ML_SERVICE_URL: http://ml-service:8003
       META_PUBLISHER_URL: http://meta-publisher:8083
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
     ports:
       - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     volumes:
       - ./shared:/app/shared
 
@@ -59,10 +80,13 @@ services:
     environment:
       PORT: 8082
       DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
     ports:
       - "8082:8082"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./shared:/app/shared
@@ -100,7 +124,7 @@ services:
 
   frontend:
     build:
-      context: ./services/frontend
+      context: ./frontend
       dockerfile: Dockerfile
     container_name: geminivideo-frontend
     environment:
@@ -111,6 +135,42 @@ services:
     depends_on:
       - gateway-api
       - drive-intel
+
+  drive-worker:
+    build:
+      context: ./services/drive-intel
+      dockerfile: Dockerfile
+    container_name: geminivideo-drive-worker
+    command: python worker.py
+    environment:
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared
+      - ./services/drive-intel/src:/app/src
+
+  video-worker:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: geminivideo-video-worker
+    command: python worker.py
+    environment:
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared
+      - ./services/video-agent/src:/app/src
 
 volumes:
   postgres_data:

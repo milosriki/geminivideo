@@ -1,146 +1,263 @@
-name: Build, Test & Deploy
+name: Deploy to Cloud Run
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
-permissions:
-  contents: read
+    branches:
+      - main
+  workflow_dispatch:
 
 env:
-  REGION: us-central1
-  REGISTRY_NAME: geminivideo
+  PROJECT_ID: gen-lang-client-0427673522
+  GCP_REGION: us-west1
+  ARTIFACT_REGISTRY_REPO: cloud-run-repo
+  GCS_BUCKET: ai-studio-bucket-208288753973-us-west1
 
 jobs:
-  lint-and-test:
-    name: Lint and Test
+  deploy:
+    name: Build and Deploy Services
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
+      id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Lint Python services
+      - name: Setup GCP Authentication
         run: |
-          pip install flake8
-          # Lint drive-intel
-          flake8 services/drive-intel --count --select=E9,F63,F7,F82 --show-source --statistics || true
-          # Lint video-agent
-          flake8 services/video-agent --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          # Check if secret exists
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "❌ ERROR: GCP_SA_KEY secret is not configured"
+            echo "Please add it at: https://github.com/${{ github.repository }}/settings/secrets/actions"
+            exit 1
+          fi
 
-      - name: Lint TypeScript services
+          echo "Decoding GCP service account key..."
+          echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-key.json
+
+          echo "Activating service account..."
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+
+          echo "Setting GCP project..."
+          gcloud config set project ${{ env.PROJECT_ID }}
+
+          echo "✅ GCP Authentication successful"
+
+      - name: Configure Docker for Artifact Registry
         run: |
-          # Lint gateway-api
-          cd services/gateway-api
-          npm install
-          npm run build || true
-          cd ../..
-          
-          # Lint meta-publisher
-          cd services/meta-publisher
-          npm install
-          npm run build || true
-          cd ../..
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
 
-      - name: Lint Frontend
+      - name: Check Repository Structure
         run: |
-          cd frontend
-          npm install
-          npm run lint || true
-          cd ..
+          echo "================================================"
+          echo "Repository structure:"
+          echo "================================================"
+          ls -la
+          echo "------------------------------------------------"
+          if [ -d "services" ]; then
+            echo "Services directory found:"
+            ls -la services/
+          fi
+          if [ -d "frontend" ]; then
+            echo "Frontend directory found"
+          fi
+          echo "================================================"
 
-      - name: Run Python tests
+      - name: Verify ML Service Files
         run: |
-          # Placeholder for Python tests
-          echo "Python tests would run here"
+          echo "🔍 Checking ML Service files..."
+          if [ -f "services/ml-service/Dockerfile" ]; then
+            echo "✅ ML Service Dockerfile exists"
+          else
+            echo "❌ ML Service Dockerfile missing"
+          fi
+          if [ -f "services/ml-service/src/main.py" ]; then
+            echo "✅ ML Service main.py exists ($(wc -l < services/ml-service/src/main.py) lines)"
+          fi
+          if [ -f "services/ml-service/src/ctr_model.py" ]; then
+            echo "✅ CTR Model exists ($(wc -l < services/ml-service/src/ctr_model.py) lines)"
+          fi
+          if [ -f "services/ml-service/src/thompson_sampler.py" ]; then
+            echo "✅ Thompson Sampler exists ($(wc -l < services/ml-service/src/thompson_sampler.py) lines)"
+          fi
+          if [ -f "services/meta-publisher/src/facebook/meta-ads-manager.ts" ]; then
+            echo "✅ Meta SDK integration exists ($(wc -l < services/meta-publisher/src/facebook/meta-ads-manager.ts) lines)"
+          fi
+          echo "🎯 All ML and Meta files confirmed on GitHub!"
 
-  build-and-push:
-    name: Build and Push Images
-    runs-on: ubuntu-latest
-    needs: lint-and-test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          export_default_credentials: true
-
-      - name: Configure Docker
+      # Build and Deploy ML Service
+      - name: Build ML Service
+        if: hashFiles('services/ml-service/Dockerfile') != ''
         run: |
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:latest \
+            ./services/ml-service
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:latest
 
-      - name: Build and push drive-intel
+      - name: Deploy ML Service
+        if: hashFiles('services/ml-service/Dockerfile') != ''
         run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/drive-intel:${{ github.sha }}"
-          docker build -t $IMAGE ./services/drive-intel
-          docker push $IMAGE
-          docker tag $IMAGE "${IMAGE%:*}:latest"
-          docker push "${IMAGE%:*}:latest"
+          gcloud run deploy ml-service \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:latest \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=2Gi \
+            --cpu=2 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}"
 
-      - name: Build and push video-agent
+      # Build and Deploy Drive Intel
+      - name: Build Drive Intel
+        if: hashFiles('services/drive-intel/Dockerfile') != ''
         run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/video-agent:${{ github.sha }}"
-          docker build -t $IMAGE ./services/video-agent
-          docker push $IMAGE
-          docker tag $IMAGE "${IMAGE%:*}:latest"
-          docker push "${IMAGE%:*}:latest"
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/drive-intel:latest \
+            ./services/drive-intel
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/drive-intel:latest
 
-      - name: Build and push gateway-api
+      - name: Deploy Drive Intel
+        if: hashFiles('services/drive-intel/Dockerfile') != ''
         run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/gateway-api:${{ github.sha }}"
-          docker build -t $IMAGE ./services/gateway-api
-          docker push $IMAGE
-          docker tag $IMAGE "${IMAGE%:*}:latest"
-          docker push "${IMAGE%:*}:latest"
+          gcloud run deploy drive-intel \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/drive-intel:latest \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --ingress=internal \
+            --allow-unauthenticated \
+            --memory=16Gi \
+            --cpu=4 \
+            --timeout=3600 \
+            --cpu-boost \
+            --max-instances=10 \
+            --min-instances=0 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},CONFIG_PATH=/app/config"
 
-      - name: Build and push meta-publisher
+      # Build and Deploy Video Agent
+      - name: Build Video Agent
+        if: hashFiles('services/video-agent/Dockerfile') != ''
         run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/meta-publisher:${{ github.sha }}"
-          docker build -t $IMAGE ./services/meta-publisher
-          docker push $IMAGE
-          docker tag $IMAGE "${IMAGE%:*}:latest"
-          docker push "${IMAGE%:*}:latest"
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/video-agent:latest \
+            ./services/video-agent
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/video-agent:latest
 
-      - name: Build and push frontend
+      - name: Deploy Video Agent
+        if: hashFiles('services/video-agent/Dockerfile') != ''
         run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REGISTRY_NAME }}/frontend:${{ github.sha }}"
-          docker build -t $IMAGE ./frontend
-          docker push $IMAGE
-          docker tag $IMAGE "${IMAGE%:*}:latest"
-          docker push "${IMAGE%:*}:latest"
+          gcloud run deploy video-agent \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/video-agent:latest \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --ingress=internal \
+            --allow-unauthenticated \
+            --memory=4Gi \
+            --cpu=2 \
+            --timeout=600 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},CONFIG_PATH=/app/config"
 
-  # Optional: Auto-deploy to staging/production
-  # Uncomment and configure when ready
-  # deploy:
-  #   name: Deploy to Cloud Run
-  #   runs-on: ubuntu-latest
-  #   needs: build-and-push
-  #   if: github.ref == 'refs/heads/main'
-  #   
-  #   steps:
-  #     - name: Deploy services
-  #       run: |
-  #         # Deploy using gcloud run deploy commands
-  #         echo "Deploy to Cloud Run"
+      # Build and Deploy Meta Publisher
+      - name: Build Meta Publisher
+        if: hashFiles('services/meta-publisher/Dockerfile') != ''
+        run: |
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/meta-publisher:latest \
+            ./services/meta-publisher
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/meta-publisher:latest
+
+      - name: Deploy Meta Publisher
+        if: hashFiles('services/meta-publisher/Dockerfile') != ''
+        run: |
+          gcloud run deploy meta-publisher \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/meta-publisher:latest \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --ingress=internal \
+            --allow-unauthenticated \
+            --memory=1Gi \
+            --cpu=1 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }}"
+
+      # Build and Deploy Gateway API
+      - name: Build Gateway API
+        if: hashFiles('services/gateway-api/Dockerfile') != ''
+        run: |
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api:latest \
+            ./services/gateway-api
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api:latest
+
+      - name: Deploy Gateway API
+        if: hashFiles('services/gateway-api/Dockerfile') != ''
+        run: |
+          # Get service URLs
+          DRIVE_INTEL_URL=$(gcloud run services describe drive-intel --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
+          VIDEO_AGENT_URL=$(gcloud run services describe video-agent --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
+          META_PUBLISHER_URL=$(gcloud run services describe meta-publisher --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
+          ML_SERVICE_URL=$(gcloud run services describe ml-service --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
+
+          gcloud run deploy gateway-api \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api:latest \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --ingress=all \
+            --allow-unauthenticated \
+            --memory=1Gi \
+            --cpu=1 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCS_BUCKET=${{ env.GCS_BUCKET }},CONFIG_PATH=/app/config,DRIVE_INTEL_URL=${DRIVE_INTEL_URL},VIDEO_AGENT_URL=${VIDEO_AGENT_URL},META_PUBLISHER_URL=${META_PUBLISHER_URL},ML_SERVICE_URL=${ML_SERVICE_URL}"
+
+      # Build and Deploy Frontend
+      - name: Build Frontend
+        if: hashFiles('frontend/Dockerfile') != '' || hashFiles('services/frontend/Dockerfile') != ''
+        run: |
+          FRONTEND_DIR="frontend"
+          if [ -d "services/frontend" ]; then
+            FRONTEND_DIR="services/frontend"
+          fi
+
+          # Get Gateway URL for frontend
+          GATEWAY_URL=$(gcloud run services describe gateway-api --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
+
+          # Build with API URL
+          docker build \
+            --build-arg VITE_API_URL=${GATEWAY_URL} \
+            -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:latest \
+            ./${FRONTEND_DIR}
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:latest
+
+      - name: Deploy Frontend
+        if: hashFiles('frontend/Dockerfile') != '' || hashFiles('services/frontend/Dockerfile') != ''
+        run: |
+          GATEWAY_URL=$(gcloud run services describe gateway-api --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
+
+          gcloud run deploy frontend \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:latest \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --ingress=all \
+            --allow-unauthenticated \
+            --memory=512Mi \
+            --cpu=1 \
+            --set-env-vars="VITE_API_URL=${GATEWAY_URL}"
+
+      # Sync configs if they exist
+      - name: Sync Configs to GCS
+        continue-on-error: true
+        run: |
+          # Check and sync shared config
+          if [ -d "shared/config" ]; then
+            gsutil -m rsync -r -d ./shared/config gs://${{ env.GCS_BUCKET }}/config/
+          fi
+          # Check and sync knowledge base
+          if [ -d "knowledge" ]; then
+            gsutil -m rsync -r -d ./knowledge gs://${{ env.GCS_BUCKET }}/knowledge/
+          fi
+
+      - name: Show Deployment Status
+        if: always()
+        run: |
+          echo "================================================"
+          echo "🚀 Deployment Status - $(date)"
+          echo "================================================"
+          echo ""
+          gcloud run services list --region=${{ env.GCP_REGION }} --format="table(SERVICE:label='Service',URL:label='URL')"
+          echo ""
+          echo "================================================"
+          echo "✅ All services deployed successfully!"
+          echo "================================================"

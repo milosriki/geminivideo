@@ -8,6 +8,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import axios from 'axios';
+import { createClient } from 'redis';
+import { Pool } from 'pg';
+import { v4 as uuidv4 } from 'uuid';
 
 import { ScoringEngine } from './services/scoring-engine';
 import { ReliabilityLogger } from './services/reliability-logger';
@@ -19,6 +22,20 @@ const PORT = process.env.PORT || 8000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Redis client for async queues
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const redisClient = createClient({ url: REDIS_URL });
+redisClient.on('error', (err) => console.error('Redis Client Error', err));
+redisClient.connect().then(() => {
+  console.log('✅ Redis connected for async queues');
+});
+
+// PostgreSQL client for database access
+const DATABASE_URL = process.env.DATABASE_URL || 
+  'postgresql://geminivideo:geminivideo@localhost:5432/geminivideo';
+const pgPool = new Pool({ connectionString: DATABASE_URL });
+pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
 
 // Load configuration
 const configPath = process.env.CONFIG_PATH || '../../shared/config';
@@ -97,6 +114,52 @@ app.get('/api/assets/:assetId/clips', async (req: Request, res: Response) => {
     res.status(error.response?.status || 500).json({
       error: error.message
     });
+  }
+});
+
+// Async analysis endpoint - queues job instead of blocking
+app.post('/api/analyze', async (req: Request, res: Response) => {
+  try {
+    const { path: videoPath, filename, size_bytes, duration_seconds } = req.body;
+    
+    // Validate required fields
+    if (!videoPath || !filename) {
+      return res.status(400).json({ error: 'Missing required fields: path, filename' });
+    }
+    
+    // Create asset in database with QUEUED status
+    const assetId = uuidv4();
+    const query = `
+      INSERT INTO assets (asset_id, path, filename, size_bytes, duration_seconds, 
+                         resolution, format, status, ingested_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      RETURNING asset_id
+    `;
+    
+    await pgPool.query(query, [
+      assetId,
+      videoPath,
+      filename,
+      size_bytes || 0,
+      duration_seconds || 0,
+      '1920x1080',  // Default
+      'mp4',        // Default
+      'QUEUED'
+    ]);
+    
+    // Push job to Redis queue
+    await redisClient.rPush('analysis_queue', assetId);
+    
+    // Return immediately with 202 Accepted
+    res.status(202).json({
+      asset_id: assetId,
+      status: 'QUEUED',
+      message: 'Analysis job queued successfully'
+    });
+    
+  } catch (error: any) {
+    console.error('Error queuing analysis:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -194,6 +257,91 @@ app.post('/api/render/remix', async (req: Request, res: Response) => {
     res.status(error.response?.status || 500).json({
       error: error.message
     });
+  }
+});
+
+// Story Arc rendering endpoint - creates ads from templates
+app.post('/api/render/story_arc', async (req: Request, res: Response) => {
+  try {
+    const { arc_name, asset_id } = req.body;
+    
+    // Load story arcs configuration
+    const storyArcsPath = path.join('../../shared/config', 'story_arcs.json');
+    const storyArcs = JSON.parse(fs.readFileSync(storyArcsPath, 'utf8'));
+    
+    // Get the requested arc
+    const arc = storyArcs[arc_name || 'fitness_transformation'];
+    if (!arc) {
+      return res.status(404).json({ 
+        error: 'Story arc not found',
+        available_arcs: Object.keys(storyArcs)
+      });
+    }
+    
+    // Query database for clips matching each step
+    const selectedClips: string[] = [];
+    
+    for (const step of arc.steps) {
+      const query = `
+        SELECT c.clip_id, c.ctr_score, e.emotion
+        FROM clips c
+        LEFT JOIN emotions e ON c.clip_id = e.clip_id
+        WHERE c.asset_id = $1 AND e.emotion = $2
+        ORDER BY c.ctr_score DESC, c.scene_score DESC
+        LIMIT 1
+      `;
+      
+      const result = await pgPool.query(query, [asset_id, step.emotion]);
+      
+      if (result.rows.length > 0) {
+        selectedClips.push(result.rows[0].clip_id);
+      } else {
+        // Fallback: get any clip if no emotion match
+        const fallbackQuery = `
+          SELECT clip_id FROM clips
+          WHERE asset_id = $1
+          ORDER BY ctr_score DESC, scene_score DESC
+          LIMIT 1
+        `;
+        const fallbackResult = await pgPool.query(fallbackQuery, [asset_id]);
+        if (fallbackResult.rows.length > 0) {
+          selectedClips.push(fallbackResult.rows[0].clip_id);
+        }
+      }
+    }
+    
+    if (selectedClips.length === 0) {
+      return res.status(404).json({ 
+        error: 'No clips found for story arc',
+        asset_id 
+      });
+    }
+    
+    // Create render job
+    const jobId = uuidv4();
+    const renderJob = {
+      job_id: jobId,
+      clip_ids: selectedClips,
+      arc_name,
+      enable_transitions: true,
+      output_path: `/tmp/output_${jobId}.mp4`
+    };
+    
+    // Push to render queue
+    await redisClient.rPush('render_queue', JSON.stringify(renderJob));
+    
+    // Return job info
+    res.status(202).json({
+      job_id: jobId,
+      status: 'QUEUED',
+      arc_name,
+      selected_clips: selectedClips,
+      message: 'Render job queued successfully'
+    });
+    
+  } catch (error: any) {
+    console.error('Error creating story arc render:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
