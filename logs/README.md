@@ -1,0 +1,1 @@
+# Prediction Logs\n\nThis directory contains prediction logs in JSONL format.\n\nFiles:\n- predictions.jsonl - Model predictions for scoring and ranking\n\nLogs are consumed by scripts/nightly_learning.py for model calibration.
