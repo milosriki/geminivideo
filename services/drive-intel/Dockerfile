@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt .
+COPY services/drive-intel/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download ML models during build to avoid runtime delays
@@ -41,8 +41,11 @@ except Exception as e:\n\
     print(f'⚠️  Sentence-transformer download failed: {e}');\n\
 " || echo "⚠️  Sentence-transformer import failed, will download at runtime"
 
+# Copy shared config directory
+COPY shared/config /app/config
+
 # Copy application code
-COPY . .
+COPY services/drive-intel .
 
 # Expose port (Cloud Run will set PORT env var)
 EXPOSE 8080
