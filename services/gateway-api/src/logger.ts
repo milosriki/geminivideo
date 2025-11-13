@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PredictionLogEntry } from './types';
 
-const LOGS_DIR = path.join(__dirname, '../../../logs');
+const LOGS_DIR = process.env.LOGS_DIR || '/tmp/logs';
 const PREDICTIONS_LOG = path.join(LOGS_DIR, 'predictions.jsonl');
 
 // Ensure logs directory exists

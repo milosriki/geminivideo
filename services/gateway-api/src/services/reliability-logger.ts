@@ -21,7 +21,7 @@ export class ReliabilityLogger {
   private predictions: Map<string, PredictionLog>;
 
   constructor() {
-    const logDir = process.env.LOG_DIR || '../../logs';
+    const logDir = process.env.LOG_DIR || '/tmp/logs';
     this.logFile = path.join(logDir, 'predictions.jsonl');
     this.predictions = new Map();
     
