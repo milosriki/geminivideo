@@ -1,4 +1,4 @@
-FROM python:3.11-slim as build
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -12,14 +12,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY services/video-agent/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy shared config directory
-COPY shared/config /app/config
-
 # Copy application code
-COPY services/video-agent .
+COPY . .
 
 # Expose port (Cloud Run will set PORT env var)
 EXPOSE 8080

@@ -111,7 +111,8 @@ jobs:
       - name: Build Drive Intel
         if: hashFiles('services/drive-intel/Dockerfile') != ''
         run: |
-          docker build -f services/drive-intel/Dockerfile -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/drive-intel:latest .
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/drive-intel:latest \
+            ./services/drive-intel
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/drive-intel:latest
 
       - name: Deploy Drive Intel
@@ -135,7 +136,8 @@ jobs:
       - name: Build Video Agent
         if: hashFiles('services/video-agent/Dockerfile') != ''
         run: |
-          docker build -f services/video-agent/Dockerfile -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/video-agent:latest .
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/video-agent:latest \
+            ./services/video-agent
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/video-agent:latest
 
       - name: Deploy Video Agent
@@ -177,7 +179,8 @@ jobs:
       - name: Build Gateway API
         if: hashFiles('services/gateway-api/Dockerfile') != ''
         run: |
-          docker build -f services/gateway-api/Dockerfile -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api:latest .
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api:latest \
+            ./services/gateway-api
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api:latest
 
       - name: Deploy Gateway API
@@ -201,13 +204,8 @@ jobs:
 
       # Build and Deploy Frontend
       - name: Build Frontend
-        if: hashFiles('frontend/Dockerfile') != '' || hashFiles('services/frontend/Dockerfile') != ''
+        if: hashFiles('frontend/Dockerfile') != ''
         run: |
-          FRONTEND_DIR="frontend"
-          if [ -d "services/frontend" ]; then
-            FRONTEND_DIR="services/frontend"
-          fi
-
           # Get Gateway URL for frontend
           GATEWAY_URL=$(gcloud run services describe gateway-api --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
 
@@ -215,11 +213,11 @@ jobs:
           docker build \
             --build-arg VITE_API_URL=${GATEWAY_URL} \
             -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:latest \
-            ./${FRONTEND_DIR}
+            ./frontend
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:latest
 
       - name: Deploy Frontend
-        if: hashFiles('frontend/Dockerfile') != '' || hashFiles('services/frontend/Dockerfile') != ''
+        if: hashFiles('frontend/Dockerfile') != ''
         run: |
           GATEWAY_URL=$(gcloud run services describe gateway-api --region=${{ env.GCP_REGION }} --format='value(status.url)' 2>/dev/null || echo "")
 
