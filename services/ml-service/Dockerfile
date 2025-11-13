@@ -2,12 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for ML packages
-# - build-essential: C/C++ compilers for Python extensions (numpy, scipy, xgboost)
-# - cmake: Build system for vowpalwabbit
-# - libboost packages: Required for vowpalwabbit C++ components
-# - libgomp1: OpenMP library for parallel processing in ML libraries
-# - zlib1g-dev: Compression library for data handling
+# Install system dependencies for building Python packages
+# vowpalwabbit requires boost-python, cmake, and zlib
+# libgomp1: OpenMP library for parallel processing in ML libraries
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -34,4 +31,4 @@ RUN mkdir -p models
 EXPOSE 8080
 
 # Run the service - respect PORT environment variable from Cloud Run
-CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
