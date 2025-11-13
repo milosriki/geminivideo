@@ -48,8 +48,8 @@ This will:
 ### Manual Start (Alternative)
 
 ```bash
-# Start all services
-docker-compose up -d --build
+# Start all services (disable BuildKit due to npm compatibility issue)
+DOCKER_BUILDKIT=0 docker compose up -d --build
 
 # Test connections
 ./scripts/test-connections.sh

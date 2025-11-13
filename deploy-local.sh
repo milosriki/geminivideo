@@ -57,12 +57,12 @@ fi
 
 # Stop any existing containers
 echo "🛑 Stopping existing containers..."
-docker-compose down 2>/dev/null || true
+docker compose down 2>/dev/null || true
 
-# Build images
+# Build images (disable BuildKit due to npm compatibility issue)
 echo ""
 echo "🔨 Building Docker images..."
-docker-compose build
+DOCKER_BUILDKIT=0 docker compose build
 
 # Start database first
 echo ""
@@ -84,7 +84,7 @@ docker-compose exec -T postgres psql -U geminivideo -d geminivideo -c "SELECT 1;
 # Start all services
 echo ""
 echo "🚀 Starting all services..."
-docker-compose up -d
+docker compose up -d
 
 # Wait for services to be ready
 echo ""
@@ -120,7 +120,7 @@ done
 echo ""
 echo "📋 Recent logs:"
 echo "=============="
-docker-compose logs --tail=5
+docker compose logs --tail=5
 
 echo ""
 echo "=========================================="
@@ -136,10 +136,10 @@ echo "  ML Service:      http://localhost:8003"
 echo "  Meta Publisher:  http://localhost:8083"
 echo ""
 echo "📊 View logs:"
-echo "  docker-compose logs -f"
+echo "  docker compose logs -f"
 echo ""
 echo "🛑 Stop services:"
-echo "  docker-compose down"
+echo "  docker compose down"
 echo ""
 echo "📝 Next steps:"
 echo "  1. Configure Meta credentials in .env"
