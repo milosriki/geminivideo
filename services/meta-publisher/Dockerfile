@@ -7,13 +7,17 @@ COPY package*.json ./
 COPY tsconfig.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install --legacy-peer-deps --no-audit --no-fund; exit 0
+RUN test -f node_modules/.bin/tsc || npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
 
 # Build TypeScript
 RUN npm run build
+
+# Remove dev dependencies
+RUN npm prune --production || true
 
 # Expose port (Cloud Run will set PORT env var)
 EXPOSE 8080

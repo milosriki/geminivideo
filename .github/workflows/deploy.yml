@@ -11,6 +11,7 @@ env:
   GCP_REGION: us-west1
   ARTIFACT_REGISTRY_REPO: cloud-run-repo
   GCS_BUCKET: ai-studio-bucket-208288753973-us-west1
+  DOCKER_BUILDKIT: 0
 
 jobs:
   deploy:
