@@ -4,10 +4,20 @@ WORKDIR /app
 
 # Install system dependencies for ML packages
 # - build-essential: C/C++ compilers for Python extensions (numpy, scipy, xgboost)
+# - cmake: Build system for vowpalwabbit
+# - libboost packages: Required for vowpalwabbit C++ components
 # - libgomp1: OpenMP library for parallel processing in ML libraries
+# - zlib1g-dev: Compression library for data handling
 RUN apt-get update && apt-get install -y \
     build-essential \
+    cmake \
+    libboost-dev \
+    libboost-python-dev \
+    libboost-system-dev \
+    libboost-thread-dev \
+    libboost-program-options-dev \
     libgomp1 \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
