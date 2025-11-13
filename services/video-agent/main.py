@@ -136,7 +136,7 @@ async def _process_render_job(job_id: str, request: RemixRequest):
         output_format = formats.get(request.variant, formats["reels"])
         
         # Output directory
-        output_dir = os.getenv("OUTPUT_DIR", "../../data/outputs")
+        output_dir = os.getenv("OUTPUT_DIR", "/tmp/outputs")
         os.makedirs(output_dir, exist_ok=True)
         
         output_path = os.path.join(

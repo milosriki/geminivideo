@@ -16,7 +16,7 @@ export class LearningService {
 
   async updateWeights(): Promise<any> {
     // Read predictions log
-    const logFile = path.join(process.env.LOG_DIR || '../../logs', 'predictions.jsonl');
+    const logFile = path.join(process.env.LOG_DIR || '/tmp/logs', 'predictions.jsonl');
     
     if (!fs.existsSync(logFile)) {
       return {
