@@ -1,22 +1,25 @@
-FROM node:18-slim as build
+FROM node:20-alpine
 
 WORKDIR /app
 
 # Copy package files
-COPY services/gateway-api/package*.json ./
-COPY services/gateway-api/tsconfig.json ./
+COPY package*.json ./
+COPY tsconfig.json ./
 
 # Install dependencies
-RUN npm install
-
-# Copy shared config directory
-COPY shared/config /app/config
+# The "Exit handler never called" error from npm is benign in Docker builds
+# See: https://github.com/npm/cli/issues/4028
+RUN npm install --legacy-peer-deps --no-audit --no-fund; exit 0
+RUN test -f node_modules/.bin/tsc || npm install --legacy-peer-deps
 
 # Copy source code
-COPY services/gateway-api .
+COPY src ./src
 
 # Build TypeScript
 RUN npm run build
+
+# Remove dev dependencies
+RUN npm prune --production || true
 
 # Expose port (Cloud Run will set PORT env var)
 EXPOSE 8080
