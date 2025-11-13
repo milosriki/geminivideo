@@ -5,7 +5,6 @@ Processes jobs from Redis queue asynchronously
 import os
 import sys
 import time
-import json
 import redis
 from sqlalchemy.orm import Session
 from typing import Optional

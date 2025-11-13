@@ -33,7 +33,6 @@ class VideoWorker:
         """Process a single render job"""
         try:
             clip_ids = job_data.get('clip_ids', [])
-            output_path = job_data.get('output_path', '/tmp/output.mp4')
             
             print(f"🎬 Rendering {len(clip_ids)} clips...")
             
