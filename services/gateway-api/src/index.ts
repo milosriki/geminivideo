@@ -266,7 +266,7 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
     const { arc_name, asset_id } = req.body;
     
     // Load story arcs configuration
-    const storyArcsPath = path.join('../../shared/config', 'story_arcs.json');
+    const storyArcsPath = path.join(configPath, 'story_arcs.json');
     const storyArcs = JSON.parse(fs.readFileSync(storyArcsPath, 'utf8'));
     
     // Get the requested arc

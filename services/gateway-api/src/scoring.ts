@@ -5,7 +5,8 @@ import { PsychologyScore, HookStrength, NoveltyScore, ScoreBundle } from './type
 
 // Load weights configuration
 let weights: any = {};
-const weightsPath = path.join(__dirname, '../../../shared/config/weights.yaml');
+const configPath = process.env.CONFIG_PATH || path.join(__dirname, '../../../shared/config');
+const weightsPath = path.join(configPath, 'weights.yaml');
 
 try {
   if (fs.existsSync(weightsPath)) {
