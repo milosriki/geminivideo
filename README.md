@@ -39,11 +39,12 @@ This will:
 - ✅ Display all service URLs
 
 **Services connected and running at:**
-- 🎨 **Frontend Dashboard**: http://localhost:3000 *(Start here!)*
-- 🚪 **Gateway API**: http://localhost:8000
-- 🎬 **Drive Intel**: http://localhost:8001
-- 🎥 **Video Agent**: http://localhost:8002
-- 📱 **Meta Publisher**: http://localhost:8003
+- 🎨 **Frontend Dashboard**: http://localhost *(Start here!)*
+- 🚪 **Gateway API**: http://localhost:8080
+- 🎬 **Drive Intel**: http://localhost:8081
+- 🎥 **Video Agent**: http://localhost:8082
+- 📱 **Meta Publisher**: http://localhost:8083
+- 🤖 **ML Service**: http://localhost:8003
 
 ### Manual Start (Alternative)
 
@@ -56,6 +57,8 @@ DOCKER_BUILDKIT=0 docker compose up -d --build
 ```
 
 ### 📘 Complete Guide
+
+**New here?** See [WHERE_ARE_WE_NOW.md](WHERE_ARE_WE_NOW.md) for project status and next steps.
 
 See [QUICKSTART.md](QUICKSTART.md) for:
 - Step-by-step setup instructions
@@ -140,25 +143,25 @@ npm run dev
 
 ```bash
 # Ingest local folder
-curl -X POST http://localhost:8000/api/ingest/local/folder \
+curl -X POST http://localhost:8080/api/ingest/local/folder \
   -H "Content-Type: application/json" \
   -d '{"folder_path": "/path/to/videos"}'
 
 # Get ranked clips
-curl http://localhost:8000/api/assets/{asset_id}/clips?ranked=true&top=10
+curl http://localhost:8080/api/assets/{asset_id}/clips?ranked=true&top=10
 
 # Search clips
-curl -X POST http://localhost:8000/api/search/clips \
+curl -X POST http://localhost:8080/api/search/clips \
   -H "Content-Type: application/json" \
   -d '{"query": "person doing squats", "top_k": 5}'
 
 # Score storyboard
-curl -X POST http://localhost:8000/api/score/storyboard \
+curl -X POST http://localhost:8080/api/score/storyboard \
   -H "Content-Type: application/json" \
   -d '{"scenes": [...], "metadata": {}}'
 
 # Create render job
-curl -X POST http://localhost:8000/api/render/remix \
+curl -X POST http://localhost:8080/api/render/remix \
   -H "Content-Type: application/json" \
   -d '{"scenes": [...], "variant": "reels"}'
 ```
@@ -204,7 +207,7 @@ The system automatically improves over time:
 
 Trigger learning update:
 ```bash
-curl -X POST http://localhost:8000/api/internal/learning/update
+curl -X POST http://localhost:8080/api/internal/learning/update
 ```
 
 ## 🚢 Cloud Deployment
