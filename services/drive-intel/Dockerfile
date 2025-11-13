@@ -1,4 +1,4 @@
-FROM python:3.11-slim as build
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY services/drive-intel/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download ML models during build to avoid runtime delays
@@ -41,11 +41,8 @@ except Exception as e:\n\
     print(f'⚠️  Sentence-transformer download failed: {e}');\n\
 " || echo "⚠️  Sentence-transformer import failed, will download at runtime"
 
-# Copy shared config directory
-COPY shared/config /app/config
-
 # Copy application code
-COPY services/drive-intel .
+COPY . .
 
 # Expose port (Cloud Run will set PORT env var)
 EXPOSE 8080
