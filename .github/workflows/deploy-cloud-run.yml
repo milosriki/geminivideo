@@ -11,6 +11,7 @@ env:
   GCP_REGION: us-west1
   ARTIFACT_REGISTRY_REPO: cloud-run-repo
   GCS_BUCKET: ai-studio-bucket-208288753973-us-west1
+  DOCKER_BUILDKIT: 0
 
 jobs:
   deploy:
@@ -39,7 +40,7 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
       
-      # Build and push Gateway API
+      # Build and Push Gateway API
       - name: Build and Push Gateway API
         run: |
           docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api:${{ github.sha }} \
@@ -80,7 +81,7 @@ jobs:
         run: |
           docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:${{ github.sha }} \
             -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:latest \
-            ./services/frontend
+            ./frontend
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:${{ github.sha }}
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:latest
       
