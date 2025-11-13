@@ -65,24 +65,30 @@ gcloud secrets add-iam-policy-binding meta-access-token \
 # Set image registry prefix
 export IMAGE_PREFIX="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REGISTRY_NAME}"
 
+# Note: Use DOCKER_BUILDKIT=0 to avoid npm compatibility issues
+
 # Build and push drive-intel
-docker build -t ${IMAGE_PREFIX}/drive-intel:latest ./services/drive-intel
+DOCKER_BUILDKIT=0 docker build -t ${IMAGE_PREFIX}/drive-intel:latest ./services/drive-intel
 docker push ${IMAGE_PREFIX}/drive-intel:latest
 
 # Build and push video-agent
-docker build -t ${IMAGE_PREFIX}/video-agent:latest ./services/video-agent
+DOCKER_BUILDKIT=0 docker build -t ${IMAGE_PREFIX}/video-agent:latest ./services/video-agent
 docker push ${IMAGE_PREFIX}/video-agent:latest
 
 # Build and push gateway-api
-docker build -t ${IMAGE_PREFIX}/gateway-api:latest ./services/gateway-api
+DOCKER_BUILDKIT=0 docker build -t ${IMAGE_PREFIX}/gateway-api:latest ./services/gateway-api
 docker push ${IMAGE_PREFIX}/gateway-api:latest
 
 # Build and push meta-publisher
-docker build -t ${IMAGE_PREFIX}/meta-publisher:latest ./services/meta-publisher
+DOCKER_BUILDKIT=0 docker build -t ${IMAGE_PREFIX}/meta-publisher:latest ./services/meta-publisher
 docker push ${IMAGE_PREFIX}/meta-publisher:latest
 
+# Build and push ml-service
+DOCKER_BUILDKIT=0 docker build -t ${IMAGE_PREFIX}/ml-service:latest ./services/ml-service
+docker push ${IMAGE_PREFIX}/ml-service:latest
+
 # Build and push frontend
-docker build -t ${IMAGE_PREFIX}/frontend:latest ./frontend
+DOCKER_BUILDKIT=0 docker build -t ${IMAGE_PREFIX}/frontend:latest ./frontend
 docker push ${IMAGE_PREFIX}/frontend:latest
 ```
 
