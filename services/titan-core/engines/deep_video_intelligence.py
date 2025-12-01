@@ -31,7 +31,12 @@ except ImportError:
     WHISPER_AVAILABLE = False
     print("⚠️ Whisper not available. Audio transcription will be disabled.")
 
-from backend.services.supabase_connector import supabase_connector
+# Supabase connector - load if available
+try:
+    from services.supabase_connector import supabase_connector
+except ImportError:
+    supabase_connector = None
+    print("⚠️ Supabase connector not available. Analysis will not be persisted.")
 
 # PRO-GRADE SCORING RUBRIC (2025 Winning Patterns)
 PRO_GRADE_SCORING_RUBRIC = """
@@ -267,7 +272,7 @@ class DeepVideoIntelligence:
                 print(f"⚠️ Transcription failed: {e}")
         
         # Use Andromeda Logic for Prompt Generation
-        from backend_core.engines.andromeda_prompts import get_andromeda_roas_prompt
+        from engines.andromeda_prompts import get_andromeda_roas_prompt
         
         ad_data = {
             "transcript": transcript_text,

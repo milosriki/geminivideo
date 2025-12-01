@@ -53,6 +53,7 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
     print("🎥 DIRECTOR: Drafting script with extended reasoning...")
     
     # --- MCP INTEGRATION START ---
+    mcp_tools_available = []
     try:
         from mcp_wrapper import meta_ads_client
         print("🔌 MCP: Connecting to Meta Ads Server...")
@@ -60,7 +61,23 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
             tools = await meta_ads_client.list_tools()
             tool_names = [t.name for t in tools]
             print(f"🛠️ MCP TOOLS LOADED ({len(tools)}): {', '.join(tool_names[:5])}...")
-            # TODO: Register these tools with the Director Agent
+
+            # Register MCP tools with Director Agent
+            # Convert MCP tools to AutoGen-compatible format
+            for tool in tools:
+                # Create a wrapper function for each MCP tool
+                async def mcp_tool_wrapper(tool_name=tool.name, **kwargs):
+                    """Wrapper to call MCP tool from AutoGen"""
+                    result = await meta_ads_client.call_tool(tool_name, kwargs)
+                    return result
+
+                # Add tool metadata
+                mcp_tool_wrapper.__name__ = tool.name
+                mcp_tool_wrapper.__doc__ = tool.description if hasattr(tool, 'description') else f"MCP tool: {tool.name}"
+
+                mcp_tools_available.append(mcp_tool_wrapper)
+
+            print(f"✅ MCP: {len(mcp_tools_available)} tools registered with Director Agent")
     except Exception as e:
         print(f"⚠️ MCP Integration Warning: {e}")
     # --- MCP INTEGRATION END ---
