@@ -32,10 +32,23 @@ redisClient.connect().then(() => {
 });
 
 // PostgreSQL client for database access
-const DATABASE_URL = process.env.DATABASE_URL || 
-  'postgresql://geminivideo:geminivideo@localhost:5432/geminivideo';
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error('❌ DATABASE_URL environment variable is required');
+  console.error('Example: postgresql://user:password@host:5432/dbname');
+  process.exit(1);
+}
+
 const pgPool = new Pool({ connectionString: DATABASE_URL });
 pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
+
+// Verify database connection
+pgPool.query('SELECT NOW()')
+  .then(() => console.log('✅ PostgreSQL connected'))
+  .catch((err) => {
+    console.error('❌ PostgreSQL connection failed:', err.message);
+    process.exit(1);
+  });
 
 // Load configuration
 const configPath = process.env.CONFIG_PATH || '../../shared/config';
@@ -413,6 +426,161 @@ app.get('/api/metrics/reliability', (req: Request, res: Response) => {
     const metrics = reliabilityLogger.getReliabilityMetrics();
     res.json(metrics);
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Human Workflow API - Manual Trigger Endpoints
+
+// POST /api/trigger/analyze-drive-folder
+// Manual trigger button: "Analyze My Google Drive Ads"
+app.post('/api/trigger/analyze-drive-folder', async (req: Request, res: Response) => {
+  try {
+    const { folder_id, max_videos } = req.body;
+
+    // Validate required fields
+    if (!folder_id) {
+      return res.status(400).json({ error: 'Missing required field: folder_id' });
+    }
+
+    console.log(`Triggering Drive folder analysis: folder_id=${folder_id}, max_videos=${max_videos || 'all'}`);
+
+    // Call drive-intel service bulk_analyzer
+    const response = await axios.post(`${DRIVE_INTEL_URL}/bulk_analyzer`, {
+      folder_id,
+      max_videos: max_videos || 10
+    });
+
+    console.log(`Drive folder analysis completed: ${response.data.videos_analyzed || 0} videos analyzed`);
+
+    // Return 202 Accepted for async operation
+    res.status(202).json({
+      status: 'accepted',
+      message: 'Drive folder analysis initiated',
+      results: response.data
+    });
+
+  } catch (error: any) {
+    console.error('Error triggering Drive folder analysis:', error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+// POST /api/trigger/refresh-meta-metrics
+// Manual trigger button: "Refresh Meta Learning Data"
+app.post('/api/trigger/refresh-meta-metrics', async (req: Request, res: Response) => {
+  try {
+    const { days_back } = req.body;
+
+    console.log(`Triggering Meta learning cycle: days_back=${days_back || 7}`);
+
+    // Call ML service meta learning agent
+    const response = await axios.post(`${ML_SERVICE_URL}/api/ml/learning-cycle`, {
+      days_back: days_back || 7
+    });
+
+    console.log(`Meta learning cycle completed: ${response.data.campaigns_analyzed || 0} campaigns analyzed`);
+
+    // Return 202 Accepted for async operation
+    res.status(202).json({
+      status: 'accepted',
+      message: 'Meta learning cycle initiated',
+      results: {
+        campaigns_analyzed: response.data.campaigns_analyzed || 0,
+        avg_ctr: response.data.avg_ctr || 0,
+        avg_roas: response.data.avg_roas || 0
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error triggering Meta learning cycle:', error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.message
+    });
+  }
+});
+
+// GET /api/approval/queue
+// Shows pending ads awaiting human approval
+app.get('/api/approval/queue', async (req: Request, res: Response) => {
+  try {
+    console.log('Fetching approval queue');
+
+    // Query database for ads where approved=false
+    const query = `
+      SELECT
+        ad_id,
+        asset_id,
+        clip_ids,
+        arc_name,
+        predicted_ctr,
+        predicted_roas,
+        status,
+        created_at,
+        notes
+      FROM ads
+      WHERE approved = false AND status = 'pending_approval'
+      ORDER BY created_at DESC
+    `;
+
+    const result = await pgPool.query(query);
+
+    console.log(`Approval queue fetched: ${result.rows.length} ads pending`);
+
+    res.json({
+      count: result.rows.length,
+      ads: result.rows
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching approval queue:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/approval/approve/:ad_id
+// Human clicks "Approve" button
+app.post('/api/approval/approve/:ad_id', async (req: Request, res: Response) => {
+  try {
+    const { ad_id } = req.params;
+    const { approved, notes } = req.body;
+
+    // Validate required fields
+    if (typeof approved !== 'boolean') {
+      return res.status(400).json({ error: 'Missing required field: approved (boolean)' });
+    }
+
+    console.log(`Processing approval for ad_id=${ad_id}, approved=${approved}`);
+
+    // Update database: approved=true, approved_at=NOW()
+    const query = `
+      UPDATE ads
+      SET
+        approved = $1,
+        notes = $2,
+        approved_at = NOW(),
+        status = CASE WHEN $1 = true THEN 'approved' ELSE 'rejected' END
+      WHERE ad_id = $3
+      RETURNING *
+    `;
+
+    const result = await pgPool.query(query, [approved, notes || '', ad_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ad not found' });
+    }
+
+    console.log(`Ad ${ad_id} ${approved ? 'approved' : 'rejected'} successfully`);
+
+    res.json({
+      message: `Ad ${approved ? 'approved' : 'rejected'} successfully`,
+      ad: result.rows[0]
+    });
+
+  } catch (error: any) {
+    console.error('Error processing approval:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

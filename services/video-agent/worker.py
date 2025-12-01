@@ -20,10 +20,13 @@ class VideoWorker:
     """Background worker for video rendering tasks"""
     
     def __init__(self):
-        self.redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+        self.redis_url = os.getenv('REDIS_URL')
+        if not self.redis_url:
+            raise ValueError("REDIS_URL environment variable is required")
+
         self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
         self.renderer = VideoRenderer()
-        
+
         # Initialize database
         init_db()
         print(f"✅ Video Worker initialized")

@@ -6,15 +6,36 @@ import { getFunctions } from 'firebase/functions';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import { getPerformance } from 'firebase/performance';
 
+// Validate required environment variables
+const requiredEnvVars = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID'
+] as const;
+
+for (const varName of requiredEnvVars) {
+  if (!import.meta.env[varName]) {
+    throw new Error(
+      `❌ Missing required environment variable: ${varName}\n` +
+      `Please set all Firebase config variables in your .env file.\n` +
+      `See .env.example for required variables.`
+    );
+  }
+}
+
 // Your web app's Firebase configuration
+// SECURITY: All values must come from environment variables - no hardcoded fallbacks
 const firebaseConfig = {
-  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || "AIzaSyCamMhfOYNAqnKnK-nQ78f1u5o8VDx9IaU",
-  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || "ptd-fitness-demo.firebaseapp.com",
-  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || "ptd-fitness-demo",
-  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || "ptd-fitness-demo.firebasestorage.app",
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || "489769736562",
-  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || "1:489769736562:web:08dab8e996d315949665eb",
-  measurementId: (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string) || "G-B005380N01"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID as string,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string // Optional
 };
 
 // Initialize Firebase
