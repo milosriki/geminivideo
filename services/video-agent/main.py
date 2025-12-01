@@ -103,7 +103,7 @@ config_path = os.getenv("CONFIG_PATH", "../../shared/config")
 try:
     with open(f"{config_path}/hook_templates.json", "r") as f:
         hook_templates = json.load(f)
-except FileNotFoundError:
+except (FileNotFoundError, PermissionError, json.JSONDecodeError, OSError):
     hook_templates = DEFAULT_HOOK_TEMPLATES
 
 # Initialize services
