@@ -28,10 +28,83 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load configuration
+# Default hook templates (fallback when config file is not available)
+DEFAULT_HOOK_TEMPLATES = {
+    "templates": [
+        {
+            "id": "hook_numbers",
+            "phase": "hook",
+            "patterns": [
+                "Get {result} in {timeframe}",
+                "{number}% improvement in {metric}",
+                "Transform in just {number} {unit}"
+            ],
+            "duration": 3,
+            "position": "top_center"
+        },
+        {
+            "id": "hook_question",
+            "phase": "hook",
+            "patterns": [
+                "Struggling with {problem}?",
+                "Want to {desire}?",
+                "Ready to {transformation}?"
+            ],
+            "duration": 3,
+            "position": "top_center"
+        },
+        {
+            "id": "proof_authority",
+            "phase": "proof",
+            "patterns": [
+                "Certified trainer",
+                "{number}+ clients transformed",
+                "Science-backed method"
+            ],
+            "duration": 4,
+            "position": "bottom_third"
+        },
+        {
+            "id": "cta_urgency",
+            "phase": "cta",
+            "patterns": [
+                "Start your transformation today",
+                "Limited spots available",
+                "Book your free consultation"
+            ],
+            "duration": 3,
+            "position": "center"
+        }
+    ],
+    "overlay_styles": {
+        "hook": {
+            "font_size": 72,
+            "font_color": "white",
+            "background": "rgba(0,0,0,0.7)",
+            "animation": "fade_in"
+        },
+        "proof": {
+            "font_size": 48,
+            "font_color": "white",
+            "background": "rgba(0,0,0,0.6)",
+            "animation": "slide_up"
+        },
+        "cta": {
+            "font_size": 64,
+            "font_color": "yellow",
+            "background": "rgba(0,0,0,0.8)",
+            "animation": "pulse"
+        }
+    }
+}
+
+# Load configuration (with fallback to defaults)
 config_path = os.getenv("CONFIG_PATH", "../../shared/config")
-with open(f"{config_path}/hook_templates.json", "r") as f:
-    hook_templates = json.load(f)
+try:
+    with open(f"{config_path}/hook_templates.json", "r") as f:
+        hook_templates = json.load(f)
+except FileNotFoundError:
+    hook_templates = DEFAULT_HOOK_TEMPLATES
 
 # Initialize services
 renderer = VideoRenderer()
