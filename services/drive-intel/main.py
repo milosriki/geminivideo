@@ -120,17 +120,83 @@ async def ingest_drive_folder(
     background_tasks: BackgroundTasks
 ):
     """
-    Ingest videos from Google Drive folder
+    Ingest videos from Google Drive folder with OAuth 2.0 authentication
+    Requires GOOGLE_DRIVE_CREDENTIALS environment variable set to credentials JSON path
     """
     try:
-        # For MVP, this is a stub - full Google Drive integration would require OAuth
+        # Import Google Drive service
+        try:
+            from services.google_drive_service import GoogleDriveService
+        except ImportError:
+            raise HTTPException(
+                status_code=501,
+                detail="Google Drive integration not available. Install required packages: "
+                       "pip install google-auth google-auth-oauthlib google-api-python-client"
+            )
+
+        # Initialize Drive service (will use OAuth token if available)
+        try:
+            drive_service = GoogleDriveService()
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Google Drive configuration error: {str(e)}. "
+                       "Set GOOGLE_DRIVE_CREDENTIALS environment variable."
+            )
+
+        # Create temp directory for downloads
+        import tempfile
+        download_path = tempfile.mkdtemp(prefix='geminivideo_drive_')
+
+        # Ingest videos from folder
+        ingested_files = drive_service.ingest_folder(
+            folder_id=request.folder_id,
+            download_path=download_path,
+            max_files=50
+        )
+
+        if not ingested_files:
+            return {
+                "status": "success",
+                "folder_id": request.folder_id,
+                "videos_ingested": 0,
+                "message": "No video files found in folder"
+            }
+
+        # Queue each video for analysis
+        analysis_jobs = []
+        for file_info in ingested_files:
+            # Process video through local ingestion pipeline
+            if ingest_service:
+                asset_id = await ingest_service.ingest_single_video(
+                    video_path=file_info['local_path'],
+                    filename=file_info['name'],
+                    scene_detector=scene_detector,
+                    feature_extractor=feature_extractor,
+                    search_service=search_service
+                )
+
+                analysis_jobs.append({
+                    'asset_id': asset_id,
+                    'drive_file_id': file_info['file_id'],
+                    'name': file_info['name'],
+                    'size_mb': file_info['size_bytes'] / 1024 / 1024
+                })
+
         return {
-            "status": "stub",
-            "message": "Google Drive ingestion not yet implemented",
+            "status": "success",
             "folder_id": request.folder_id,
-            "note": "Use /ingest/local/folder for local file ingestion"
+            "videos_ingested": len(ingested_files),
+            "download_path": download_path,
+            "analysis_jobs": analysis_jobs,
+            "message": f"Ingested {len(ingested_files)} videos from Google Drive"
         }
+
+    except HTTPException:
+        raise
     except Exception as e:
+        import logging
+        logging.error(f"Drive ingestion error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

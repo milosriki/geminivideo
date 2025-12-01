@@ -2,7 +2,7 @@ import os
 import asyncio
 from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-from backend.engines.ensemble import council
+from engines.ensemble import council
 
 # CONFIGURATION
 # OFFICIAL GEMINI 3 MODEL (Verified)
@@ -53,14 +53,31 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
     print("🎥 DIRECTOR: Drafting script with extended reasoning...")
     
     # --- MCP INTEGRATION START ---
+    mcp_tools_available = []
     try:
-        from backend.mcp_wrapper import meta_ads_client
+        from mcp_wrapper import meta_ads_client
         print("🔌 MCP: Connecting to Meta Ads Server...")
         if await meta_ads_client.connect():
             tools = await meta_ads_client.list_tools()
             tool_names = [t.name for t in tools]
             print(f"🛠️ MCP TOOLS LOADED ({len(tools)}): {', '.join(tool_names[:5])}...")
-            # TODO: Register these tools with the Director Agent
+
+            # Register MCP tools with Director Agent
+            # Convert MCP tools to AutoGen-compatible format
+            for tool in tools:
+                # Create a wrapper function for each MCP tool
+                async def mcp_tool_wrapper(tool_name=tool.name, **kwargs):
+                    """Wrapper to call MCP tool from AutoGen"""
+                    result = await meta_ads_client.call_tool(tool_name, kwargs)
+                    return result
+
+                # Add tool metadata
+                mcp_tool_wrapper.__name__ = tool.name
+                mcp_tool_wrapper.__doc__ = tool.description if hasattr(tool, 'description') else f"MCP tool: {tool.name}"
+
+                mcp_tools_available.append(mcp_tool_wrapper)
+
+            print(f"✅ MCP: {len(mcp_tools_available)} tools registered with Director Agent")
     except Exception as e:
         print(f"⚠️ MCP Integration Warning: {e}")
     # --- MCP INTEGRATION END ---
@@ -83,7 +100,7 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
         critique = await council.evaluate_script(last_msg)
         
         print(f"⚖️ VERDICT: {critique['verdict']} (Score: {critique['final_score']})")
-        print(f"📊 Breakdown: Gemini 2.0={critique['breakdown']['gemini_2_0_thinking']}, GPT={critique['breakdown']['gpt_4o']}, Claude={critique['breakdown']['claude_3_5']}, DeepCTR={critique['breakdown']['deep_ctr']}")
+        print(f"📊 Breakdown: Gemini={critique['breakdown']['gemini_3_pro']}, Claude={critique['breakdown']['claude_3_5']}, GPT={critique['breakdown']['gpt_4o']}, DeepCTR={critique['breakdown']['deep_ctr']}")
 
         if critique['final_score'] > 85:
             final_status = "APPROVED"

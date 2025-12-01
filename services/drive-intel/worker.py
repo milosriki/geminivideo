@@ -21,11 +21,14 @@ class DriveWorker:
     """Background worker for video analysis tasks"""
     
     def __init__(self):
-        self.redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+        self.redis_url = os.getenv('REDIS_URL')
+        if not self.redis_url:
+            raise ValueError("REDIS_URL environment variable is required")
+
         self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
         self.scene_detector = SceneDetectorService()
         self.feature_extractor = FeatureExtractorService()
-        
+
         # Initialize database
         init_db()
         print(f"✅ Drive Worker initialized")
