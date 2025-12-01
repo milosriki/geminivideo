@@ -13,12 +13,12 @@ pandas
 scikit-learn
 numpy
 requests
-pyautogen==0.2.0
+pyautogen
 openai
 anthropic
 opencv-python-headless
-pydantic==2.5.3
-pydantic-core==2.14.6
-mediapipe
+pydantic>=2.9.0
+pydantic-core
+
 openai-whisper
 tiktoken
