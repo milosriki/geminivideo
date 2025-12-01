@@ -1,0 +1,573 @@
+version: '3.8'
+
+services:
+  # Database - PostgreSQL with production optimizations
+  postgres:
+    image: postgres:15-alpine
+    container_name: geminivideo-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-geminivideo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-geminivideo}
+      # Production PostgreSQL optimizations
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-256MB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.py:/docker-entrypoint-initdb.d/init_db.py:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-geminivideo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Cache - Redis for session management and job queues
+  redis:
+    image: redis:7-alpine
+    container_name: geminivideo-redis-prod
+    restart: always
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # Service 1: Drive Intel - Google Drive intelligence and video ingestion
+  drive-intel:
+    build:
+      context: ./services/drive-intel
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: ${REGISTRY_URL}/drive-intel:${IMAGE_TAG:-latest}
+    container_name: geminivideo-drive-intel-prod
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}
+      REDIS_URL: redis://redis:6379
+      PORT: 8081
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+      CONFIG_PATH: /app/shared/config
+      DATA_DIR: /app/data
+      # Performance tuning
+      MAX_WORKERS: ${DRIVE_INTEL_MAX_WORKERS:-4}
+      BATCH_SIZE: ${DRIVE_INTEL_BATCH_SIZE:-10}
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared:ro
+      - drive_intel_data:/app/data
+      - ./logs/drive-intel:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # Service 2: Video Agent - Video processing and rendering
+  video-agent:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: ${REGISTRY_URL}/video-agent:${IMAGE_TAG:-latest}
+    container_name: geminivideo-video-agent-prod
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}
+      REDIS_URL: redis://redis:6379
+      PORT: 8082
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CONFIG_PATH: /app/shared/config
+      OUTPUT_DIR: /app/data/outputs
+      TEMP_STORAGE_PATH: /app/data/temp
+      # Video processing settings
+      MAX_VIDEO_SIZE_MB: ${MAX_VIDEO_SIZE_MB:-500}
+      VIDEO_QUALITY: ${VIDEO_QUALITY:-high}
+      FFMPEG_THREADS: ${FFMPEG_THREADS:-4}
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared:ro
+      - video_agent_data:/app/data
+      - ./logs/video-agent:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # Service 3: ML Service - Machine learning and prediction engine
+  ml-service:
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: ${REGISTRY_URL}/ml-service:${IMAGE_TAG:-latest}
+    container_name: geminivideo-ml-service-prod
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}
+      PORT: 8003
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # ML model configuration
+      MODEL_PATH: /app/models
+      MIN_SAMPLES_FOR_UPDATE: ${MIN_SAMPLES_FOR_UPDATE:-50}
+      LEARNING_RATE: ${LEARNING_RATE:-0.01}
+      MAX_WEIGHT_DELTA: ${MAX_WEIGHT_DELTA:-0.1}
+      ENABLE_THOMPSON_SAMPLING: ${ENABLE_THOMPSON_SAMPLING:-true}
+      MIN_CONVERSIONS_FOR_WINNER: ${MIN_CONVERSIONS_FOR_WINNER:-30}
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared:ro
+      - ml_models:/app/models
+      - ./logs/ml-service:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+        reservations:
+          cpus: '2'
+          memory: 8G
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # Service 4: Meta Publisher - Meta Ads integration
+  meta-publisher:
+    build:
+      context: ./services/meta-publisher
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: ${REGISTRY_URL}/meta-publisher:${IMAGE_TAG:-latest}
+    container_name: geminivideo-meta-publisher-prod
+    restart: always
+    environment:
+      PORT: 8083
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      GATEWAY_URL: http://gateway-api:8080
+      # Meta API credentials
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID}
+      META_PAGE_ID: ${META_PAGE_ID}
+      META_APP_ID: ${META_APP_ID}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./logs/meta-publisher:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Service 5: Titan Core - Advanced AI orchestration
+  titan-core:
+    build:
+      context: ./services/titan-core
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: ${REGISTRY_URL}/titan-core:${IMAGE_TAG:-latest}
+    container_name: geminivideo-titan-core-prod
+    restart: always
+    environment:
+      PORT: 8084
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # AI API keys
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL_ID: ${GEMINI_MODEL_ID:-gemini-2.0-flash-thinking-exp-1219}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Meta credentials
+      META_APP_ID: ${META_APP_ID}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID}
+      META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
+      META_APP_SECRET: ${META_APP_SECRET}
+    ports:
+      - "8084:8084"
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./logs/titan-core:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Service 6: Gateway API - Main API gateway and routing
+  gateway-api:
+    build:
+      context: ./services/gateway-api
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: ${REGISTRY_URL}/gateway-api:${IMAGE_TAG:-latest}
+    container_name: geminivideo-gateway-api-prod
+    restart: always
+    environment:
+      PORT: 8080
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}
+      REDIS_URL: redis://redis:6379
+      # Service URLs (internal Docker network)
+      DRIVE_INTEL_URL: http://drive-intel:8081
+      VIDEO_AGENT_URL: http://video-agent:8082
+      ML_SERVICE_URL: http://ml-service:8003
+      META_PUBLISHER_URL: http://meta-publisher:8083
+      TITAN_CORE_URL: http://titan-core:8084
+      # Security and CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      JWT_SECRET: ${JWT_SECRET}
+      # Feature flags
+      ENABLE_ANALYTICS: ${ENABLE_ANALYTICS:-true}
+      ENABLE_PERFORMANCE_MONITORING: ${ENABLE_PERFORMANCE_MONITORING:-true}
+      ENABLE_MCP_INTEGRATION: ${ENABLE_MCP_INTEGRATION:-false}
+      # API keys
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      drive-intel:
+        condition: service_healthy
+      video-agent:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+      meta-publisher:
+        condition: service_healthy
+      titan-core:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./logs/gateway-api:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # Frontend - React/Vite application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_GATEWAY_URL: ${VITE_GATEWAY_URL:-http://localhost:8080}
+        VITE_ENV: production
+        BUILDKIT_INLINE_CACHE: 1
+    image: ${REGISTRY_URL}/frontend:${IMAGE_TAG:-latest}
+    container_name: geminivideo-frontend-prod
+    restart: always
+    environment:
+      VITE_GATEWAY_URL: ${VITE_GATEWAY_URL:-http://localhost:8080}
+      VITE_DRIVE_INTEL_URL: ${VITE_DRIVE_INTEL_URL:-http://localhost:8081}
+      VITE_ENV: production
+      # Firebase configuration
+      VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+      VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+      VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+      VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID}
+      VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
+      VITE_FIREBASE_MEASUREMENT_ID: ${VITE_FIREBASE_MEASUREMENT_ID}
+      # Feature flags
+      VITE_ENABLE_ANALYTICS: ${ENABLE_ANALYTICS:-true}
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      gateway-api:
+        condition: service_healthy
+    volumes:
+      - ./logs/frontend:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Worker: Drive Intel Background Jobs
+  drive-worker:
+    build:
+      context: ./services/drive-intel
+      dockerfile: Dockerfile
+    image: ${REGISTRY_URL}/drive-intel:${IMAGE_TAG:-latest}
+    container_name: geminivideo-drive-worker-prod
+    restart: always
+    command: python worker.py
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      WORKER_CONCURRENCY: ${DRIVE_WORKER_CONCURRENCY:-4}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared:ro
+      - drive_intel_data:/app/data
+      - ./logs/drive-worker:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+      replicas: ${DRIVE_WORKER_REPLICAS:-2}
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Worker: Video Agent Background Jobs
+  video-worker:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    image: ${REGISTRY_URL}/video-agent:${IMAGE_TAG:-latest}
+    container_name: geminivideo-video-worker-prod
+    restart: always
+    command: python worker.py
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./shared:/app/shared:ro
+      - video_agent_data:/app/data
+      - ./logs/video-worker:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+      replicas: ${VIDEO_WORKER_REPLICAS:-2}
+    networks:
+      - geminivideo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Persistent volumes for data
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  drive_intel_data:
+    driver: local
+  video_agent_data:
+    driver: local
+  ml_models:
+    driver: local
+
+# Network configuration
+networks:
+  geminivideo-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

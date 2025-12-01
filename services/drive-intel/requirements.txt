@@ -15,7 +15,9 @@ faiss-cpu==1.9.0.post1
 # PaddlePaddle OCR - optional, can add if needed
 # paddlepaddle==3.0.0
 # paddleocr==2.8.1
-# faster-whisper==1.1.0
+
+# Whisper for audio transcription
+openai-whisper==20231117
 PyYAML==6.0.2
 aiofiles==24.1.0
 python-multipart==0.0.20

@@ -1,0 +1,17 @@
+{
+  "category": "brand_guidelines",
+  "versions": [
+    {
+      "version_id": "20251201_220728_b7d5b9bc",
+      "category": "brand_guidelines",
+      "timestamp": "2025-12-01T22:07:28.745962",
+      "checksum": "38e0f0d335bfe3dee623402519a7a1a610549301341f79f80c64afd5ab14c422",
+      "size_bytes": 122,
+      "description": "Test upload",
+      "author": "test_script",
+      "is_active": true
+    }
+  ],
+  "active_version": "20251201_220728_b7d5b9bc",
+  "last_updated": "2025-12-01T22:07:28.746927"
+}

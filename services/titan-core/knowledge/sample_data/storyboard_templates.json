@@ -1,0 +1,301 @@
+{
+  "templates": [
+    {
+      "name": "Hormozi AIDA Framework",
+      "description": "Alex Hormozi's proven direct response structure",
+      "duration": 45,
+      "success_rate": 0.89,
+      "best_for": ["direct response", "high-ticket offers"],
+      "scenes": [
+        {
+          "timestamp": "0-3s",
+          "section": "Attention",
+          "visual": "Pattern interrupt - shocking transformation or contrarian statement",
+          "audio": "Hook that creates scroll-stop",
+          "text_overlay": "Bold claim or question",
+          "goal": "Stop the scroll"
+        },
+        {
+          "timestamp": "3-10s",
+          "section": "Interest",
+          "visual": "Show the problem/pain point",
+          "audio": "Agitate the pain - make them feel it",
+          "text_overlay": "Relatable struggle",
+          "goal": "Create emotional connection"
+        },
+        {
+          "timestamp": "10-25s",
+          "section": "Desire",
+          "visual": "Show the solution/transformation",
+          "audio": "Introduce the NEW mechanism",
+          "text_overlay": "The unique solution",
+          "goal": "Build desire for solution"
+        },
+        {
+          "timestamp": "25-35s",
+          "section": "Proof",
+          "visual": "Results, testimonials, social proof",
+          "audio": "Statistics and success stories",
+          "text_overlay": "Numbers and outcomes",
+          "goal": "Establish credibility"
+        },
+        {
+          "timestamp": "35-45s",
+          "section": "Action",
+          "visual": "Clear CTA with urgency",
+          "audio": "Direct call to action with scarcity",
+          "text_overlay": "CTA + urgency element",
+          "goal": "Drive immediate action"
+        }
+      ],
+      "key_principles": [
+        "Every second must earn the next second",
+        "Show don't tell",
+        "Create NEW mechanism (not commodity)",
+        "Use specific numbers and timeframes",
+        "Build urgency without pressure"
+      ]
+    },
+    {
+      "name": "Problem-Agitate-Solve (PAS)",
+      "description": "Classic copywriting framework adapted for video",
+      "duration": 30,
+      "success_rate": 0.82,
+      "best_for": ["education", "SaaS", "services"],
+      "scenes": [
+        {
+          "timestamp": "0-3s",
+          "section": "Hook",
+          "visual": "Relatable problem scenario",
+          "audio": "Question that highlights problem",
+          "text_overlay": "Ever struggled with [problem]?",
+          "goal": "Immediate relatability"
+        },
+        {
+          "timestamp": "3-12s",
+          "section": "Problem",
+          "visual": "Show the problem in detail",
+          "audio": "Describe the frustration",
+          "text_overlay": "Key pain points",
+          "goal": "Build problem awareness"
+        },
+        {
+          "timestamp": "12-18s",
+          "section": "Agitate",
+          "visual": "Make the problem worse/bigger",
+          "audio": "Consequences of not solving it",
+          "text_overlay": "What happens if you don't fix this",
+          "goal": "Create urgency to solve"
+        },
+        {
+          "timestamp": "18-27s",
+          "section": "Solve",
+          "visual": "Introduce your solution",
+          "audio": "How your solution fixes it",
+          "text_overlay": "The solution explained",
+          "goal": "Position your offer as the answer"
+        },
+        {
+          "timestamp": "27-30s",
+          "section": "CTA",
+          "visual": "Clear next step",
+          "audio": "Simple call to action",
+          "text_overlay": "Link in bio / DM me / Click here",
+          "goal": "Drive action"
+        }
+      ]
+    },
+    {
+      "name": "Before/After Transformation",
+      "description": "Transformation-focused narrative",
+      "duration": 40,
+      "success_rate": 0.85,
+      "best_for": ["fitness", "beauty", "personal development"],
+      "scenes": [
+        {
+          "timestamp": "0-5s",
+          "section": "Before State",
+          "visual": "Show the 'before' situation",
+          "audio": "Describe the struggle",
+          "text_overlay": "I used to be...",
+          "goal": "Create relatability"
+        },
+        {
+          "timestamp": "5-15s",
+          "section": "Rock Bottom",
+          "visual": "The lowest point",
+          "audio": "The moment everything changed",
+          "text_overlay": "Until one day...",
+          "goal": "Build emotional tension"
+        },
+        {
+          "timestamp": "15-25s",
+          "section": "Discovery",
+          "visual": "Finding the solution",
+          "audio": "What I discovered",
+          "text_overlay": "I found this [method/system]",
+          "goal": "Introduce the mechanism"
+        },
+        {
+          "timestamp": "25-35s",
+          "section": "Journey",
+          "visual": "Applying the solution",
+          "audio": "The transformation process",
+          "text_overlay": "In just [timeframe]...",
+          "goal": "Show possibility"
+        },
+        {
+          "timestamp": "35-40s",
+          "section": "After State + CTA",
+          "visual": "Current success state",
+          "audio": "You can do this too",
+          "text_overlay": "Now it's your turn",
+          "goal": "Inspire action"
+        }
+      ]
+    },
+    {
+      "name": "Listicle Format",
+      "description": "Educational list-based structure",
+      "duration": 35,
+      "success_rate": 0.76,
+      "best_for": ["education", "tips", "how-to"],
+      "scenes": [
+        {
+          "timestamp": "0-3s",
+          "section": "Hook",
+          "visual": "Number + promise",
+          "audio": "5 ways to [achieve goal]",
+          "text_overlay": "5 Steps to [Goal]",
+          "goal": "Set clear expectation"
+        },
+        {
+          "timestamp": "3-8s",
+          "section": "Item 1",
+          "visual": "First tip demonstrated",
+          "audio": "Explain tip #1",
+          "text_overlay": "1. [First tip]",
+          "goal": "Deliver value immediately"
+        },
+        {
+          "timestamp": "8-13s",
+          "section": "Item 2",
+          "visual": "Second tip demonstrated",
+          "audio": "Explain tip #2",
+          "text_overlay": "2. [Second tip]",
+          "goal": "Build momentum"
+        },
+        {
+          "timestamp": "13-18s",
+          "section": "Item 3",
+          "visual": "Third tip demonstrated",
+          "audio": "Explain tip #3",
+          "text_overlay": "3. [Third tip]",
+          "goal": "Maintain engagement"
+        },
+        {
+          "timestamp": "18-23s",
+          "section": "Item 4",
+          "visual": "Fourth tip demonstrated",
+          "audio": "Explain tip #4",
+          "text_overlay": "4. [Fourth tip]",
+          "goal": "Continue value delivery"
+        },
+        {
+          "timestamp": "23-28s",
+          "section": "Item 5",
+          "visual": "Fifth tip demonstrated",
+          "audio": "Explain tip #5",
+          "text_overlay": "5. [Fifth tip]",
+          "goal": "Complete the promise"
+        },
+        {
+          "timestamp": "28-35s",
+          "section": "Summary + CTA",
+          "visual": "Recap or bonus",
+          "audio": "Want the full system?",
+          "text_overlay": "Get the complete guide",
+          "goal": "Convert engagement to action"
+        }
+      ]
+    },
+    {
+      "name": "Story Arc",
+      "description": "Hero's journey narrative structure",
+      "duration": 60,
+      "success_rate": 0.81,
+      "best_for": ["brand building", "long-form content"],
+      "scenes": [
+        {
+          "timestamp": "0-5s",
+          "section": "Ordinary World",
+          "visual": "Normal life before",
+          "audio": "Set the scene",
+          "text_overlay": "Life was normal until...",
+          "goal": "Establish baseline"
+        },
+        {
+          "timestamp": "5-15s",
+          "section": "Call to Adventure",
+          "visual": "The problem/challenge appears",
+          "audio": "Something changed",
+          "text_overlay": "Then everything changed",
+          "goal": "Create disruption"
+        },
+        {
+          "timestamp": "15-30s",
+          "section": "Trials & Challenges",
+          "visual": "Struggles and failures",
+          "audio": "The difficult journey",
+          "text_overlay": "I tried everything...",
+          "goal": "Build relatability"
+        },
+        {
+          "timestamp": "30-45s",
+          "section": "Discovery & Growth",
+          "visual": "Finding the way",
+          "audio": "The breakthrough moment",
+          "text_overlay": "Until I discovered...",
+          "goal": "Introduce solution"
+        },
+        {
+          "timestamp": "45-55s",
+          "section": "Transformation",
+          "visual": "The new reality",
+          "audio": "Life after transformation",
+          "text_overlay": "Now everything is different",
+          "goal": "Show possibility"
+        },
+        {
+          "timestamp": "55-60s",
+          "section": "Call to Action",
+          "visual": "Invitation to join",
+          "audio": "Your journey starts now",
+          "text_overlay": "Start your transformation",
+          "goal": "Inspire action"
+        }
+      ]
+    }
+  ],
+  "usage_guidelines": {
+    "choosing_template": [
+      "Match template to your goal (education vs conversion)",
+      "Consider your audience's patience (attention span)",
+      "Align with your brand personality",
+      "Test multiple templates with same content"
+    ],
+    "customization_tips": [
+      "Adjust timing based on platform (TikTok vs YouTube)",
+      "Add your unique brand voice",
+      "Incorporate current trends when relevant",
+      "Always test and iterate"
+    ],
+    "common_mistakes": [
+      "Making intro too long",
+      "Burying the hook",
+      "Weak or missing CTA",
+      "Too much information",
+      "Inconsistent pacing"
+    ]
+  }
+}
