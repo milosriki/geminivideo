@@ -32,10 +32,23 @@ redisClient.connect().then(() => {
 });
 
 // PostgreSQL client for database access
-const DATABASE_URL = process.env.DATABASE_URL || 
-  'postgresql://geminivideo:geminivideo@localhost:5432/geminivideo';
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error('❌ DATABASE_URL environment variable is required');
+  console.error('Example: postgresql://user:password@host:5432/dbname');
+  process.exit(1);
+}
+
 const pgPool = new Pool({ connectionString: DATABASE_URL });
 pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
+
+// Verify database connection
+pgPool.query('SELECT NOW()')
+  .then(() => console.log('✅ PostgreSQL connected'))
+  .catch((err) => {
+    console.error('❌ PostgreSQL connection failed:', err.message);
+    process.exit(1);
+  });
 
 // Load configuration
 const configPath = process.env.CONFIG_PATH || '../../shared/config';
