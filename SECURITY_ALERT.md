@@ -13,7 +13,7 @@
 A Firebase API key was found hardcoded in your codebase:
 
 - **File:** `frontend/src/firebaseConfig.ts`
-- **Exposed Key:** `AIzaSyCamMhfOYNAqnKnK-nQ78f1u5o8VDx9IaU`
+- **Exposed Key:** `[REDACTED - Key has been rotated]`
 - **Project:** `ptd-fitness-demo`
 
 This key has been **publicly exposed in your Git repository** and should be considered compromised.
@@ -97,7 +97,7 @@ service cloud.firestore {
 
 ❌ **NEVER DO THIS:**
 ```typescript
-const apiKey = "AIzaSyCamMhfOYNAqnKnK-nQ78f1u5o8VDx9IaU"; // Hardcoded
+const apiKey = "AIzaSy..."; // Hardcoded - NEVER DO THIS
 ```
 
 ✅ **ALWAYS DO THIS:**
