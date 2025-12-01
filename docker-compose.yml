@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U geminivideo"]
+      test: [ "CMD-SHELL", "pg_isready -U geminivideo" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,7 +24,7 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -109,6 +109,24 @@ services:
       - ./shared:/app/shared
       - ./services/ml-service/models:/app/models
 
+  titan-core:
+    build:
+      context: ./services/titan-core
+      dockerfile: Dockerfile
+    container_name: geminivideo-titan-core
+    environment:
+      PORT: 8084
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      META_APP_ID: ${META_APP_ID}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID}
+      META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
+      META_APP_SECRET: ${META_APP_SECRET}
+    ports:
+      - "8084:8084"
+    volumes:
+      - ./services/titan-core:/app
+
   meta-publisher:
     build:
       context: ./services/meta-publisher
@@ -117,6 +135,12 @@ services:
     environment:
       PORT: 8083
       GATEWAY_URL: http://gateway-api:8080
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID}
+      META_PAGE_ID: ${META_PAGE_ID}
+      META_APP_ID: ${META_APP_ID}
+      META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
+      META_APP_SECRET: ${META_APP_SECRET}
     ports:
       - "8083:8083"
     volumes:
