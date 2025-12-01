@@ -2,7 +2,7 @@ import os
 import asyncio
 from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-from backend.engines.ensemble import council
+from engines.ensemble import council
 
 # CONFIGURATION
 # OFFICIAL GEMINI 3 MODEL (Verified)
@@ -54,7 +54,7 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
     
     # --- MCP INTEGRATION START ---
     try:
-        from backend.mcp_wrapper import meta_ads_client
+        from mcp_wrapper import meta_ads_client
         print("🔌 MCP: Connecting to Meta Ads Server...")
         if await meta_ads_client.connect():
             tools = await meta_ads_client.list_tools()
@@ -83,7 +83,7 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
         critique = await council.evaluate_script(last_msg)
         
         print(f"⚖️ VERDICT: {critique['verdict']} (Score: {critique['final_score']})")
-        print(f"📊 Breakdown: Gemini 2.0={critique['breakdown']['gemini_2_0_thinking']}, GPT={critique['breakdown']['gpt_4o']}, Claude={critique['breakdown']['claude_3_5']}, DeepCTR={critique['breakdown']['deep_ctr']}")
+        print(f"📊 Breakdown: Gemini={critique['breakdown']['gemini_3_pro']}, Claude={critique['breakdown']['claude_3_5']}, GPT={critique['breakdown']['gpt_4o']}, DeepCTR={critique['breakdown']['deep_ctr']}")
 
         if critique['final_score'] > 85:
             final_status = "APPROVED"

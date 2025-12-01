@@ -1,4 +1,4 @@
-from backend.knowledge.core import titan_knowledge
+from knowledge.core import titan_knowledge
 
 class PromptEngine:
     """
