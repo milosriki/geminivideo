@@ -220,9 +220,25 @@ class ThompsonSamplingOptimizer:
             if variant['clicks'] > 0:
                 variant['cvr'] = variant['conversions'] / variant['clicks']
             if variant['spend'] > 0:
-                # ROAS = Revenue / Spend (assuming conversion = $1 revenue for simplicity)
-                revenue = variant['conversions'] * 1.0  # TODO: Get real revenue value
+                # ROAS = Revenue / Spend (using REAL revenue from Meta Conversion API)
+                try:
+                    from meta_conversion_tracker import meta_conversion_tracker
+                    # Get actual revenue for this variant (ad or campaign)
+                    revenue = meta_conversion_tracker.get_variant_revenue(
+                        variant_id=variant_id,
+                        variant_type='ad'  # or 'campaign' depending on variant type
+                    )
+                    # Fallback to conversion count if revenue fetch fails
+                    if revenue == 0.0 and variant['conversions'] > 0:
+                        logger.warning(f"No revenue data for variant {variant_id}, using conversion count as fallback")
+                        revenue = variant['conversions'] * 1.0
+                except Exception as e:
+                    logger.error(f"Failed to get real revenue for variant {variant_id}: {e}")
+                    # Fallback to conversion count
+                    revenue = variant['conversions'] * 1.0
+
                 variant['roas'] = revenue / variant['spend']
+                variant['revenue'] = revenue  # Store actual revenue
 
         # Log to history
         self.history.append({
