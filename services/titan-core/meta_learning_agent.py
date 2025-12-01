@@ -10,6 +10,14 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Import ML-based hook classifier
+try:
+    from .engines.hook_classifier import get_hook_classifier
+    HOOK_CLASSIFIER_AVAILABLE = True
+except ImportError:
+    HOOK_CLASSIFIER_AVAILABLE = False
+    logging.warning("HookClassifier not available - falling back to keyword-based analysis")
+
 logger = logging.getLogger(__name__)
 
 class MetaLearningAgent:
@@ -267,35 +275,111 @@ class MetaLearningAgent:
         return patterns
 
     def _analyze_hook_patterns(self, top_performers: List[Dict]) -> Dict[str, Any]:
-        """Analyze ad names to detect hook patterns"""
+        """
+        Analyze ad names to detect hook patterns using ML-based classification.
+        Falls back to keyword-based analysis if ML classifier is not available.
+        """
+        if HOOK_CLASSIFIER_AVAILABLE and len(top_performers) > 0:
+            # Use ML-based hook classification
+            try:
+                classifier = get_hook_classifier()
+
+                # Extract ad names/hooks from top performers
+                hooks = [ad.get('ad_name', '') or ad.get('campaign_name', '')
+                        for ad in top_performers]
+                hooks = [h for h in hooks if h]  # Filter empty
+
+                if not hooks:
+                    logger.warning("No ad names found in top performers")
+                    return self._fallback_keyword_analysis(top_performers)
+
+                # Analyze hooks using ML classifier
+                logger.info(f"🤖 Analyzing {len(hooks)} hooks with ML classifier...")
+                analysis = classifier.analyze_top_performer_hooks(hooks)
+
+                # Convert to the expected format with additional ML insights
+                hook_patterns = analysis.get('hook_type_distribution', {})
+
+                # Add ML-specific metadata
+                hook_patterns['_ml_analysis'] = {
+                    'avg_confidence': analysis.get('avg_confidence', 0.0),
+                    'avg_strength': analysis.get('avg_strength', 0.0),
+                    'dominant_pattern': analysis.get('dominant_pattern'),
+                    'top_patterns': analysis.get('top_patterns', []),
+                    'ml_recommendations': analysis.get('recommendations', []),
+                    'total_analyzed': analysis.get('total_hooks_analyzed', 0)
+                }
+
+                logger.info(f"✅ ML Hook Analysis: Dominant pattern is '{analysis.get('dominant_pattern')}'")
+                logger.info(f"   - Avg confidence: {analysis.get('avg_confidence', 0):.2f}")
+                logger.info(f"   - Avg strength: {analysis.get('avg_strength', 0):.2f}")
+
+                return hook_patterns
+
+            except Exception as e:
+                logger.warning(f"ML classifier failed, falling back to keywords: {e}")
+                return self._fallback_keyword_analysis(top_performers)
+        else:
+            # Fallback to keyword-based analysis
+            return self._fallback_keyword_analysis(top_performers)
+
+    def _fallback_keyword_analysis(self, top_performers: List[Dict]) -> Dict[str, Any]:
+        """Keyword-based hook analysis (fallback when ML is unavailable)"""
         hook_patterns = {
             'transformation': 0,
             'question': 0,
-            'negative': 0,
-            'urgency': 0,
-            'social_proof': 0
+            'negative_hook': 0,
+            'urgency_scarcity': 0,
+            'social_proof': 0,
+            'curiosity_gap': 0,
+            'pattern_interrupt': 0,
+            'story_hook': 0,
+            'statistic_hook': 0,
+            'controversy_hook': 0
         }
 
-        # Keywords for each hook type
-        transformation_keywords = ['before', 'after', 'transform', 'change', 'result']
-        question_keywords = ['?', 'how', 'what', 'why', 'when', 'can you']
-        negative_keywords = ['stop', 'dont', 'never', 'avoid', 'mistake']
-        urgency_keywords = ['now', 'today', 'limited', 'hurry', 'fast']
-        social_proof_keywords = ['client', 'testimonial', 'review', 'success', 'result']
+        # Keywords for each hook type (expanded to match classifier types)
+        transformation_keywords = ['before', 'after', 'transform', 'change', 'result', 'from', 'to']
+        question_keywords = ['?', 'how', 'what', 'why', 'when', 'can you', 'do you']
+        negative_keywords = ['stop', 'dont', "don't", 'never', 'avoid', 'mistake', 'wrong']
+        urgency_keywords = ['now', 'today', 'limited', 'hurry', 'fast', 'urgent', 'expires']
+        social_proof_keywords = ['client', 'testimonial', 'review', 'success', 'result', 'customer']
+        curiosity_keywords = ['secret', 'discover', 'reveal', 'shocking', 'believe', 'hidden']
+        pattern_interrupt_keywords = ['stop', 'wait', 'attention', 'listen', 'breaking']
+        story_keywords = ['story', 'journey', 'experience', 'happened', 'remember']
+        statistic_keywords = ['%', '$', 'million', 'thousand', 'study', 'proven', 'data']
+        controversy_keywords = ['wrong', 'lie', 'truth', 'controversial', 'against', 'myth']
 
         for ad in top_performers:
             ad_name = ad.get('ad_name', '').lower()
+            campaign_name = ad.get('campaign_name', '').lower()
+            combined_text = f"{ad_name} {campaign_name}"
 
-            if any(kw in ad_name for kw in transformation_keywords):
+            if any(kw in combined_text for kw in transformation_keywords):
                 hook_patterns['transformation'] += 1
-            if any(kw in ad_name for kw in question_keywords):
+            if any(kw in combined_text for kw in question_keywords):
                 hook_patterns['question'] += 1
-            if any(kw in ad_name for kw in negative_keywords):
-                hook_patterns['negative'] += 1
-            if any(kw in ad_name for kw in urgency_keywords):
-                hook_patterns['urgency'] += 1
-            if any(kw in ad_name for kw in social_proof_keywords):
+            if any(kw in combined_text for kw in negative_keywords):
+                hook_patterns['negative_hook'] += 1
+            if any(kw in combined_text for kw in urgency_keywords):
+                hook_patterns['urgency_scarcity'] += 1
+            if any(kw in combined_text for kw in social_proof_keywords):
                 hook_patterns['social_proof'] += 1
+            if any(kw in combined_text for kw in curiosity_keywords):
+                hook_patterns['curiosity_gap'] += 1
+            if any(kw in combined_text for kw in pattern_interrupt_keywords):
+                hook_patterns['pattern_interrupt'] += 1
+            if any(kw in combined_text for kw in story_keywords):
+                hook_patterns['story_hook'] += 1
+            if any(kw in combined_text for kw in statistic_keywords):
+                hook_patterns['statistic_hook'] += 1
+            if any(kw in combined_text for kw in controversy_keywords):
+                hook_patterns['controversy_hook'] += 1
+
+        hook_patterns['_ml_analysis'] = {
+            'method': 'keyword_fallback',
+            'note': 'Using keyword-based analysis (ML classifier not available)'
+        }
 
         return hook_patterns
 
@@ -316,11 +400,22 @@ class MetaLearningAgent:
         elif avg_roas > 3.0:
             recommendations.append("✅ Excellent ROAS - Scale winning campaigns")
 
-        # Hook pattern recommendations
+        # Hook pattern recommendations with ML insights
         hook_patterns = patterns.get('hook_patterns', {})
         if hook_patterns:
-            top_hook = max(hook_patterns.items(), key=lambda x: x[1])
-            recommendations.append(f"📊 Your best-performing hook type: '{top_hook[0]}' ({top_hook[1]} top ads)")
+            # Check if ML analysis is available
+            ml_analysis = hook_patterns.get('_ml_analysis', {})
+
+            if ml_analysis.get('ml_recommendations'):
+                # Use ML-generated recommendations
+                recommendations.extend(ml_analysis['ml_recommendations'])
+            else:
+                # Fallback to basic hook pattern analysis
+                # Filter out metadata keys
+                pattern_counts = {k: v for k, v in hook_patterns.items() if not k.startswith('_')}
+                if pattern_counts:
+                    top_hook = max(pattern_counts.items(), key=lambda x: x[1])
+                    recommendations.append(f"📊 Your best-performing hook type: '{top_hook[0]}' ({top_hook[1]} top ads)")
 
         # Video completion recommendations
         completion_rates = patterns['video_performance']['completion_rates']

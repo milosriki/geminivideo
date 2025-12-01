@@ -9,6 +9,7 @@ google-cloud-storage
 facebook-business
 deepctr-torch
 torch
+transformers>=4.35.0
 pandas
 scikit-learn
 numpy

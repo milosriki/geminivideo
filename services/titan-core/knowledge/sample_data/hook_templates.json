@@ -1,0 +1,172 @@
+{
+  "templates": [
+    {
+      "name": "Before/After Split Screen",
+      "description": "Show transformation in first frame",
+      "ctr": 4.8,
+      "pattern": "Visual: Side-by-side transformation in first 3 seconds",
+      "best_for": ["fitness", "beauty", "finance"],
+      "examples": [
+        "90 days. Same person. What changed?",
+        "Lost 47 pounds in 90 days",
+        "From broke to $10k/month in 6 months"
+      ],
+      "tips": [
+        "Use real photos, not stock",
+        "Show dramatic but realistic change",
+        "Keep text minimal - let visuals speak",
+        "Add timestamp or duration"
+      ]
+    },
+    {
+      "name": "Contrarian Statement",
+      "description": "Challenge conventional wisdom",
+      "ctr": 4.2,
+      "pattern": "Visual: Direct to camera + Caption: Contrarian claim",
+      "best_for": ["all niches"],
+      "examples": [
+        "Cardio is keeping you fat. Here's why...",
+        "College is the biggest scam in America",
+        "What if everything you know about [X] is wrong?",
+        "Stop doing [popular thing] - it's killing your results"
+      ],
+      "tips": [
+        "Must be defensible with evidence",
+        "Create cognitive dissonance",
+        "Follow with proof/explanation",
+        "Don't be contrarian just for shock value"
+      ]
+    },
+    {
+      "name": "Rapid Results Promise",
+      "description": "Promise specific outcome in specific timeframe",
+      "ctr": 3.9,
+      "pattern": "Visual: Stopwatch/calendar + Caption: Specific promise",
+      "best_for": ["fitness", "business", "education"],
+      "examples": [
+        "Lose your first 10 lbs in 14 days (guaranteed)",
+        "Make your first $1,000 online in 30 days",
+        "Learn Spanish in 90 days - or your money back"
+      ],
+      "tips": [
+        "Be specific with numbers",
+        "Add guarantee or social proof",
+        "Make it believable but impressive",
+        "Back it up in the body"
+      ]
+    },
+    {
+      "name": "Problem Agitation",
+      "description": "Agitate a relatable pain point",
+      "ctr": 3.7,
+      "pattern": "Visual: Frustrated person + Caption: Painful question",
+      "best_for": ["all niches"],
+      "examples": [
+        "Tried keto, paleo, IF... Still stuck at 180?",
+        "Working 60 hours and still broke?",
+        "Tired of starting over every Monday?",
+        "Another New Year's resolution failed?"
+      ],
+      "tips": [
+        "Use visceral, emotional language",
+        "List failed attempts (builds credibility)",
+        "Make it feel personal",
+        "Transition to solution quickly"
+      ]
+    },
+    {
+      "name": "Social Proof Avalanche",
+      "description": "Overwhelming social proof",
+      "ctr": 3.5,
+      "pattern": "Visual: Grid of results + Caption: Big numbers",
+      "best_for": ["all niches"],
+      "examples": [
+        "2,847 transformations. You're next.",
+        "10,000+ students, $15M+ earned",
+        "47,000 people can't be wrong",
+        "Join 12,500 others who already transformed"
+      ],
+      "tips": [
+        "Use real numbers (easy to verify)",
+        "Show variety in testimonials",
+        "Include specific outcomes",
+        "Add urgency ('Join them')"
+      ]
+    },
+    {
+      "name": "Curiosity Gap",
+      "description": "Create information gap that must be closed",
+      "ctr": 3.3,
+      "pattern": "Visual: Mysterious setup + Caption: Incomplete information",
+      "best_for": ["all niches"],
+      "examples": [
+        "The one food keeping you fat (it's not what you think)",
+        "I discovered this by accident and everything changed",
+        "This weird trick helped me lose 40 pounds",
+        "What doctors don't tell you about [X]"
+      ],
+      "tips": [
+        "Don't reveal too much",
+        "Make it seem valuable/unique",
+        "Avoid clickbait - deliver on promise",
+        "Use pattern interrupt words"
+      ]
+    },
+    {
+      "name": "Relatable Moment",
+      "description": "Show a moment everyone has experienced",
+      "ctr": 3.1,
+      "pattern": "Visual: Relatable scenario + Caption: 'You know that feeling when...'",
+      "best_for": ["all niches"],
+      "examples": [
+        "You know that feeling when nothing fits anymore?",
+        "That moment you check your bank account and...",
+        "When you realize you've wasted another year...",
+        "That sinking feeling every Sunday night..."
+      ],
+      "tips": [
+        "Tap into universal experiences",
+        "Use sensory language",
+        "Keep it authentic",
+        "Transition to 'but what if...'"
+      ]
+    },
+    {
+      "name": "Pattern Interrupt",
+      "description": "Do something unexpected to stop the scroll",
+      "ctr": 2.9,
+      "pattern": "Visual: Unexpected action + Caption: Question or statement",
+      "best_for": ["creative niches"],
+      "examples": [
+        "I threw away my scale and lost 50 pounds",
+        "I eat 5 meals a day and never count calories",
+        "Watch me break every rule in the book",
+        "This shouldn't work but it does"
+      ],
+      "tips": [
+        "Must genuinely surprise",
+        "Explain the paradox quickly",
+        "Use movement in video",
+        "Add text overlay for emphasis"
+      ]
+    }
+  ],
+  "meta_insights": {
+    "avg_ctr_by_niche": {
+      "fitness": 3.8,
+      "business": 3.5,
+      "finance": 3.4,
+      "education": 3.2
+    },
+    "best_performing_combinations": [
+      "Before/After + Social Proof",
+      "Contrarian + Rapid Results",
+      "Problem Agitation + Solution"
+    ],
+    "platform_preferences": {
+      "facebook": ["Social Proof", "Before/After"],
+      "instagram": ["Pattern Interrupt", "Relatable Moment"],
+      "tiktok": ["Contrarian", "Curiosity Gap"]
+    }
+  }
+}
