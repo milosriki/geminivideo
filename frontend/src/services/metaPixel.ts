@@ -95,7 +95,7 @@ class MetaPixelService {
 
     // Load Facebook Pixel script
     /* eslint-disable */
-    !(function (f: any, b: any, e: any, v: any, n?: any, t?: any, s?: any) {
+    (function (f: any, b: any, e: any, v: any, n?: any, t?: any, s?: any) {
       if (f.fbq !== undefined) return;
       n = f.fbq = function () {
         n.callMethod
