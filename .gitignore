@@ -70,3 +70,5 @@ htmlcov/
 # Temporary files
 /tmp/
 *.tmp
+.env.production
+.env.local
