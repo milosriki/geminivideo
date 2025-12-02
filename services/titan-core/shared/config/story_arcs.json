@@ -1,0 +1,75 @@
+{
+  "fitness_transformation": {
+    "name": "Fitness Transformation Arc",
+    "description": "Classic transformation story for fitness/personal training ads",
+    "target_industry": "fitness",
+    "duration_seconds": 30,
+    "steps": [
+      {
+        "order": 1,
+        "emotion": "sad",
+        "duration": 5,
+        "description": "Show struggle/before state",
+        "visual_tags": ["gym", "workout", "tired", "struggle"]
+      },
+      {
+        "order": 2,
+        "emotion": "neutral",
+        "duration": 10,
+        "description": "Show the journey/training process",
+        "visual_tags": ["training", "gym", "exercise", "coaching"]
+      },
+      {
+        "order": 3,
+        "emotion": "happy",
+        "duration": 10,
+        "description": "Show success/after state",
+        "visual_tags": ["success", "celebration", "achievement", "happy"]
+      },
+      {
+        "order": 4,
+        "emotion": "happy",
+        "duration": 5,
+        "description": "Call to action with positive energy",
+        "visual_tags": ["smile", "confidence", "happy"]
+      }
+    ]
+  },
+  "motivation_arc": {
+    "name": "Motivation Arc",
+    "description": "Build momentum and inspire action",
+    "target_industry": "fitness",
+    "duration_seconds": 20,
+    "steps": [
+      {
+        "order": 1,
+        "emotion": "neutral",
+        "duration": 5,
+        "description": "Establish baseline",
+        "visual_tags": ["gym", "workout"]
+      },
+      {
+        "order": 2,
+        "emotion": "happy",
+        "duration": 15,
+        "description": "Build energy and excitement",
+        "visual_tags": ["energy", "movement", "action", "happy"]
+      }
+    ]
+  },
+  "quick_win": {
+    "name": "Quick Win",
+    "description": "Fast-paced energetic ad for immediate action",
+    "target_industry": "fitness",
+    "duration_seconds": 15,
+    "steps": [
+      {
+        "order": 1,
+        "emotion": "happy",
+        "duration": 15,
+        "description": "High energy clips showcasing results",
+        "visual_tags": ["energy", "success", "workout", "happy"]
+      }
+    ]
+  }
+}

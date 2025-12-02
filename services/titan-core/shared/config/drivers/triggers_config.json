@@ -1,0 +1,45 @@
+{
+  "triggers": [
+    {
+      "id": "motion_spike",
+      "name": "Motion Spike Detection",
+      "description": "Detects sudden increases in motion energy",
+      "threshold": 0.65,
+      "window_seconds": 2.0,
+      "enabled": true
+    },
+    {
+      "id": "face_detection",
+      "name": "Face Appearance",
+      "description": "Triggers on human face detection",
+      "min_confidence": 0.7,
+      "enabled": true
+    },
+    {
+      "id": "text_overlay",
+      "name": "Text Overlay Detection",
+      "description": "OCR detection of on-screen text",
+      "min_text_length": 5,
+      "enabled": true
+    },
+    {
+      "id": "scene_change",
+      "name": "Scene Boundary",
+      "description": "Detects scene transitions",
+      "threshold": 30.0,
+      "enabled": true
+    },
+    {
+      "id": "audio_peak",
+      "name": "Audio Peak",
+      "description": "Detects audio volume spikes or music changes",
+      "threshold_db": -12.0,
+      "enabled": true
+    }
+  ],
+  "combination_rules": {
+    "high_engagement": ["motion_spike", "face_detection"],
+    "call_to_action": ["text_overlay", "audio_peak"],
+    "viral_moment": ["motion_spike", "face_detection", "audio_peak"]
+  }
+}

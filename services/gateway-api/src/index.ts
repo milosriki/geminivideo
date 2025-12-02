@@ -26,9 +26,11 @@ app.use(express.json());
 // Redis client for async queues
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const redisClient = createClient({ url: REDIS_URL });
-redisClient.on('error', (err) => console.error('Redis Client Error', err));
+redisClient.on('error', (err) => console.warn('Redis Client Error (Queue disabled):', err.message));
 redisClient.connect().then(() => {
   console.log('✅ Redis connected for async queues');
+}).catch((err) => {
+  console.warn('⚠️ Redis connection failed. Async queues will not work:', err.message);
 });
 
 // PostgreSQL client for database access
@@ -39,7 +41,12 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-const pgPool = new Pool({ connectionString: DATABASE_URL });
+const pgPool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: DATABASE_URL.includes('localhost') || DATABASE_URL.includes('postgres')
+    ? false
+    : { rejectUnauthorized: false }
+});
 pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
 
 // Verify database connection
@@ -88,12 +95,12 @@ function validateServiceUrl(url: string): boolean {
     const parsed = new URL(url);
     // Only allow HTTP/HTTPS and specific internal service patterns
     return (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-           (parsed.hostname === 'localhost' ||
-            parsed.hostname.includes('drive-intel') ||
-            parsed.hostname.includes('video-agent') ||
-            parsed.hostname.includes('ml-service') ||
-            parsed.hostname.includes('meta-publisher') ||
-            parsed.hostname.includes('.run.app')); // Cloud Run domains
+      (parsed.hostname === 'localhost' ||
+        parsed.hostname.includes('drive-intel') ||
+        parsed.hostname.includes('video-agent') ||
+        parsed.hostname.includes('ml-service') ||
+        parsed.hostname.includes('meta-publisher') ||
+        parsed.hostname.includes('.run.app')); // Cloud Run domains
   } catch {
     return false;
   }
@@ -134,12 +141,12 @@ app.get('/api/assets/:assetId/clips', async (req: Request, res: Response) => {
 app.post('/api/analyze', async (req: Request, res: Response) => {
   try {
     const { path: videoPath, filename, size_bytes, duration_seconds } = req.body;
-    
+
     // Validate required fields
     if (!videoPath || !filename) {
       return res.status(400).json({ error: 'Missing required fields: path, filename' });
     }
-    
+
     // Create asset in database with QUEUED status
     const assetId = uuidv4();
     const query = `
@@ -148,7 +155,7 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
       RETURNING asset_id
     `;
-    
+
     await pgPool.query(query, [
       assetId,
       videoPath,
@@ -159,17 +166,17 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
       'mp4',        // Default
       'QUEUED'
     ]);
-    
+
     // Push job to Redis queue
     await redisClient.rPush('analysis_queue', assetId);
-    
+
     // Return immediately with 202 Accepted
     res.status(202).json({
       asset_id: assetId,
       status: 'QUEUED',
       message: 'Analysis job queued successfully'
     });
-    
+
   } catch (error: any) {
     console.error('Error queuing analysis:', error);
     res.status(500).json({ error: error.message });
@@ -277,23 +284,23 @@ app.post('/api/render/remix', async (req: Request, res: Response) => {
 app.post('/api/render/story_arc', async (req: Request, res: Response) => {
   try {
     const { arc_name, asset_id } = req.body;
-    
+
     // Load story arcs configuration
     const storyArcsPath = path.join(configPath, 'story_arcs.json');
     const storyArcs = JSON.parse(fs.readFileSync(storyArcsPath, 'utf8'));
-    
+
     // Get the requested arc
     const arc = storyArcs[arc_name || 'fitness_transformation'];
     if (!arc) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'Story arc not found',
         available_arcs: Object.keys(storyArcs)
       });
     }
-    
+
     // Query database for clips matching each step
     const selectedClips: string[] = [];
-    
+
     for (const step of arc.steps) {
       const query = `
         SELECT c.clip_id, c.ctr_score, e.emotion
@@ -303,9 +310,9 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
         ORDER BY c.ctr_score DESC, c.scene_score DESC
         LIMIT 1
       `;
-      
+
       const result = await pgPool.query(query, [asset_id, step.emotion]);
-      
+
       if (result.rows.length > 0) {
         selectedClips.push(result.rows[0].clip_id);
       } else {
@@ -322,14 +329,14 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
         }
       }
     }
-    
+
     if (selectedClips.length === 0) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'No clips found for story arc',
-        asset_id 
+        asset_id
       });
     }
-    
+
     // Create render job
     const jobId = uuidv4();
     const renderJob = {
@@ -339,10 +346,10 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
       enable_transitions: true,
       output_path: `/tmp/output_${jobId}.mp4`
     };
-    
+
     // Push to render queue
     await redisClient.rPush('render_queue', JSON.stringify(renderJob));
-    
+
     // Return job info
     res.status(202).json({
       job_id: jobId,
@@ -351,7 +358,7 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
       selected_clips: selectedClips,
       message: 'Render job queued successfully'
     });
-    
+
   } catch (error: any) {
     console.error('Error creating story arc render:', error);
     res.status(500).json({ error: error.message });
@@ -398,6 +405,60 @@ app.get('/api/insights', async (req: Request, res: Response) => {
       error: error.message
     });
   }
+});
+
+app.get('/api/creatives', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(`${META_PUBLISHER_URL}/api/creatives`, { params: req.query });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({ error: error.message });
+  }
+});
+
+app.get('/api/timeseries', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(`${META_PUBLISHER_URL}/api/timeseries`, { params: req.query });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(error.response?.status || 500).json({ error: error.message });
+  }
+});
+
+app.get('/api/metrics', async (req: Request, res: Response) => {
+  try {
+    // Aggregate metrics from meta-publisher or return mock
+    res.json({
+      totals: {
+        impressions: 15000,
+        clicks: 800,
+        conversions: 120,
+        spend: 2500,
+        revenue: 7500,
+        ctr: 0.053,
+        cvr: 0.15,
+        cpa: 20.83,
+        roas: 3.0
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/stream', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const interval = setInterval(() => {
+    res.write(`data: ${JSON.stringify({ timestamp: Date.now() })}\n\n`);
+  }, 5000);
+
+  req.on('close', () => {
+    clearInterval(interval);
+  });
 });
 
 // Learning loop endpoint

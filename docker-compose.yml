@@ -59,6 +59,7 @@ services:
       DRIVE_INTEL_URL: http://drive-intel:8081
       VIDEO_AGENT_URL: http://video-agent:8082
       ML_SERVICE_URL: http://ml-service:8003
+      TITAN_CORE_URL: http://titan-core:8084
       META_PUBLISHER_URL: http://meta-publisher:8083
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
@@ -117,6 +118,8 @@ services:
     environment:
       PORT: 8084
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       META_APP_ID: ${META_APP_ID}
       META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
       META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID}
@@ -150,12 +153,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
     container_name: geminivideo-frontend
     environment:
-      VITE_GATEWAY_URL: http://localhost:8080
-      VITE_DRIVE_INTEL_URL: http://localhost:8081
+      VITE_API_BASE_URL: http://localhost:8080
     ports:
-      - "80:80"
+      - "3000:80"
     depends_on:
       - gateway-api
       - drive-intel

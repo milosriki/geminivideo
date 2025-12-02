@@ -19,6 +19,7 @@ RUN test -f node_modules/.bin/tsc || \
 
 # Copy source code
 COPY src ./src
+COPY shared /shared
 
 # Build TypeScript
 RUN npm run build
