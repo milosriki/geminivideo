@@ -14,6 +14,10 @@ numpy==1.26.2
 joblib==1.3.2
 scipy==1.11.4
 
+# ROAS Predictor Dependencies (Agent 16)
+lightgbm==4.1.0
+shap==0.43.0
+
 # A/B Testing uses scipy.stats.beta for Thompson Sampling (Agent 6)
 # vowpalwabbit removed due to complex build dependencies
 
