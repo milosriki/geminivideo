@@ -10,6 +10,8 @@ import { extractAudio } from '../services/videoProcessor';
 import { transcribeAudio } from '../services/geminiService';
 import AudioCutterDashboard from './AudioCutterDashboard';
 import { googleDriveService, MockDriveFile } from '../services/googleDriveService';
+// TODO: [CRITICAL] Replace MockDriveFile with real Google Drive API types
+// The current implementation uses simulated data for the demo.
 import AnalysisResultCard from './AnalysisResultCard';
 
 const AdCreativeCard: React.FC<{
@@ -27,7 +29,7 @@ const AdCreativeCard: React.FC<{
       )}
       <div className='p-6 bg-gray-800'>
         <h4 className="text-lg font-bold text-indigo-400">{adCreative.variationTitle}</h4>
-        
+
         {typeof adCreative.__roiScore === 'number' && (
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <div className="bg-green-900/50 text-green-300 font-bold px-2 py-1 rounded-full">ROI: {adCreative.__roiScore}/100</div>
@@ -51,33 +53,33 @@ const AdCreativeCard: React.FC<{
       </div>
       <div className="bg-gray-900/50 p-6 border-t border-indigo-500/30 flex-grow">
         <h5 className="text-base font-bold text-gray-300 mb-4 flex items-center gap-2">
-          <FilmIcon className="w-5 h-5 text-indigo-400"/>
+          <FilmIcon className="w-5 h-5 text-indigo-400" />
           Remixing Blueprint
         </h5>
         <div className="space-y-4 text-sm max-h-60 overflow-y-auto pr-2">
           {adCreative.editPlan.map((scene, sceneIndex) => {
-             const sourceVideo = videoFiles.find(vf => vf.id === scene.sourceFile);
-             return (
-                <div key={sceneIndex} className="flex gap-4">
-                  {sourceVideo?.thumbnail ? (
-                      <img src={sourceVideo.thumbnail} alt={scene.sourceFile} className="w-16 h-16 object-cover rounded-md flex-shrink-0"/>
-                  ) : (
-                      <div className="w-16 h-16 bg-gray-700 rounded-md flex-shrink-0"></div>
-                  )}
-                  <div className="border-l-2 border-gray-700 pl-4 text-xs">
-                     <p><strong className="text-gray-400">Time:</strong> <span className="font-mono text-indigo-400">{scene.timestamp}</span></p>
-                     <p><strong className="text-gray-400">Source:</strong> {scene.sourceFile}</p>
-                     <p><strong className="text-gray-400">Visual:</strong> {scene.visual}</p>
-                    {scene.overlayText && scene.overlayText.toLowerCase() !== 'n/a' && <p><strong className="text-gray-400">Text:</strong> "{scene.overlayText}"</p>}
-                  </div>
+            const sourceVideo = videoFiles.find(vf => vf.id === scene.sourceFile);
+            return (
+              <div key={sceneIndex} className="flex gap-4">
+                {sourceVideo?.thumbnail ? (
+                  <img src={sourceVideo.thumbnail} alt={scene.sourceFile} className="w-16 h-16 object-cover rounded-md flex-shrink-0" />
+                ) : (
+                  <div className="w-16 h-16 bg-gray-700 rounded-md flex-shrink-0"></div>
+                )}
+                <div className="border-l-2 border-gray-700 pl-4 text-xs">
+                  <p><strong className="text-gray-400">Time:</strong> <span className="font-mono text-indigo-400">{scene.timestamp}</span></p>
+                  <p><strong className="text-gray-400">Source:</strong> {scene.sourceFile}</p>
+                  <p><strong className="text-gray-400">Visual:</strong> {scene.visual}</p>
+                  {scene.overlayText && scene.overlayText.toLowerCase() !== 'n/a' && <p><strong className="text-gray-400">Text:</strong> "{scene.overlayText}"</p>}
                 </div>
-             );
+              </div>
+            );
           })}
         </div>
       </div>
       <div className="p-4 bg-gray-800 border-t border-gray-700/50">
         <button onClick={onCreateVideo} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all hover:scale-105 transform hover:brightness-110">
-          <WandIcon className="w-5 h-5"/>
+          <WandIcon className="w-5 h-5" />
           Create Remixed Video
         </button>
       </div>
@@ -85,75 +87,75 @@ const AdCreativeCard: React.FC<{
   );
 };
 
-const CampaignBriefForm: React.FC<{ 
-    brief: CampaignBrief, 
-    setBrief: (b: CampaignBrief) => void,
-    avatars: Avatar[],
-    selectedAvatar: string,
-    setSelectedAvatar: (key: string) => void,
+const CampaignBriefForm: React.FC<{
+  brief: CampaignBrief,
+  setBrief: (b: CampaignBrief) => void,
+  avatars: Avatar[],
+  selectedAvatar: string,
+  setSelectedAvatar: (key: string) => void,
 }> = ({ brief, setBrief, avatars, selectedAvatar, setSelectedAvatar }) => {
-    
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-      const { name, value } = e.target;
-      setBrief({ ...brief, [name]: value });
-    };
 
-    return (
-      <div className="grid md:grid-cols-2 gap-4 text-sm">
-        <div>
-          <label className="font-semibold text-gray-400">Product/Service Name</label>
-          <input name="productName" value={brief.productName} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md" />
-        </div>
-        <div>
-          <label className="font-semibold text-gray-400">Offer</label>
-          <input name="offer" value={brief.offer} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md" />
-        </div>
-         <div>
-          <label className="font-semibold text-gray-400">Target Market</label>
-          <input name="targetMarket" value={brief.targetMarket} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md" />
-        </div>
-        <div>
-          <label className="font-semibold text-gray-400">Creative Angle</label>
-          <input name="angle" value={brief.angle} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md" />
-        </div>
-        
-        <div>
-          <label className="font-semibold text-gray-400">Tone of Voice</label>
-          <select name="tone" value={brief.tone} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md">
-            <option value="direct">Direct</option>
-            <option value="empathetic">Empathetic</option>
-            <option value="authoritative">Authoritative</option>
-            <option value="playful">Playful</option>
-            <option value="inspirational">Inspirational</option>
-          </select>
-        </div>
-        <div>
-          <label className="font-semibold text-gray-400">Platform</label>
-          <select name="platform" value={brief.platform} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md">
-            <option value="reels">Reels (Instagram)</option>
-            <option value="shorts">Shorts (YouTube)</option>
-            <option value="tiktok">TikTok</option>
-            <option value="feed">Feed (Facebook)</option>
-            <option value="stories">Stories (Instagram)</option>
-          </select>
-        </div>
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setBrief({ ...brief, [name]: value });
+  };
 
-        <div className="md:col-span-2">
-          <label className="font-semibold text-gray-400">Select Target Avatar</label>
-          <select 
-              name="avatar" 
-              value={selectedAvatar} 
-              onChange={(e) => setSelectedAvatar(e.target.value)} 
-              className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md"
-          >
-              <option value="" disabled>-- Select an Avatar --</option>
-              {avatars.map(avatar => (
-                  <option key={avatar.key} value={avatar.key}>{avatar.name}</option>
-              ))}
-          </select>
-        </div>
+  return (
+    <div className="grid md:grid-cols-2 gap-4 text-sm">
+      <div>
+        <label className="font-semibold text-gray-400">Product/Service Name</label>
+        <input name="productName" value={brief.productName} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md" />
       </div>
-    );
+      <div>
+        <label className="font-semibold text-gray-400">Offer</label>
+        <input name="offer" value={brief.offer} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md" />
+      </div>
+      <div>
+        <label className="font-semibold text-gray-400">Target Market</label>
+        <input name="targetMarket" value={brief.targetMarket} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md" />
+      </div>
+      <div>
+        <label className="font-semibold text-gray-400">Creative Angle</label>
+        <input name="angle" value={brief.angle} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md" />
+      </div>
+
+      <div>
+        <label className="font-semibold text-gray-400">Tone of Voice</label>
+        <select name="tone" value={brief.tone} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md">
+          <option value="direct">Direct</option>
+          <option value="empathetic">Empathetic</option>
+          <option value="authoritative">Authoritative</option>
+          <option value="playful">Playful</option>
+          <option value="inspirational">Inspirational</option>
+        </select>
+      </div>
+      <div>
+        <label className="font-semibold text-gray-400">Platform</label>
+        <select name="platform" value={brief.platform} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md">
+          <option value="reels">Reels (Instagram)</option>
+          <option value="shorts">Shorts (YouTube)</option>
+          <option value="tiktok">TikTok</option>
+          <option value="feed">Feed (Facebook)</option>
+          <option value="stories">Stories (Instagram)</option>
+        </select>
+      </div>
+
+      <div className="md:col-span-2">
+        <label className="font-semibold text-gray-400">Select Target Avatar</label>
+        <select
+          name="avatar"
+          value={selectedAvatar}
+          onChange={(e) => setSelectedAvatar(e.target.value)}
+          className="w-full mt-1 p-2 bg-gray-900/70 border border-gray-600 rounded-md"
+        >
+          <option value="" disabled>-- Select an Avatar --</option>
+          {avatars.map(avatar => (
+            <option key={avatar.key} value={avatar.key}>{avatar.name}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
 };
 
 const FileUploadZone: React.FC<{
@@ -174,7 +176,7 @@ const FileUploadZone: React.FC<{
       setIsDragging(false);
     }
   };
-  
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -191,7 +193,7 @@ const FileUploadZone: React.FC<{
   };
 
   return (
-    <div 
+    <div
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
       onDragOver={handleDrag}
@@ -230,7 +232,7 @@ const AdWorkflow: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [selectedAvatar, setSelectedAvatar] = useState('');
-  
+
   const [campaignBrief, setCampaignBrief] = useState<CampaignBrief>({
     productName: "PTD 12-Week Superhuman Program",
     offer: "Free 30-min Consultation",
@@ -244,131 +246,131 @@ const AdWorkflow: React.FC = () => {
 
   useEffect(() => {
     const loadAvatars = async () => {
-        try {
-            const fetchedAvatars = await apiClient.fetchAvatars();
-            setAvatars(fetchedAvatars);
-            if (fetchedAvatars.length > 0 && !selectedAvatar) {
-                setSelectedAvatar(fetchedAvatars[0].key);
-            }
-        } catch (err) {
-            setError(formatErrorMessage(err));
+      try {
+        const fetchedAvatars = await apiClient.fetchAvatars();
+        setAvatars(fetchedAvatars);
+        if (fetchedAvatars.length > 0 && !selectedAvatar) {
+          setSelectedAvatar(fetchedAvatars[0].key);
         }
+      } catch (err) {
+        setError(formatErrorMessage(err));
+      }
     };
     loadAvatars();
-    
+
     // Pre-initialize Google Drive Service to ensure scripts are loaded
     // This prevents popup blockers from blocking the sign-in window later
     googleDriveService.init().catch(err => console.warn("Background init of Google Drive failed:", err));
   }, [selectedAvatar]);
 
   const handleConnectDrive = async () => {
-      setIsConnecting(true);
-      setError(null);
-      try {
-          await googleDriveService.signIn();
-          const files = await googleDriveService.listFiles();
-          setDriveFiles(files);
-          setIsDrivePickerOpen(true);
-      } catch (err) {
-          setError(formatErrorMessage(err));
-      } finally {
-          setIsConnecting(false);
-      }
+    setIsConnecting(true);
+    setError(null);
+    try {
+      await googleDriveService.signIn();
+      const files = await googleDriveService.listFiles();
+      setDriveFiles(files);
+      setIsDrivePickerOpen(true);
+    } catch (err) {
+      setError(formatErrorMessage(err));
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   const handleDriveFileToggle = (file: MockDriveFile) => {
-      setSelectedDriveFiles(prev => {
-          const newSelection = { ...prev };
-          if (newSelection[file.id]) {
-              delete newSelection[file.id];
-          } else if (Object.keys(newSelection).length < 5) {
-              newSelection[file.id] = file;
-          }
-          return newSelection;
-      });
+    setSelectedDriveFiles(prev => {
+      const newSelection = { ...prev };
+      if (newSelection[file.id]) {
+        delete newSelection[file.id];
+      } else if (Object.keys(newSelection).length < 5) {
+        newSelection[file.id] = file;
+      }
+      return newSelection;
+    });
   };
-  
+
   const updateFileState = (id: string, updates: Partial<VideoFile>) => {
-      setVideoFiles(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+    setVideoFiles(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
   };
 
   const processAndAnalyzeFiles = async (files: File[]) => {
-      handleReset();
-      setIsProcessing(true);
+    handleReset();
+    setIsProcessing(true);
 
-      const newVideoFiles: VideoFile[] = files.slice(0, 5).map(file => ({ file, id: file.name, thumbnail: '', status: 'pending' }));
-      setVideoFiles(newVideoFiles);
+    const newVideoFiles: VideoFile[] = files.slice(0, 5).map(file => ({ file, id: file.name, thumbnail: '', status: 'pending' }));
+    setVideoFiles(newVideoFiles);
 
-      const processingPromises = newVideoFiles.map(async (videoFile) => {
-          try {
-              updateFileState(videoFile.id, { status: 'processing', progress: 10, loadingMessage: 'Generating thumbnail...' });
-              const thumbnail = await generateVideoThumbnail(videoFile.file);
-              updateFileState(videoFile.id, { thumbnail, progress: 30, loadingMessage: 'Extracting audio...' });
-
-              const audioBlob = await extractAudio(videoFile.file, () => {}).catch(err => {
-                  console.warn(`Could not extract audio for ${videoFile.id}:`, err);
-                  return null;
-              });
-              
-              updateFileState(videoFile.id, { progress: 50, loadingMessage: 'Transcribing speech...' });
-              let transcription: string | undefined = undefined;
-              if (audioBlob && audioBlob.size > 1000) {
-                  const words = await transcribeAudio(audioBlob);
-                  transcription = words.map(w => w.word).join(' ');
-              }
-              
-              updateFileState(videoFile.id, { progress: 70, loadingMessage: 'Extracting key frames...' });
-              const frames = await extractFramesFromVideo(videoFile.file, 8);
-              updateFileState(videoFile.id, { progress: 90, loadingMessage: 'Ready for AI analysis...' });
-              
-              return { videoFile: { id: videoFile.id }, frames, transcription };
-          } catch (err) {
-              const errorMessage = formatErrorMessage(err);
-              updateFileState(videoFile.id, { status: 'error', error: errorMessage, progress: 0 });
-              return null;
-          }
-      });
-
-      const allVideoData = (await Promise.all(processingPromises)).filter((d): d is NonNullable<typeof d> => d !== null);
-      
-      if (allVideoData.length > 0) {
-          try {
-              setVideoFiles(prev => prev.map(f => f.status === 'processing' ? { ...f, progress: 95, loadingMessage: 'AI is analyzing strategy...' } : f));
-              const strategy = await apiClient.analyzeVideos(allVideoData as any);
-              setCampaignStrategy(strategy);
-              strategy.videoAnalyses.forEach(result => {
-                  updateFileState(result.fileName, { status: 'analyzed', analysisResult: result, progress: 100, loadingMessage: 'Complete' });
-              });
-              // Mark any unprocessed files as errors if the API didn't return them
-              setVideoFiles(prev => prev.map(f => (f.status === 'processing' && !strategy.videoAnalyses.some(va => va.fileName === f.id)) ? { ...f, status: 'error', error: 'AI analysis did not return results for this file.' } : f));
-          } catch (err) {
-              const errorMessage = formatErrorMessage(err);
-              setError(`Campaign analysis failed: ${errorMessage}`);
-              setVideoFiles(prev => prev.map(f => ({ ...f, status: 'error', error: errorMessage })));
-          }
-      }
-      setIsProcessing(false);
-  };
-  
-  const handleSelectFromDrive = async () => {
-      const filesToDownload = Object.values(selectedDriveFiles) as MockDriveFile[];
-      if (filesToDownload.length === 0) return;
-      setIsDrivePickerOpen(false);
-      setIsProcessing(true);
-      
-      // We can't show per-file progress for downloads, so we'll show a temp state
-      const tempFiles = filesToDownload.map(f => ({ file: new File([], f.name), id: f.name, thumbnail: '', status: 'pending', loadingMessage: 'Downloading...' } as VideoFile));
-      setVideoFiles(tempFiles);
-
+    const processingPromises = newVideoFiles.map(async (videoFile) => {
       try {
-          const downloadedFiles = await Promise.all(filesToDownload.map(df => googleDriveService.downloadFile(df)));
-          await processAndAnalyzeFiles(downloadedFiles);
+        updateFileState(videoFile.id, { status: 'processing', progress: 10, loadingMessage: 'Generating thumbnail...' });
+        const thumbnail = await generateVideoThumbnail(videoFile.file);
+        updateFileState(videoFile.id, { thumbnail, progress: 30, loadingMessage: 'Extracting audio...' });
+
+        const audioBlob = await extractAudio(videoFile.file, () => { }).catch(err => {
+          console.warn(`Could not extract audio for ${videoFile.id}:`, err);
+          return null;
+        });
+
+        updateFileState(videoFile.id, { progress: 50, loadingMessage: 'Transcribing speech...' });
+        let transcription: string | undefined = undefined;
+        if (audioBlob && audioBlob.size > 1000) {
+          const words = await transcribeAudio(audioBlob);
+          transcription = words.map(w => w.word).join(' ');
+        }
+
+        updateFileState(videoFile.id, { progress: 70, loadingMessage: 'Extracting key frames...' });
+        const frames = await extractFramesFromVideo(videoFile.file, 8);
+        updateFileState(videoFile.id, { progress: 90, loadingMessage: 'Ready for AI analysis...' });
+
+        return { videoFile: { id: videoFile.id }, frames, transcription };
       } catch (err) {
-          setError(formatErrorMessage(err));
-          setIsProcessing(false);
-      } finally {
-          setSelectedDriveFiles({});
+        const errorMessage = formatErrorMessage(err);
+        updateFileState(videoFile.id, { status: 'error', error: errorMessage, progress: 0 });
+        return null;
       }
+    });
+
+    const allVideoData = (await Promise.all(processingPromises)).filter((d): d is NonNullable<typeof d> => d !== null);
+
+    if (allVideoData.length > 0) {
+      try {
+        setVideoFiles(prev => prev.map(f => f.status === 'processing' ? { ...f, progress: 95, loadingMessage: 'AI is analyzing strategy...' } : f));
+        const strategy = await apiClient.analyzeVideos(allVideoData as any);
+        setCampaignStrategy(strategy);
+        strategy.videoAnalyses.forEach(result => {
+          updateFileState(result.fileName, { status: 'analyzed', analysisResult: result, progress: 100, loadingMessage: 'Complete' });
+        });
+        // Mark any unprocessed files as errors if the API didn't return them
+        setVideoFiles(prev => prev.map(f => (f.status === 'processing' && !strategy.videoAnalyses.some(va => va.fileName === f.id)) ? { ...f, status: 'error', error: 'AI analysis did not return results for this file.' } : f));
+      } catch (err) {
+        const errorMessage = formatErrorMessage(err);
+        setError(`Campaign analysis failed: ${errorMessage}`);
+        setVideoFiles(prev => prev.map(f => ({ ...f, status: 'error', error: errorMessage })));
+      }
+    }
+    setIsProcessing(false);
+  };
+
+  const handleSelectFromDrive = async () => {
+    const filesToDownload = Object.values(selectedDriveFiles) as MockDriveFile[];
+    if (filesToDownload.length === 0) return;
+    setIsDrivePickerOpen(false);
+    setIsProcessing(true);
+
+    // We can't show per-file progress for downloads, so we'll show a temp state
+    const tempFiles = filesToDownload.map(f => ({ file: new File([], f.name), id: f.name, thumbnail: '', status: 'pending', loadingMessage: 'Downloading...' } as VideoFile));
+    setVideoFiles(tempFiles);
+
+    try {
+      const downloadedFiles = await Promise.all(filesToDownload.map(df => googleDriveService.downloadFile(df)));
+      await processAndAnalyzeFiles(downloadedFiles);
+    } catch (err) {
+      setError(formatErrorMessage(err));
+      setIsProcessing(false);
+    } finally {
+      setSelectedDriveFiles({});
+    }
   };
 
   const handleGenerateVariations = async () => {
@@ -376,22 +378,22 @@ const AdWorkflow: React.FC = () => {
     setIsProcessing(true);
     setError(null);
     setAdCreatives([]);
-  
+
     try {
       const variations = await apiClient.generateCreatives(campaignBrief, selectedAvatar, campaignStrategy);
       const scores = await apiClient.rankCreatives(campaignBrief, selectedAvatar, variations);
-      
+
       const annotated = variations.map((c, idx) => {
         const s = scores.find(x => x.index === idx);
-        return { 
-          ...c, 
-          __roiScore: s?.roiScore ?? null, 
-          __hookScore: s?.hookScore ?? null, 
-          __ctaScore: s?.ctaScore ?? null, 
-          __reasons: s?.reasons ?? '' 
+        return {
+          ...c,
+          __roiScore: s?.roiScore ?? null,
+          __hookScore: s?.hookScore ?? null,
+          __ctaScore: s?.ctaScore ?? null,
+          __reasons: s?.reasons ?? ''
         };
       });
-  
+
       annotated.sort((a, b) => (b.__roiScore ?? 0) - (a.__roiScore ?? 0));
       setAdCreatives(annotated);
       document.getElementById('ad-blueprints-section')?.scrollIntoView({ behavior: 'smooth' });
@@ -414,13 +416,13 @@ const AdWorkflow: React.FC = () => {
     setSelectedCreative(creative);
     setIsEditorOpen(true);
   };
-  
+
   const handleOpenCutter = (videoFile: File) => {
     setVideoForEditing(videoFile);
     setIsCutterOpen(true);
   }
-  
-   const handleOpenAdvancedEditor = (videoFile: File) => {
+
+  const handleOpenAdvancedEditor = (videoFile: File) => {
     setVideoForEditing(videoFile);
     setIsAdvancedEditorOpen(true);
   }
@@ -431,47 +433,47 @@ const AdWorkflow: React.FC = () => {
         <VideoEditor adCreative={selectedCreative} sourceVideos={videoFiles.map(vf => vf.file)} onClose={() => setIsEditorOpen(false)} />
       )}
       {isCutterOpen && videoForEditing && (
-        <AudioCutterDashboard sourceVideo={videoForEditing} onClose={() => setIsCutterOpen(false)}/>
+        <AudioCutterDashboard sourceVideo={videoForEditing} onClose={() => setIsCutterOpen(false)} />
       )}
       {isAdvancedEditorOpen && videoForEditing && (
-        <AdvancedEditor sourceVideo={videoForEditing} onClose={() => setIsAdvancedEditorOpen(false)}/>
+        <AdvancedEditor sourceVideo={videoForEditing} onClose={() => setIsAdvancedEditorOpen(false)} />
       )}
 
       {isDrivePickerOpen && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-              <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-700/50">
-                  <header className="p-4 border-b border-gray-700 flex justify-between items-center">
-                      <h2 className="text-xl font-bold">Select Videos from Drive</h2>
-                      <button onClick={() => setIsDrivePickerOpen(false)} className="text-gray-400 hover:text-white text-2xl">&times;</button>
-                  </header>
-                  <div className="p-4 overflow-y-auto space-y-2">
-                      {driveFiles.map(file => (
-                          <div key={file.id} onClick={() => handleDriveFileToggle(file)} className={`flex items-center gap-4 p-2 rounded-lg cursor-pointer transition-colors ${selectedDriveFiles[file.id] ? 'bg-indigo-600/30' : 'hover:bg-gray-700/50'}`}>
-                              <img src={file.thumbnailLink} alt={file.name} className="w-20 h-12 object-cover rounded"/>
-                              <div className="flex-grow">
-                                  <span className="font-semibold">{file.name}</span>
-                              </div>
-                              {selectedDriveFiles[file.id] && <CheckIcon className="w-6 h-6 text-indigo-400 flex-shrink-0"/>}
-                          </div>
-                      ))}
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-700/50">
+            <header className="p-4 border-b border-gray-700 flex justify-between items-center">
+              <h2 className="text-xl font-bold">Select Videos from Drive</h2>
+              <button onClick={() => setIsDrivePickerOpen(false)} className="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </header>
+            <div className="p-4 overflow-y-auto space-y-2">
+              {driveFiles.map(file => (
+                <div key={file.id} onClick={() => handleDriveFileToggle(file)} className={`flex items-center gap-4 p-2 rounded-lg cursor-pointer transition-colors ${selectedDriveFiles[file.id] ? 'bg-indigo-600/30' : 'hover:bg-gray-700/50'}`}>
+                  <img src={file.thumbnailLink} alt={file.name} className="w-20 h-12 object-cover rounded" />
+                  <div className="flex-grow">
+                    <span className="font-semibold">{file.name}</span>
                   </div>
-                  <footer className="p-4 border-t border-gray-700 flex gap-4">
-                      <button onClick={handleSelectFromDrive} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
-                          Select {Object.keys(selectedDriveFiles).length} Files
-                      </button>
-                      <button onClick={() => {
-                          // Smart Scan Simulation: Select first 3 files automatically
-                          const newSelection: Record<string, MockDriveFile> = {};
-                          driveFiles.slice(0, 3).forEach(f => newSelection[f.id] = f);
-                          setSelectedDriveFiles(newSelection);
-                          // Then trigger download automatically after a short delay to show selection
-                          setTimeout(handleSelectFromDrive, 500);
-                      }} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2">
-                          <SparklesIcon className="w-5 h-5"/> Smart Scan & Analyze
-                      </button>
-                  </footer>
-              </div>
+                  {selectedDriveFiles[file.id] && <CheckIcon className="w-6 h-6 text-indigo-400 flex-shrink-0" />}
+                </div>
+              ))}
+            </div>
+            <footer className="p-4 border-t border-gray-700 flex gap-4">
+              <button onClick={handleSelectFromDrive} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
+                Select {Object.keys(selectedDriveFiles).length} Files
+              </button>
+              <button onClick={() => {
+                // Smart Scan Simulation: Select first 3 files automatically
+                const newSelection: Record<string, MockDriveFile> = {};
+                driveFiles.slice(0, 3).forEach(f => newSelection[f.id] = f);
+                setSelectedDriveFiles(newSelection);
+                // Then trigger download automatically after a short delay to show selection
+                setTimeout(handleSelectFromDrive, 500);
+              }} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2">
+                <SparklesIcon className="w-5 h-5" /> Smart Scan & Analyze
+              </button>
+            </footer>
           </div>
+        </div>
       )}
 
       {error && (
@@ -488,13 +490,13 @@ const AdWorkflow: React.FC = () => {
             Provide Campaign Context
           </h2>
           <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-700/50">
-             <CampaignBriefForm 
-                brief={campaignBrief} 
-                setBrief={setCampaignBrief}
-                avatars={avatars}
-                selectedAvatar={selectedAvatar}
-                setSelectedAvatar={setSelectedAvatar}
-              />
+            <CampaignBriefForm
+              brief={campaignBrief}
+              setBrief={setCampaignBrief}
+              avatars={avatars}
+              selectedAvatar={selectedAvatar}
+              setSelectedAvatar={setSelectedAvatar}
+            />
           </div>
         </div>
         <div>
@@ -510,33 +512,33 @@ const AdWorkflow: React.FC = () => {
               isDisabled={isProcessing}
             />
           ) : (
-             <div className="space-y-4">
-               {videoFiles.map(vf => (
-                   <AnalysisResultCard 
-                        key={vf.id} 
-                        videoFile={vf} 
-                        onGenerateBlueprints={handleGenerateVariations}
-                        onOpenCutter={() => handleOpenCutter(vf.file)}
-                        onOpenAdvancedEditor={() => handleOpenAdvancedEditor(vf.file)}
-                    />
-               ))}
+            <div className="space-y-4">
+              {videoFiles.map(vf => (
+                <AnalysisResultCard
+                  key={vf.id}
+                  videoFile={vf}
+                  onGenerateBlueprints={handleGenerateVariations}
+                  onOpenCutter={() => handleOpenCutter(vf.file)}
+                  onOpenAdvancedEditor={() => handleOpenAdvancedEditor(vf.file)}
+                />
+              ))}
             </div>
           )}
         </div>
-        
+
         {campaignStrategy && (
-            <div className="bg-gray-900/50 p-6 rounded-lg border border-indigo-500/50 animate-fade-in">
-              <h3 className="text-lg font-bold text-indigo-400 mb-4">Winning Ad Strategy</h3>
-              <div className="space-y-4">
-                  <p><strong className="text-gray-400">Strategy Summary:</strong> {campaignStrategy.summary}</p>
-                  <p><strong className="text-gray-400">Key Angles:</strong> {campaignStrategy.keyAngles.join(', ') || 'None'}</p>
-                  <p><strong className="text-gray-400">Risks to Avoid:</strong> {campaignStrategy.risksToAvoid.join(', ') || 'None'}</p>
-                  
-                  <button disabled={isProcessing || !selectedAvatar} onClick={handleGenerateVariations} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all text-lg mt-4 disabled:bg-gray-600 disabled:cursor-not-allowed">
-                      <SparklesIcon className="w-6 h-6"/> Generate Ad Blueprints
-                  </button>
-              </div>
+          <div className="bg-gray-900/50 p-6 rounded-lg border border-indigo-500/50 animate-fade-in">
+            <h3 className="text-lg font-bold text-indigo-400 mb-4">Winning Ad Strategy</h3>
+            <div className="space-y-4">
+              <p><strong className="text-gray-400">Strategy Summary:</strong> {campaignStrategy.summary}</p>
+              <p><strong className="text-gray-400">Key Angles:</strong> {campaignStrategy.keyAngles.join(', ') || 'None'}</p>
+              <p><strong className="text-gray-400">Risks to Avoid:</strong> {campaignStrategy.risksToAvoid.join(', ') || 'None'}</p>
+
+              <button disabled={isProcessing || !selectedAvatar} onClick={handleGenerateVariations} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all text-lg mt-4 disabled:bg-gray-600 disabled:cursor-not-allowed">
+                <SparklesIcon className="w-6 h-6" /> Generate Ad Blueprints
+              </button>
             </div>
+          </div>
         )}
 
         {adCreatives.length > 0 && (

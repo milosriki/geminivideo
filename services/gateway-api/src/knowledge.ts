@@ -13,11 +13,13 @@ import {
 const router = Router();
 
 // Initialize GCS client - can be mocked for local development
-const storage = process.env.GCS_MOCK_MODE === 'true' 
-  ? null 
+// TODO: [CRITICAL] Ensure GCS_MOCK_MODE is false in production
+// Real GCS bucket credentials must be configured in .env
+const storage = process.env.GCS_MOCK_MODE === 'true'
+  ? null
   : new Storage({
-      projectId: process.env.PROJECT_ID || 'gen-lang-client-0427673522'
-    });
+    projectId: process.env.PROJECT_ID || 'gen-lang-client-0427673522'
+  });
 
 const BUCKET_NAME = process.env.GCS_BUCKET || 'ai-studio-bucket-208288753973-us-west1';
 
@@ -46,7 +48,7 @@ router.post('/upload', async (req: Request, res: Response) => {
     if (storage && file) {
       const bucket = storage.bucket(BUCKET_NAME);
       const blob = bucket.file(`knowledge/${body.category}/${body.subcategory}/${fileName}`);
-      
+
       await blob.save(file.buffer, {
         metadata: {
           contentType: file.mimetype,
@@ -110,7 +112,7 @@ router.post('/activate', async (req: Request, res: Response) => {
 
     // In production, publish to Pub/Sub for hot-reload notification
     const affectedServices = ['drive-intel', 'video-agent', 'meta-publisher'];
-    
+
     const response: KnowledgeActivateResponse = {
       status: 'active',
       version,
@@ -150,7 +152,7 @@ router.get('/status', async (req: Request, res: Response) => {
           size_bytes: record.size || 0,
           checksum: record.checksum || 'sha256:mock'
         });
-        
+
         if (record.activatedAt > lastUpdated) {
           lastUpdated = record.activatedAt;
           activeVersion = record.metadata.version;

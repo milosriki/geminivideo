@@ -66,6 +66,8 @@ async def ingest_local_folder(request: IngestRequest):
         asset_id = str(uuid.uuid4())
         
         # Mock asset data
+        # TODO: [CRITICAL] Replace with real Google Drive / GCS file listing
+        # Needs integration with services/google_drive_service.py
         asset = {
             "asset_id": asset_id,
             "path": request.path,
@@ -196,7 +198,8 @@ async def process_asset(asset_id: str):
         assets_db[asset_id]["status"] = "completed"
     
     # Generate mock clips with scene detection
-    clips = []
+    # TODO: [CRITICAL] Implement real scene detection using OpenCV/PySceneDetect
+    # Current implementation is purely random simulation
     num_clips = 5  # Mock 5 scenes detected
     
     for i in range(num_clips):
@@ -205,6 +208,10 @@ async def process_asset(asset_id: str):
         end_time = start_time + 6.0
         
         # Mock features
+        # TODO: [CRITICAL] Implement real feature extraction:
+        # 1. Emotion: DeepFace.analyze(frame)
+        # 2. Objects: YOLO/SSD detection
+        # 3. Audio: Speech-to-Text transcription
         features = {
             "motion_energy": 0.5 + (i * 0.1),
             "face_detected": i % 2 == 0,
