@@ -1,0 +1,145 @@
+{
+  "personas": [
+    {
+      "id": "busy_professional",
+      "name": "Busy Professional",
+      "age_range": [25, 45],
+      "fitness_level": "beginner_to_intermediate",
+      "keywords": [
+        "time",
+        "efficient",
+        "quick",
+        "busy",
+        "schedule",
+        "work",
+        "balance",
+        "home workout",
+        "30 minutes",
+        "flexible"
+      ],
+      "pain_points": [
+        "no time",
+        "busy schedule",
+        "work-life balance"
+      ],
+      "goals": [
+        "stay fit",
+        "maintain health",
+        "stress relief"
+      ]
+    },
+    {
+      "id": "weight_loss_seeker",
+      "name": "Weight Loss Seeker",
+      "age_range": [30, 55],
+      "fitness_level": "beginner",
+      "keywords": [
+        "lose weight",
+        "fat loss",
+        "transformation",
+        "diet",
+        "calories",
+        "slim",
+        "tone",
+        "before and after",
+        "sustainable",
+        "lifestyle"
+      ],
+      "pain_points": [
+        "tried everything",
+        "yo-yo dieting",
+        "plateau",
+        "motivation"
+      ],
+      "goals": [
+        "lose weight",
+        "keep it off",
+        "feel confident"
+      ]
+    },
+    {
+      "id": "athlete_optimizer",
+      "name": "Performance Athlete",
+      "age_range": [18, 35],
+      "fitness_level": "advanced",
+      "keywords": [
+        "performance",
+        "strength",
+        "speed",
+        "power",
+        "athletic",
+        "competition",
+        "training",
+        "gains",
+        "optimize",
+        "peak"
+      ],
+      "pain_points": [
+        "plateau",
+        "injury prevention",
+        "performance gains"
+      ],
+      "goals": [
+        "get stronger",
+        "improve performance",
+        "compete"
+      ]
+    },
+    {
+      "id": "senior_wellness",
+      "name": "Active Senior",
+      "age_range": [55, 75],
+      "fitness_level": "beginner_to_intermediate",
+      "keywords": [
+        "health",
+        "mobility",
+        "balance",
+        "longevity",
+        "wellness",
+        "flexibility",
+        "gentle",
+        "safe",
+        "joint-friendly",
+        "active aging"
+      ],
+      "pain_points": [
+        "joint pain",
+        "balance issues",
+        "loss of mobility"
+      ],
+      "goals": [
+        "stay active",
+        "maintain independence",
+        "improve quality of life"
+      ]
+    },
+    {
+      "id": "new_mom",
+      "name": "Postpartum Recovery",
+      "age_range": [25, 40],
+      "fitness_level": "beginner",
+      "keywords": [
+        "postpartum",
+        "new mom",
+        "baby weight",
+        "core",
+        "recovery",
+        "gentle",
+        "at home",
+        "flexible",
+        "realistic",
+        "support"
+      ],
+      "pain_points": [
+        "no time",
+        "body changes",
+        "lack of energy"
+      ],
+      "goals": [
+        "feel like myself",
+        "regain strength",
+        "sustainable fitness"
+      ]
+    }
+  ]
+}

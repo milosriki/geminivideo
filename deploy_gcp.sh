@@ -50,7 +50,10 @@ build_and_push() {
 
 build_and_push "titan-core" "./services/titan-core"
 build_and_push "meta-publisher" "./services/meta-publisher"
+# Copy shared directory for gateway-api build
+cp -r shared services/gateway-api/shared
 build_and_push "gateway-api" "./services/gateway-api"
+rm -rf services/gateway-api/shared
 build_and_push "drive-intel" "./services/drive-intel"
 build_and_push "video-agent" "./services/video-agent"
 build_and_push "ml-service" "./services/ml-service"
@@ -71,7 +74,12 @@ deploy_service() {
 # We will pass PORT=8080 to all services.
 
 # Deploy independent services first
-gcloud run deploy titan-core --image $REGION-docker.pkg.dev/$(gcloud config get-value project)/$REPO_NAME/titan-core --region $REGION --allow-unauthenticated --set-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},META_APP_ID=${META_APP_ID},META_ACCESS_TOKEN=${META_ACCESS_TOKEN},META_AD_ACCOUNT_ID=${META_AD_ACCOUNT_ID},META_CLIENT_TOKEN=${META_CLIENT_TOKEN},META_APP_SECRET=${META_APP_SECRET}"
+echo "Deploying titan-core..."
+gcloud run deploy titan-core \
+  --image $REGION-docker.pkg.dev/$(gcloud config get-value project)/$REPO_NAME/titan-core \
+  --region $REGION \
+  --allow-unauthenticated \
+  --set-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},GEMINI_MODEL=gemini-2.0-flash-thinking-exp-1219,OPENAI_API_KEY=${OPENAI_API_KEY},ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY},ML_SERVICE_URL=${ML_SERVICE_URL},META_APP_ID=${META_APP_ID},META_ACCESS_TOKEN=${META_ACCESS_TOKEN},META_AD_ACCOUNT_ID=${META_AD_ACCOUNT_ID},META_CLIENT_TOKEN=${META_CLIENT_TOKEN},META_APP_SECRET=${META_APP_SECRET}"
 
 gcloud run deploy ml-service --image $REGION-docker.pkg.dev/$(gcloud config get-value project)/$REPO_NAME/ml-service --region $REGION --allow-unauthenticated
 
@@ -100,6 +108,34 @@ GATEWAY_URL=$(gcloud run services describe gateway-api --region $REGION --format
 
 gcloud run services update meta-publisher --region $REGION --update-env-vars "GATEWAY_URL=$GATEWAY_URL"
 
+# 6. Deploy Frontend (Round 2)
+echo "Building and Deploying Frontend..."
+GATEWAY_URL=$(gcloud run services describe gateway-api --region $REGION --format 'value(status.url)')
+
+# Build Frontend with Gateway URL (using local docker to pass build-arg)
+echo "Building Frontend with API URL: $GATEWAY_URL"
+FRONTEND_IMAGE="$REGION-docker.pkg.dev/$(gcloud config get-value project)/$REPO_NAME/frontend"
+
+# Configure docker to authenticate with Artifact Registry
+gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+
+docker build \
+  --build-arg VITE_API_BASE_URL=$GATEWAY_URL \
+  -t $FRONTEND_IMAGE \
+  ./frontend
+
+docker push $FRONTEND_IMAGE
+
+# Deploy Frontend
+echo "Deploying Frontend..."
+gcloud run deploy frontend --image $FRONTEND_IMAGE \
+  --region $REGION \
+  --allow-unauthenticated \
+  --port 80
+
+FRONTEND_URL=$(gcloud run services describe frontend --region $REGION --format 'value(status.url)')
+
 echo "✅ Deployment Complete!"
 echo "Gateway API URL: $GATEWAY_URL"
-echo "Update your Frontend .env VITE_API_BASE_URL to this URL."
+echo "Frontend URL: $FRONTEND_URL"
+

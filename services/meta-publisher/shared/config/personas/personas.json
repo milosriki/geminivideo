@@ -1,0 +1,60 @@
+{
+  "personas": [
+    {
+      "id": "tech_enthusiast",
+      "name": "Tech Enthusiast",
+      "description": "Early adopters interested in innovation and gadgets",
+      "demographics": {
+        "age_range": [18, 35],
+        "interests": ["technology", "innovation", "gadgets", "startups"]
+      },
+      "preferences": {
+        "content_style": "fast_paced",
+        "hook_types": ["curiosity_gap", "pattern_interrupt"],
+        "optimal_length": 15
+      }
+    },
+    {
+      "id": "lifestyle_shopper",
+      "name": "Lifestyle Shopper",
+      "description": "Consumers seeking lifestyle improvements and products",
+      "demographics": {
+        "age_range": [25, 45],
+        "interests": ["shopping", "lifestyle", "wellness", "home"]
+      },
+      "preferences": {
+        "content_style": "aspirational",
+        "hook_types": ["social_proof", "urgency_scarcity"],
+        "optimal_length": 20
+      }
+    },
+    {
+      "id": "business_professional",
+      "name": "Business Professional",
+      "description": "B2B audience seeking productivity and growth",
+      "demographics": {
+        "age_range": [28, 55],
+        "interests": ["business", "productivity", "leadership", "growth"]
+      },
+      "preferences": {
+        "content_style": "authoritative",
+        "hook_types": ["social_proof", "emotional_story"],
+        "optimal_length": 30
+      }
+    },
+    {
+      "id": "entertainment_seeker",
+      "name": "Entertainment Seeker",
+      "description": "Audience looking for entertainment and viral content",
+      "demographics": {
+        "age_range": [16, 30],
+        "interests": ["entertainment", "memes", "viral", "social_media"]
+      },
+      "preferences": {
+        "content_style": "humorous",
+        "hook_types": ["pattern_interrupt", "emotional_story"],
+        "optimal_length": 10
+      }
+    }
+  ]
+}

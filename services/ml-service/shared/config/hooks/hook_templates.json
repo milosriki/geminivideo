@@ -1,0 +1,44 @@
+{
+  "hooks": [
+    {
+      "id": "curiosity_gap",
+      "name": "Curiosity Gap",
+      "description": "Creates intrigue by withholding key information",
+      "template": "What if {subject} could {action}? The answer will {surprise}...",
+      "psychology_factors": ["curiosity", "anticipation"],
+      "weight": 0.85
+    },
+    {
+      "id": "urgency_scarcity",
+      "name": "Urgency & Scarcity",
+      "description": "Limited time or availability creates FOMO",
+      "template": "Only {count} left! {action} before {deadline}",
+      "psychology_factors": ["urgency", "scarcity", "fomo"],
+      "weight": 0.78
+    },
+    {
+      "id": "social_proof",
+      "name": "Social Proof",
+      "description": "Leverages others' behavior to validate action",
+      "template": "{count} people {action}. Join them now!",
+      "psychology_factors": ["social_validation", "bandwagon"],
+      "weight": 0.72
+    },
+    {
+      "id": "pattern_interrupt",
+      "name": "Pattern Interrupt",
+      "description": "Breaks expected patterns to capture attention",
+      "template": "Stop {common_action}! Here's why...",
+      "psychology_factors": ["surprise", "novelty"],
+      "weight": 0.68
+    },
+    {
+      "id": "emotional_story",
+      "name": "Emotional Story",
+      "description": "Narrative-driven hook that evokes emotion",
+      "template": "{character} {struggle}. What happened next will {emotion}...",
+      "psychology_factors": ["empathy", "narrative"],
+      "weight": 0.75
+    }
+  ]
+}

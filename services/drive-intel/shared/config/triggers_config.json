@@ -1,0 +1,97 @@
+{
+  "driver_keywords": {
+    "pain_points": [
+      "struggling",
+      "tired",
+      "frustrated",
+      "stuck",
+      "can't lose weight",
+      "no results",
+      "plateau",
+      "burnout",
+      "confused",
+      "overwhelmed"
+    ],
+    "transformations": [
+      "transform",
+      "change",
+      "achieve",
+      "reach",
+      "build",
+      "lose",
+      "gain",
+      "improve",
+      "boost",
+      "unlock"
+    ],
+    "urgency": [
+      "now",
+      "today",
+      "limited",
+      "deadline",
+      "hurry",
+      "fast",
+      "quick",
+      "immediately",
+      "don't wait",
+      "act now"
+    ],
+    "authority": [
+      "certified",
+      "expert",
+      "professional",
+      "science-backed",
+      "proven",
+      "research",
+      "studied",
+      "qualified",
+      "experienced",
+      "specialist"
+    ],
+    "social_proof": [
+      "clients",
+      "results",
+      "reviews",
+      "testimonials",
+      "success stories",
+      "before and after",
+      "transformed",
+      "achieved",
+      "5-star",
+      "recommended"
+    ]
+  },
+  "fitness_triggers": {
+    "weight_loss": [
+      "lose weight",
+      "fat loss",
+      "shed pounds",
+      "lean",
+      "slim",
+      "drop weight"
+    ],
+    "muscle_gain": [
+      "build muscle",
+      "gain mass",
+      "bulk up",
+      "strength",
+      "get stronger"
+    ],
+    "performance": [
+      "faster",
+      "stronger",
+      "endurance",
+      "stamina",
+      "athletic",
+      "performance"
+    ],
+    "health": [
+      "healthy",
+      "wellness",
+      "energy",
+      "vitality",
+      "longevity",
+      "mobility"
+    ]
+  }
+}

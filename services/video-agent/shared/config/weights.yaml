@@ -1,0 +1,60 @@
+# Scoring Weights Configuration
+# Version-controlled weights for predictive scoring engine
+
+version: "1.0.0"
+last_updated: "2025-11-10"
+
+# Psychology-based scoring weights
+psychology_weights:
+  pain_point: 0.30
+  transformation: 0.25
+  urgency: 0.20
+  authority: 0.15
+  social_proof: 0.10
+
+# Hook strength weights
+hook_weights:
+  has_number: 0.35
+  has_question: 0.25
+  motion_spike: 0.20
+  first_3s_text: 0.20
+
+# Technical quality weights
+technical_weights:
+  resolution_score: 0.30
+  audio_quality: 0.25
+  lighting: 0.20
+  stabilization: 0.25
+
+# Demographic matching weights
+demographic_weights:
+  persona_match: 0.40
+  age_range: 0.25
+  fitness_level: 0.20
+  trigger_alignment: 0.15
+
+# Novelty and diversity weights
+novelty_weights:
+  semantic_uniqueness: 0.60
+  visual_diversity: 0.40
+
+# Win probability bands
+probability_bands:
+  low:
+    min: 0.0
+    max: 0.3
+    confidence_threshold: 0.6
+  mid:
+    min: 0.3
+    max: 0.7
+    confidence_threshold: 0.7
+  high:
+    min: 0.7
+    max: 1.0
+    confidence_threshold: 0.8
+
+# Learning parameters
+learning:
+  min_samples_for_update: 50
+  max_weight_delta: 0.1
+  learning_rate: 0.01
