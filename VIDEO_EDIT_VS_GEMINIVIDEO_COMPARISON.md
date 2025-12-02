@@ -614,3 +614,443 @@ export interface HistoricalCampaign {
 - TITAN API backend
 
 **Recommended approach**: Incrementally add the highest-value features (SmartCutter, Prediction, TITAN API) rather than trying to port everything at once.
+
+---
+
+## 🔬 DETAILED BACKEND FUNCTIONS ANALYSIS
+
+### TITAN 4-Agent System (Backend Core)
+
+The video-edit repository has a complete AI agent architecture in `backend_core/agents/`:
+
+---
+
+### 1. **AnalystAgent** (`analyst_agent.py` - 11,511 bytes)
+
+**Purpose:** Deep video intelligence - extract actionable insights from video content
+
+**Key Classes & Functions:**
+
+```python
+class SceneAnalysis:
+    timestamp: str           # MM:SS format
+    description: str         # Scene description
+    energy_level: str        # low, medium, high
+    key_objects: List[str]   # Detected objects
+
+class HookAnalysis:
+    hook_type: str           # Visual Shock, Question, Story, Statistic, etc.
+    hook_text: Optional[str] # Text in hook
+    effectiveness_score: int # 1-10 rating
+    reasoning: str           # Why it works/doesn't
+
+class TransformationAnalysis:
+    before_state: str        # Before description
+    after_state: str         # After description
+    transformation_type: str # physical, emotional, lifestyle, financial
+    believability_score: int # 1-10 rating
+
+class VideoDeepAnalysis:
+    video_id: str
+    duration_seconds: float
+    hook: HookAnalysis
+    scenes: List[SceneAnalysis]
+    overall_energy: str      # low, medium, high, dynamic
+    pacing: str              # slow, moderate, fast, variable
+    transformation: Optional[TransformationAnalysis]
+    emotional_triggers: List[str]
+    visual_elements: List[str]
+    has_voiceover: bool
+    has_music: bool
+    transcription: Optional[str]
+    key_phrases: List[str]
+    cta_type: Optional[str]
+    cta_strength: int
+    summary: str
+    strengths: List[str]
+    weaknesses: List[str]
+    similar_to_winning_patterns: List[str]
+
+class AnalystAgent:
+    def analyze_video(video_uri, historical_patterns) -> VideoDeepAnalysis
+    def extract_features_for_prediction(analysis) -> Dict[str, Any]
+    def compare_to_historical(analysis, top_performers) -> Dict[str, Any]
+```
+
+**Key Features:**
+- First 3-second hook analysis
+- Scene-by-scene energy detection
+- Before/after transformation detection
+- Emotional trigger identification
+- Audio analysis (voiceover, music, transcription)
+- Pattern matching against historical winners
+
+---
+
+### 2. **DirectorAgent** (`director_agent.py` - 19,407 bytes)
+
+**Purpose:** Create winning ad scripts using Gemini 2.0 Flash with Reflexion Loop
+
+**Key Classes & Functions:**
+
+```python
+class SceneBlueprint:
+    scene_number: int
+    duration_seconds: float
+    visual_description: str
+    audio_description: str
+    text_overlay: Optional[str]
+    transition: Optional[str]
+
+class AdBlueprint:
+    id: str
+    title: str
+    hook_text: str
+    hook_type: str           # pattern_interrupt, question, statistic, story, transformation
+    scenes: List[SceneBlueprint]
+    cta_text: str
+    cta_type: str            # book_call, download, buy_now, learn_more
+    caption: str             # Social media caption
+    hashtags: List[str]
+    target_avatar: str
+    emotional_triggers: List[str]
+    predicted_roas: Optional[float]
+    confidence_score: Optional[float]
+    rank: Optional[int]
+    source_video_id: Optional[str]
+    based_on_pattern: Optional[str]
+
+class DirectorAgentV2:
+    # 12 Hook Templates built-in:
+    hook_templates = [
+        {"type": "pattern_interrupt", "template": "STOP scrolling if you {pain_point}"},
+        {"type": "question", "template": "What if you could {desire} in just {timeframe}?"},
+        {"type": "statistic", "template": "{stat_number}% of {avatar} struggle with {pain_point}"},
+        {"type": "story", "template": "I used to {pain_point}. Then I discovered..."},
+        {"type": "transformation", "template": "From {before} to {after} in {timeframe}"},
+        # + 7 more templates
+    ]
+    
+    async def generate_blueprints(request) -> List[AdBlueprint]
+    async def _generate_initial_variations(request) -> List[AdBlueprint]
+    async def _reflexion_loop(blueprints, request) -> List[AdBlueprint]  # Self-critique
+    def _rank_blueprints(blueprints) -> List[AdBlueprint]
+    async def generate_hook_variations(base_hook, target_avatar, num=50) -> List[Dict]
+```
+
+**Key Features:**
+- Generate 10-50 ad blueprint variations
+- Reflexion Loop: AI self-critiques and improves
+- RAG integration with historical winners
+- Scene-by-scene script generation
+- Platform-specific optimization (Reels, TikTok, Shorts)
+- Hook variation generation (50+ from single base)
+
+---
+
+### 3. **OracleAgent** (`oracle_agent.py` - 19,202 bytes)
+
+**Purpose:** 8-Engine Ensemble Prediction for ROAS before spending money
+
+**Key Classes & Functions:**
+
+```python
+class EnginePrediction:
+    engine_name: str
+    score: float             # 0-1 prediction
+    confidence: float        # 0-1 confidence
+    reasoning: str
+
+class ROASPrediction:
+    predicted_roas: float
+    confidence_lower: float  # 95% CI lower
+    confidence_upper: float  # 95% CI upper
+    confidence_level: str    # low, medium, high
+
+class EnsemblePredictionResult:
+    video_id: str
+    final_score: float       # 0-100 virality score
+    roas_prediction: ROASPrediction
+    engine_predictions: List[EnginePrediction]
+    hook_score: float        # 0-10
+    cta_score: float         # 0-10
+    engagement_score: float  # 0-10
+    conversion_score: float  # 0-10
+    overall_confidence: float
+    reasoning: str
+    compared_to_avg: float   # % above/below historical average
+    similar_campaigns: List[Dict]
+    recommendations: List[str]
+
+class OracleAgent:
+    # Engine weights from historical $2M data
+    engine_weights = {
+        "DeepFM": 0.15,
+        "DCN": 0.15,
+        "XGBoost": 0.15,
+        "LightGBM": 0.12,
+        "CatBoost": 0.12,
+        "NeuralNet": 0.12,
+        "RandomForest": 0.10,
+        "GradientBoost": 0.09
+    }
+    
+    # Historical baselines
+    historical_avg_roas = 2.4
+    historical_avg_ctr = 0.024
+    historical_avg_cvr = 0.031
+    
+    async def predict(features, video_id) -> EnsemblePredictionResult
+    async def _run_all_engines(features) -> List[EnginePrediction]
+    def _predict_roas(final_score, features) -> ROASPrediction
+    def _generate_recommendations(hook, cta, engagement, features) -> List[str]
+    def _find_similar_campaigns(features) -> List[Dict]
+```
+
+**Key Features:**
+- 8 ML models for prediction
+- Weighted ensemble scoring
+- ROAS prediction with confidence intervals
+- Comparison to $2M historical data
+- Automatic recommendation generation
+
+---
+
+### 4. **ChatAgent** (`chat_agent.py` - 13,873 bytes)
+
+**Purpose:** Proactive conversational AI with persistent memory
+
+**Key Classes & Functions:**
+
+```python
+class ChatMessage:
+    role: str                # user or assistant
+    content: str
+    timestamp: datetime
+    metadata: Optional[Dict]
+
+class ProactiveInsight:
+    insight_type: str        # performance, optimization, trend, warning
+    title: str
+    description: str
+    action: Optional[str]    # Suggested action
+    priority: str            # low, medium, high, urgent
+    related_video_id: Optional[str]
+
+class ConversationContext:
+    conversation_id: str
+    video_id: Optional[str]
+    video_analysis: Optional[Dict]
+    user_preferences: Dict
+    historical_context: Dict
+    messages: List[ChatMessage]
+    created_at: datetime
+    updated_at: datetime
+
+class ChatAgentV2:
+    active_conversations: Dict[str, ConversationContext]  # Memory cache
+    
+    async def chat(message, conversation_id, video_id, video_analysis, user_context) -> ChatResponse
+    async def get_proactive_insights(user_id, historical_data) -> List[ProactiveInsight]
+    async def learn_preferences(conversation_id, preference_type, value) -> bool
+    async def get_conversation_history(conversation_id, limit=50) -> List[ChatMessage]
+    async def summarize_conversation(conversation_id) -> Optional[str]
+```
+
+**Key Features:**
+- Persistent conversation memory
+- Proactive insights generation
+- User preference learning
+- Video-aware context
+- Conversation summarization
+
+---
+
+### Council of Titans (Ensemble System)
+
+**Location:** `backend_core/engines/ensemble.py` (8,687 bytes)
+
+```python
+class CouncilOfTitans:
+    """
+    The Ultimate Ensemble (4 AI Models):
+    1. Gemini 2.0 Flash (with extended reasoning) - 40%
+    2. GPT-4o (Logic/Structure) - 20%
+    3. Claude 3.5 Sonnet (Nuance/Psychology) - 30%
+    4. DeepCTR (Data/Math) - 10%
+    """
+    
+    async def get_gemini_critique(script) -> Dict  # 40% weight
+    async def get_gpt4_critique(script) -> Dict    # 20% weight
+    async def get_claude_critique(script) -> Dict  # 30% weight
+    async def evaluate_script(script, visual_features) -> Dict
+        # Returns weighted score + breakdown + APPROVE/REJECT verdict
+```
+
+---
+
+### DeepCTR Engine (Real ML Model)
+
+**Location:** `backend_core/engines/deep_ctr.py` (7,206 bytes)
+
+```python
+class DeepCTREngine:
+    """
+    Real DeepFM model trained on $2M ad data
+    Features: has_transformation, has_urgency, has_offer, is_video
+    """
+    
+    def __init__(model_path):
+        # Loads trained PyTorch DeepFM model
+        
+    def predict_sync(video_data) -> float:
+        # Returns 0-100 ROAS probability
+        # Falls back to Gemini Zero-Shot if model unavailable
+```
+
+---
+
+### Video Intelligence Service
+
+**Location:** `backend_core/services/video_intelligence.py` (6,689 bytes)
+
+```python
+class VideoIntelligenceService:
+    """
+    Google Cloud Video Intelligence API integration
+    """
+    
+    def analyze_faces(video_uri) -> List[Dict]:
+        # Detects faces, emotions, bounding boxes
+        # Returns: start_time, end_time, attributes, confidence
+        
+    def transcribe_video(video_uri, language="en-US") -> List[Dict]:
+        # Full speech-to-text with word timestamps
+        # Returns: transcript, confidence, words[]
+        
+    def detect_labels(video_uri) -> List[Dict]:
+        # Objects, locations, activities
+        # Returns: entity, category, timestamps, confidence
+```
+
+---
+
+### Learning Loop (Continuous Improvement)
+
+**Location:** `backend_core/services/learning_loop.py` (2,759 bytes)
+
+```python
+class LearningLoop:
+    """
+    Closes the feedback loop: When purchases happen,
+    boost winning patterns in Vector Store
+    """
+    
+    def process_purchase_signal(transaction_data):
+        # Updates Vector Store embeddings with HIGH_CONVERSION tag
+        # Makes future predictions smarter
+```
+
+---
+
+### Knowledge Base (Federated Knowledge)
+
+**Location:** `backend_core/knowledge/core.py` (2,232 bytes)
+
+```python
+class FederatedKnowledge:
+    """
+    Aggregates Hardcoded Rules + Live User Research
+    """
+    
+    domains = {
+        "fitness": {
+            "hormozi_rules": [
+                "0-3s: Pattern Interrupt (Visual Shock)",
+                "3-10s: Agitate the Pain",
+                "10-40s: The New Mechanism",
+                "40-60s: Explicit CTA"
+            ],
+            "psychology": ["Status", "Sloth", "Fear"],
+            "pain_points": [...]
+        }
+    }
+    
+    def inject_spy_data(data)       # Add competitor intelligence
+    def add_user_research(niche, insight)  # Add user research
+    def get_context_block(niche) -> str    # Build prompt context
+```
+
+---
+
+## 🎯 PRIORITIZED FUNCTIONS TO PORT TO GEMINIVIDEO
+
+### Tier 1: High Impact (Port First)
+
+| Function | From File | Purpose | Effort |
+|----------|-----------|---------|--------|
+| `AnalystAgent.analyze_video()` | analyst_agent.py | Deep video analysis | Medium |
+| `OracleAgent.predict()` | oracle_agent.py | ROAS prediction | High |
+| `CouncilOfTitans.evaluate_script()` | ensemble.py | Multi-LLM scoring | Medium |
+| `DirectorAgent.generate_blueprints()` | director_agent.py | Ad variation generation | High |
+
+### Tier 2: Medium Impact
+
+| Function | From File | Purpose | Effort |
+|----------|-----------|---------|--------|
+| `ChatAgentV2.get_proactive_insights()` | chat_agent.py | AI suggestions | Medium |
+| `VideoIntelligenceService.*` | video_intelligence.py | GCP video analysis | Low |
+| `DeepCTREngine.predict_sync()` | deep_ctr.py | ML prediction | High |
+| `FederatedKnowledge.get_context_block()` | core.py | Context building | Low |
+
+### Tier 3: Nice to Have
+
+| Function | From File | Purpose | Effort |
+|----------|-----------|---------|--------|
+| `LearningLoop.process_purchase_signal()` | learning_loop.py | Continuous learning | Medium |
+| `DirectorAgent.generate_hook_variations()` | director_agent.py | Hook diversification | Low |
+| `ChatAgentV2.summarize_conversation()` | chat_agent.py | Chat summary | Low |
+
+---
+
+## 📋 FUNCTION-BY-FUNCTION PORTING CHECKLIST
+
+```
+Backend Agents:
+[ ] AnalystAgent - VideoDeepAnalysis type + analyze_video()
+[ ] OracleAgent - EnsemblePredictionResult + 8-engine predict()
+[ ] DirectorAgent - AdBlueprint + generate_blueprints() + hook_templates
+[ ] ChatAgent - ConversationContext + persistent memory
+
+Backend Engines:
+[ ] CouncilOfTitans - Multi-LLM evaluation (Gemini + GPT-4 + Claude + DeepCTR)
+[ ] DeepCTREngine - Real ML model with Gemini fallback
+[ ] EnsemblePredictor - 8-engine prediction system
+
+Backend Services:
+[ ] VideoIntelligenceService - GCP Video API
+[ ] LearningLoop - Purchase signal processing
+[ ] FederatedKnowledge - Context building
+
+Frontend Components:
+[ ] SmartCutter - AI video cutting
+[ ] VSLProEditor - VSL section markers
+[ ] BlueprintGenerator - Ad variation UI
+[ ] PredictionPanel - 8-engine visualization
+[ ] AIAssistant - Enhanced chat with memory
+[ ] ProactiveInsights - AI suggestions panel
+```
+
+---
+
+## 💡 QUICK WINS TO START
+
+1. **Copy Types** - Add TitanVideoAnalysis, TitanPrediction, TitanBlueprint to `frontend/src/types.ts`
+
+2. **Port SmartCutter** - Copy `SmartCutter.tsx` to geminivideo components (works standalone)
+
+3. **Add Prediction Service** - Port `predictionService.ts` for score visualization
+
+4. **Deploy TITAN API** - Set up `backend_core/` as separate Python service
+
+5. **Connect Memory** - Extend Supabase schema with `analyzed_videos`, `ad_blueprints` tables
