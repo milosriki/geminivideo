@@ -21,25 +21,25 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Pre-download ML models during build to avoid runtime delays
 # Download YOLO model
 RUN python3 -c "\
-try:\n\
+    try:\n\
     from ultralytics import YOLO;\n\
     print('Downloading YOLO model...');\n\
     model = YOLO('yolov8n.pt');\n\
     print('✅ YOLO model downloaded successfully');\n\
-except Exception as e:\n\
+    except Exception as e:\n\
     print(f'⚠️  YOLO model download failed: {e}');\n\
-" || echo "⚠️  YOLO import failed, will download at runtime"
+    " || echo "⚠️  YOLO import failed, will download at runtime"
 
 # Download sentence-transformer model
 RUN python3 -c "\
-try:\n\
+    try:\n\
     from sentence_transformers import SentenceTransformer;\n\
     print('Downloading sentence-transformer model...');\n\
     model = SentenceTransformer('all-MiniLM-L6-v2');\n\
     print('✅ Sentence-transformer model downloaded successfully');\n\
-except Exception as e:\n\
+    except Exception as e:\n\
     print(f'⚠️  Sentence-transformer download failed: {e}');\n\
-" || echo "⚠️  Sentence-transformer import failed, will download at runtime"
+    " || echo "⚠️  Sentence-transformer import failed, will download at runtime"
 
 # Copy application code
 COPY . .
@@ -48,4 +48,4 @@ COPY . .
 EXPOSE 8080
 
 # Run the application - respect PORT environment variable
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

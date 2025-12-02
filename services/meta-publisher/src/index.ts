@@ -529,6 +529,47 @@ app.get('/insights', async (req: Request, res: Response) => {
   }
 });
 
+// Dashboard: Get Creatives Performance
+app.get('/api/creatives', async (req: Request, res: Response) => {
+  try {
+    // Mock data for dashboard visualization
+    const mockCreatives = Array.from({ length: 10 }).map((_, i) => ({
+      creativeId: `c_${i}`,
+      name: `Creative ${i + 1}`,
+      platform: 'Meta',
+      campaign: `Campaign ${String.fromCharCode(65 + i)}`,
+      impressions: 1000 + i * 100,
+      clicks: 50 + i * 5,
+      conversions: 5 + i,
+      spend: 100 + i * 10,
+      revenue: 200 + i * 20,
+      ctr: 0.05,
+      cvr: 0.1,
+      cpa: 20,
+      roas: 2.0
+    }));
+    res.json(mockCreatives);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Dashboard: Get Timeseries Data
+app.get('/api/timeseries', async (req: Request, res: Response) => {
+  try {
+    // Mock timeseries data
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const mockSeries = Array.from({ length: 30 }).map((_, i) => ({
+      ts: now - (29 - i) * day,
+      value: 100 + Math.random() * 50
+    }));
+    res.json(mockSeries);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Link insights to predictions
 app.post('/insights/link-prediction', async (req: Request, res: Response) => {
   try {

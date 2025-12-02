@@ -1,59 +1,54 @@
-import { useState } from 'react'
-import './App.css'
-import AssetsPanel from './components/AssetsPanel'
-import RankedClipsPanel from './components/RankedClipsPanel'
-import SemanticSearchPanel from './components/SemanticSearchPanel'
-import AnalysisPanel from './components/AnalysisPanel'
-import CompliancePanel from './components/CompliancePanel'
-import DiversificationDashboard from './components/DiversificationDashboard'
-import ReliabilityChart from './components/ReliabilityChart'
-import RenderJobPanel from './components/RenderJobPanel'
+import React, { Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { MainLayout } from './components/layout/MainLayout';
+import {
+  LoginPageWrapper,
+  CampaignBuilderWrapper,
+  AnalyticsDashboardWrapper,
+  ProVideoEditorWrapper,
+  AICreativeStudioWrapper,
+  AdSpyDashboardWrapper
+} from './components/wrappers';
+import HomeDashboard from './components/dashboard/HomeDashboard';
+
+// Loading fallback
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-screen bg-gray-900 text-white">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+  </div>
+);
 
 function App() {
-  const [activeTab, setActiveTab] = useState('assets')
-
-  const tabs = [
-    { id: 'assets', label: 'Assets & Ingest' },
-    { id: 'clips', label: 'Ranked Clips' },
-    { id: 'search', label: 'Semantic Search' },
-    { id: 'analysis', label: 'Analysis' },
-    { id: 'compliance', label: 'Compliance' },
-    { id: 'diversification', label: 'Diversification' },
-    { id: 'reliability', label: 'Reliability' },
-    { id: 'render', label: 'Render Job' }
-  ]
-
   return (
-    <div className="app">
-      <header className="header">
-        <h1>🎬 Gemini Video - AI Ad Intelligence Suite</h1>
-        <p>Scene enrichment, predictive scoring, and automated ad creation for fitness/personal training</p>
-      </header>
+    <BrowserRouter>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<LoginPageWrapper />} />
 
-      <nav className="tabs">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            className={`tab ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+          {/* Protected Routes (wrapped in MainLayout) */}
+          <Route element={<MainLayout />}>
+            <Route index element={<HomeDashboard />} />
 
-      <main className="container">
-        {activeTab === 'assets' && <AssetsPanel />}
-        {activeTab === 'clips' && <RankedClipsPanel />}
-        {activeTab === 'search' && <SemanticSearchPanel />}
-        {activeTab === 'analysis' && <AnalysisPanel />}
-        {activeTab === 'compliance' && <CompliancePanel />}
-        {activeTab === 'diversification' && <DiversificationDashboard />}
-        {activeTab === 'reliability' && <ReliabilityChart />}
-        {activeTab === 'render' && <RenderJobPanel />}
-      </main>
-    </div>
-  )
+            {/* Campaign Routes */}
+            <Route path="campaigns" element={<CampaignBuilderWrapper />} />
+            <Route path="campaigns/:id" element={<CampaignBuilderWrapper />} />
+
+            {/* Analytics & Spy */}
+            <Route path="analytics" element={<AnalyticsDashboardWrapper />} />
+            <Route path="spy" element={<AdSpyDashboardWrapper />} />
+
+            {/* Studio Tools */}
+            <Route path="studio" element={<ProVideoEditorWrapper />} />
+            <Route path="studio/ai" element={<AICreativeStudioWrapper />} />
+          </Route>
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
