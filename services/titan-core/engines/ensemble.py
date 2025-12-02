@@ -53,6 +53,8 @@ class CouncilEvaluator:
         # DeepCTR service URL
         self.deepctr_url = os.getenv("ML_SERVICE_URL")
         if not self.deepctr_url:
+            # TODO: [CRITICAL] Ensure ML_SERVICE_URL is set in production
+            # Without this, the Council loses its data-driven "gut feeling" (10% of score)
             logger.warning("ML_SERVICE_URL not set - DeepCTR predictions will use fallback scores")
             self.deepctr_url = None
 
