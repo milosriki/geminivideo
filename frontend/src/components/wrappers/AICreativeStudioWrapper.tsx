@@ -1,0 +1,40 @@
+import React, { Suspense } from 'react';
+import { ErrorBoundary } from '../layout/ErrorBoundary';
+import { PageWrapper } from '../layout/PageWrapper';
+import AICreativeStudio from '../AICreativeStudio';
+
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-[400px]">
+    <div className="text-center">
+      <svg className="animate-spin h-10 w-10 text-indigo-500 mx-auto mb-4" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      <p className="text-gray-400">Loading AI Creative Studio...</p>
+    </div>
+  </div>
+);
+
+interface AICreativeStudioWrapperProps {
+  projectId?: string;
+}
+
+export const AICreativeStudioWrapper: React.FC<AICreativeStudioWrapperProps> = ({ projectId }) => {
+  const handleAssetGenerated = (asset: any) => {
+    console.log('Asset generated:', asset);
+    // TODO: Implement asset library integration
+  };
+
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingFallback />}>
+        <AICreativeStudio
+          projectId={projectId}
+          onAssetGenerated={handleAssetGenerated}
+        />
+      </Suspense>
+    </ErrorBoundary>
+  );
+};
+
+export default AICreativeStudioWrapper;
