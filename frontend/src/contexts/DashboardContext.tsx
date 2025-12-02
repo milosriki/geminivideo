@@ -126,7 +126,7 @@ interface DashboardProviderProps {
 
 export const DashboardProvider: React.FC<DashboardProviderProps> = ({
   children,
-  cacheFFTL = 5 * 60 * 1000 // 5 minutes default
+  cacheTTL = 5 * 60 * 1000 // 5 minutes default
 }) => {
   const [loading, setLoadingState] = useState<LoadingState>({});
   const [errors, setErrorsState] = useState<ErrorState>({});
@@ -178,7 +178,7 @@ export const DashboardProvider: React.FC<DashboardProviderProps> = ({
 
     // Check if cache is expired
     const now = Date.now();
-    if (now - entry.timestamp > cacheFFTL) {
+    if (now - entry.timestamp > cacheTTL) {
       // Cache expired, remove it
       setCacheState((prev) => {
         const newCache = { ...prev };
@@ -189,7 +189,7 @@ export const DashboardProvider: React.FC<DashboardProviderProps> = ({
     }
 
     return entry.data as T;
-  }, [cache, cacheFFTL]);
+  }, [cache, cacheTTL]);
 
   const setCache = useCallback(<T,>(key: string, data: T, ttl?: number) => {
     setCacheState((prev) => ({
@@ -556,7 +556,7 @@ export const DashboardProvider: React.FC<DashboardProviderProps> = ({
         let hasChanges = false;
 
         Object.keys(newCache).forEach((key) => {
-          if (now - newCache[key].timestamp > cacheFFTL) {
+          if (now - newCache[key].timestamp > cacheTTL) {
             delete newCache[key];
             hasChanges = true;
           }
@@ -567,7 +567,7 @@ export const DashboardProvider: React.FC<DashboardProviderProps> = ({
     }, 60000); // Run cleanup every minute
 
     return () => clearInterval(cleanupInterval);
-  }, [cacheFFTL]);
+  }, [cacheTTL]);
 
   // ============================================================================
   // CONTEXT VALUE

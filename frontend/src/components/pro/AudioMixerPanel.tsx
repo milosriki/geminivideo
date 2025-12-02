@@ -654,8 +654,7 @@ const TrackChannel: React.FC<TrackChannelProps> = ({
               cursor: 'pointer',
               padding: '4px',
               borderRadius: '4px',
-              border: '1px solid transparent',
-              ':hover': { border: '1px solid #666666' }
+              border: '1px solid transparent'
             }}
           >
             {track.name}
