@@ -1,0 +1,4 @@
+# Meta Conversions API Dependencies (Agent 8)
+# Install with: pip install -r requirements.txt
+
+facebook-business>=19.0.0

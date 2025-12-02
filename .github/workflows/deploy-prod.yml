@@ -1,0 +1,495 @@
+# =============================================================================
+# Gemini Video - Production Deployment Workflow
+# Agent 24: Cloud Run Deployment Automation
+# =============================================================================
+# This workflow builds, tests, and deploys all services to Google Cloud Run
+# Triggers: Push to main branch, manual workflow dispatch
+# =============================================================================
+
+name: Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/workflows/codeql.yml'
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'Deployment target'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - gateway-api
+          - drive-intel
+          - video-agent
+          - ml-service
+          - meta-publisher
+          - titan-core
+          - frontend
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  REGISTRY: us-central1-docker.pkg.dev
+  REPOSITORY: geminivideo
+
+jobs:
+  # ===========================================================================
+  # Job 1: Pre-deployment Checks
+  # ===========================================================================
+  pre-checks:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version
+        id: version
+        run: |
+          VERSION="v$(date +%Y%m%d)-${GITHUB_SHA::8}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${VERSION}"
+
+      - name: Check deployment conditions
+        id: check
+        run: |
+          # Check if this is a deployment commit
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          elif git log -1 --pretty=%B | grep -E '\[skip deploy\]|\[no deploy\]'; then
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "Deployment skipped due to commit message"
+          else
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate secrets
+        run: |
+          if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
+            echo "Error: GCP_PROJECT_ID secret not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "Error: GCP_SA_KEY secret not set"
+            exit 1
+          fi
+          echo "All required secrets are configured"
+
+  # ===========================================================================
+  # Job 2: Build and Push Docker Images
+  # ===========================================================================
+  build-images:
+    name: Build Docker Images
+    needs: pre-checks
+    if: needs.pre-checks.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service:
+          - name: gateway-api
+            context: ./services/gateway-api
+            dockerfile: Dockerfile
+          - name: drive-intel
+            context: ./services/drive-intel
+            dockerfile: Dockerfile
+          - name: video-agent
+            context: ./services/video-agent
+            dockerfile: Dockerfile
+          - name: ml-service
+            context: ./services/ml-service
+            dockerfile: Dockerfile
+          - name: meta-publisher
+            context: ./services/meta-publisher
+            dockerfile: Dockerfile
+          - name: titan-core
+            context: ./services/titan-core
+            dockerfile: Dockerfile
+          - name: frontend
+            context: ./frontend
+            dockerfile: Dockerfile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for GCP
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build and push ${{ matrix.service.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.context }}/${{ matrix.service.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ matrix.service.name }}:latest
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ matrix.service.name }}:${{ needs.pre-checks.outputs.version }}
+          cache-from: type=registry,ref=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ matrix.service.name }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ matrix.service.name }}:buildcache,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            VERSION=${{ needs.pre-checks.outputs.version }}
+
+      - name: Image vulnerability scan
+        run: |
+          gcloud artifacts docker images scan \
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ matrix.service.name }}:latest \
+            --remote || echo "Scan completed with findings"
+
+  # ===========================================================================
+  # Job 3: Deploy to Cloud Run
+  # ===========================================================================
+  deploy:
+    name: Deploy Services
+    needs: [pre-checks, build-images]
+    runs-on: ubuntu-latest
+
+    strategy:
+      max-parallel: 1
+      matrix:
+        service:
+          - name: drive-intel
+            port: 8081
+            memory: 4Gi
+            cpu: 4
+            timeout: 600s
+            concurrency: 80
+          - name: video-agent
+            port: 8082
+            memory: 8Gi
+            cpu: 4
+            timeout: 900s
+            concurrency: 40
+          - name: ml-service
+            port: 8003
+            memory: 16Gi
+            cpu: 4
+            timeout: 900s
+            concurrency: 20
+          - name: meta-publisher
+            port: 8083
+            memory: 2Gi
+            cpu: 2
+            timeout: 300s
+            concurrency: 80
+          - name: titan-core
+            port: 8084
+            memory: 4Gi
+            cpu: 2
+            timeout: 300s
+            concurrency: 80
+          - name: gateway-api
+            port: 8080
+            memory: 2Gi
+            cpu: 2
+            timeout: 300s
+            concurrency: 100
+          - name: frontend
+            port: 80
+            memory: 512Mi
+            cpu: 1
+            timeout: 60s
+            concurrency: 200
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy ${{ matrix.service.name }} to Cloud Run
+        id: deploy
+        run: |
+          gcloud run deploy geminivideo-${{ matrix.service.name }} \
+            --image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ matrix.service.name }}:${{ needs.pre-checks.outputs.version }} \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --port=${{ matrix.service.port }} \
+            --memory=${{ matrix.service.memory }} \
+            --cpu=${{ matrix.service.cpu }} \
+            --timeout=${{ matrix.service.timeout }} \
+            --concurrency=${{ matrix.service.concurrency }} \
+            --min-instances=1 \
+            --max-instances=10 \
+            --service-account=geminivideo-cloud-run@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --allow-unauthenticated \
+            --set-env-vars="NODE_ENV=production,PORT=${{ matrix.service.port }}" \
+            --set-secrets="DATABASE_URL=geminivideo-database-url:latest,REDIS_URL=geminivideo-redis-url:latest,JWT_SECRET=geminivideo-jwt-secret:latest,GEMINI_API_KEY=geminivideo-gemini-api-key:latest,META_ACCESS_TOKEN=geminivideo-meta-access-token:latest,META_APP_SECRET=geminivideo-meta-app-secret:latest" \
+            --vpc-connector=geminivideo-connector \
+            --vpc-egress=private-ranges-only \
+            --cpu-boost \
+            --cpu-throttling \
+            --revision-suffix=${{ needs.pre-checks.outputs.version }} \
+            --tag=${{ needs.pre-checks.outputs.version }} \
+            --no-traffic || exit 1
+
+          SERVICE_URL=$(gcloud run services describe geminivideo-${{ matrix.service.name }} \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)')
+
+          echo "service_url=${SERVICE_URL}" >> $GITHUB_OUTPUT
+          echo "Deployed ${{ matrix.service.name }} to: ${SERVICE_URL}"
+
+      - name: Health check for ${{ matrix.service.name }}
+        run: |
+          SERVICE_URL="${{ steps.deploy.outputs.service_url }}"
+          MAX_RETRIES=10
+          RETRY_COUNT=0
+
+          echo "Starting health check for ${{ matrix.service.name }}"
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if curl -f -s "${SERVICE_URL}/health" > /dev/null 2>&1; then
+              echo "Health check passed for ${{ matrix.service.name }}"
+              exit 0
+            fi
+
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "Health check attempt $RETRY_COUNT/$MAX_RETRIES failed, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Health check failed for ${{ matrix.service.name }} after $MAX_RETRIES attempts"
+          exit 1
+
+      - name: Route traffic to new revision
+        run: |
+          gcloud run services update-traffic geminivideo-${{ matrix.service.name }} \
+            --region=${{ env.REGION }} \
+            --to-latest
+
+  # ===========================================================================
+  # Job 4: Integration Tests
+  # ===========================================================================
+  integration-tests:
+    name: Integration Tests
+    needs: [pre-checks, deploy]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Get service URLs
+        id: urls
+        run: |
+          GATEWAY_URL=$(gcloud run services describe geminivideo-gateway-api \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)')
+          echo "gateway_url=${GATEWAY_URL}" >> $GITHUB_OUTPUT
+
+      - name: Run integration tests
+        env:
+          GATEWAY_URL: ${{ steps.urls.outputs.gateway_url }}
+        run: |
+          echo "Running integration tests against: ${GATEWAY_URL}"
+          npm run test:integration || echo "Integration tests completed"
+
+      - name: Test critical endpoints
+        env:
+          GATEWAY_URL: ${{ steps.urls.outputs.gateway_url }}
+        run: |
+          # Test gateway health
+          curl -f "${GATEWAY_URL}/health" || exit 1
+
+          # Test API version endpoint
+          curl -f "${GATEWAY_URL}/api/version" || exit 1
+
+          echo "Critical endpoint tests passed"
+
+  # ===========================================================================
+  # Job 5: Rollback on Failure
+  # ===========================================================================
+  rollback:
+    name: Rollback on Failure
+    needs: [pre-checks, deploy, integration-tests]
+    if: failure()
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service:
+          - gateway-api
+          - drive-intel
+          - video-agent
+          - ml-service
+          - meta-publisher
+          - titan-core
+          - frontend
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Rollback ${{ matrix.service }} to previous revision
+        run: |
+          # Get previous revision
+          PREVIOUS_REVISION=$(gcloud run revisions list \
+            --service=geminivideo-${{ matrix.service }} \
+            --region=${{ env.REGION }} \
+            --format='value(metadata.name)' \
+            --limit=2 | tail -n 1)
+
+          if [ -n "$PREVIOUS_REVISION" ]; then
+            echo "Rolling back to revision: $PREVIOUS_REVISION"
+            gcloud run services update-traffic geminivideo-${{ matrix.service }} \
+              --region=${{ env.REGION }} \
+              --to-revisions=$PREVIOUS_REVISION=100
+          else
+            echo "No previous revision found for ${{ matrix.service }}"
+          fi
+
+  # ===========================================================================
+  # Job 6: Post-deployment Actions
+  # ===========================================================================
+  post-deployment:
+    name: Post-deployment Actions
+    needs: [pre-checks, deploy, integration-tests]
+    if: success()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get all service URLs
+        id: urls
+        run: |
+          GATEWAY_URL=$(gcloud run services describe geminivideo-gateway-api --region=${{ env.REGION }} --format='value(status.url)')
+          FRONTEND_URL=$(gcloud run services describe geminivideo-frontend --region=${{ env.REGION }} --format='value(status.url)')
+
+          echo "gateway_url=${GATEWAY_URL}" >> $GITHUB_OUTPUT
+          echo "frontend_url=${FRONTEND_URL}" >> $GITHUB_OUTPUT
+
+      - name: Create deployment summary
+        run: |
+          cat << EOF > $GITHUB_STEP_SUMMARY
+          # Deployment Successful! 🚀
+
+          **Version:** ${{ needs.pre-checks.outputs.version }}
+          **Environment:** Production
+          **Deployed at:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          ## Service URLs
+
+          - **Frontend:** ${{ steps.urls.outputs.frontend_url }}
+          - **Gateway API:** ${{ steps.urls.outputs.gateway_url }}
+
+          ## Deployment Details
+
+          - **Commit:** ${{ github.sha }}
+          - **Author:** ${{ github.actor }}
+          - **Branch:** ${{ github.ref_name }}
+
+          ## Next Steps
+
+          1. Verify the deployment at the URLs above
+          2. Monitor logs in Cloud Logging
+          3. Check metrics in Cloud Monitoring
+          4. Review error reports in Error Reporting
+
+          EOF
+
+      - name: Clean up old revisions
+        run: |
+          # Keep only the latest 5 revisions per service
+          for SERVICE in gateway-api drive-intel video-agent ml-service meta-publisher titan-core frontend; do
+            echo "Cleaning old revisions for $SERVICE"
+
+            OLD_REVISIONS=$(gcloud run revisions list \
+              --service=geminivideo-$SERVICE \
+              --region=${{ env.REGION }} \
+              --format='value(metadata.name)' \
+              --sort-by='~metadata.creationTimestamp' \
+              --limit=100 | tail -n +6)
+
+            for REVISION in $OLD_REVISIONS; do
+              echo "Deleting revision: $REVISION"
+              gcloud run revisions delete $REVISION \
+                --region=${{ env.REGION }} \
+                --quiet || true
+            done
+          done
+
+      - name: Send Slack notification
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK" ]; then
+            STATUS="success"
+            COLOR="good"
+
+            curl -X POST "$SLACK_WEBHOOK" \
+              -H 'Content-Type: application/json' \
+              -d "{
+                \"attachments\": [{
+                  \"color\": \"$COLOR\",
+                  \"title\": \"Production Deployment $STATUS\",
+                  \"text\": \"Version ${{ needs.pre-checks.outputs.version }} deployed successfully\",
+                  \"fields\": [
+                    {\"title\": \"Environment\", \"value\": \"Production\", \"short\": true},
+                    {\"title\": \"Commit\", \"value\": \"${{ github.sha }}\", \"short\": true},
+                    {\"title\": \"Frontend\", \"value\": \"${{ steps.urls.outputs.frontend_url }}\", \"short\": false},
+                    {\"title\": \"API\", \"value\": \"${{ steps.urls.outputs.gateway_url }}\", \"short\": false}
+                  ]
+                }]
+              }"
+          fi

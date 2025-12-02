@@ -82,4 +82,47 @@ export const triggerLearningUpdate = async () => {
   return response.data;
 };
 
+// Campaign Builder
+export const predictCampaign = async (campaignData: any) => {
+  const response = await api.post('/campaigns/predict', campaignData);
+  return response.data;
+};
+
+export const saveCampaignDraft = async (campaign: any) => {
+  const response = await api.post('/campaigns/draft', campaign);
+  return response.data;
+};
+
+export const launchCampaign = async (campaign: any) => {
+  const response = await api.post('/campaigns/launch', campaign);
+  return response.data;
+};
+
+export const uploadCreative = async (formData: FormData) => {
+  const response = await api.post('/creatives/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
+
+export const getCampaigns = async (filters?: any) => {
+  const response = await api.get('/campaigns', { params: filters });
+  return response.data;
+};
+
+export const getCampaignById = async (campaignId: string) => {
+  const response = await api.get(`/campaigns/${campaignId}`);
+  return response.data;
+};
+
+export const updateCampaign = async (campaignId: string, updates: any) => {
+  const response = await api.put(`/campaigns/${campaignId}`, updates);
+  return response.data;
+};
+
+export const deleteCampaign = async (campaignId: string) => {
+  const response = await api.delete(`/campaigns/${campaignId}`);
+  return response.data;
+};
+
 export default api;

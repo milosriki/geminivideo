@@ -120,37 +120,141 @@ class LocalFileSystemBackend(StorageBackend):
 
 
 class GCSBackend(StorageBackend):
-    """Google Cloud Storage backend (placeholder for future implementation)"""
+    """Google Cloud Storage backend using real GCS implementation"""
 
-    def __init__(self, bucket_name: str):
+    def __init__(
+        self,
+        bucket_name: str,
+        credentials_path: Optional[str] = None,
+        project_id: Optional[str] = None,
+        create_bucket: bool = False
+    ):
+        """
+        Initialize GCS backend.
+
+        Args:
+            bucket_name: GCS bucket name
+            credentials_path: Optional path to service account JSON
+            project_id: Optional GCP project ID
+            create_bucket: If True, creates bucket if it doesn't exist
+        """
+        from .gcs_store import GCSKnowledgeStore
+
         self.bucket_name = bucket_name
-        # TODO: Initialize GCS client
-        logger.warning("GCS backend not fully implemented - using local fallback")
+
+        try:
+            self.store = GCSKnowledgeStore(
+                bucket_name=bucket_name,
+                credentials_path=credentials_path,
+                project_id=project_id,
+                create_bucket=create_bucket
+            )
+            logger.info(f"GCS backend initialized for bucket: {bucket_name}")
+        except Exception as e:
+            logger.error(f"Failed to initialize GCS backend: {e}")
+            raise
 
     def save(self, path: str, data: bytes) -> bool:
-        # TODO: Implement GCS upload
-        logger.warning("GCS save not implemented")
-        return False
+        """
+        Save data to GCS.
+
+        Args:
+            path: Blob path in GCS
+            data: Binary data to save
+
+        Returns:
+            True if save successful
+        """
+        try:
+            # Determine content type based on file extension
+            content_type = 'application/octet-stream'
+            if path.endswith('.json'):
+                content_type = 'application/json'
+            elif path.endswith('.txt'):
+                content_type = 'text/plain'
+
+            self.store.upload(
+                blob_name=path,
+                data=data,
+                content_type=content_type
+            )
+            logger.debug(f"Saved {len(data)} bytes to GCS: {path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save to GCS {path}: {e}")
+            return False
 
     def load(self, path: str) -> Optional[bytes]:
-        # TODO: Implement GCS download
-        logger.warning("GCS load not implemented")
-        return None
+        """
+        Load data from GCS.
+
+        Args:
+            path: Blob path in GCS
+
+        Returns:
+            Binary data or None if not found
+        """
+        try:
+            data = self.store.download(path)
+            logger.debug(f"Loaded {len(data)} bytes from GCS: {path}")
+            return data
+        except Exception as e:
+            logger.error(f"Failed to load from GCS {path}: {e}")
+            return None
 
     def delete(self, path: str) -> bool:
-        # TODO: Implement GCS delete
-        logger.warning("GCS delete not implemented")
-        return False
+        """
+        Delete blob from GCS.
+
+        Args:
+            path: Blob path in GCS
+
+        Returns:
+            True if deletion successful
+        """
+        try:
+            result = self.store.delete(path, ignore_missing=True)
+            logger.debug(f"Deleted from GCS: {path}")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to delete from GCS {path}: {e}")
+            return False
 
     def list_files(self, prefix: str) -> List[str]:
-        # TODO: Implement GCS list
-        logger.warning("GCS list not implemented")
-        return []
+        """
+        List files with given prefix in GCS.
+
+        Args:
+            prefix: Blob prefix to filter by
+
+        Returns:
+            List of blob names
+        """
+        try:
+            blobs = self.store.list_blobs(prefix=prefix)
+            logger.debug(f"Listed {len(blobs)} files with prefix '{prefix}' from GCS")
+            return blobs
+        except Exception as e:
+            logger.error(f"Failed to list files from GCS with prefix '{prefix}': {e}")
+            return []
 
     def exists(self, path: str) -> bool:
-        # TODO: Implement GCS exists
-        logger.warning("GCS exists not implemented")
-        return False
+        """
+        Check if blob exists in GCS.
+
+        Args:
+            path: Blob path in GCS
+
+        Returns:
+            True if blob exists
+        """
+        try:
+            result = self.store.exists(path)
+            logger.debug(f"GCS exists check for {path}: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to check existence in GCS {path}: {e}")
+            return False
 
 
 class KnowledgeBaseManager:
