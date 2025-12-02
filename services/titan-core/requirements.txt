@@ -22,3 +22,5 @@ pydantic-core
 
 openai-whisper
 tiktoken
+autogen-agentchat[openai]
+autogen-core

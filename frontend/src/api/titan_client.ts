@@ -18,12 +18,12 @@ export const titanClient = {
      * Analyzes a video to extract the winning pattern.
      */
     analyzeVideo: async (videoUri: string): Promise<VideoAnalysis> => {
-        const response = await fetch(`${API_BASE_URL}/analyze`, {
+        const response = await fetch(`${API_BASE_URL}/api/analyze`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ video_uri: videoUri }),
+            body: JSON.stringify({ path: videoUri, filename: 'upload.mp4' }), // Match gateway-api expectations
         });
 
         if (!response.ok) {
@@ -38,7 +38,7 @@ export const titanClient = {
      */
     generateCampaign: async (request: CampaignRequest): Promise<any> => {
         // Placeholder for the generate endpoint which would use VeoDirector
-        const response = await fetch(`${API_BASE_URL}/generate`, {
+        const response = await fetch(`${API_BASE_URL}/api/generate`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -57,7 +57,7 @@ export const titanClient = {
      * Retrieves dashboard metrics from the Cortex Data Engine.
      */
     getDashboardMetrics: async (days: number = 30): Promise<any> => {
-        const response = await fetch(`${API_BASE_URL}/metrics?days=${days}`, {
+        const response = await fetch(`${API_BASE_URL}/api/metrics?days=${days}`, {
             method: 'GET',
         });
 

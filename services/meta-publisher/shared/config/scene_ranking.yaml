@@ -1,0 +1,20 @@
+# Scene Ranking Configuration
+# Weights for ranking video scenes based on various features
+
+weights:
+  motion_score: 0.25        # Weight for motion/action content
+  object_diversity: 0.20    # Weight for variety of detected objects
+  text_presence: 0.15       # Weight for OCR-detected text
+  transcript_quality: 0.15  # Weight for audio transcript quality
+  novelty_score: 0.15       # Weight for semantic uniqueness
+  technical_quality: 0.10   # Weight for resolution/clarity
+
+thresholds:
+  min_motion_score: 0.1     # Minimum motion score to be considered
+  min_duration: 1.0         # Minimum scene duration in seconds
+  max_duration: 15.0        # Maximum scene duration in seconds
+  clustering_similarity: 0.85  # Cosine similarity threshold for clustering
+
+ranking:
+  default_top_n: 10         # Default number of top scenes to return
+  max_results: 50           # Maximum number of results
