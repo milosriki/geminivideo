@@ -10,7 +10,6 @@ Purpose: 8-Engine Ensemble Prediction (trained on $2M data)
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-import random
 from datetime import datetime
 
 
@@ -87,12 +86,39 @@ class OracleAgent:
             "RandomForest": 0.10,
             "GradientBoost": 0.09
         }
-        
+
         # Historical baselines from $2M data
         self.historical_avg_roas = 2.4
         self.historical_avg_ctr = 0.024
         self.historical_avg_cvr = 0.031
-    
+
+        # Deterministic engine-specific variance (for reproducible predictions)
+        # Based on hash of engine name to ensure consistency
+        self.engine_variance = self._calculate_engine_variance()
+
+    def _calculate_engine_variance(self) -> Dict[str, float]:
+        """
+        Calculate deterministic variance for each engine based on engine name hash.
+        This ensures reproducible predictions while maintaining engine-specific characteristics.
+        """
+        variance = {}
+        for engine_name in self.engine_weights.keys():
+            # Use hash of engine name to generate deterministic variance
+            hash_val = hash(engine_name)
+            # Normalize to [-1, 1] range then scale to desired variance range
+            normalized = (hash_val % 10000) / 10000.0  # 0 to 1
+            normalized = (normalized * 2) - 1  # -1 to 1
+
+            # Scale to engine-specific variance ranges
+            if engine_name in ["XGBoost", "LightGBM"]:
+                variance[engine_name] = normalized * 0.03  # -0.03 to 0.03
+            elif engine_name == "NeuralNet":
+                variance[engine_name] = normalized * 0.04  # -0.04 to 0.04
+            else:
+                variance[engine_name] = normalized * 0.025  # -0.025 to 0.025
+
+        return variance
+
     async def predict(self, features: Dict[str, Any], video_id: str = "unknown") -> EnsemblePredictionResult:
         """
         Run 8-engine ensemble prediction
@@ -238,20 +264,10 @@ class OracleAgent:
             base_score += 0.1
             confidence += 0.1
             reasons.append(f"Matches {patterns_matched} winning patterns")
-        
-        # Add some engine-specific variance
-        engine_variance = {
-            "DeepFM": random.uniform(-0.03, 0.03),
-            "DCN": random.uniform(-0.03, 0.03),
-            "XGBoost": random.uniform(-0.02, 0.04),
-            "LightGBM": random.uniform(-0.02, 0.04),
-            "CatBoost": random.uniform(-0.02, 0.03),
-            "NeuralNet": random.uniform(-0.04, 0.04),
-            "RandomForest": random.uniform(-0.03, 0.03),
-            "GradientBoost": random.uniform(-0.02, 0.03)
-        }
-        
-        final_score = max(0, min(1, base_score + engine_variance.get(engine_name, 0)))
+
+        # Add deterministic engine-specific variance for reproducible predictions
+        # Variance is calculated from engine name hash in __init__
+        final_score = max(0, min(1, base_score + self.engine_variance.get(engine_name, 0)))
         final_confidence = max(0.4, min(0.95, confidence))
         
         reasoning = "; ".join(reasons) if reasons else "Standard prediction based on features"
@@ -457,10 +473,18 @@ class OracleAgent:
     
     def _find_similar_campaigns(self, features: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Find similar historical campaigns"""
-        
-        # In production, this would query Supabase
-        # For now, return mock similar campaigns
-        
+
+        # TODO: Connect to Supabase to query historical campaigns
+        # Implementation plan:
+        # 1. Extract feature vectors from current video (hook_effectiveness, transformation, etc.)
+        # 2. Query Supabase `campaigns` table with vector similarity search
+        # 3. Use pgvector extension for efficient similarity matching
+        # 4. Filter by campaign status='completed' and has_results=true
+        # 5. Return top 5 most similar campaigns with actual ROAS data
+        # 6. Calculate similarity score using cosine similarity on feature vectors
+        #
+        # For now, returning mock data for testing/development
+
         return [
             {
                 "campaign_name": "DIFC Summer Transformation",

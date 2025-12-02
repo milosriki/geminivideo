@@ -7,16 +7,19 @@ import requests
 import json
 from pydantic import BaseModel
 
-from ..config import PROJECT_ID, LOCATION
-
 class VeoDirector:
-    def __init__(self, project_id: str = PROJECT_ID, location: str = LOCATION):
-        self.project_id = project_id
-        self.location = location
-        self.api_endpoint = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/veo-001:predict"
-        
-        print(f"🎬 VEO DIRECTOR: Initializing via REST API in {project_id}/{location}...")
-        
+    def __init__(self, project_id: str = None, location: str = None):
+        # Use environment variables as fallback
+        self.project_id = project_id or os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+        self.location = location or os.getenv("LOCATION", "us-central1")
+
+        if not self.project_id:
+            raise ValueError("PROJECT_ID must be provided or set in environment variables (PROJECT_ID or GOOGLE_CLOUD_PROJECT)")
+
+        self.api_endpoint = f"https://{self.location}-aiplatform.googleapis.com/v1/projects/{self.project_id}/locations/{self.location}/publishers/google/models/veo-001:predict"
+
+        print(f"🎬 VEO DIRECTOR: Initializing via REST API in {self.project_id}/{self.location}...")
+
         # Get Credentials
         try:
             self.credentials, self.project = google.auth.default()
