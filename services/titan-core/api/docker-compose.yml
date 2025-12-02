@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  titan-core-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: titan-core-api
+    ports:
+      - "8000:8000"
+    environment:
+      # API Configuration
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEBUG=false
+
+      # AI Model Keys (set these in .env file)
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+      # Storage
+      - OUTPUT_DIR=/app/outputs
+      - CACHE_DIR=/app/cache
+
+      # Processing
+      - MAX_CONCURRENT_RENDERS=5
+      - DEFAULT_NUM_VARIATIONS=10
+      - APPROVAL_THRESHOLD=85.0
+
+      # CORS
+      - CORS_ORIGINS=*
+
+    volumes:
+      # Mount output directory for persistent storage
+      - ./outputs:/app/outputs
+      - ./cache:/app/cache
+
+    restart: unless-stopped
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Redis for caching (uncomment if needed)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: titan-core-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   restart: unless-stopped
+
+  # Optional: PostgreSQL for job storage (uncomment if needed)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: titan-core-postgres
+  #   environment:
+  #     - POSTGRES_DB=titan_core
+  #     - POSTGRES_USER=titan_core
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+# volumes:
+#   redis-data:
+#   postgres-data:
+
+networks:
+  default:
+    name: titan-core-network

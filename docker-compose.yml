@@ -116,6 +116,7 @@ services:
     container_name: geminivideo-titan-core
     environment:
       PORT: 8084
+      REDIS_URL: redis://redis:6379
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       META_APP_ID: ${META_APP_ID}
       META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
@@ -124,6 +125,9 @@ services:
       META_APP_SECRET: ${META_APP_SECRET}
     ports:
       - "8084:8084"
+    depends_on:
+      redis:
+        condition: service_healthy
     volumes:
       - ./services/titan-core:/app
 
