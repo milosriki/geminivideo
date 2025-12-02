@@ -31,3 +31,5 @@ export function PageWrapper({
     </div>
   );
 }
+
+export default PageWrapper;
