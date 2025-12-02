@@ -1,0 +1,41 @@
+import React, { Suspense, useState } from 'react';
+import { ErrorBoundary } from '../layout/ErrorBoundary';
+import { PageWrapper } from '../layout/PageWrapper';
+import AnalyticsDashboard from '../AnalyticsDashboard';
+
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-[400px]">
+    <div className="text-center">
+      <svg className="animate-spin h-10 w-10 text-indigo-500 mx-auto mb-4" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      <p className="text-gray-400">Loading Analytics Dashboard...</p>
+    </div>
+  </div>
+);
+
+export const AnalyticsDashboardWrapper: React.FC = () => {
+  const [dateRange, setDateRange] = useState({
+    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+    end: new Date(),
+  });
+
+  const handleDateRangeChange = (range: { start: Date; end: Date }) => {
+    setDateRange(range);
+    // TODO: Trigger data refetch with new date range
+  };
+
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingFallback />}>
+        <AnalyticsDashboard
+          dateRange={dateRange}
+          onDateRangeChange={handleDateRangeChange}
+        />
+      </Suspense>
+    </ErrorBoundary>
+  );
+};
+
+export default AnalyticsDashboardWrapper;
