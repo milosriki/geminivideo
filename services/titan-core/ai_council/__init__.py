@@ -1,27 +1,43 @@
 """
-AI COUNCIL - Merged from video-edit repo
-Combines AI prediction/evaluation with PRO-GRADE video processing
+AI Council - Multi-LLM Ensemble for Winning Ad Generation
 
 Components:
-1. Council of Titans - 4-model ensemble script evaluation
-2. Oracle Agent - 8-engine ROAS prediction
-3. Director Agent - Ad blueprint generation with Reflexion
-4. VEO Director - AI video generation via Vertex AI
-5. Learning Loop - Purchase signal feedback
+- CouncilOfTitans: 4-model script evaluation (Gemini, Claude, GPT-4o, DeepCTR)
+- OracleAgent: 8-engine ROAS prediction
+- DirectorAgentV2: Blueprint generation with Reflexion Loop
+- LearningLoop: Purchase signal feedback
+- UltimatePipeline: End-to-end integration
 """
+
+from .config import (
+    GEMINI_MODEL_ID,
+    GEMINI_FLASH_MODEL_ID,
+    COUNCIL_WEIGHTS,
+    ORACLE_ENGINE_WEIGHTS,
+    APPROVAL_THRESHOLD
+)
 
 from .council_of_titans import CouncilOfTitans, council
 from .oracle_agent import OracleAgent, EnsemblePredictionResult
 from .director_agent import DirectorAgentV2, AdBlueprint, BlueprintGenerationRequest
 from .learning_loop import LearningLoop
+from .ultimate_pipeline import UltimatePipeline
 
 __all__ = [
-    'CouncilOfTitans',
-    'council',
-    'OracleAgent',
-    'EnsemblePredictionResult',
-    'DirectorAgentV2',
-    'AdBlueprint',
-    'BlueprintGenerationRequest',
-    'LearningLoop',
+    # Config
+    "GEMINI_MODEL_ID",
+    "GEMINI_FLASH_MODEL_ID",
+    "COUNCIL_WEIGHTS",
+    "ORACLE_ENGINE_WEIGHTS",
+    "APPROVAL_THRESHOLD",
+    # Classes
+    "CouncilOfTitans",
+    "council",
+    "OracleAgent",
+    "EnsemblePredictionResult",
+    "DirectorAgentV2",
+    "AdBlueprint",
+    "BlueprintGenerationRequest",
+    "LearningLoop",
+    "UltimatePipeline"
 ]

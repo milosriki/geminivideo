@@ -8,12 +8,16 @@ Purpose: Create winning ad scripts
 """
 
 from __future__ import annotations
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import json
-from ..config import GEMINI_MODEL_ID, GEMINI_FLASH_MODEL_ID, API_VERSION
+import os
+
+# Configuration from environment variables
+GEMINI_MODEL_ID = os.getenv("GEMINI_MODEL_ID", "gemini-2.0-flash-thinking-exp")
+GEMINI_FLASH_MODEL_ID = os.getenv("GEMINI_FLASH_MODEL_ID", "gemini-2.0-flash-exp")
+API_VERSION = "v1"
 
 
 class SceneBlueprint(BaseModel):
@@ -82,8 +86,12 @@ class DirectorAgentV2:
     """
     
     def __init__(self):
-        self.client = genai.Client(http_options={'api_version': API_VERSION})
-        self.thinking_model = GEMINI_MODEL_ID  # Pro for deep thinking
+        # Configure API key from environment
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key)
+
+        self.thinking_model = GEMINI_MODEL_ID  # Thinking model for deep reasoning
         self.fast_model = GEMINI_FLASH_MODEL_ID  # Flash for variations
         
         # Hook templates from historical winners
@@ -181,10 +189,10 @@ class DirectorAgentV2:
         """
         
         try:
-            response = self.client.models.generate_content(
-                model=self.thinking_model,
-                contents=[prompt],
-                config=types.GenerateContentConfig(
+            model = genai.GenerativeModel(self.thinking_model)
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
                 )
             )
@@ -360,10 +368,10 @@ class DirectorAgentV2:
         """
         
         try:
-            response = self.client.models.generate_content(
-                model=self.fast_model,
-                contents=[critique_prompt],
-                config=types.GenerateContentConfig(
+            model = genai.GenerativeModel(self.fast_model)
+            response = model.generate_content(
+                critique_prompt,
+                generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
                 )
             )
@@ -450,10 +458,10 @@ class DirectorAgentV2:
         """
         
         try:
-            response = self.client.models.generate_content(
-                model=self.fast_model,
-                contents=[prompt],
-                config=types.GenerateContentConfig(
+            model = genai.GenerativeModel(self.fast_model)
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
                 )
             )

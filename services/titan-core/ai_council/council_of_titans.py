@@ -1,19 +1,7 @@
 import os
 import re
 import asyncio
-from typing import List, Dict, Any
-from .base import BaseEngine
-from .deep_ctr import DeepCTREngine
-from .claude import ClaudeEngine
-from .gpt import GPTEngine
-from .llama import LlamaEngine
-from .video_agent import VideoAgentEngine
-from .vertex_vision import VertexVisionEngine
-from .google_ads import GoogleAdsEngine
-from .ga4 import GA4Engine
-from .fitness_form import FitnessFormEngine
-from .transformation import TransformationEngine
-from .roas import ROASEngine
+from typing import Dict, Any
 
 # Lazy imports for AI clients
 try:
@@ -56,17 +44,49 @@ class CouncilOfTitans:
         # Use newest Gemini 3 Pro (Preview)
         self.gemini_model = os.getenv("GEMINI_MODEL_ID", "gemini-3-pro-preview")
         self.display_name = "Gemini 3 Pro (Preview)"
-        
-        # Initialize DeepCTR engine
-        self._deep_ctr_engine = None
-        
+
         print(f"🏛️ COUNCIL: Initialized with {self.display_name}")
-    
-    @property
-    def deep_ctr_engine(self):
-        if self._deep_ctr_engine is None:
-            self._deep_ctr_engine = DeepCTREngine()
-        return self._deep_ctr_engine
+
+    def _calculate_deep_ctr_score(self, visual_features: dict) -> float:
+        """
+        Heuristic-based DeepCTR scoring (0-100).
+        Analyzes visual features to predict engagement potential.
+        """
+        score = 50.0  # Base score
+
+        # Boost for human faces (proven engagement driver)
+        if visual_features.get("has_human_face", False):
+            score += 15.0
+
+        # Hook type bonuses
+        hook_type = visual_features.get("hook_type", "").lower()
+        hook_bonuses = {
+            "pattern_interrupt": 20.0,
+            "curiosity_gap": 15.0,
+            "shock": 18.0,
+            "question": 12.0,
+            "bold_claim": 10.0,
+            "story": 8.0
+        }
+        score += hook_bonuses.get(hook_type, 5.0)
+
+        # Visual quality indicators
+        if visual_features.get("high_contrast", False):
+            score += 5.0
+        if visual_features.get("fast_paced", False):
+            score += 5.0
+        if visual_features.get("text_overlays", False):
+            score += 3.0
+
+        # Scene variety (dynamic content performs better)
+        scene_count = visual_features.get("scene_count", 0)
+        if scene_count >= 5:
+            score += 7.0
+        elif scene_count >= 3:
+            score += 4.0
+
+        # Clamp to 0-100 range
+        return max(0.0, min(100.0, score))
 
     async def get_gemini_critique(self, script: str) -> Dict[str, Any]:
         """Gemini 2.0 Flash Thinking - Newest model with extended reasoning"""
@@ -138,19 +158,12 @@ class CouncilOfTitans:
         gpt_task = self.get_gpt4_critique(script)
         claude_task = self.get_claude_critique(script)
         
-        # 2. Run DeepCTR (Math)
+        # 2. Run DeepCTR (Heuristic-based scoring)
         if not visual_features:
             visual_features = {"has_human_face": True, "hook_type": "pattern_interrupt"}
-        
-        # Import predict_deep_ctr from models
-        try:
-            from backend_core.models.critic import predict_deep_ctr
-            deep_ctr_score = predict_deep_ctr(visual_features) # Returns 0-10
-            deep_ctr_normalized = deep_ctr_score * 10 # Scale to 0-100
-        except ImportError:
-            # Fallback to direct engine call
-            deep_ctr_score = self.deep_ctr_engine.predict_sync(visual_features)
-            deep_ctr_normalized = deep_ctr_score  # Already 0-100
+
+        # Calculate DeepCTR score using heuristic function
+        deep_ctr_normalized = self._calculate_deep_ctr_score(visual_features)
         
         # 3. Gather Results
         gemini_res, gpt_res, claude_res = await asyncio.gather(gemini_task, gpt_task, claude_task)
@@ -176,46 +189,6 @@ class CouncilOfTitans:
                 "deep_ctr": deep_ctr_normalized
             },
             "verdict": "APPROVE" if final_score > 85 else "REJECT"
-        }
-
-
-class EnsemblePredictor:
-    def __init__(self):
-        self.engines: List[BaseEngine] = [
-            DeepCTREngine(),
-            ClaudeEngine(),
-            GPTEngine(),
-            LlamaEngine(),
-            VideoAgentEngine(),
-            VertexVisionEngine(),
-            GoogleAdsEngine(),
-            GA4Engine(),
-            FitnessFormEngine(),
-            TransformationEngine(),
-            ROASEngine(),
-            # Add other engines here (e.g., GeminiJudge, TrendSpotter, etc.)
-        ]
-        
-    async def predict_virality(self, video_features: Dict[str, Any]) -> Dict[str, Any]:
-        total_score = 0.0
-        total_weight = 0.0
-        
-        engine_scores = {}
-        
-        for engine in self.engines:
-            score = await engine.predict(video_features)
-            weight = engine.weight
-            
-            total_score += score * weight
-            total_weight += weight
-            
-            engine_scores[engine.name] = score
-            
-        final_score = total_score / total_weight if total_weight > 0 else 0.0
-        
-        return {
-            "final_virality_score": final_score,
-            "engine_breakdown": engine_scores
         }
 
 
