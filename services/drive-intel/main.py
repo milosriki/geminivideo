@@ -19,6 +19,10 @@ from models.persistence import PersistenceLayer
 
 app = FastAPI(title="Drive Intel Service", version="1.0.0")
 
+# Production safety check - prevent debug mode in production
+if app.debug and os.environ.get('ENVIRONMENT') == 'production':
+    raise RuntimeError("Debug mode detected in production!")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,

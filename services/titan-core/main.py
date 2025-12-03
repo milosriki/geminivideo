@@ -13,6 +13,10 @@ except Exception as e:
 
 app = FastAPI(title="Titan Core Service")
 
+# Production safety check - prevent debug mode in production
+if app.debug and os.environ.get('ENVIRONMENT') == 'production':
+    raise RuntimeError("Debug mode detected in production!")
+
 class GenerateRequest(BaseModel):
     video_context: str
     niche: str = "fitness"
