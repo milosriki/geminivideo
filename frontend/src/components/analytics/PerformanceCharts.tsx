@@ -122,12 +122,13 @@ export const PerformanceCharts: React.FC = () => {
     const fetchChartData = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/analytics/performance`);
+        const response = await fetch(`${API_BASE_URL}/api/analytics/performance`);
         if (!response.ok) {
           throw new Error(response.status.toString());
         }
         const data = await response.json();
-        setChartData(data);
+        // Backend returns { data: [...] } wrapper
+        setChartData(data.data || data || []);
         setError(null);
       } catch (err) {
         setError('Data source not configured. Please configure analytics in the backend.');

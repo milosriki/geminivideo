@@ -57,7 +57,10 @@ interface KPICardProps {
   sparklineData?: number[]
 }
 
-function KPICard({ title, value, change, trend }: KPICardProps) {
+function KPICard({ title, value, change, trend, sparklineData }: KPICardProps) {
+  // Use sparklineData if provided, otherwise show empty chart
+  const chartValues = sparklineData?.map((v, i) => ({ value: v, idx: i })) || []
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -76,20 +79,22 @@ function KPICard({ title, value, change, trend }: KPICardProps) {
         </Badge>
       </div>
       <p className="text-3xl font-bold text-white mt-2">{value}</p>
-      <div className="h-10 mt-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData.slice(-7)}>
-            <Area
-              type="monotone"
-              dataKey="roas"
-              stroke="#8b5cf6"
-              fill="#8b5cf6"
-              fillOpacity={0.2}
-              strokeWidth={2}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      {chartValues.length > 0 && (
+        <div className="h-10 mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartValues}>
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#8b5cf6"
+                fill="#8b5cf6"
+                fillOpacity={0.2}
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </motion.div>
   )
 }

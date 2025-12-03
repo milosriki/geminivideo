@@ -545,10 +545,10 @@ app.post('/api/render/story_arc', heavyLimiter, async (req: Request, res: Respon
 
     for (const step of arc.steps) {
       const query = `
-        SELECT c.clip_id, c.ctr_score, e.emotion
+        SELECT c.clip_id, c.ctr_score, e.emotion_type as emotion
         FROM clips c
         LEFT JOIN emotions e ON c.clip_id = e.clip_id
-        WHERE c.asset_id = $1 AND e.emotion = $2
+        WHERE c.asset_id = $1 AND e.emotion_type = $2
         ORDER BY c.ctr_score DESC, c.scene_score DESC
         LIMIT 1
       `;
