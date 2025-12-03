@@ -58,18 +58,39 @@ import { SmartModelRouter } from './services/smart-router';
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// Middleware - CORS with proper origin control
-const CORS_ORIGINS = process.env.CORS_ORIGINS?.split(',') || [
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:8080'
-];
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? CORS_ORIGINS : true,
+// CORS configuration for production
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://geminivideo.vercel.app',
+    'https://geminivideo.netlify.app'
+  ];
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+// Middleware
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle preflight requests
 app.use(express.json());
 
 // Rate limiting
@@ -1494,11 +1515,11 @@ app.get('/api/ads/trending', async (req: Request, res: Response) => {
       brand: p.raw_data?.page_name || p.raw_data?.brand || `${p.source} ad`,
       title: p.transcript?.slice(0, 50) || p.hook_type,
       views: p.performance_tier === 'top_1_percent' ? '1M+' :
-             p.performance_tier === 'top_10_percent' ? '100K+' : 'N/A',
+        p.performance_tier === 'top_10_percent' ? '100K+' : 'N/A',
       engagement: p.performance_tier === 'top_1_percent' ? 'Top 1%' :
-                  p.performance_tier === 'top_10_percent' ? 'Top 10%' : 'Unknown',
+        p.performance_tier === 'top_10_percent' ? 'Top 10%' : 'Unknown',
       platform: p.source === 'tiktok' ? 'TikTok' :
-                p.source === 'meta_library' ? 'Meta' : 'Foreplay'
+        p.source === 'meta_library' ? 'Meta' : 'Foreplay'
     }));
 
     res.json({ ads, source_counts: result.source_counts });
@@ -1638,8 +1659,8 @@ app.post('/api/datasets/import', async (req: Request, res: Response) => {
       help: error.message.includes('KAGGLE_FILE_NOT_FOUND')
         ? 'Run scripts/download_datasets.sh to download datasets'
         : error.message.includes('HUGGINGFACE_NOT_CONFIGURED')
-        ? 'Set HUGGINGFACE_API_TOKEN environment variable'
-        : undefined
+          ? 'Set HUGGINGFACE_API_TOKEN environment variable'
+          : undefined
     });
   }
 });
@@ -1814,7 +1835,7 @@ app.post('/api/feedback', async (req: Request, res: Response) => {
       `;
 
       const performanceTier = actual_ctr > 0.10 ? 'top_1_percent' :
-                               actual_ctr > 0.05 ? 'top_10_percent' : 'average';
+        actual_ctr > 0.05 ? 'top_10_percent' : 'average';
 
       await pgPool.query(patternQuery, [
         'internal',
