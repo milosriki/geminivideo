@@ -14,6 +14,7 @@ import numpy as np
 from src.feature_engineering import feature_extractor
 from src.ctr_model import ctr_predictor, generate_synthetic_training_data
 from src.thompson_sampler import thompson_optimizer
+from src.data_loader import get_data_loader
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -182,8 +183,22 @@ async def train_model(request: TrainingRequest):
             X, y = generate_synthetic_training_data(n_samples=request.n_samples)
             feature_names = feature_extractor.feature_names
         else:
-            # TODO: Load real data from database
-            raise HTTPException(status_code=400, detail="Real data training not yet implemented")
+            # Load real data from database
+            logger.info("Loading real training data from database...")
+            data_loader = get_data_loader()
+            
+            if data_loader is None:
+                raise HTTPException(status_code=500, detail="Database connection not available")
+            
+            X, y = data_loader.fetch_training_data(min_impressions=100)
+            
+            if X is None or len(X) == 0:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="No training data found. Ensure videos table has performance data."
+                )
+            
+            feature_names = feature_extractor.feature_names
 
         # Train model
         logger.info("Training XGBoost model...")
@@ -378,6 +393,10 @@ async def startup_event():
             logger.warning(f"Failed to train model on startup: {e}")
     else:
         logger.info("Model loaded successfully from disk")
+    
+    # Start automated retraining scheduler
+    from src.training_scheduler import training_scheduler
+    training_scheduler.start()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,13 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Drop existing tables to ensure clean state
+DROP TABLE IF EXISTS videos CASCADE;
+DROP TABLE IF EXISTS render_jobs CASCADE;
+DROP TABLE IF EXISTS blueprints CASCADE;
+DROP TABLE IF EXISTS campaigns CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
