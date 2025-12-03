@@ -1483,11 +1483,11 @@ app.get('/api/feedback/summary', async (req: Request, res: Response) => {
         avg_error,
         correlation
       FROM feedback_summary
-      WHERE date >= NOW() - INTERVAL '${days} days'
+      WHERE date >= NOW() - INTERVAL '1 day' * $1
       ORDER BY date DESC
     `;
 
-    const result = await pgPool.query(query);
+    const result = await pgPool.query(query, [days]);
 
     // Calculate overall statistics
     const overall = {
@@ -1540,11 +1540,11 @@ app.get('/api/model-performance/:model', async (req: Request, res: Response) => 
         MAX(created_at) as last_prediction
       FROM model_performance
       WHERE model_name = $1
-        AND created_at >= NOW() - INTERVAL '${days} days'
+        AND created_at >= NOW() - INTERVAL '1 day' * $2
         AND actual_value IS NOT NULL
     `;
 
-    const result = await pgPool.query(query, [model]);
+    const result = await pgPool.query(query, [model, days]);
 
     if (result.rows.length === 0 || parseInt(result.rows[0].prediction_count) === 0) {
       return res.status(404).json({
@@ -1564,14 +1564,14 @@ app.get('/api/model-performance/:model', async (req: Request, res: Response) => 
         COUNT(*) as daily_count
       FROM model_performance
       WHERE model_name = $1
-        AND created_at >= NOW() - INTERVAL '${days} days'
+        AND created_at >= NOW() - INTERVAL '1 day' * $2
         AND actual_value IS NOT NULL
       GROUP BY DATE(created_at)
       ORDER BY date DESC
       LIMIT 7
     `;
 
-    const recentResult = await pgPool.query(recentQuery, [model]);
+    const recentResult = await pgPool.query(recentQuery, [model, days]);
 
     res.json({
       model,

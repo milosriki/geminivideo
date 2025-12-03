@@ -130,11 +130,11 @@ export class CostTracker {
         avg_latency,
         cache_hit_rate
       FROM daily_costs
-      WHERE date >= CURRENT_DATE - INTERVAL '${days} days'
+      WHERE date >= CURRENT_DATE - INTERVAL '1 day' * $1
       ORDER BY date DESC, total_cost DESC
     `;
 
-    const result = await this.pgPool.query(query);
+    const result = await this.pgPool.query(query, [days]);
     return result.rows;
   }
 
@@ -142,11 +142,11 @@ export class CostTracker {
    * Get cost breakdown by model for the last N days
    */
   async getModelCosts(model?: string, days: number = 30): Promise<ModelCost[]> {
-    const conditions = [`created_at >= NOW() - INTERVAL '${days} days'`];
-    const params: any[] = [];
+    const conditions = [`created_at >= NOW() - INTERVAL '1 day' * $1`];
+    const params: any[] = [days];
 
     if (model) {
-      conditions.push('model_name = $1');
+      conditions.push('model_name = $2');
       params.push(model);
     }
 
@@ -196,10 +196,10 @@ export class CostTracker {
         MIN(created_at) as earliest,
         MAX(created_at) as latest
       FROM api_costs
-      WHERE created_at >= NOW() - INTERVAL '${days} days'
+      WHERE created_at >= NOW() - INTERVAL '1 day' * $1
     `;
 
-    const result = await this.pgPool.query(query);
+    const result = await this.pgPool.query(query, [days]);
     const row = result.rows[0];
 
     return {
@@ -225,12 +225,12 @@ export class CostTracker {
         DATE(created_at) as date,
         SUM(cost_usd) as daily_cost
       FROM api_costs
-      WHERE created_at >= NOW() - INTERVAL '${days} days'
+      WHERE created_at >= NOW() - INTERVAL '1 day' * $1
       GROUP BY DATE(created_at)
       ORDER BY date DESC
     `;
 
-    const result = await this.pgPool.query(query);
+    const result = await this.pgPool.query(query, [days]);
     const dailyCosts = result.rows.map((row) => parseFloat(row.daily_cost));
 
     if (dailyCosts.length === 0) {
