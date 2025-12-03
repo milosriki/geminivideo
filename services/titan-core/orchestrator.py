@@ -102,7 +102,9 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
         print(f"⚖️ VERDICT: {critique['verdict']} (Score: {critique['final_score']})")
         print(f"📊 Breakdown: Gemini={critique['breakdown']['gemini_3_pro']}, Claude={critique['breakdown']['claude_3_5']}, GPT={critique['breakdown']['gpt_4o']}, DeepCTR={critique['breakdown']['deep_ctr']}")
 
-        if critique['final_score'] > 85:
+        # Use dynamic threshold from council (already calculated in critique)
+        # The council's verdict already considers niche-specific thresholds
+        if critique['verdict'] == "APPROVED":
             final_status = "APPROVED"
             print("✅ SCRIPT APPROVED!")
             break

@@ -30,6 +30,16 @@ class CouncilEvaluator:
     - DeepCTR (10% weight) - Data-driven predictions
     """
 
+    # Niche-specific approval thresholds (configurable per vertical)
+    NICHE_THRESHOLDS = {
+        "fitness": 85.0,       # High bar for competitive fitness market
+        "e-commerce": 82.0,    # Slightly lower for product ads
+        "education": 88.0,     # Higher bar for credibility-focused content
+        "finance": 90.0,       # Highest bar for trust-sensitive vertical
+        "entertainment": 80.0, # Lower bar for viral/fun content
+        "default": 85.0        # Fallback threshold
+    }
+
     def __init__(self):
         """Initialize API clients from environment variables"""
         # Gemini configuration
@@ -62,7 +72,28 @@ class CouncilEvaluator:
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._cache_ttl = 300  # seconds
 
+        # Allow override of thresholds via environment variable
+        env_threshold = os.getenv("COUNCIL_APPROVAL_THRESHOLD")
+        if env_threshold:
+            try:
+                self.default_threshold = float(env_threshold)
+                logger.info(f"Using custom approval threshold: {self.default_threshold}")
+            except ValueError:
+                logger.warning(f"Invalid COUNCIL_APPROVAL_THRESHOLD: {env_threshold}, using niche-specific defaults")
+                self.default_threshold = None
+        else:
+            self.default_threshold = None
+
         logger.info("Council of Titans initialized successfully")
+
+    def get_approval_threshold(self, niche: str) -> float:
+        """
+        Get the approval threshold for a specific niche.
+        Priority: env variable > niche-specific > default
+        """
+        if self.default_threshold is not None:
+            return self.default_threshold
+        return self.NICHE_THRESHOLDS.get(niche, self.NICHE_THRESHOLDS["default"])
 
     async def evaluate_script(self, script_content: str, niche: str = "fitness") -> Dict[str, Any]:
         """
@@ -140,8 +171,10 @@ class CouncilEvaluator:
             # Calculate confidence (lower if any models failed)
             confidence = 1.0 - (len(errors) * 0.2)
 
-            # Determine verdict
-            verdict = "APPROVED" if final_score >= 85 else "NEEDS_REVISION"
+            # Determine verdict with niche-specific threshold
+            threshold = self.get_approval_threshold(niche)
+            verdict = "APPROVED" if final_score >= threshold else "NEEDS_REVISION"
+            logger.info(f"Verdict: {verdict} (score: {final_score:.2f}, threshold: {threshold} for {niche})")
 
             # Generate feedback
             feedback = self._generate_feedback(breakdown, script_content, errors)
@@ -169,7 +202,7 @@ class CouncilEvaluator:
             raise
 
     async def _evaluate_with_gemini(self, script: str, niche: str) -> float:
-        """Evaluate with Gemini 3 Pro (creative reasoning)"""
+        """Evaluate with Gemini 3 Pro (creative reasoning with structured output)"""
         try:
             model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-1219')
 
@@ -178,16 +211,14 @@ class CouncilEvaluator:
 Script to evaluate:
 {script}
 
-Rate this script on a scale of 0-100 based on:
+Think step by step and rate this script on a scale of 0-100 based on:
 1. Hook strength (first 3 seconds) - 30 points
 2. Emotional resonance - 25 points
 3. Clarity of value proposition - 20 points
 4. Call-to-action effectiveness - 15 points
 5. Overall virality potential - 10 points
 
-Provide ONLY a numerical score (0-100) followed by a brief 1-sentence explanation.
-Format: SCORE: [number]
-Explanation: [one sentence]"""
+First, provide your reasoning for each criterion, then calculate the final score."""
 
             response = await asyncio.to_thread(
                 model.generate_content,
@@ -195,26 +226,39 @@ Explanation: [one sentence]"""
                 generation_config=genai.GenerationConfig(
                     temperature=0.3,
                     top_p=0.95,
+                    response_mime_type="application/json",
+                    response_schema={
+                        "type": "object",
+                        "properties": {
+                            "reasoning": {
+                                "type": "string",
+                                "description": "Step-by-step analysis of each criterion"
+                            },
+                            "score": {
+                                "type": "number",
+                                "description": "Final score from 0-100"
+                            }
+                        },
+                        "required": ["reasoning", "score"]
+                    }
                 )
             )
 
-            # Parse score from response
-            text = response.text
-            if "SCORE:" in text:
-                score_text = text.split("SCORE:")[1].split("\n")[0].strip()
-                score = float(score_text)
-                logger.info(f"Gemini score: {score}")
-                return max(0, min(100, score))
-            else:
-                logger.warning(f"Could not parse Gemini score from: {text}")
-                return 70.0  # Default neutral score
+            # Parse structured JSON response
+            result = json.loads(response.text)
+            score = float(result["score"])
+            logger.info(f"Gemini score: {score} | Reasoning: {result['reasoning'][:100]}...")
+            return max(0, min(100, score))
 
+        except json.JSONDecodeError as e:
+            logger.error(f"Gemini JSON parsing error: {e}")
+            return 70.0  # Default neutral score
         except Exception as e:
             logger.error(f"Gemini evaluation error: {e}")
             raise
 
     async def _evaluate_with_claude(self, script: str, niche: str) -> float:
-        """Evaluate with Claude 3.5 Sonnet (psychology expertise)"""
+        """Evaluate with Claude 3.5 Sonnet (psychology expertise with structured output)"""
         try:
             message = await self.anthropic.messages.create(
                 model="claude-3-5-sonnet-20241022",
@@ -227,46 +271,50 @@ Explanation: [one sentence]"""
 Script to evaluate:
 {script}
 
-Rate this script on a scale of 0-100 based on psychological principles:
+Think step by step and rate this script on a scale of 0-100 based on psychological principles:
 1. Pain point clarity (how well it identifies customer pain) - 30 points
 2. Emotional triggers (fear, desire, urgency) - 25 points
 3. Social proof potential - 20 points
 4. Authority signals - 15 points
 5. Scarcity/urgency - 10 points
 
-Provide ONLY a numerical score (0-100) followed by a brief 1-sentence explanation.
-Format: SCORE: [number]
-Explanation: [one sentence]"""
+First, analyze each criterion with your reasoning, then provide the final score.
+
+You MUST respond with valid JSON in this exact format:
+{{
+    "reasoning": "Your step-by-step analysis of each psychological principle",
+    "score": 85.5
+}}"""
                 }]
             )
 
-            # Parse score from response
+            # Parse structured JSON response
             text = message.content[0].text
-            if "SCORE:" in text:
-                score_text = text.split("SCORE:")[1].split("\n")[0].strip()
-                score = float(score_text)
-                logger.info(f"Claude score: {score}")
-                return max(0, min(100, score))
-            else:
-                logger.warning(f"Could not parse Claude score from: {text}")
-                return 70.0
+            result = json.loads(text)
+            score = float(result["score"])
+            logger.info(f"Claude score: {score} | Reasoning: {result['reasoning'][:100]}...")
+            return max(0, min(100, score))
 
+        except json.JSONDecodeError as e:
+            logger.error(f"Claude JSON parsing error: {e}, response: {text}")
+            return 70.0  # Default neutral score
         except Exception as e:
             logger.error(f"Claude evaluation error: {e}")
             raise
 
     async def _evaluate_with_gpt(self, script: str, niche: str) -> float:
-        """Evaluate with GPT-4o (logic verification)"""
+        """Evaluate with GPT-4o (logic verification with structured output)"""
         try:
             response = await self.openai.chat.completions.create(
                 model="gpt-4o",
                 temperature=0.3,
+                response_format={"type": "json_object"},
                 messages=[{
                     "role": "system",
-                    "content": f"You are a logical analyzer evaluating ad scripts for {niche}. Focus on structure, coherence, and clarity."
+                    "content": f"You are a logical analyzer evaluating ad scripts for {niche}. Focus on structure, coherence, and clarity. Always respond with valid JSON."
                 }, {
                     "role": "user",
-                    "content": f"""Rate this script on a scale of 0-100 based on logical structure:
+                    "content": f"""Think step by step and rate this script on a scale of 0-100 based on logical structure:
 1. Clear narrative flow - 30 points
 2. Logical argument progression - 25 points
 3. Absence of contradictions - 20 points
@@ -276,23 +324,26 @@ Explanation: [one sentence]"""
 Script:
 {script}
 
-Provide ONLY a numerical score (0-100) followed by a brief 1-sentence explanation.
-Format: SCORE: [number]
-Explanation: [one sentence]"""
+First, analyze each criterion with detailed reasoning, then provide the final score.
+
+You MUST respond with valid JSON in this exact format:
+{{
+    "reasoning": "Your step-by-step logical analysis of each criterion",
+    "score": 85.5
+}}"""
                 }]
             )
 
-            # Parse score from response
+            # Parse structured JSON response
             text = response.choices[0].message.content
-            if "SCORE:" in text:
-                score_text = text.split("SCORE:")[1].split("\n")[0].strip()
-                score = float(score_text)
-                logger.info(f"GPT-4o score: {score}")
-                return max(0, min(100, score))
-            else:
-                logger.warning(f"Could not parse GPT score from: {text}")
-                return 70.0
+            result = json.loads(text)
+            score = float(result["score"])
+            logger.info(f"GPT-4o score: {score} | Reasoning: {result['reasoning'][:100]}...")
+            return max(0, min(100, score))
 
+        except json.JSONDecodeError as e:
+            logger.error(f"GPT-4o JSON parsing error: {e}, response: {text}")
+            return 70.0  # Default neutral score
         except Exception as e:
             logger.error(f"GPT-4o evaluation error: {e}")
             raise

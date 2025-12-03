@@ -27,7 +27,7 @@
  * ============================================================================
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 
 interface Insight {
@@ -43,31 +43,7 @@ interface AIInsightsProps {
   onRefresh?: () => void;
 }
 
-// ⚠️ ALL INSIGHTS BELOW ARE FAKE - Not from real AI analysis!
-// TODO: Replace with: const insights = await geminiService.generateInsights(userData);
-const mockInsights: Insight[] = [
-  {
-    id: 1,
-    type: 'success',
-    title: 'Top performing hook',
-    description: '"Did you know..." style hooks are converting 23% better than average this week.', // FAKE: No data source
-    action: 'Generate similar',
-  },
-  {
-    id: 2,
-    type: 'trend',
-    title: 'Trending format',
-    description: 'Split-screen before/after videos are seeing 2.1x higher engagement.', // FAKE: Invented statistic
-    action: 'Try this format',
-  },
-  {
-    id: 3,
-    type: 'tip',
-    title: 'Optimization tip',
-    description: 'Videos under 15 seconds perform 40% better on Instagram Reels.', // FAKE: No real analysis
-    action: 'Optimize videos',
-  },
-];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 const getInsightIcon = (type: Insight['type']) => {
   switch (type) {
@@ -108,19 +84,57 @@ const getInsightIcon = (type: Insight['type']) => {
 };
 
 export const AIInsights: React.FC<AIInsightsProps> = ({
-  insights = mockInsights,
+  insights: propsInsights,
   onRefresh,
 }) => {
+  const [insights, setInsights] = useState<Insight[]>(propsInsights || []);
+  const [loading, setLoading] = useState(!propsInsights);
+  const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  const fetchInsights = async () => {
+    try {
+      setError(null);
+      const response = await fetch(`${API_BASE_URL}/api/insights/ai`);
+      if (response.ok) {
+        const data = await response.json();
+        setInsights(data.insights || []);
+        setLastUpdated(new Date());
+      } else {
+        throw new Error(`API returned ${response.status}`);
+      }
+    } catch (err) {
+      console.error('Failed to fetch insights:', err);
+      setError('Unable to load AI insights. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!propsInsights) {
+      fetchInsights();
+    }
+  }, [propsInsights]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     if (onRefresh) {
       await onRefresh();
     } else {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await fetchInsights();
     }
     setIsRefreshing(false);
+  };
+
+  const getTimeSinceUpdate = () => {
+    const seconds = Math.floor((new Date().getTime() - lastUpdated.getTime()) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
   };
 
   return (
@@ -151,7 +165,32 @@ export const AIInsights: React.FC<AIInsightsProps> = ({
       </div>
 
       <div className="space-y-4">
-        {insights.slice(0, 3).map((insight) => (
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-4 rounded-lg bg-red-900/20 border border-red-800/50">
+            <p className="text-red-400 text-sm">{error}</p>
+            <button
+              onClick={handleRefresh}
+              className="mt-2 text-red-300 hover:text-red-200 text-sm font-medium underline"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && insights.length === 0 && (
+          <div className="p-8 text-center">
+            <p className="text-zinc-400 text-sm">No insights available yet.</p>
+            <p className="text-zinc-500 text-xs mt-1">Generate some ads to get AI-powered insights.</p>
+          </div>
+        )}
+
+        {!loading && !error && insights.slice(0, 3).map((insight) => (
           <div
             key={insight.id}
             className="p-3 sm:p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800 transition-colors"
@@ -179,7 +218,7 @@ export const AIInsights: React.FC<AIInsightsProps> = ({
 
       <div className="mt-4 pt-4 border-t border-zinc-800">
         <p className="text-zinc-500 text-xs text-center">
-          Powered by Gemini AI • Updated 5 min ago
+          Powered by Gemini AI • Updated {getTimeSinceUpdate()}
         </p>
       </div>
     </div>
