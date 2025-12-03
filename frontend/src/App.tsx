@@ -1,8 +1,8 @@
-<<<<<<< HEAD
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { useToastStore } from '@/stores/toastStore'
+import { CheckCircleIcon, ExclamationCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 // Lazy load all pages for code splitting
 const HomePage = lazy(() => import('@/pages/HomePage'))
@@ -14,9 +14,6 @@ const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
 const AdSpyPage = lazy(() => import('@/pages/AdSpyPage'))
 const StudioPage = lazy(() => import('@/pages/studio/StudioPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
-const HelpPage = lazy(() => import('@/pages/HelpPage'))
-const ResourcesPage = lazy(() => import('@/pages/ResourcesPage'))
-const LandingPage = lazy(() => import('@/pages/LandingPage'))
 
 // Loading fallback component
 function PageLoader() {
@@ -34,26 +31,58 @@ function PageLoader() {
 
 // Toast Provider Component
 function ToastContainer() {
-  // Will be implemented with useToastStore
-  return null
+  const { toasts, removeToast } = useToastStore()
+
+  const iconMap = {
+    success: CheckCircleIcon,
+    error: ExclamationCircleIcon,
+    warning: ExclamationTriangleIcon,
+    info: InformationCircleIcon,
+  }
+
+  const colorMap = {
+    success: 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400',
+    error: 'bg-red-500/10 border-red-500/50 text-red-400',
+    warning: 'bg-amber-500/10 border-amber-500/50 text-amber-400',
+    info: 'bg-blue-500/10 border-blue-500/50 text-blue-400',
+  }
+
+  if (toasts.length === 0) return null
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+      {toasts.map((toast) => {
+        const Icon = iconMap[toast.variant]
+        return (
+          <div
+            key={toast.id}
+            className={`flex items-start gap-3 p-4 rounded-lg border backdrop-blur-sm animate-in slide-in-from-right-5 ${colorMap[toast.variant]}`}
+          >
+            <Icon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-white">{toast.title}</p>
+              {toast.message && (
+                <p className="text-sm opacity-80 mt-0.5">{toast.message}</p>
+              )}
+            </div>
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="flex-shrink-0 hover:opacity-70 transition-opacity"
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function App() {
   return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <div className="min-h-screen bg-zinc-950 text-white">
-          <Routes>
-          {/* Marketing Routes */}
-          <Route
-            path="/marketing"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <LandingPage />
-              </Suspense>
-            }
-          />
-
+    <BrowserRouter>
+      <div className="min-h-screen bg-zinc-950 text-white">
+        <Routes>
           {/* Dashboard Routes */}
           <Route path="/" element={<DashboardLayout />}>
             <Route
@@ -64,7 +93,7 @@ function App() {
                 </Suspense>
               }
             />
-
+            
             {/* Campaign Routes */}
             <Route
               path="create"
@@ -90,7 +119,7 @@ function App() {
                 </Suspense>
               }
             />
-
+            
             {/* Projects */}
             <Route
               path="projects"
@@ -100,7 +129,7 @@ function App() {
                 </Suspense>
               }
             />
-
+            
             {/* Assets / Library */}
             <Route
               path="assets"
@@ -110,7 +139,7 @@ function App() {
                 </Suspense>
               }
             />
-
+            
             {/* Analytics */}
             <Route
               path="analytics"
@@ -120,7 +149,7 @@ function App() {
                 </Suspense>
               }
             />
-
+            
             {/* Ad Spy */}
             <Route
               path="spy"
@@ -130,7 +159,7 @@ function App() {
                 </Suspense>
               }
             />
-
+            
             {/* Studio */}
             <Route
               path="studio"
@@ -148,7 +177,7 @@ function App() {
                 </Suspense>
               }
             />
-
+            
             {/* Settings */}
             <Route
               path="settings"
@@ -158,96 +187,17 @@ function App() {
                 </Suspense>
               }
             />
-
-            {/* Help */}
-            <Route
-              path="help"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <HelpPage />
-                </Suspense>
-              }
-            />
-
-            {/* Resources */}
-            <Route
-              path="resources"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <ResourcesPage />
-                </Suspense>
-              }
-            />
-
+            
             {/* Catch all - redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
-
+        
         {/* Global Toast Notifications */}
         <ToastContainer />
       </div>
     </BrowserRouter>
-  </ErrorBoundary>
   )
 }
 
 export default App
-=======
-import { Suspense } from 'react';
-import { BrowserRouter, useRoutes } from 'react-router-dom';
-import { routes } from './routes';
-import { LoadingScreen } from './components/LoadingScreen';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import './App.css';
-
-/**
- * App Routes Component
- * Renders the route configuration using useRoutes hook
- */
-function AppRoutes() {
-  const element = useRoutes(routes);
-  return element;
-}
-
-/**
- * Main Application Component
- *
- * Features:
- * - BrowserRouter for client-side routing
- * - ErrorBoundary for graceful error handling
- * - Suspense with LoadingScreen for lazy-loaded components
- * - All routes defined in ./routes.tsx
- *
- * Route Structure:
- * /              - CreatorDashboard (Home)
- * /login         - LoginPage
- * /campaigns     - CampaignBuilder
- * /analytics     - AnalyticsDashboard
- * /studio        - ProVideoEditor
- * /studio/ai     - AICreativeStudio
- * /spy           - AdSpyDashboard
- * /library       - AssetsPanel
- * /analysis      - AnalysisPanel
- * /compliance    - CompliancePanel
- * /testing       - ABTestingDashboard
- * /workflow      - HumanWorkflowDashboard
- * /batch         - BatchProcessingPanel
- * /render        - RenderJobPanel
- * /audio         - AudioSuite
- * /image         - ImageSuite
- * /settings      - Settings
- * *              - NotFound (404)
- */
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <Suspense fallback={<LoadingScreen />}>
-          <AppRoutes />
-        </Suspense>
-      </BrowserRouter>
-    </ErrorBoundary>
-  );
-}
->>>>>>> origin/claude/plan-video-editing-solution-01K1NVwMYwFHsZECx5H2RVTT
