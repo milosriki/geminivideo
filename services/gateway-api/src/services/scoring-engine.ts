@@ -1,5 +1,38 @@
 /**
  * Scoring Engine - Psychology, Hook, Technical, Demographic, Novelty scoring
+ *
+ * ============================================================================
+ * 🔴 CRITICAL ANALYSIS FINDINGS (December 2024)
+ * ============================================================================
+ *
+ * STATUS: HARDCODED RULES - NOT AI-POWERED DECISIONS
+ *
+ * WHAT'S BROKEN:
+ * - Decision logic is 100% KEYWORD MATCHING (lines 91-93)
+ * - allText.includes(kw.toLowerCase()) - just string contains!
+ * - Fixed weights from weights.yaml, never learns
+ * - Psychology scores from counting word matches, not AI analysis
+ * - Win probability is formula-based, not ML-predicted
+ *
+ * WHAT IT SHOULD DO:
+ * 1. Use Gemini/Claude to analyze content psychology
+ * 2. Train ML model on actual performance data
+ * 3. Update weights based on real CTR feedback
+ * 4. A/B test different scoring approaches
+ *
+ * CURRENT WEIGHTS (hardcoded):
+ * - Psychology: 30%
+ * - Hook: 25%
+ * - Technical: 20%
+ * - Demographic: 15%
+ * - Novelty: 10%
+ *
+ * FAST FIX:
+ * Replace calculatePsychologyScore() with Gemini API call:
+ *   const result = await gemini.analyze(content, "Rate psychology 0-100")
+ *
+ * IMPACT: System makes decisions based on word matching, not intelligence
+ * ============================================================================
  */
 
 interface WeightsConfig {
@@ -72,6 +105,14 @@ export class ScoringEngine {
   }
 
   private calculatePsychologyScore(scenes: any[], metadata: any): number {
+    // ⚠️ FAKE PSYCHOLOGY SCORING ⚠️
+    // This is NOT AI-powered - it's just counting keyword matches!
+    // A video saying "pain pain pain" would score high on pain_point
+    //
+    // TODO: Replace with actual AI analysis:
+    // const analysis = await gemini.analyze(scenes, "Evaluate psychological triggers");
+    // return analysis.score;
+
     const weights = this.weightsConfig.psychology_weights;
     const keywords = this.triggersConfig.driver_keywords;
 
@@ -86,12 +127,13 @@ export class ScoringEngine {
     // Extract text from scenes
     const allText = this.extractAllText(scenes).toLowerCase();
 
+    // ⚠️ THIS IS THE PROBLEM - Just string matching, not understanding!
     // Count keyword matches
     for (const [category, keywordList] of Object.entries(keywords)) {
       const matches = keywordList.filter(kw =>
-        allText.includes(kw.toLowerCase())
+        allText.includes(kw.toLowerCase())  // FAKE: Just contains() check
       ).length;
-      const categoryScore = Math.min(matches / 3, 1.0); // Normalize
+      const categoryScore = Math.min(matches / 3, 1.0); // FAKE: Arbitrary normalization
 
       if (category === 'pain_points') scores.pain_point = categoryScore;
       else if (category === 'transformations') scores.transformation = categoryScore;
@@ -163,18 +205,24 @@ export class ScoringEngine {
   }
 
   private calculateDemographicMatch(scenes: any[], metadata: any): number {
+    // ⚠️ DEMOGRAPHIC MATCHING IS MOSTLY HARDCODED ⚠️
+    // - age_range: hardcoded 0.7 (line 190)
+    // - fitness_level: hardcoded 0.7 (line 191)
+    // - trigger_alignment: hardcoded 0.7 (line 192)
+    // Only persona_match uses actual content analysis (but still just keyword matching)
+
     const weights = this.weightsConfig.demographic_weights;
     const personas = this.personasConfig.personas;
 
     // Extract text from scenes
     const allText = this.extractAllText(scenes).toLowerCase();
 
-    // Find best matching persona
+    // Find best matching persona (still just keyword matching, not AI)
     let bestMatch = 0;
 
     for (const persona of personas) {
       const keywordMatches = persona.keywords.filter(kw =>
-        allText.includes(kw.toLowerCase())
+        allText.includes(kw.toLowerCase())  // FAKE: Just string matching
       ).length;
 
       const matchScore = Math.min(keywordMatches / persona.keywords.length, 1.0);
@@ -184,12 +232,13 @@ export class ScoringEngine {
       }
     }
 
+    // ⚠️ THREE HARDCODED VALUES BELOW - NOT REAL ANALYSIS
     // Demographic score (simplified for MVP)
     const score =
       bestMatch * weights.persona_match +
-      0.7 * weights.age_range + // Placeholder
-      0.7 * weights.fitness_level + // Placeholder
-      0.7 * weights.trigger_alignment; // Placeholder
+      0.7 * weights.age_range + // HARDCODED: Always 0.7, no real age detection
+      0.7 * weights.fitness_level + // HARDCODED: Always 0.7, no real fitness analysis
+      0.7 * weights.trigger_alignment; // HARDCODED: Always 0.7, no real trigger analysis
 
     return Math.min(score, 1.0);
   }
