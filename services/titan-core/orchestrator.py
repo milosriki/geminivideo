@@ -36,6 +36,21 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
 
     # Use Dynamic Prompt Engine to inject Knowledge Context (Hormozi Rules, etc.)
     system_msg = PromptEngine.get_director_system_message(niche)
+    
+    # Inject Market Trends
+    try:
+        import json
+        from pathlib import Path
+        trends_path = Path(__file__).parent / "knowledge" / "trends.json"
+        if trends_path.exists():
+            with open(trends_path, 'r') as f:
+                trends_data = json.load(f)
+                trends_list = [t['description'] for t in trends_data.get('trends', [])]
+                if trends_list:
+                    system_msg += f"\n\n## 📈 MARKET TRENDS (EXTERNAL):\n" + "\n".join([f"- {t}" for t in trends_list])
+                    print(f"✅ Injected {len(trends_list)} market trends into context")
+    except Exception as e:
+        print(f"⚠️ Failed to load market trends: {e}")
 
     director = AssistantAgent(
         name="Director",

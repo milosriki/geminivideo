@@ -1,70 +1,136 @@
 """
 Video rendering service using FFmpeg
+Supports video concatenation, image-to-video (Ken Burns), and beat detection
 """
 import subprocess
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import tempfile
+import logging
+import math
 
+logger = logging.getLogger(__name__)
 
 class VideoRenderer:
     """
     Video renderer using FFmpeg for concatenation, transitions, and composition
     """
     
+    async def detect_beats(self, audio_path: str) -> List[float]:
+        """
+        Detect musical beats in audio file using librosa
+        Returns list of timestamps (seconds)
+        """
+        try:
+            import librosa
+            import numpy as np
+            
+            # Load audio
+            y, sr = librosa.load(audio_path)
+            
+            # Detect tempo and beats
+            tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+            
+            # Convert frames to time
+            beat_times = librosa.frames_to_time(beat_frames, sr=sr)
+            
+            logger.info(f"🎵 Detected {len(beat_times)} beats at {tempo} BPM")
+            return beat_times.tolist()
+            
+        except Exception as e:
+            logger.warning(f"Beat detection failed: {e}")
+            return []
+
+    async def _create_ken_burns_clip(self, image_path: str, duration: float = 4.0) -> str:
+        """
+        Create a video clip from an image with Ken Burns effect (slow zoom)
+        """
+        output_fd, output_path = tempfile.mkstemp(suffix=".mp4")
+        os.close(output_fd)
+        
+        # FFmpeg zoompan filter
+        # Zoom in 10% over duration, center to center
+        filter_complex = (
+            f"zoompan=z='min(zoom+0.0015,1.5)':d={int(duration*25)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)',"
+            f"scale=1080:1920"  # Force vertical for Reels
+        )
+        
+        cmd = [
+            'ffmpeg',
+            '-loop', '1',
+            '-i', image_path,
+            '-vf', filter_complex,
+            '-c:v', 'libx264',
+            '-t', str(duration),
+            '-pix_fmt', 'yuv420p',
+            '-y',
+            output_path
+        ]
+        
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            return output_path
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Ken Burns effect failed: {e.stderr.decode()}")
+            return image_path # Fallback to original (will fail if not video)
+
     async def concatenate_scenes(
         self,
         scenes: List[Any],
         enable_transitions: bool = True
     ) -> str:
         """
-        Concatenate video scenes with optional transitions
-        
-        Args:
-            scenes: List of scene inputs
-            enable_transitions: Whether to add xfade transitions
-            
-        Returns:
-            Path to concatenated video
+        Concatenate video scenes (handles images automatically)
         """
-        # Use secure temporary file creation
+        # Pre-process: Convert images to video clips
+        processed_scenes = []
+        temp_files = []
+        
+        for scene in scenes:
+            path = scene.video_path
+            
+            # Check if image (simple extension check)
+            if path.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                video_path = await self._create_ken_burns_clip(path, duration=scene.duration or 4.0)
+                processed_scenes.append({
+                    "path": video_path,
+                    "start": 0,
+                    "end": scene.duration or 4.0
+                })
+                temp_files.append(video_path)
+            else:
+                processed_scenes.append({
+                    "path": path,
+                    "start": scene.start_time,
+                    "end": scene.end_time
+                })
+
+        # Create concat file
         output_fd, output_path = tempfile.mkstemp(suffix=".mp4")
         os.close(output_fd)
         
-        # Create concat file
         concat_fd, concat_file = tempfile.mkstemp(suffix=".txt")
         os.close(concat_fd)
+        
         with open(concat_file, 'w') as f:
-            for scene in scenes:
-                f.write(f"file '{scene.video_path}'\n")
-                f.write(f"inpoint {scene.start_time}\n")
-                f.write(f"outpoint {scene.end_time}\n")
+            for scene in processed_scenes:
+                f.write(f"file '{scene['path']}'\n")
+                if 'start' in scene:
+                    f.write(f"inpoint {scene['start']}\n")
+                    f.write(f"outpoint {scene['end']}\n")
         
         try:
-            if enable_transitions and len(scenes) > 1:
-                # Use xfade for transitions (simplified for MVP)
-                cmd = [
-                    'ffmpeg',
-                    '-f', 'concat',
-                    '-safe', '0',
-                    '-i', concat_file,
-                    '-c:v', 'libx264',
-                    '-preset', 'medium',
-                    '-c:a', 'aac',
-                    '-y',
-                    output_path
-                ]
-            else:
-                # Simple concatenation
-                cmd = [
-                    'ffmpeg',
-                    '-f', 'concat',
-                    '-safe', '0',
-                    '-i', concat_file,
-                    '-c', 'copy',
-                    '-y',
-                    output_path
-                ]
+            # Simple concat for now (transitions require complex filter_complex)
+            cmd = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_file,
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                '-y',
+                output_path
+            ]
             
             subprocess.run(cmd, check=True, capture_output=True)
             return output_path
@@ -74,6 +140,10 @@ class VideoRenderer:
         finally:
             if os.path.exists(concat_file):
                 os.remove(concat_file)
+            # Cleanup temp video clips from images
+            for tmp in temp_files:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
     
     async def compose_final_video(
         self,
@@ -85,13 +155,6 @@ class VideoRenderer:
     ):
         """
         Compose final video with overlays, subtitles, and formatting
-        
-        Args:
-            input_path: Input video path
-            output_path: Output video path
-            output_format: Target format (width, height, aspect)
-            overlay_path: Optional overlay video
-            subtitle_path: Optional subtitle file (SRT)
         """
         width = output_format['width']
         height = output_format['height']
