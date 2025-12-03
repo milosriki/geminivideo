@@ -70,3 +70,9 @@ htmlcov/
 # Temporary files
 /tmp/
 *.tmp
+
+# Zip archives (extracted to source folders)
+*.zip
+
+# Frontend build
+frontend/dist/
