@@ -11,6 +11,11 @@ import math
 
 logger = logging.getLogger(__name__)
 
+# FFmpeg timeout constants (in seconds)
+FFMPEG_TIMEOUT_KEN_BURNS = 300   # 5 minutes for Ken Burns effect
+FFMPEG_TIMEOUT_CONCAT = 600      # 10 minutes for concatenation
+FFMPEG_TIMEOUT_COMPOSE = 900     # 15 minutes for final composition
+
 class VideoRenderer:
     """
     Video renderer using FFmpeg for concatenation, transitions, and composition
@@ -57,6 +62,7 @@ class VideoRenderer:
         
         cmd = [
             'ffmpeg',
+            '-nostdin',  # Prevent stdin blocking
             '-loop', '1',
             '-i', image_path,
             '-vf', filter_complex,
@@ -68,7 +74,13 @@ class VideoRenderer:
         ]
         
         try:
-            subprocess.run(cmd, check=True, capture_output=True)
+            subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                timeout=FFMPEG_TIMEOUT_KEN_BURNS
+            )
             return output_path
         except subprocess.CalledProcessError as e:
             logger.error(f"Ken Burns effect failed: {e.stderr.decode()}")
@@ -123,6 +135,7 @@ class VideoRenderer:
             # Simple concat for now (transitions require complex filter_complex)
             cmd = [
                 'ffmpeg',
+                '-nostdin',  # Prevent stdin blocking
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', concat_file,
@@ -132,7 +145,13 @@ class VideoRenderer:
                 output_path
             ]
             
-            subprocess.run(cmd, check=True, capture_output=True)
+            subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                timeout=FFMPEG_TIMEOUT_CONCAT
+            )
             return output_path
             
         except subprocess.CalledProcessError as e:
@@ -180,6 +199,7 @@ class VideoRenderer:
         try:
             cmd = [
                 'ffmpeg',
+                '-nostdin',  # Prevent stdin blocking
                 '-i', input_path,
                 '-vf', ','.join(filters),
                 '-af', audio_filter,
@@ -193,7 +213,13 @@ class VideoRenderer:
                 output_path
             ]
             
-            subprocess.run(cmd, check=True, capture_output=True)
+            subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                timeout=FFMPEG_TIMEOUT_COMPOSE
+            )
             
         except subprocess.CalledProcessError as e:
             raise Exception(f"FFmpeg composition failed: {e.stderr.decode()}")
