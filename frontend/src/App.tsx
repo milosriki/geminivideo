@@ -13,6 +13,7 @@ const AdSpyPage = lazy(() => import('@/pages/AdSpyPage'))
 const StudioPage = lazy(() => import('@/pages/studio/StudioPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const HelpPage = lazy(() => import('@/pages/HelpPage'))
+const ResourcesPage = lazy(() => import('@/pages/ResourcesPage'))
 const LandingPage = lazy(() => import('@/pages/LandingPage'))
 
 // Loading fallback component
@@ -161,6 +162,16 @@ function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <HelpPage />
+                </Suspense>
+              }
+            />
+
+            {/* Resources */}
+            <Route
+              path="resources"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ResourcesPage />
                 </Suspense>
               }
             />

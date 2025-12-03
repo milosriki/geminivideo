@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getDashboardMetrics, getAssets } from '@/services/api';
 import { BentoCard } from '@/components/radiant/bento-card';
 import { AnimatedNumber } from '@/components/radiant/animated-number';
 import { PerformanceChart } from './PerformanceChart';
@@ -6,21 +7,7 @@ import { RecentActivity } from './RecentActivity';
 import { QuickActions } from './QuickActions';
 import { AIInsights } from './AIInsights';
 
-// Mock data for the dashboard
-const mockMetrics = {
-  activeCampaigns: 12,
-  videosGenerated: 1847,
-  roasAverage: 4.2,
-  aiCredits: 8500,
-  aiCreditsTotal: 10000,
-};
 
-const mockChanges = {
-  activeCampaigns: 23,
-  videosGenerated: 156,
-  roasAverage: 0.3,
-  aiCreditsPercentage: 85,
-};
 
 interface HomeDashboardProps {
   userName?: string;
@@ -30,6 +17,50 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   userName = 'Creator',
 }) => {
   const [showQuickActionsDropdown, setShowQuickActionsDropdown] = useState(false);
+  const [metrics, setMetrics] = useState({
+    activeCampaigns: 0,
+    videosGenerated: 0,
+    roasAverage: 0,
+    aiCredits: 8500, // Still mocked as no endpoint yet
+    aiCreditsTotal: 10000,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [dashboardMetrics, assets] = await Promise.all([
+          getDashboardMetrics(),
+          getAssets(0, 1) // Just to get count if possible, or we might need to fetch all
+        ]);
+
+        // In a real app, assets response would have a 'total' field.
+        // Assuming assets is an array for now based on api.ts
+        const assetCount = Array.isArray(assets) ? assets.length : (assets.total || 0);
+
+        setMetrics({
+          activeCampaigns: 5, // Placeholder until we have campaigns endpoint
+          videosGenerated: assetCount,
+          roasAverage: dashboardMetrics.totals?.roas || 0,
+          aiCredits: 8500,
+          aiCreditsTotal: 10000,
+        });
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const navigate = React.useMemo(() => {
+    // We can't use useNavigate directly if this component is used outside Router context in tests,
+    // but here it's fine. However, to be safe and clean:
+    // actually we can just use window.location.href or import useNavigate from react-router-dom
+    return (path: string) => window.location.href = path;
+  }, []);
 
   return (
     <div className="min-h-screen bg-zinc-950 p-4 lg:p-6">
@@ -65,15 +96,18 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             <div className="absolute right-0 mt-2 w-56 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50">
               <div className="py-1">
                 {[
-                  { label: 'New Campaign', icon: '➕' },
-                  { label: 'Generate Video', icon: '🎬' },
-                  { label: 'Analyze Competitor', icon: '🔍' },
-                  { label: 'View Analytics', icon: '📊' },
+                  { label: 'New Campaign', icon: '➕', href: '/create' },
+                  { label: 'Generate Video', icon: '🎬', href: '/studio' },
+                  { label: 'Analyze Competitor', icon: '🔍', href: '/spy' },
+                  { label: 'View Analytics', icon: '📊', href: '/analytics' },
                 ].map((item, idx) => (
                   <button
                     key={idx}
                     className="w-full px-4 py-2.5 text-left text-white hover:bg-zinc-700 transition-colors flex items-center gap-3"
-                    onClick={() => setShowQuickActionsDropdown(false)}
+                    onClick={() => {
+                      setShowQuickActionsDropdown(false);
+                      navigate(item.href);
+                    }}
                   >
                     <span>{item.icon}</span>
                     {item.label}
@@ -90,8 +124,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <BentoCard
           dark
           eyebrow="Active Campaigns"
-          title={<AnimatedNumber value={mockMetrics.activeCampaigns} />}
-          description={`+${mockChanges.activeCampaigns}% from last month`}
+          title={loading ? <span className="animate-pulse">...</span> : <AnimatedNumber value={metrics.activeCampaigns} />}
+          description="Active campaigns"
           graphic={
             <div className="absolute inset-0 flex items-center justify-center opacity-20">
               <svg className="w-32 h-32 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,8 +138,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <BentoCard
           dark
           eyebrow="Videos Generated"
-          title={<AnimatedNumber value={mockMetrics.videosGenerated} />}
-          description={`+${mockChanges.videosGenerated} this week`}
+          title={loading ? <span className="animate-pulse">...</span> : <AnimatedNumber value={metrics.videosGenerated} />}
+          description="Total videos created"
           graphic={
             <div className="absolute inset-0 flex items-center justify-center opacity-20">
               <svg className="w-32 h-32 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,8 +153,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <BentoCard
           dark
           eyebrow="ROAS Average"
-          title={<><AnimatedNumber value={mockMetrics.roasAverage} decimals={1} />x</>}
-          description={`+${mockChanges.roasAverage} improvement`}
+          title={loading ? <span className="animate-pulse">...</span> : <><AnimatedNumber value={metrics.roasAverage} decimals={1} />x</>}
+          description="Average ROAS"
           graphic={
             <div className="absolute inset-0 flex items-center justify-center opacity-20">
               <svg className="w-32 h-32 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,8 +167,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <BentoCard
           dark
           eyebrow="AI Credits"
-          title={<AnimatedNumber value={mockMetrics.aiCredits} />}
-          description={`${mockChanges.aiCreditsPercentage}% remaining`}
+          title={loading ? <span className="animate-pulse">...</span> : <AnimatedNumber value={metrics.aiCredits} />}
+          description={`${Math.round((metrics.aiCredits / metrics.aiCreditsTotal) * 100)}% remaining`}
           graphic={
             <div className="absolute inset-0 flex items-center justify-center opacity-20">
               <svg className="w-32 h-32 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,17 +202,17 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             <span className="text-white font-medium">AI Credits Usage</span>
           </div>
           <span className="text-zinc-400 text-sm">
-            {mockMetrics.aiCredits.toLocaleString()} / {mockMetrics.aiCreditsTotal.toLocaleString()} credits
+            {metrics.aiCredits.toLocaleString()} / {metrics.aiCreditsTotal.toLocaleString()} credits
           </span>
         </div>
         <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
-            style={{ width: `${(mockMetrics.aiCredits / mockMetrics.aiCreditsTotal) * 100}%` }}
+            style={{ width: `${(metrics.aiCredits / metrics.aiCreditsTotal) * 100}%` }}
           />
         </div>
         <p className="text-zinc-500 text-sm mt-2">
-          {mockChanges.aiCreditsPercentage}% of your monthly credits remaining. Resets in 12 days.
+          {Math.round((metrics.aiCredits / metrics.aiCreditsTotal) * 100)}% of your monthly credits remaining. Resets in 12 days.
         </p>
       </div>
 

@@ -15,7 +15,7 @@ export function DropdownButton<T extends React.ElementType = typeof Button>({
   ...props
 }: { className?: string; as?: T } & Omit<Headless.MenuButtonProps<T>, 'className' | 'as'>) {
   const Component = (as ?? Button) as React.ElementType
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return <Headless.MenuButton as={Component} {...(props as any)} />
 }
 

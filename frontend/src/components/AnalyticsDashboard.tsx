@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAnalyticsStore } from '../stores/analyticsStore';
-import { FadeIn, StaggerContainer } from './ui';
+
 import {
   DateRangePicker,
   KPIGrid,
@@ -26,15 +26,20 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = () => {
     <div className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-[1600px] mx-auto space-y-8">
         {/* Page Header */}
-        <FadeIn direction="down" className="mb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8"
+        >
           <h1 className="text-3xl font-bold text-white mb-2">Analytics Dashboard</h1>
           <p className="text-zinc-500">
             Track performance metrics and optimize your campaigns in real-time
           </p>
-        </FadeIn>
+        </motion.div>
 
         {/* Stagger the main content sections */}
-        <StaggerContainer staggerDelay={0.1} initialDelay={0.1}>
+        <div className="space-y-8">
           {/* Date Range Picker */}
           <div>
             <DateRangePicker />
@@ -54,7 +59,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = () => {
           <div>
             <CampaignTable />
           </div>
-        </StaggerContainer>
+        </div>
 
         {/* AI Insights Section */}
         <motion.div
