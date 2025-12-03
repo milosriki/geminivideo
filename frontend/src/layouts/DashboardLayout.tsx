@@ -9,6 +9,7 @@ import {
   Cog6ToothIcon,
   SparklesIcon,
   PlusCircleIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 import { SidebarLayout } from '@/components/catalyst/sidebar-layout'
 import { Sidebar, SidebarBody, SidebarHeader, SidebarItem, SidebarLabel, SidebarSection, SidebarFooter } from '@/components/catalyst/sidebar'
@@ -28,6 +29,7 @@ const navigation = [
 
 const secondaryNavigation = [
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
+  { name: 'Help & Docs', href: '/help', icon: QuestionMarkCircleIcon },
 ]
 
 export function DashboardLayout() {

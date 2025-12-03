@@ -1,19 +1,3 @@
-<<<<<<< HEAD
-import { Badge } from '@/components/catalyst/badge'
-import { Text } from '@/components/catalyst/text'
-import { motion } from 'motion/react'
-import { ArrowUpIcon, ArrowDownIcon, MinusIcon } from '@heroicons/react/20/solid'
-
-interface MetricCardProps {
-  label: string
-  value: string
-  change: string
-  trend: 'up' | 'down' | 'neutral'
-  icon?: React.ElementType
-}
-
-export function MetricCard({ label, value, change, trend, icon: Icon }: MetricCardProps) {
-=======
 import React from 'react';
 import { motion, useSpring, useTransform } from 'framer-motion';
 
@@ -70,31 +54,10 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   const isPositive = change !== undefined && change >= 0;
   const changeColor = isPositive ? 'text-emerald-500' : 'text-red-500';
 
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-<<<<<<< HEAD
-      className="p-6 rounded-lg border border-zinc-950/5 bg-white shadow-sm dark:border-white/5 dark:bg-zinc-900"
-    >
-      <div className="flex items-center justify-between">
-        <Text>{label}</Text>
-        {Icon && <Icon className="size-5 text-zinc-400" />}
-      </div>
-      <div className="mt-4 flex items-baseline gap-2">
-        <span className="text-3xl font-semibold text-zinc-950 dark:text-white">{value}</span>
-        <Badge color={trend === 'up' ? 'emerald' : trend === 'down' ? 'red' : 'zinc'}>
-          {trend === 'up' && <ArrowUpIcon className="size-3 mr-1" />}
-          {trend === 'down' && <ArrowDownIcon className="size-3 mr-1" />}
-          {trend === 'neutral' && <MinusIcon className="size-3 mr-1" />}
-          {change}
-        </Badge>
-      </div>
-    </motion.div>
-  )
-}
-=======
       transition={{
         duration: 0.3,
         delay: index * 0.1,
@@ -177,4 +140,3 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 };
 
 export default MetricCard;
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6

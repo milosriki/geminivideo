@@ -1,14 +1,4 @@
-<<<<<<< HEAD
-'use client'
-
-import * as Headless from '@headlessui/react'
-import clsx from 'clsx'
-import { LayoutGroup, motion } from 'motion/react'
-=======
-import * as Headless from '@headlessui/react'
-import clsx from 'clsx'
 import { LayoutGroup, motion } from 'framer-motion'
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
 import React, { forwardRef, useId } from 'react'
 import { TouchTarget } from './button'
 import { Link } from './link'
@@ -54,7 +44,7 @@ export function SidebarFooter({ className, ...props }: React.ComponentPropsWitho
 }
 
 export function SidebarSection({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
-  let id = useId()
+  const id = useId()
 
   return (
     <LayoutGroup id={id}>
@@ -89,7 +79,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
   ),
   ref: React.ForwardedRef<HTMLAnchorElement | HTMLButtonElement>
 ) {
-  let classes = clsx(
+  const classes = clsx(
     // Base
     'flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5',
     // Leading icon/icon-only
@@ -119,15 +109,6 @@ export const SidebarItem = forwardRef(function SidebarItem(
           className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-zinc-950 dark:bg-white"
         />
       )}
-<<<<<<< HEAD
-      {typeof props.href === 'string' ? (
-        <Headless.CloseButton
-          as={Link}
-          {...props}
-          className={classes}
-          data-current={current ? 'true' : undefined}
-          ref={ref}
-=======
       {'href' in props && typeof props.href === 'string' ? (
         <Headless.CloseButton
           as={Link}
@@ -135,28 +116,20 @@ export const SidebarItem = forwardRef(function SidebarItem(
           className={classes}
           data-current={current ? 'true' : undefined}
           ref={ref as React.ForwardedRef<HTMLAnchorElement>}
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
         >
           <TouchTarget>{children}</TouchTarget>
         </Headless.CloseButton>
       ) : (
         <Headless.Button
-<<<<<<< HEAD
-          {...props}
-          className={clsx('cursor-default', classes)}
-          data-current={current ? 'true' : undefined}
-          ref={ref}
-=======
           {...(props as Omit<Headless.ButtonProps, 'as' | 'className'>)}
           className={clsx('cursor-default', classes)}
           data-current={current ? 'true' : undefined}
           ref={ref as React.ForwardedRef<HTMLButtonElement>}
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
         >
           <TouchTarget>{children}</TouchTarget>
         </Headless.Button>
       )}
-    </span>
+    </span >
   )
 })
 

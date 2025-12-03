@@ -12,6 +12,8 @@ const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
 const AdSpyPage = lazy(() => import('@/pages/AdSpyPage'))
 const StudioPage = lazy(() => import('@/pages/studio/StudioPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const HelpPage = lazy(() => import('@/pages/HelpPage'))
+const LandingPage = lazy(() => import('@/pages/LandingPage'))
 
 // Loading fallback component
 function PageLoader() {
@@ -38,6 +40,16 @@ function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-zinc-950 text-white">
         <Routes>
+          {/* Marketing Routes */}
+          <Route
+            path="/marketing"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <LandingPage />
+              </Suspense>
+            }
+          />
+
           {/* Dashboard Routes */}
           <Route path="/" element={<DashboardLayout />}>
             <Route
@@ -48,7 +60,7 @@ function App() {
                 </Suspense>
               }
             />
-            
+
             {/* Campaign Routes */}
             <Route
               path="create"
@@ -74,7 +86,7 @@ function App() {
                 </Suspense>
               }
             />
-            
+
             {/* Projects */}
             <Route
               path="projects"
@@ -84,7 +96,7 @@ function App() {
                 </Suspense>
               }
             />
-            
+
             {/* Assets / Library */}
             <Route
               path="assets"
@@ -94,7 +106,7 @@ function App() {
                 </Suspense>
               }
             />
-            
+
             {/* Analytics */}
             <Route
               path="analytics"
@@ -104,7 +116,7 @@ function App() {
                 </Suspense>
               }
             />
-            
+
             {/* Ad Spy */}
             <Route
               path="spy"
@@ -114,7 +126,7 @@ function App() {
                 </Suspense>
               }
             />
-            
+
             {/* Studio */}
             <Route
               path="studio"
@@ -132,7 +144,7 @@ function App() {
                 </Suspense>
               }
             />
-            
+
             {/* Settings */}
             <Route
               path="settings"
@@ -142,12 +154,22 @@ function App() {
                 </Suspense>
               }
             />
-            
+
+            {/* Help */}
+            <Route
+              path="help"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <HelpPage />
+                </Suspense>
+              }
+            />
+
             {/* Catch all - redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
-        
+
         {/* Global Toast Notifications */}
         <ToastContainer />
       </div>

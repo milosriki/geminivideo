@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRef } from "react";
 
 function formatDuration(seconds: number): string {
-  let h = Math.floor(seconds / 3600);
-  let m = Math.floor((seconds % 3600) / 60);
-  let s = seconds % 60;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
 
   return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
@@ -29,7 +29,7 @@ export function VideoCard({
   title: string;
   subtitle: string;
 }) {
-  let videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   return (
     <Link href={url} target={target}>

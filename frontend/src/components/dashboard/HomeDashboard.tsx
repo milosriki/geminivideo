@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { MetricCard } from './MetricCard';
+import { BentoCard } from '@/components/radiant/bento-card';
+import { AnimatedNumber } from '@/components/radiant/animated-number';
 import { PerformanceChart } from './PerformanceChart';
 import { RecentActivity } from './RecentActivity';
 import { QuickActions } from './QuickActions';
@@ -86,49 +87,62 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <MetricCard
-          label="Active Campaigns"
-          value={mockMetrics.activeCampaigns}
-          change={mockChanges.activeCampaigns}
-          changeLabel="%"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+        <BentoCard
+          dark
+          eyebrow="Active Campaigns"
+          title={<AnimatedNumber value={mockMetrics.activeCampaigns} />}
+          description={`+${mockChanges.activeCampaigns}% from last month`}
+          graphic={
+            <div className="absolute inset-0 flex items-center justify-center opacity-20">
+              <svg className="w-32 h-32 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
           }
+          fade={['bottom']}
         />
-        <MetricCard
-          label="Videos Generated"
-          value={mockMetrics.videosGenerated}
-          change={mockChanges.videosGenerated}
-          changeLabel="this week"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m22 8-6 4 6 4V8Z" />
-              <rect x="2" y="6" width="14" height="12" rx="2" strokeWidth={2} />
-            </svg>
+        <BentoCard
+          dark
+          eyebrow="Videos Generated"
+          title={<AnimatedNumber value={mockMetrics.videosGenerated} />}
+          description={`+${mockChanges.videosGenerated} this week`}
+          graphic={
+            <div className="absolute inset-0 flex items-center justify-center opacity-20">
+              <svg className="w-32 h-32 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="m22 8-6 4 6 4V8Z" />
+                <rect x="2" y="6" width="14" height="12" rx="2" strokeWidth={1} />
+              </svg>
+            </div>
           }
+          fade={['bottom']}
         />
-        <MetricCard
-          label="ROAS Average"
-          value={mockMetrics.roasAverage}
-          change={mockChanges.roasAverage}
-          format="multiplier"
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
+        <BentoCard
+          dark
+          eyebrow="ROAS Average"
+          title={<><AnimatedNumber value={mockMetrics.roasAverage} decimals={1} />x</>}
+          description={`+${mockChanges.roasAverage} improvement`}
+          graphic={
+            <div className="absolute inset-0 flex items-center justify-center opacity-20">
+              <svg className="w-32 h-32 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
           }
+          fade={['bottom']}
         />
-        <MetricCard
-          label="AI Credits"
-          value={mockMetrics.aiCredits}
-          changeLabel={`${mockChanges.aiCreditsPercentage}% remaining`}
-          icon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-            </svg>
+        <BentoCard
+          dark
+          eyebrow="AI Credits"
+          title={<AnimatedNumber value={mockMetrics.aiCredits} />}
+          description={`${mockChanges.aiCreditsPercentage}% remaining`}
+          graphic={
+            <div className="absolute inset-0 flex items-center justify-center opacity-20">
+              <svg className="w-32 h-32 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+              </svg>
+            </div>
           }
+          fade={['bottom']}
         />
       </div>
 

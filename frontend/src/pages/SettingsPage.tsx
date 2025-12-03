@@ -14,6 +14,7 @@ import { Switch, SwitchField } from '@/components/catalyst/switch'
 import { Fieldset, Field, Label, Description } from '@/components/catalyst/fieldset'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
+import { Pricing } from '@/components/salient/Pricing'
 
 const tabs = [
   { id: 'profile', name: 'Profile', icon: UserIcon },
@@ -145,7 +146,13 @@ export function SettingsPage() {
                 </div>
               )}
 
-              {(activeTab === 'billing' || activeTab === 'appearance') && (
+              {(activeTab === 'billing') && (
+                <div className="-m-6">
+                  <Pricing />
+                </div>
+              )}
+
+              {activeTab === 'appearance' && (
                 <div className="text-center py-12">
                   <Text className="text-zinc-400">Coming soon...</Text>
                 </div>

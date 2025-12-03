@@ -63,35 +63,22 @@ export const AvatarButton = forwardRef(function AvatarButton(
       | ({ href?: never } & Omit<Headless.ButtonProps, 'as' | 'className'>)
       | ({ href: string } & Omit<React.ComponentPropsWithoutRef<typeof Link>, 'className'>)
     ),
-<<<<<<< HEAD
-  ref: React.ForwardedRef<HTMLButtonElement>
-=======
   ref: React.ForwardedRef<HTMLElement>
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
 ) {
-  let classes = clsx(
+  const classes = clsx(
     className,
     square ? 'rounded-[20%]' : 'rounded-full',
     'relative inline-grid focus:not-data-focus:outline-hidden data-focus:outline-2 data-focus:outline-offset-2 data-focus:outline-blue-500'
   )
 
-<<<<<<< HEAD
-  return typeof props.href === 'string' ? (
-    <Link {...props} className={classes} ref={ref as React.ForwardedRef<HTMLAnchorElement>}>
-=======
   return 'href' in props && typeof props.href === 'string' ? (
     <Link {...(props as React.ComponentPropsWithoutRef<typeof Link>)} className={classes} ref={ref as React.ForwardedRef<HTMLAnchorElement>}>
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
       <TouchTarget>
         <Avatar src={src} square={square} initials={initials} alt={alt} />
       </TouchTarget>
     </Link>
   ) : (
-<<<<<<< HEAD
-    <Headless.Button {...props} className={classes} ref={ref}>
-=======
     <Headless.Button {...(props as Omit<Headless.ButtonProps, 'as' | 'className'>)} className={classes} ref={ref as React.ForwardedRef<HTMLButtonElement>}>
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
       <TouchTarget>
         <Avatar src={src} square={square} initials={initials} alt={alt} />
       </TouchTarget>
