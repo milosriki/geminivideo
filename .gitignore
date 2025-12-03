@@ -57,6 +57,10 @@ Thumbs.db
 # Environment
 .env
 .env.local
+.env.production
+.env.development
+.env.staging
+*.env
 
 # Build artifacts
 dist/
