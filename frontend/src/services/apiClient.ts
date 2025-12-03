@@ -90,5 +90,17 @@ export const apiClient = {
             hookScore: c.__hookScore || 0,
             ctaScore: c.__ctaScore || 0
         }));
+    },
+
+    // 5. Fetch AI Insights (Real-time Gemini analysis)
+    async fetchAIInsights(): Promise<any> {
+        const response = await fetch(`${API_BASE_URL}/api/insights/ai`);
+        return handleResponse<any>(response);
+    },
+
+    // 6. Fetch Trending Ads (Competitor spy data)
+    async fetchTrendingAds(): Promise<any> {
+        const response = await fetch(`${API_BASE_URL}/api/ads/trending`);
+        return handleResponse<any>(response);
     }
 };

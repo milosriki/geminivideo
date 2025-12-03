@@ -87,4 +87,10 @@ export const triggerLearningUpdate = async () => {
   return response.data;
 };
 
+// Credits
+export const getCredits = async () => {
+  const response = await api.get('/credits');
+  return response.data;
+};
+
 export default api;

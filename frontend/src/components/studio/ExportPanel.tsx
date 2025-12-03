@@ -69,12 +69,21 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ duration = 25, onExpor
     setIsExporting(true);
     setExportProgress(0);
 
+    // Track interval for cleanup
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let completionTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      if (interval) clearInterval(interval);
+      if (completionTimeout) clearTimeout(completionTimeout);
+    };
+
     // Simulate export progress
-    const interval = setInterval(() => {
+    interval = setInterval(() => {
       setExportProgress(prev => {
         if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
+          cleanup();
+          completionTimeout = setTimeout(() => {
             setIsExporting(false);
             setExportProgress(0);
             onExport?.(settings);

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   FilmIcon,
   MusicalNoteIcon,
@@ -41,19 +41,7 @@ interface TimelineProps {
   onZoomChange?: (zoom: number) => void;
 }
 
-// Mock clips for demonstration
-const MOCK_CLIPS: TimelineClip[] = [
-  { id: 'clip-1', type: 'video', name: 'Intro Scene', startTime: 0, duration: 5, trackIndex: 0, color: '#6366f1' },
-  { id: 'clip-2', type: 'video', name: 'Main Content', startTime: 5, duration: 15, trackIndex: 0, color: '#8b5cf6' },
-  { id: 'clip-3', type: 'video', name: 'Outro', startTime: 20, duration: 5, trackIndex: 0, color: '#a855f7' },
-  { id: 'clip-4', type: 'video', name: 'B-Roll 1', startTime: 8, duration: 4, trackIndex: 1, color: '#22c55e' },
-  { id: 'clip-5', type: 'video', name: 'B-Roll 2', startTime: 15, duration: 3, trackIndex: 1, color: '#16a34a' },
-  { id: 'clip-6', type: 'audio', name: 'Background Music', startTime: 0, duration: 25, trackIndex: 2, color: '#f59e0b' },
-  { id: 'clip-7', type: 'audio', name: 'Voiceover', startTime: 2, duration: 18, trackIndex: 3, color: '#ef4444' },
-  { id: 'clip-8', type: 'text', name: 'Title Card', startTime: 0, duration: 3, trackIndex: 4, color: '#0ea5e9' },
-  { id: 'clip-9', type: 'text', name: 'Lower Third', startTime: 10, duration: 5, trackIndex: 4, color: '#06b6d4' },
-  { id: 'clip-10', type: 'text', name: 'CTA', startTime: 22, duration: 3, trackIndex: 4, color: '#0284c7' },
-];
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const Timeline: React.FC<TimelineProps> = ({
   tracks: initialTracks,
@@ -70,13 +58,41 @@ export const Timeline: React.FC<TimelineProps> = ({
   const pixelsPerSecond = 40 * zoom;
   const totalWidth = duration * pixelsPerSecond;
 
-  // Use mock tracks with demo clips
+  // State for fetching clips
+  const [clips, setClips] = useState<TimelineClip[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch clips from API
+  useEffect(() => {
+    const fetchClips = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/timeline/clips`);
+        if (!response.ok) {
+          throw new Error(response.status.toString());
+        }
+        const data = await response.json();
+        setClips(data);
+        setError(null);
+      } catch (err) {
+        setError('Data source not configured. Please configure timeline clips in the backend.');
+        setClips([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClips();
+  }, []);
+
+  // Build tracks from fetched clips
   const tracks: TimelineTrack[] = [
     {
       id: 'video-1',
       name: 'Video Track 1',
       type: 'video',
-      clips: MOCK_CLIPS.filter(c => c.trackIndex === 0),
+      clips: clips.filter(c => c.trackIndex === 0),
       visible: true,
       locked: false,
     },
@@ -84,7 +100,7 @@ export const Timeline: React.FC<TimelineProps> = ({
       id: 'video-2',
       name: 'Video Track 2',
       type: 'video',
-      clips: MOCK_CLIPS.filter(c => c.trackIndex === 1),
+      clips: clips.filter(c => c.trackIndex === 1),
       visible: true,
       locked: false,
     },
@@ -92,7 +108,7 @@ export const Timeline: React.FC<TimelineProps> = ({
       id: 'audio-1',
       name: 'Music',
       type: 'audio',
-      clips: MOCK_CLIPS.filter(c => c.trackIndex === 2),
+      clips: clips.filter(c => c.trackIndex === 2),
       muted: false,
       locked: false,
     },
@@ -100,7 +116,7 @@ export const Timeline: React.FC<TimelineProps> = ({
       id: 'audio-2',
       name: 'Voiceover',
       type: 'audio',
-      clips: MOCK_CLIPS.filter(c => c.trackIndex === 3),
+      clips: clips.filter(c => c.trackIndex === 3),
       muted: false,
       locked: false,
     },
@@ -108,7 +124,7 @@ export const Timeline: React.FC<TimelineProps> = ({
       id: 'text-1',
       name: 'Text / Captions',
       type: 'text',
-      clips: MOCK_CLIPS.filter(c => c.trackIndex === 4),
+      clips: clips.filter(c => c.trackIndex === 4),
       visible: true,
       locked: false,
     },
@@ -145,6 +161,35 @@ export const Timeline: React.FC<TimelineProps> = ({
         return <FilmIcon className="w-4 h-4 text-zinc-400" />;
     }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full bg-zinc-900 items-center justify-center">
+        <div className="text-zinc-400 text-sm">Loading timeline...</div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex flex-col h-full bg-zinc-900 items-center justify-center">
+        <div className="text-red-400 text-sm mb-2">Error loading timeline</div>
+        <div className="text-zinc-500 text-xs">{error}</div>
+      </div>
+    );
+  }
+
+  // Show empty state
+  if (clips.length === 0) {
+    return (
+      <div className="flex flex-col h-full bg-zinc-900 items-center justify-center">
+        <div className="text-zinc-400 text-sm">No clips available</div>
+        <div className="text-zinc-500 text-xs mt-1">Add clips to your timeline to get started</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-zinc-900">

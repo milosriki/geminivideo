@@ -1,6 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { UploadIcon, VideoIcon, ImageIcon, CheckIcon } from '../icons';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface CreativeStepProps {
   data: {
@@ -37,14 +39,11 @@ const HOOK_STYLES = [
   { value: 'direct', label: 'Direct Promise' },
 ];
 
-const MOCK_AVATARS = [
-  { id: 'avatar-1', name: 'Sarah', thumbnail: '👩‍💼' },
-  { id: 'avatar-2', name: 'Mike', thumbnail: '👨‍💻' },
-  { id: 'avatar-3', name: 'Emma', thumbnail: '👩‍🎨' },
-  { id: 'avatar-4', name: 'James', thumbnail: '👨‍🔬' },
-  { id: 'avatar-5', name: 'Lisa', thumbnail: '👩‍🏫' },
-  { id: 'avatar-6', name: 'David', thumbnail: '👨‍🎤' },
-];
+interface Avatar {
+  id: string;
+  name: string;
+  thumbnail: string;
+}
 
 export const CreativeStep: React.FC<CreativeStepProps> = ({
   data,
@@ -53,6 +52,32 @@ export const CreativeStep: React.FC<CreativeStepProps> = ({
   onBack,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [avatars, setAvatars] = useState<Avatar[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch avatars from API
+  useEffect(() => {
+    const fetchAvatars = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/avatars`);
+        if (!response.ok) {
+          throw new Error(response.status.toString());
+        }
+        const data = await response.json();
+        setAvatars(data);
+        setError(null);
+      } catch (err) {
+        setError('Data source not configured. Please configure avatars in the backend.');
+        setAvatars([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAvatars();
+  }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -249,8 +274,15 @@ export const CreativeStep: React.FC<CreativeStepProps> = ({
         <label className="block text-sm font-medium text-zinc-300 mb-3">
           Select AI Avatar
         </label>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-          {MOCK_AVATARS.map((avatar) => (
+        {loading ? (
+          <div className="text-zinc-500 text-sm py-4">Loading avatars...</div>
+        ) : error ? (
+          <div className="text-red-400 text-sm py-4">{error}</div>
+        ) : avatars.length === 0 ? (
+          <div className="text-zinc-500 text-sm py-4">No avatars available</div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+            {avatars.map((avatar) => (
             <button
               key={avatar.id}
               onClick={() => onUpdate({ selectedAvatar: avatar.id })}
@@ -268,8 +300,9 @@ export const CreativeStep: React.FC<CreativeStepProps> = ({
                 </div>
               )}
             </button>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Navigation Buttons */}
