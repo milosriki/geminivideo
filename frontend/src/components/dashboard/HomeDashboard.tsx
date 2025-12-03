@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDashboardMetrics, getAssets } from '@/services/api';
+import { getDashboardMetrics, getAssets, getCredits } from '@/services/api';
 import { BentoCard } from '@/components/radiant/bento-card';
 import { AnimatedNumber } from '@/components/radiant/animated-number';
 import { PerformanceChart } from './PerformanceChart';
@@ -21,10 +21,11 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
     activeCampaigns: 0,
     videosGenerated: 0,
     roasAverage: 0,
-    aiCredits: 8500, // Still mocked as no endpoint yet
+    aiCredits: 0,
     aiCreditsTotal: 10000,
   });
   const [loading, setLoading] = useState(true);
+  const [creditsLoading, setCreditsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -38,13 +39,12 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         // Assuming assets is an array for now based on api.ts
         const assetCount = Array.isArray(assets) ? assets.length : (assets.total || 0);
 
-        setMetrics({
+        setMetrics(prev => ({
+          ...prev,
           activeCampaigns: 5, // Placeholder until we have campaigns endpoint
           videosGenerated: assetCount,
           roasAverage: dashboardMetrics.totals?.roas || 0,
-          aiCredits: 8500,
-          aiCreditsTotal: 10000,
-        });
+        }));
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       } finally {
@@ -53,6 +53,32 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
     };
 
     fetchData();
+  }, []);
+
+  // Fetch AI credits separately
+  useEffect(() => {
+    const fetchCredits = async () => {
+      try {
+        const creditsData = await getCredits();
+        setMetrics(prev => ({
+          ...prev,
+          aiCredits: creditsData.remaining || creditsData.credits || 0,
+          aiCreditsTotal: creditsData.total || creditsData.limit || 10000,
+        }));
+      } catch (error) {
+        console.error('Failed to fetch credits:', error);
+        // Fallback to default values on error
+        setMetrics(prev => ({
+          ...prev,
+          aiCredits: 8500,
+          aiCreditsTotal: 10000,
+        }));
+      } finally {
+        setCreditsLoading(false);
+      }
+    };
+
+    fetchCredits();
   }, []);
 
   const navigate = React.useMemo(() => {
@@ -167,8 +193,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <BentoCard
           dark
           eyebrow="AI Credits"
-          title={loading ? <span className="animate-pulse">...</span> : <AnimatedNumber value={metrics.aiCredits} />}
-          description={`${Math.round((metrics.aiCredits / metrics.aiCreditsTotal) * 100)}% remaining`}
+          title={creditsLoading ? <span className="animate-pulse">...</span> : <AnimatedNumber value={metrics.aiCredits} />}
+          description={creditsLoading ? 'Loading...' : `${Math.round((metrics.aiCredits / metrics.aiCreditsTotal) * 100)}% remaining`}
           graphic={
             <div className="absolute inset-0 flex items-center justify-center opacity-20">
               <svg className="w-32 h-32 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -202,17 +228,25 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             <span className="text-white font-medium">AI Credits Usage</span>
           </div>
           <span className="text-zinc-400 text-sm">
-            {metrics.aiCredits.toLocaleString()} / {metrics.aiCreditsTotal.toLocaleString()} credits
+            {creditsLoading ? (
+              <span className="animate-pulse">Loading...</span>
+            ) : (
+              `${metrics.aiCredits.toLocaleString()} / ${metrics.aiCreditsTotal.toLocaleString()} credits`
+            )}
           </span>
         </div>
         <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000"
-            style={{ width: `${(metrics.aiCredits / metrics.aiCreditsTotal) * 100}%` }}
+            className={`h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000 ${creditsLoading ? 'animate-pulse' : ''}`}
+            style={{ width: creditsLoading ? '100%' : `${(metrics.aiCredits / metrics.aiCreditsTotal) * 100}%` }}
           />
         </div>
         <p className="text-zinc-500 text-sm mt-2">
-          {Math.round((metrics.aiCredits / metrics.aiCreditsTotal) * 100)}% of your monthly credits remaining. Resets in 12 days.
+          {creditsLoading ? (
+            <span className="animate-pulse">Loading credits information...</span>
+          ) : (
+            `${Math.round((metrics.aiCredits / metrics.aiCreditsTotal) * 100)}% of your monthly credits remaining. Resets in 12 days.`
+          )}
         </p>
       </div>
 

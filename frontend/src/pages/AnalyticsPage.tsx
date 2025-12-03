@@ -118,14 +118,17 @@ export function AnalyticsPage() {
   const [metric, setMetric] = useState('all')
   const [chartData, setChartData] = useState<ChartDataPoint[]>([])
   const [campaignData, setCampaignData] = useState<CampaignData[]>([])
+  const [kpis, setKpis] = useState<KPICardProps[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        const [chartRes, campaignRes] = await Promise.all([
+        setLoading(true)
+        const [chartRes, campaignRes, kpiRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/analytics/chart?range=${dateRange}`),
-          fetch(`${API_BASE_URL}/api/campaigns`)
+          fetch(`${API_BASE_URL}/api/campaigns`),
+          fetch(`${API_BASE_URL}/api/kpis?range=${dateRange}`)
         ])
 
         if (chartRes.ok) {
@@ -137,6 +140,50 @@ export function AnalyticsPage() {
           const data = await campaignRes.json()
           setCampaignData(data.campaigns || [])
         }
+
+        if (kpiRes.ok) {
+          const data = await kpiRes.json()
+          // Transform API response to match KPICardProps format
+          const transformedKpis: KPICardProps[] = [
+            {
+              title: 'Total Revenue',
+              value: data.revenue > 0 ? `AED ${data.revenue.toLocaleString()}` : 'No data',
+              change: data.revenueChange || 0,
+              trend: (data.revenueChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'Total Spend',
+              value: data.spend > 0 ? `AED ${data.spend.toLocaleString()}` : 'No data',
+              change: data.spendChange || 0,
+              trend: (data.spendChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'ROAS',
+              value: data.roas > 0 ? `${data.roas.toFixed(1)}x` : 'No data',
+              change: data.roasChange || 0,
+              trend: (data.roasChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'Conversions',
+              value: data.conversions > 0 ? data.conversions.toString() : 'No data',
+              change: data.conversionsChange || 0,
+              trend: (data.conversionsChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'CTR',
+              value: data.ctr > 0 ? `${data.ctr.toFixed(1)}%` : 'No data',
+              change: data.ctrChange || 0,
+              trend: (data.ctrChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'CPA',
+              value: data.cpa > 0 ? `AED ${data.cpa.toFixed(0)}` : 'No data',
+              change: data.cpaChange || 0,
+              trend: (data.cpaChange || 0) >= 0 ? 'up' : 'down'
+            }
+          ]
+          setKpis(transformedKpis)
+        }
       } catch (err) {
         console.error('Failed to fetch analytics:', err)
       } finally {
@@ -146,15 +193,6 @@ export function AnalyticsPage() {
 
     fetchAnalytics()
   }, [dateRange])
-
-  const kpis = [
-    { title: 'Total Revenue', value: 'AED 38,250', change: 12, trend: 'up' as const },
-    { title: 'Total Spend', value: 'AED 8,500', change: 8, trend: 'up' as const },
-    { title: 'ROAS', value: '4.5x', change: 15, trend: 'up' as const },
-    { title: 'Conversions', value: '127', change: 22, trend: 'up' as const },
-    { title: 'CTR', value: '2.1%', change: -3, trend: 'down' as const },
-    { title: 'CPA', value: 'AED 67', change: -8, trend: 'up' as const },
-  ]
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -180,16 +218,36 @@ export function AnalyticsPage() {
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {kpis.map((kpi, index) => (
-          <motion.div
-            key={kpi.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-          >
-            <KPICard {...kpi} />
-          </motion.div>
-        ))}
+        {loading ? (
+          // Loading state
+          Array.from({ length: 6 }).map((_, index) => (
+            <div
+              key={index}
+              className="rounded-xl bg-zinc-900 border border-zinc-800 p-6 animate-pulse"
+            >
+              <div className="h-4 bg-zinc-800 rounded w-24 mb-4"></div>
+              <div className="h-8 bg-zinc-800 rounded w-32 mb-4"></div>
+              <div className="h-10 bg-zinc-800 rounded"></div>
+            </div>
+          ))
+        ) : kpis.length > 0 ? (
+          // KPIs loaded
+          kpis.map((kpi, index) => (
+            <motion.div
+              key={kpi.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+            >
+              <KPICard {...kpi} />
+            </motion.div>
+          ))
+        ) : (
+          // No data state
+          <div className="col-span-full text-center py-12">
+            <Text className="text-zinc-500">No KPI data available</Text>
+          </div>
+        )}
       </div>
 
       {/* Main Charts */}

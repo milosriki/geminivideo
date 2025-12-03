@@ -35,6 +35,7 @@
  */
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
@@ -60,6 +61,27 @@ const PORT = process.env.PORT || 8000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply to all API routes
+app.use('/api/', apiLimiter);
+
+// Stricter limit for expensive operations
+const heavyLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute
+  message: { error: 'Rate limit exceeded for this operation.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Redis client for async queues and caching
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -97,9 +119,82 @@ const pgPool = new Pool({
 });
 pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
 
-// Verify database connection
+// Verify database connection and initialize jobs table
 pgPool.query('SELECT NOW()')
-  .then(() => console.log('✅ PostgreSQL connected'))
+  .then(async () => {
+    console.log('✅ PostgreSQL connected');
+
+    // Create jobs table if it doesn't exist
+    const createJobsTableQuery = `
+      CREATE TABLE IF NOT EXISTS jobs (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL CHECK (type IN ('video', 'image', 'script', 'analysis')),
+        name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+        progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+    await pgPool.query(createJobsTableQuery);
+    console.log('✅ Jobs table initialized');
+
+    // Create AI credits tables if they don't exist
+    const createCreditsTablesQuery = `
+      CREATE TABLE IF NOT EXISTS ai_credits (
+        user_id VARCHAR(255) PRIMARY KEY,
+        total_credits INTEGER NOT NULL DEFAULT 10000,
+        used_credits INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ai_credit_usage (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        credits_used INTEGER NOT NULL,
+        operation VARCHAR(100) NOT NULL,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_credit_usage_user ON ai_credit_usage(user_id);
+      CREATE INDEX IF NOT EXISTS idx_credit_usage_created ON ai_credit_usage(created_at DESC);
+    `;
+
+    await pgPool.query(createCreditsTablesQuery);
+    console.log('✅ AI credits tables initialized');
+
+    // Initialize default user with credits if not exists
+    const initDefaultUserQuery = `
+      INSERT INTO ai_credits (user_id, total_credits, used_credits)
+      VALUES ('default_user', 10000, 1500)
+      ON CONFLICT (user_id) DO NOTHING;
+    `;
+
+    await pgPool.query(initDefaultUserQuery);
+
+    // Seed some sample usage history for the default user (only if no records exist)
+    const checkUsageQuery = 'SELECT COUNT(*) as count FROM ai_credit_usage WHERE user_id = $1';
+    const usageCount = await pgPool.query(checkUsageQuery, ['default_user']);
+
+    if (parseInt(usageCount.rows[0].count) === 0) {
+      const seedUsageQuery = `
+        INSERT INTO ai_credit_usage (user_id, credits_used, operation, metadata, created_at)
+        VALUES
+          ('default_user', 500, 'video_generation', '{"duration": 30, "quality": "hd"}', NOW() - INTERVAL '2 days'),
+          ('default_user', 300, 'video_analysis', '{"clips_analyzed": 5}', NOW() - INTERVAL '1 day'),
+          ('default_user', 200, 'script_generation', '{"variants": 3}', NOW() - INTERVAL '1 day'),
+          ('default_user', 400, 'video_generation', '{"duration": 60, "quality": "4k"}', NOW() - INTERVAL '12 hours'),
+          ('default_user', 100, 'text_analysis', '{"words": 500}', NOW() - INTERVAL '6 hours');
+      `;
+
+      await pgPool.query(seedUsageQuery);
+      console.log('✅ AI credits initialized with sample usage history');
+    } else {
+      console.log('✅ AI credits tables ready (existing data found)');
+    }
+  })
   .catch((err) => {
     console.error('❌ PostgreSQL connection failed:', err.message);
     process.exit(1);
@@ -190,7 +285,7 @@ app.get('/api/assets/:assetId/clips', async (req: Request, res: Response) => {
 });
 
 // Real AI analysis endpoint using Gemini Vision API
-app.post('/api/analyze', async (req: Request, res: Response) => {
+app.post('/api/analyze', heavyLimiter, async (req: Request, res: Response) => {
   const startTime = Date.now();
   try {
     const { video_uri } = req.body;
@@ -343,7 +438,7 @@ app.post('/api/score/storyboard', async (req: Request, res: Response) => {
 });
 
 // Proxy to video-agent service
-app.post('/api/render/remix', async (req: Request, res: Response) => {
+app.post('/api/render/remix', heavyLimiter, async (req: Request, res: Response) => {
   try {
     if (!validateServiceUrl(VIDEO_AGENT_URL)) {
       throw new Error('Invalid service URL');
@@ -361,7 +456,7 @@ app.post('/api/render/remix', async (req: Request, res: Response) => {
 });
 
 // Generation endpoint - Proxies to Titan Core
-app.post('/api/generate', async (req: Request, res: Response) => {
+app.post('/api/generate', heavyLimiter, async (req: Request, res: Response) => {
   try {
     const { assets, target_audience } = req.body;
     const TITAN_CORE_URL = process.env.TITAN_CORE_URL || 'http://localhost:8088'; // Default to 8088 based on docker-compose usually
@@ -428,7 +523,7 @@ app.post('/api/generate', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/render/story_arc', async (req: Request, res: Response) => {
+app.post('/api/render/story_arc', heavyLimiter, async (req: Request, res: Response) => {
   try {
     const { arc_name, asset_id } = req.body;
 
@@ -595,6 +690,133 @@ app.get('/api/metrics', async (req: Request, res: Response) => {
       details: `Meta publisher service is not available: ${error.message}`,
       service_url: META_PUBLISHER_URL
     });
+  }
+});
+// GET /api/kpis - KPI summary with period-over-period comparison
+app.get('/api/kpis', async (req: Request, res: Response) => {
+  try {
+    const range = req.query.range as string || '7d';
+
+    // Parse range (e.g., '7d', '30d', '90d')
+    const rangeMatch = range.match(/^(\d+)d$/);
+    if (!rangeMatch) {
+      return res.status(400).json({
+        error: 'Invalid range format. Use format like "7d", "30d", "90d"'
+      });
+    }
+
+    const days = parseInt(rangeMatch[1]);
+
+    console.log(`Fetching KPIs for range: ${days} days`);
+
+    // Query current period
+    const currentPeriodQuery = `
+      SELECT
+        COALESCE(SUM(revenue), 0) as total_revenue,
+        COALESCE(SUM(spend), 0) as total_spend,
+        COALESCE(SUM(conversions), 0) as total_conversions,
+        COALESCE(AVG(ctr), 0) as avg_ctr,
+        COALESCE(AVG(cpa), 0) as avg_cpa
+      FROM daily_analytics
+      WHERE date >= CURRENT_DATE - INTERVAL '1 day' * $1
+        AND date < CURRENT_DATE
+    `;
+
+    // Query previous period (same length, before current period)
+    const previousPeriodQuery = `
+      SELECT
+        COALESCE(SUM(revenue), 0) as total_revenue,
+        COALESCE(SUM(spend), 0) as total_spend,
+        COALESCE(SUM(conversions), 0) as total_conversions,
+        COALESCE(AVG(ctr), 0) as avg_ctr,
+        COALESCE(AVG(cpa), 0) as avg_cpa
+      FROM daily_analytics
+      WHERE date >= CURRENT_DATE - INTERVAL '1 day' * $1 * 2
+        AND date < CURRENT_DATE - INTERVAL '1 day' * $1
+    `;
+
+    const [currentResult, previousResult] = await Promise.all([
+      pgPool.query(currentPeriodQuery, [days]),
+      pgPool.query(previousPeriodQuery, [days])
+    ]);
+
+    const current = currentResult.rows[0];
+    const previous = previousResult.rows[0];
+
+    // Calculate metrics
+    const totalRevenue = parseFloat(current.total_revenue);
+    const totalSpend = parseFloat(current.total_spend);
+    const totalConversions = parseFloat(current.total_conversions);
+    const avgCtr = parseFloat(current.avg_ctr);
+    const avgCpa = parseFloat(current.avg_cpa);
+
+    const prevRevenue = parseFloat(previous.total_revenue);
+    const prevSpend = parseFloat(previous.total_spend);
+    const prevConversions = parseFloat(previous.total_conversions);
+    const prevRoas = prevSpend > 0 ? prevRevenue / prevSpend : 0;
+
+    // Calculate ROAS
+    const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
+
+    // Calculate CPA (if we have conversions)
+    const cpa = totalConversions > 0 ? totalSpend / totalConversions : avgCpa;
+
+    // Calculate percent changes
+    const revenueChange = prevRevenue > 0
+      ? Math.round(((totalRevenue - prevRevenue) / prevRevenue) * 100)
+      : 0;
+
+    const spendChange = prevSpend > 0
+      ? Math.round(((totalSpend - prevSpend) / prevSpend) * 100)
+      : 0;
+
+    const roasChange = prevRoas > 0
+      ? Math.round(((roas - prevRoas) / prevRoas) * 100)
+      : 0;
+
+    const conversionsChange = prevConversions > 0
+      ? Math.round(((totalConversions - prevConversions) / prevConversions) * 100)
+      : 0;
+
+    // Return KPIs
+    res.json({
+      kpis: {
+        total_revenue: Math.round(totalRevenue),
+        total_spend: Math.round(totalSpend),
+        roas: parseFloat(roas.toFixed(2)),
+        conversions: Math.round(totalConversions),
+        ctr: parseFloat(avgCtr.toFixed(2)),
+        cpa: Math.round(cpa),
+        revenue_change: revenueChange,
+        spend_change: spendChange,
+        roas_change: roasChange,
+        conversions_change: conversionsChange
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching KPIs:', error.message);
+
+    // If table doesn't exist or query fails, return zeros
+    if (error.message.includes('does not exist') || error.code === '42P01') {
+      console.warn('daily_analytics table does not exist, returning zeros');
+      res.json({
+        kpis: {
+          total_revenue: 0,
+          total_spend: 0,
+          roas: 0,
+          conversions: 0,
+          ctr: 0,
+          cpa: 0,
+          revenue_change: 0,
+          spend_change: 0,
+          roas_change: 0,
+          conversions_change: 0
+        }
+      });
+    } else {
+      res.status(500).json({ error: error.message });
+    }
   }
 });
 
@@ -799,6 +1021,130 @@ app.post('/api/approval/approve/:ad_id', async (req: Request, res: Response) => 
 });
 
 // ============================================================================
+// JOB QUEUE ENDPOINTS - Manage background jobs
+// ============================================================================
+
+// GET /api/jobs/pending - Return list of pending/processing jobs
+app.get('/api/jobs/pending', async (req: Request, res: Response) => {
+  try {
+    console.log('Fetching pending/processing jobs');
+
+    // Query database for jobs with pending or processing status
+    const query = `
+      SELECT
+        id,
+        type,
+        name,
+        status,
+        progress,
+        created_at
+      FROM jobs
+      WHERE status IN ('pending', 'processing')
+      ORDER BY created_at DESC
+    `;
+
+    const result = await pgPool.query(query);
+
+    console.log(`Found ${result.rows.length} pending/processing jobs`);
+
+    res.json({
+      count: result.rows.length,
+      jobs: result.rows.map(row => ({
+        id: row.id,
+        type: row.type,
+        name: row.name,
+        status: row.status,
+        progress: row.progress,
+        created_at: row.created_at
+      }))
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching pending jobs:', error.message);
+    res.status(500).json({
+      error: 'Failed to fetch pending jobs',
+      details: error.message
+    });
+  }
+});
+
+// POST /api/jobs/:id/cancel - Cancel a specific job
+app.post('/api/jobs/:id/cancel', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    console.log(`Attempting to cancel job: ${id}`);
+
+    // Check if job exists and is cancellable
+    const checkQuery = `
+      SELECT id, type, name, status
+      FROM jobs
+      WHERE id = $1
+    `;
+
+    const checkResult = await pgPool.query(checkQuery, [id]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Job not found',
+        job_id: id
+      });
+    }
+
+    const job = checkResult.rows[0];
+
+    // Check if job is already completed or failed
+    if (job.status === 'completed') {
+      return res.status(400).json({
+        error: 'Cannot cancel completed job',
+        job_id: id,
+        current_status: job.status
+      });
+    }
+
+    if (job.status === 'failed') {
+      return res.status(400).json({
+        error: 'Cannot cancel failed job',
+        job_id: id,
+        current_status: job.status
+      });
+    }
+
+    // Update job status to failed (cancelled)
+    const updateQuery = `
+      UPDATE jobs
+      SET status = 'failed',
+          progress = 0
+      WHERE id = $1
+      RETURNING *
+    `;
+
+    const updateResult = await pgPool.query(updateQuery, [id]);
+
+    console.log(`Job ${id} cancelled successfully`);
+
+    res.json({
+      message: 'Job cancelled successfully',
+      job: {
+        id: updateResult.rows[0].id,
+        type: updateResult.rows[0].type,
+        name: updateResult.rows[0].name,
+        status: updateResult.rows[0].status,
+        progress: updateResult.rows[0].progress,
+        created_at: updateResult.rows[0].created_at
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error cancelling job:', error.message);
+    res.status(500).json({
+      error: 'Failed to cancel job',
+      details: error.message
+    });
+  }
+});
+
+// ============================================================================
 // AD INTELLIGENCE ENDPOINTS - Real data from multiple sources
 // ZERO MOCK DATA - Fails loudly if not configured
 // ============================================================================
@@ -818,7 +1164,7 @@ app.get('/api/intelligence/status', (req: Request, res: Response) => {
 });
 
 // POST /api/intelligence/search - Search across all configured sources
-app.post('/api/intelligence/search', async (req: Request, res: Response) => {
+app.post('/api/intelligence/search', heavyLimiter, async (req: Request, res: Response) => {
   try {
     const { query, industry, limit } = req.body;
 
@@ -838,7 +1184,7 @@ app.post('/api/intelligence/search', async (req: Request, res: Response) => {
 });
 
 // POST /api/intelligence/inject - Inject patterns into knowledge base for immediate use
-app.post('/api/intelligence/inject', async (req: Request, res: Response) => {
+app.post('/api/intelligence/inject', heavyLimiter, async (req: Request, res: Response) => {
   try {
     const { query, industry, limit } = req.body;
 
@@ -1041,6 +1387,60 @@ app.get('/api/youtube/video/:videoId', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/campaigns - List all campaigns with performance data
+app.get('/api/campaigns', async (req: Request, res: Response) => {
+  try {
+    console.log('Fetching campaigns with performance data');
+
+    // Query campaigns and aggregate performance metrics
+    const query = `
+      SELECT
+        c.id,
+        c.name,
+        c.status,
+        c.budget_daily,
+        COALESCE(SUM(pm.spend), 0) as spend,
+        COALESCE(SUM(pm.conversions), 0) as conversions,
+        COALESCE(SUM(pm.conversions * 300), 0) as revenue,
+        CASE
+          WHEN COALESCE(SUM(pm.spend), 0) > 0
+          THEN ROUND((COALESCE(SUM(pm.conversions * 300), 0) / COALESCE(SUM(pm.spend), 0))::numeric, 2)
+          ELSE 0
+        END as roas
+      FROM campaigns c
+      LEFT JOIN videos v ON v.campaign_id = c.id
+      LEFT JOIN performance_metrics pm ON pm.video_id = v.id
+      GROUP BY c.id, c.name, c.status, c.budget_daily
+      ORDER BY c.created_at DESC
+    `;
+
+    const result = await pgPool.query(query);
+
+    console.log(`Campaigns fetched: ${result.rows.length} campaigns found`);
+
+    // Transform to expected format
+    const campaigns = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      spend: parseFloat(row.spend) || 0,
+      revenue: parseFloat(row.revenue) || 0,
+      roas: parseFloat(row.roas) || 0,
+      conversions: parseInt(row.conversions) || 0
+    }));
+
+    res.json({ campaigns });
+
+  } catch (error: any) {
+    console.error('Error fetching campaigns:', error.message);
+    res.status(500).json({
+      error: error.message,
+      campaigns: [] // Return empty array on error, not mock data
+    });
+  }
+});
+
+
 // GET /api/ads/trending - Real trending ads (NO MOCK DATA)
 app.get('/api/ads/trending', async (req: Request, res: Response) => {
   try {
@@ -1211,7 +1611,7 @@ app.post('/api/datasets/import', async (req: Request, res: Response) => {
 });
 
 // POST /api/datasets/generate-variants - Generate ad variants using HuggingFace
-app.post('/api/datasets/generate-variants', async (req: Request, res: Response) => {
+app.post('/api/datasets/generate-variants', heavyLimiter, async (req: Request, res: Response) => {
   try {
     const { prompt, count, analyze } = req.body;
 
@@ -1261,7 +1661,7 @@ app.post('/api/datasets/generate-variants', async (req: Request, res: Response) 
 });
 
 // GET /api/insights/ai - Real AI-powered insights (NO MOCK DATA)
-app.get('/api/insights/ai', async (req: Request, res: Response) => {
+app.get('/api/insights/ai', heavyLimiter, async (req: Request, res: Response) => {
   const startTime = Date.now();
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -1701,13 +2101,120 @@ app.get('/api/costs/pricing', (req: Request, res: Response) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// ============================================================================
+// ANALYTICS CHART ENDPOINT - Real performance data visualization
+// ============================================================================
+
+// GET /api/analytics/chart - Get chart data for date range
+app.get('/api/analytics/chart', async (req: Request, res: Response) => {
+  try {
+    const range = (req.query.range as string) || '7d';
+
+    console.log(`Fetching analytics chart data for range: ${range}`);
+
+    // Parse range parameter to days
+    let days: number;
+    if (range === '24h') {
+      days = 1;
+    } else if (range === '7d') {
+      days = 7;
+    } else if (range === '30d') {
+      days = 30;
+    } else if (range === '90d') {
+      days = 90;
+    } else {
+      return res.status(400).json({
+        error: 'Invalid range parameter',
+        valid_ranges: ['24h', '7d', '30d', '90d']
+      });
+    }
+
+    // Create daily_analytics table if it doesn't exist
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS daily_analytics (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL UNIQUE,
+        spend DECIMAL(10, 2) NOT NULL DEFAULT 0,
+        revenue DECIMAL(10, 2) NOT NULL DEFAULT 0,
+        impressions INTEGER NOT NULL DEFAULT 0,
+        clicks INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_daily_analytics_date ON daily_analytics(date);
+    `;
+
+    await pgPool.query(createTableQuery);
+
+    // Query analytics data for the specified range
+    const query = `
+      SELECT
+        date,
+        spend,
+        revenue,
+        impressions,
+        clicks
+      FROM daily_analytics
+      WHERE date >= CURRENT_DATE - INTERVAL '1 day' * $1
+      ORDER BY date ASC
+    `;
+
+    const result = await pgPool.query(query, [days]);
+
+    // Format data for chart
+    const chart = result.rows.map(row => {
+      const spend = parseFloat(row.spend);
+      const revenue = parseFloat(row.revenue);
+      const roas = spend > 0 ? revenue / spend : 0;
+
+      // Format date as "Nov 27"
+      const dateObj = new Date(row.date);
+      const formattedDate = dateObj.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+
+      return {
+        date: formattedDate,
+        spend: spend,
+        revenue: revenue,
+        roas: parseFloat(roas.toFixed(2)),
+        impressions: parseInt(row.impressions),
+        clicks: parseInt(row.clicks)
+      };
+    });
+
+    console.log(`Analytics chart fetched: ${chart.length} data points`);
+
+    res.json({
+      chart: chart,
+      metadata: {
+        range: range,
+        days: days,
+        data_points: chart.length,
+        fetched_at: new Date().toISOString()
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching analytics chart:', error.message);
+    res.status(500).json({
+      error: 'Failed to fetch analytics chart',
+      details: error.message,
+      chart: [] // Return empty array on error, not mock data
+    });
+  }
+});
 
 // ============================================================================
 // SMART MODEL ROUTER ENDPOINT - Cost-aware multi-model evaluation
 // ============================================================================
 
 // POST /api/evaluate - Smart evaluation with cost-aware routing
-app.post('/api/evaluate', async (req: Request, res: Response) => {
+app.post('/api/evaluate', heavyLimiter, async (req: Request, res: Response) => {
   try {
     const { content, evaluation_type, min_confidence } = req.body;
 
@@ -1799,7 +2306,265 @@ app.get('/api/evaluate/cost-report', (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// ANALYTICS PERFORMANCE ENDPOINT - Performance metrics by day
+// ============================================================================
+
+// GET /api/analytics/performance - Get performance metrics by day
+app.get('/api/analytics/performance', async (req: Request, res: Response) => {
+  try {
+    const days = parseInt(req.query.days as string) || 7;
+
+    console.log(`Fetching performance metrics for last ${days} days`);
+
+    // Ensure performance_metrics table exists
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS performance_metrics (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL,
+        spend NUMERIC(10, 2) NOT NULL DEFAULT 0,
+        revenue NUMERIC(10, 2) NOT NULL DEFAULT 0,
+        clicks INTEGER NOT NULL DEFAULT 0,
+        impressions INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(date)
+      )
+    `;
+
+    await pgPool.query(createTableQuery);
+    console.log('performance_metrics table ready');
+
+    // Query performance data for last N days
+    const query = `
+      SELECT
+        date,
+        spend,
+        revenue,
+        clicks,
+        impressions
+      FROM performance_metrics
+      WHERE date >= CURRENT_DATE - INTERVAL '1 day' * $1
+      ORDER BY date ASC
+    `;
+
+    const result = await pgPool.query(query, [days]);
+
+    // Transform data: calculate ROAS and format by day name
+    const data = result.rows.map(row => {
+      const date = new Date(row.date);
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayName = dayNames[date.getDay()];
+
+      const spend = parseFloat(row.spend);
+      const revenue = parseFloat(row.revenue);
+      const roas = spend > 0 ? revenue / spend : 0;
+
+      return {
+        day: dayName,
+        roas: parseFloat(roas.toFixed(2)),
+        spend: spend,
+        revenue: revenue,
+        clicks: parseInt(row.clicks)
+      };
+    });
+
+    console.log(`Performance data fetched: ${data.length} days`);
+
+    res.json({ data });
+
+  } catch (error: any) {
+    console.error('Error fetching performance metrics:', error.message);
+    res.status(500).json({
+      error: 'Failed to fetch performance metrics',
+      details: error.message
+    });
+  }
 });
+
+// ============================================================================
+// AI CREDITS ENDPOINTS - Track and manage AI credit usage
+// ============================================================================
+
+// GET /api/credits - Get user's AI credit balance and usage history
+app.get('/api/credits', async (req: Request, res: Response) => {
+  try {
+    // Use default user since auth isn't implemented
+    const userId = req.query.user_id as string || 'default_user';
+
+    console.log(`Fetching AI credits for user: ${userId}`);
+
+    // Get user's credit balance
+    const creditsQuery = `
+      SELECT
+        user_id,
+        total_credits,
+        used_credits,
+        (total_credits - used_credits) as available_credits,
+        created_at,
+        updated_at
+      FROM ai_credits
+      WHERE user_id = $1
+    `;
+
+    const creditsResult = await pgPool.query(creditsQuery, [userId]);
+
+    if (creditsResult.rows.length === 0) {
+      // Initialize new user with default credits
+      const initQuery = `
+        INSERT INTO ai_credits (user_id, total_credits, used_credits)
+        VALUES ($1, 10000, 0)
+        RETURNING user_id, total_credits, used_credits, (total_credits - used_credits) as available_credits, created_at, updated_at
+      `;
+
+      const initResult = await pgPool.query(initQuery, [userId]);
+      const newUser = initResult.rows[0];
+
+      return res.json({
+        credits: {
+          available: newUser.available_credits,
+          total: newUser.total_credits,
+          used: newUser.used_credits,
+          usage_history: []
+        }
+      });
+    }
+
+    const credits = creditsResult.rows[0];
+
+    // Get usage history (last 30 days)
+    const usageQuery = `
+      SELECT
+        DATE(created_at) as date,
+        SUM(credits_used) as used,
+        operation,
+        metadata
+      FROM ai_credit_usage
+      WHERE user_id = $1
+        AND created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(created_at), operation, metadata, created_at
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+
+    const usageResult = await pgPool.query(usageQuery, [userId]);
+
+    // Format usage history
+    const usageHistory = usageResult.rows.map(row => ({
+      date: row.date.toISOString().split('T')[0],
+      used: parseInt(row.used),
+      operation: row.operation,
+      ...(row.metadata && Object.keys(row.metadata).length > 0 ? row.metadata : {})
+    }));
+
+    res.json({
+      credits: {
+        available: parseInt(credits.available_credits),
+        total: parseInt(credits.total_credits),
+        used: parseInt(credits.used_credits),
+        usage_history: usageHistory
+      }
+    });
+
+    console.log(`Credits fetched successfully for user: ${userId}`);
+
+  } catch (error: any) {
+    console.error('Error fetching AI credits:', error.message);
+    res.status(500).json({
+      error: 'Failed to fetch AI credits',
+      details: error.message
+    });
+  }
+});
+
+// POST /api/credits/deduct - Deduct credits for an operation (internal use)
+app.post('/api/credits/deduct', async (req: Request, res: Response) => {
+  try {
+    const { user_id, credits, operation, metadata } = req.body;
+
+    // Validate required fields
+    if (!user_id || !credits || !operation) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['user_id', 'credits', 'operation']
+      });
+    }
+
+    console.log(`Deducting ${credits} credits for user ${user_id} (${operation})`);
+
+    // Check if user has enough credits
+    const checkQuery = `
+      SELECT total_credits, used_credits
+      FROM ai_credits
+      WHERE user_id = $1
+    `;
+
+    const checkResult = await pgPool.query(checkQuery, [user_id]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'User not found',
+        user_id
+      });
+    }
+
+    const currentCredits = checkResult.rows[0];
+    const available = currentCredits.total_credits - currentCredits.used_credits;
+
+    if (available < credits) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        available,
+        requested: credits
+      });
+    }
+
+    // Deduct credits
+    const deductQuery = `
+      UPDATE ai_credits
+      SET used_credits = used_credits + $1,
+          updated_at = NOW()
+      WHERE user_id = $2
+      RETURNING total_credits, used_credits, (total_credits - used_credits) as available_credits
+    `;
+
+    const deductResult = await pgPool.query(deductQuery, [credits, user_id]);
+
+    // Log usage
+    const logQuery = `
+      INSERT INTO ai_credit_usage (user_id, credits_used, operation, metadata, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      RETURNING id, created_at
+    `;
+
+    await pgPool.query(logQuery, [
+      user_id,
+      credits,
+      operation,
+      metadata ? JSON.stringify(metadata) : '{}'
+    ]);
+
+    const updatedCredits = deductResult.rows[0];
+
+    res.json({
+      message: 'Credits deducted successfully',
+      credits: {
+        available: parseInt(updatedCredits.available_credits),
+        total: parseInt(updatedCredits.total_credits),
+        used: parseInt(updatedCredits.used_credits)
+      }
+    });
+
+    console.log(`Credits deducted: ${credits} from user ${user_id}. New balance: ${updatedCredits.available_credits}`);
+
+  } catch (error: any) {
+    console.error('Error deducting credits:', error.message);
+    res.status(500).json({
+      error: 'Failed to deduct credits',
+      details: error.message
+    });
+  }
+});
+
 
 // Health check
 app.get('/health', async (req: Request, res: Response) => {
