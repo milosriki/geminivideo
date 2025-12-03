@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 
 const baseStyles = {
@@ -35,29 +35,29 @@ type ButtonProps = (
     }
 ) &
   (
-    | Omit<React.ComponentPropsWithoutRef<typeof Link>, 'color'>
+    | (Omit<React.ComponentPropsWithoutRef<'a'>, 'color'> & { href: string })
     | (Omit<React.ComponentPropsWithoutRef<'button'>, 'color'> & {
         href?: undefined
       })
   )
 
 export function Button({ className, ...props }: ButtonProps) {
-  props.variant ??= 'solid'
-  props.color ??= 'slate'
+  const variant = props.variant ?? 'solid'
+  const color = props.color ?? 'slate'
 
-  className = clsx(
-    baseStyles[props.variant],
-    props.variant === 'outline'
-      ? variantStyles.outline[props.color]
-      : props.variant === 'solid'
-        ? variantStyles.solid[props.color]
-        : undefined,
+  const combinedClassName = clsx(
+    baseStyles[variant],
+    variant === 'outline'
+      ? variantStyles.outline[color as keyof typeof variantStyles.outline]
+      : variantStyles.solid[color as keyof typeof variantStyles.solid],
     className,
   )
 
-  return typeof props.href === 'undefined' ? (
-    <button className={className} {...props} />
-  ) : (
-    <Link className={className} {...props} />
-  )
+  if (typeof props.href === 'undefined') {
+    const { variant: _, color: __, ...buttonProps } = props as typeof props & { variant?: string; color?: string }
+    return <button className={combinedClassName} {...buttonProps as React.ComponentPropsWithoutRef<'button'>} />
+  }
+
+  const { href, variant: _, color: __, ...linkProps } = props as typeof props & { href: string; variant?: string; color?: string }
+  return <Link to={href} className={combinedClassName} {...linkProps as Omit<React.ComponentPropsWithoutRef<'a'>, 'href'>} />
 }

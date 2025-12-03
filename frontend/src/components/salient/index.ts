@@ -1,19 +1,9 @@
-// Salient Components - Tailwind Plus
-// https://tailwindcss.com/plus/templates/salient
-// SaaS landing page components
-
-export * from './Button'
-export * from './CallToAction'
-export * from './Container'
-export * from './Faqs'
-export * from './Fields'
-export * from './Footer'
-export * from './Header'
-export * from './Hero'
-export * from './Logo'
-export * from './NavLink'
-export * from './Pricing'
-export * from './PrimaryFeatures'
-export * from './SecondaryFeatures'
-export * from './SlimLayout'
-export * from './Testimonials'
+// Salient Template Components - Vite/React Compatible
+export { Button } from './Button'
+export { Container } from './Container'
+export { TextField, SelectField } from './Fields'
+export { Header } from './Header'
+export { Hero } from './Hero'
+export { Logo } from './Logo'
+export { NavLink } from './NavLink'
+export { SlimLayout } from './SlimLayout'

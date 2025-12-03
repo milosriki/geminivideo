@@ -1,14 +1,20 @@
-"use client";
-
-import { PlayIcon } from "@/icons/play-icon";
 import { clsx } from "clsx";
 import type React from "react";
 import { useEffect, useRef } from "react";
 
+// Play icon component
+function PlayIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
 function formatTime(seconds: number): string {
-  let h = Math.floor(seconds / 3600);
-  let m = Math.floor((seconds % 3600) / 60);
-  let s = Math.floor(seconds % 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
 
   return h > 0
     ? `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
@@ -16,13 +22,13 @@ function formatTime(seconds: number): string {
 }
 
 export function Video({ className, ...props }: React.ComponentProps<"video">) {
-  let videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let videoContainer = videoContainerRef.current;
+    const videoContainer = videoContainerRef.current;
     if (!videoContainer) return;
 
-    let observer = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) {
           videoContainer.setAttribute("data-offscreen", "");
@@ -61,7 +67,7 @@ export function Video({ className, ...props }: React.ComponentProps<"video">) {
         }}
         className={clsx(
           "aspect-video w-full rounded-2xl",
-          "sm:group-data-offscreen:data-playing:fixed sm:group-data-offscreen:data-playing:right-4 sm:group-data-offscreen:data-playing:bottom-4 sm:group-data-offscreen:data-playing:z-10 sm:group-data-offscreen:data-playing:max-w-md sm:group-data-offscreen:data-playing:rounded-xl sm:group-data-offscreen:data-playing:shadow-lg",
+          "sm:data-[offscreen]:data-[playing]:fixed sm:data-[offscreen]:data-[playing]:right-4 sm:data-[offscreen]:data-[playing]:bottom-4 sm:data-[offscreen]:data-[playing]:z-10 sm:data-[offscreen]:data-[playing]:max-w-md sm:data-[offscreen]:data-[playing]:rounded-xl sm:data-[offscreen]:data-[playing]:shadow-lg",
         )}
       />
     </div>
@@ -79,8 +85,9 @@ export function TimestampButton({
 }) {
   return (
     <button
+      type="button"
       onClick={() => {
-        let video = document.getElementById(videoId) as HTMLVideoElement;
+        const video = document.getElementById(videoId) as HTMLVideoElement;
         if (video) {
           video.currentTime = start;
           video.play();
@@ -88,10 +95,10 @@ export function TimestampButton({
       }}
       className={clsx(
         className,
-        "inline-flex items-center gap-x-2 rounded-md bg-gray-950/5 px-1.5 font-mono text-xs/6 text-gray-700 hover:bg-gray-950/10 dark:bg-white/5 dark:text-gray-400",
+        "inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-blue-500/20 dark:bg-blue-400/10 dark:text-blue-400 dark:hover:bg-blue-400/20",
       )}
     >
-      <PlayIcon className="fill-gray-950 dark:fill-white" />
+      <PlayIcon className="size-3" />
       {formatTime(start)}
     </button>
   );
