@@ -18,6 +18,10 @@ import { Badge } from '@/components/catalyst/badge'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
 import { VideoCard } from '@/components/compass/video-card'
+import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/catalyst/dialog'
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert'
+import { Pagination, PaginationPrevious, PaginationNext, PaginationList, PaginationPage, PaginationGap } from '@/components/catalyst/pagination'
+import { IconButton } from '@/components/compass/icon-button'
 
 
 
@@ -28,6 +32,10 @@ export function AssetsPage() {
   const [search, setSearch] = useState('')
   const [assets, setAssets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedAsset, setSelectedAsset] = useState<any>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [assetToDelete, setAssetToDelete] = useState<any>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -86,19 +94,17 @@ export function AssetsPage() {
             <FunnelIcon className="h-4 w-4" />
             More Filters
           </Button>
-          <div className="flex border border-zinc-800 rounded-lg overflow-hidden">
-            <button
+          <div className="flex gap-1">
+            <IconButton
               onClick={() => setView('grid')}
-              className={`p-2 ${view === 'grid' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
-            >
-              <Squares2X2Icon className="h-5 w-5" />
-            </button>
-            <button
+              variant={view === 'grid' ? 'solid' : 'ghost'}
+              icon={Squares2X2Icon}
+            />
+            <IconButton
               onClick={() => setView('list')}
-              className={`p-2 ${view === 'list' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
-            >
-              <ListBulletIcon className="h-5 w-5" />
-            </button>
+              variant={view === 'list' ? 'solid' : 'ghost'}
+              icon={ListBulletIcon}
+            />
           </div>
         </div>
       </div>
@@ -131,6 +137,42 @@ export function AssetsPage() {
           ))}
         </div>
       )}
+
+      {/* Pagination */}
+      <Pagination className="mt-8">
+        <PaginationPrevious href={currentPage > 1 ? '#' : null} />
+        <PaginationList>
+          <PaginationPage href="#" current={currentPage === 1}>1</PaginationPage>
+          <PaginationPage href="#">2</PaginationPage>
+          <PaginationPage href="#">3</PaginationPage>
+        </PaginationList>
+        <PaginationNext href="#" />
+      </Pagination>
+
+      {/* Asset Detail Dialog */}
+      <Dialog open={isDetailOpen} onClose={() => setIsDetailOpen(false)} size="2xl">
+        <DialogTitle>{selectedAsset?.filename || 'Asset Details'}</DialogTitle>
+        <DialogDescription>View and manage this video asset.</DialogDescription>
+        <DialogBody>
+          <div className="aspect-video bg-black rounded-lg">
+            <video src={selectedAsset?.url} controls className="w-full h-full" />
+          </div>
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setIsDetailOpen(false)}>Close</Button>
+          <Button color="violet">Edit in Studio</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Alert */}
+      <Alert open={assetToDelete !== null} onClose={() => setAssetToDelete(null)}>
+        <AlertTitle>Delete Asset</AlertTitle>
+        <AlertDescription>Are you sure? This cannot be undone.</AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setAssetToDelete(null)}>Cancel</Button>
+          <Button color="red">Delete</Button>
+        </AlertActions>
+      </Alert>
     </div>
   )
 }

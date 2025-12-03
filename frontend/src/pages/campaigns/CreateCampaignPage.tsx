@@ -18,7 +18,24 @@ import { Radio, RadioField, RadioGroup } from '@/components/catalyst/radio'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
 import { Badge } from '@/components/catalyst/badge'
+import { Listbox, ListboxOption, ListboxLabel, ListboxDescription } from '@/components/catalyst/listbox'
 import { useCampaignStore } from '@/stores'
+
+// Campaign objectives data
+const objectives = [
+  { id: 'conversions', name: 'Conversions', description: 'Drive leads & sales', reach: 'High intent audience' },
+  { id: 'traffic', name: 'Traffic', description: 'Send visitors to your site', reach: 'Broad audience' },
+  { id: 'awareness', name: 'Awareness', description: 'Reach new audiences', reach: 'Maximum reach' },
+]
+
+// Target audiences data
+const audiences = [
+  { id: 'executives', name: 'Executives 40+ in Dubai', description: 'High-income professionals', reach: '50K-100K' },
+  { id: 'professionals', name: 'Professionals 30-50', description: 'Career-focused adults', reach: '200K-500K' },
+  { id: 'women', name: 'Women seeking transformation', description: 'Health & fitness focused', reach: '150K-300K' },
+  { id: 'men', name: 'Men seeking transformation', description: 'Fitness & performance focused', reach: '180K-350K' },
+  { id: 'custom', name: 'Custom Audience', description: 'Build your own targeting', reach: 'Variable' },
+]
 
 // Step Indicator Component
 function WizardProgress({ currentStep, steps }: { currentStep: number; steps: string[] }) {
@@ -88,15 +105,17 @@ function SetupStep() {
 
         <Field>
           <Label>Objective</Label>
-          <Select
-            value={wizard.objective}
-            onChange={(e) => updateWizard({ objective: e.target.value })}
+          <Listbox
+            value={objectives.find(obj => obj.id === wizard.objective) || null}
+            onChange={(selected) => updateWizard({ objective: selected?.id || '' })}
           >
-            <option value="">Select objective...</option>
-            <option value="conversions">Conversions - Drive leads & sales</option>
-            <option value="traffic">Traffic - Send visitors to your site</option>
-            <option value="awareness">Awareness - Reach new audiences</option>
-          </Select>
+            {objectives.map((objective) => (
+              <ListboxOption key={objective.id} value={objective}>
+                <ListboxLabel>{objective.name}</ListboxLabel>
+                <ListboxDescription>{objective.description} - {objective.reach}</ListboxDescription>
+              </ListboxOption>
+            ))}
+          </Listbox>
         </Field>
 
         <Field>
@@ -133,17 +152,17 @@ function SetupStep() {
 
         <Field>
           <Label>Target Audience</Label>
-          <Select
-            value={wizard.targetAudience}
-            onChange={(e) => updateWizard({ targetAudience: e.target.value })}
+          <Listbox
+            value={audiences.find(aud => aud.id === wizard.targetAudience) || null}
+            onChange={(selected) => updateWizard({ targetAudience: selected?.id || '' })}
           >
-            <option value="">Select audience...</option>
-            <option value="executives">Executives 40+ in Dubai</option>
-            <option value="professionals">Professionals 30-50</option>
-            <option value="women">Women seeking transformation</option>
-            <option value="men">Men seeking transformation</option>
-            <option value="custom">Custom Audience</option>
-          </Select>
+            {audiences.map((audience) => (
+              <ListboxOption key={audience.id} value={audience}>
+                <ListboxLabel>{audience.name}</ListboxLabel>
+                <ListboxDescription>{audience.description} - {audience.reach}</ListboxDescription>
+              </ListboxOption>
+            ))}
+          </Listbox>
         </Field>
       </Fieldset>
     </motion.div>

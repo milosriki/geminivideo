@@ -15,6 +15,16 @@ import { Input } from '@/components/catalyst/input'
 import { Badge } from '@/components/catalyst/badge'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
+import { Combobox, ComboboxOption, ComboboxLabel, ComboboxDescription } from '@/components/catalyst/combobox'
+import { Link } from '@/components/catalyst/link'
+
+const brands = [
+  { id: '1', name: 'Competitor A', industry: 'Fitness & Wellness', adsCount: 247 },
+  { id: '2', name: 'Competitor B', industry: 'Personal Training', adsCount: 189 },
+  { id: '3', name: 'Competitor C', industry: 'Health & Nutrition', adsCount: 342 },
+  { id: '4', name: 'Competitor D', industry: 'Fitness Equipment', adsCount: 156 },
+  { id: '5', name: 'Competitor E', industry: 'Weight Loss Programs', adsCount: 428 },
+]
 
 const trendingAds = [
   { id: '1', brand: 'Competitor A', title: 'Weight Loss Success', views: '2.4M', engagement: '8.2%', platform: 'Meta' },
@@ -54,7 +64,7 @@ function TrendingAdCard({ ad }: { ad: typeof trendingAds[0] }) {
 }
 
 export function AdSpyPage() {
-  const [search, setSearch] = useState('')
+  const [selectedBrand, setSelectedBrand] = useState<typeof brands[0] | null>(null)
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -65,14 +75,19 @@ export function AdSpyPage() {
 
       {/* Search Bar */}
       <div className="flex gap-4">
-        <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by brand, keyword, or URL..."
-            className="pl-10"
-          />
+        <div className="flex-1">
+          <Combobox
+            value={selectedBrand}
+            onChange={setSelectedBrand}
+            placeholder="Search brands, keywords..."
+          >
+            {brands.map((brand) => (
+              <ComboboxOption key={brand.id} value={brand}>
+                <ComboboxLabel>{brand.name}</ComboboxLabel>
+                <ComboboxDescription>{brand.industry} - {brand.adsCount} ads</ComboboxDescription>
+              </ComboboxOption>
+            ))}
+          </Combobox>
         </div>
         <Button color="violet">Search</Button>
       </div>
@@ -81,7 +96,7 @@ export function AdSpyPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <Heading level={2} className="text-white">Trending in Fitness</Heading>
-          <Button plain className="text-violet-400">View All</Button>
+          <Link href="#" className="text-violet-400">View All</Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {trendingAds.map((ad, index) => (
