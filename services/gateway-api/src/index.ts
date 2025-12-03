@@ -1054,8 +1054,8 @@ app.get('/api/jobs/pending', async (req: Request, res: Response) => {
         type: row.type,
         name: row.name,
         status: row.status,
-        progress: row.progress,
-        created_at: row.created_at
+        progress: row.progress || 0,
+        createdAt: row.created_at ? new Date(row.created_at).toLocaleString() : 'Just now'
       }))
     });
 
