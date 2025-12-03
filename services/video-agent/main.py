@@ -161,17 +161,22 @@ async def render_remix(
         )
         render_jobs[job_id] = job
         
-        # Start rendering in background
-        background_tasks.add_task(
-            _process_render_job,
-            job_id,
-            request
-        )
+        # Enqueue job to Redis
+        import redis
+        redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
+        
+        job_payload = {
+            "job_id": job_id,
+            "request": request.dict(),
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        redis_client.rpush("render_queue", json.dumps(job_payload))
         
         return {
             "job_id": job_id,
-            "status": "pending",
-            "message": "Render job queued"
+            "status": "queued",
+            "message": "Render job queued for worker"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -273,6 +278,71 @@ async def _process_render_job(job_id: str, request: RemixRequest):
         job.status = RenderStatus.FAILED
         job.error = str(e)
         job.updated_at = datetime.utcnow()
+
+
+@app.post('/generate/batch')
+async def generate_batch(request: dict, background_tasks: BackgroundTasks):
+    """
+    Generate multiple ad variants from a single creative brief
+    Returns job IDs for all variants
+    """
+    try:
+        # Import variant generator
+        from src.variant_generator import variant_generator
+        
+        # Extract base creative data
+        base_creative = {
+            "id": str(uuid.uuid4()),
+            "product_name": request.get("product_name"),
+            "pain_point": request.get("pain_points", [""])[0] if request.get("pain_points") else "challenges",
+            "benefit": request.get("desires", [""])[0] if request.get("desires") else "better results",
+            "target_avatar": request.get("target_avatar", "customers"),
+            "hook": request.get("hook", "Discover something amazing"),
+            "cta": request.get("cta", "Learn More"),
+            "cta_type": request.get("cta_type", "learn_more"),
+            "avatar_id": request.get("avatar_id"),
+            "available_avatars": request.get("available_avatars", []),
+            "variant": request.get("variant", "reels"),
+            "scenes": request.get("scenes", [])
+        }
+        
+        # Generate variants
+        variant_count = request.get("variant_count", 5)
+        variants = variant_generator.generate_variants(
+            base_creative,
+            variant_count=variant_count,
+            vary_hooks=request.get("vary_hooks", True),
+            vary_ctas=request.get("vary_ctas", True),
+            vary_avatars=request.get("vary_avatars", False)
+        )
+        
+        # Queue each variant for rendering
+        job_ids = []
+        for variant in variants:
+            job_id = str(uuid.uuid4())
+            job_payload = {
+                "job_id": job_id,
+                "request": variant,
+                "created_at": datetime.utcnow().isoformat()
+            }
+            
+            redis_client.rpush("render_queue", json.dumps(job_payload))
+            job_ids.append({
+                "job_id": job_id,
+                "variant_id": variant["variant_id"],
+                "variant_type": variant["variant_type"],
+                "hook": variant["hook"]
+            })
+        
+        return {
+            "status": "success",
+            "message": f"{len(job_ids)} variants queued for rendering",
+            "jobs": job_ids,
+            "base_id": base_creative["id"]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/health")

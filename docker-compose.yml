@@ -144,6 +144,7 @@ services:
       META_APP_ID: ${META_APP_ID}
       META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
       META_APP_SECRET: ${META_APP_SECRET}
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
     ports:
       - "8083:8083"
     volumes:

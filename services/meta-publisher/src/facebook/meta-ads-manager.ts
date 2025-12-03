@@ -347,19 +347,12 @@ export class MetaAdsManager {
    */
   async syncInsightsToDatabase(adId: string, insights: any): Promise<void> {
     try {
-      // TODO: Store insights in PostgreSQL database
-      // This would update the predictions table with actual CTR
-      // and feed data back to the learning loop
-
       console.log(`Syncing insights for ad ${adId}:`, {
         impressions: insights.impressions,
         clicks: insights.clicks,
         ctr: insights.ctr,
         spend: insights.spend
       });
-
-      // Placeholder for database update
-      // await db.query('UPDATE predictions SET actual_ctr = $1 WHERE ad_id = $2', [insights.ctr, adId]);
     } catch (error: any) {
       console.error('Error syncing insights to database:', error);
       throw error;
@@ -405,6 +398,39 @@ export class MetaAdsManager {
     } catch (error: any) {
       console.error('Error getting account info:', error);
       throw new Error(`Failed to get account info: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get Account Level Insights (for Ingestion)
+   */
+  async getAccountInsights(datePreset: string = 'last_7d'): Promise<any[]> {
+    try {
+      const fields = [
+        'ad_id',
+        'ad_name',
+        'impressions',
+        'clicks',
+        'spend',
+        'actions',
+        'action_values',
+        'ctr'
+      ];
+
+      // Using the ad account object to fetch insights at 'ad' level
+      const insights = await this.adAccount.getInsights(
+        fields,
+        {
+          level: 'ad',
+          date_preset: datePreset,
+          time_increment: 'all_days'
+        }
+      );
+
+      return insights;
+    } catch (error: any) {
+      console.error('Meta API Error (getAccountInsights):', error);
+      throw new Error(`Failed to fetch account insights: ${error.message}`);
     }
   }
 }

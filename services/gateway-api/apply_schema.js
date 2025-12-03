@@ -6,9 +6,11 @@ require('dotenv').config({ path: '../../.env' });
 const schemaPath = path.join(__dirname, '../../database_schema.sql');
 const schemaSql = fs.readFileSync(schemaPath, 'utf8');
 
+const isLocal = process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1'));
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: isLocal ? false : { rejectUnauthorized: false }
 });
 
 async function runMigration() {

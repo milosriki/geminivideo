@@ -6,6 +6,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import { MetaAdsManager } from './facebook/meta-ads-manager';
+import { InsightsIngestionService } from './services/insights-ingestion';
 
 const app = express();
 const PORT = process.env.PORT || 8083;
@@ -30,6 +31,18 @@ if (META_ACCESS_TOKEN && META_AD_ACCOUNT_ID && META_PAGE_ID) {
     pageId: META_PAGE_ID
   });
   console.log('Meta Ads Manager initialized with real Facebook SDK');
+
+  // Initialize Insights Ingestion Service
+  const DATABASE_URL = process.env.DATABASE_URL;
+  console.log('Checking DATABASE_URL for Insights Ingestion:', DATABASE_URL ? 'Set' : 'Not Set');
+
+  if (DATABASE_URL) {
+    const ingestionService = new InsightsIngestionService(metaAdsManager, DATABASE_URL);
+    ingestionService.startCronJob();
+  } else {
+    console.warn('DATABASE_URL not set - Insights Ingestion disabled');
+  }
+
 } else {
   console.log('Warning: Meta credentials not configured - running in dry-run mode');
 }
@@ -39,8 +52,8 @@ function validateMetaApiUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     // Only allow official Facebook Graph API domains
-    return parsed.hostname === 'graph.facebook.com' && 
-           parsed.protocol === 'https:';
+    return parsed.hostname === 'graph.facebook.com' &&
+      parsed.protocol === 'https:';
   } catch {
     return false;
   }
@@ -375,7 +388,7 @@ app.post('/publish/meta', async (req: Request, res: Response) => {
       adSetId,
       pageId
     } = req.body;
-    
+
     const placements = req.body.placements || ['instagram_reels', 'facebook_reels'];
 
     // Dry-run mode if no access token

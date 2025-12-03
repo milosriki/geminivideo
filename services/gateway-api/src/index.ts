@@ -737,11 +737,44 @@ app.post('/api/approval/approve/:ad_id', async (req: Request, res: Response) => 
 });
 
 // Health check
-app.get('/health', (req: Request, res: Response) => {
-  res.json({
+app.get('/health', async (req: Request, res: Response) => {
+  const health = {
     status: 'healthy',
-    timestamp: new Date().toISOString()
-  });
+    timestamp: new Date().toISOString(),
+    services: {
+      redis: false,
+      postgres: false
+    }
+  };
+
+  try {
+    // Check Redis
+    if (redisClient.isOpen) {
+      await redisClient.ping();
+      health.services.redis = true;
+    }
+  } catch (e) {
+    console.warn('Health check: Redis failed', e);
+  }
+
+  try {
+    // Check Postgres
+    const pgRes = await pgPool.query('SELECT 1');
+    if (pgRes.rowCount === 1) {
+      health.services.postgres = true;
+    }
+  } catch (e) {
+    console.warn('Health check: Postgres failed', e);
+  }
+
+  // If critical services fail, status could be 'degraded'
+  if (!health.services.redis || !health.services.postgres) {
+    // For now, we keep it 'healthy' but log the failure to avoid crashing load balancers
+    // In strict mode, we might set status to 'degraded'
+    console.warn('Service degraded:', health.services);
+  }
+
+  res.json(health);
 });
 
 app.listen(PORT, () => {

@@ -36,3 +36,4 @@ google-cloud-vision==3.7.2
 # Can be re-added later if needed for emotion detection
 # deepface==0.0.93
 # tensorflow==2.18.0
+google-cloud-storage>=2.10.0
