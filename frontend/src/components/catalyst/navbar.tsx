@@ -1,8 +1,6 @@
-'use client'
-
 import * as Headless from '@headlessui/react'
 import clsx from 'clsx'
-import { LayoutGroup, motion } from 'motion/react'
+import { LayoutGroup, motion } from 'framer-motion'
 import React, { forwardRef, useId } from 'react'
 import { TouchTarget } from './button'
 import { Link } from './link'
@@ -68,9 +66,9 @@ export const NavbarItem = forwardRef(function NavbarItem(
           className="absolute inset-x-2 -bottom-2.5 h-0.5 rounded-full bg-zinc-950 dark:bg-white"
         />
       )}
-      {typeof props.href === 'string' ? (
+      {'href' in props && typeof props.href === 'string' ? (
         <Link
-          {...props}
+          {...(props as Omit<React.ComponentPropsWithoutRef<typeof Link>, 'className'>)}
           className={classes}
           data-current={current ? 'true' : undefined}
           ref={ref as React.ForwardedRef<HTMLAnchorElement>}
@@ -79,10 +77,10 @@ export const NavbarItem = forwardRef(function NavbarItem(
         </Link>
       ) : (
         <Headless.Button
-          {...props}
+          {...(props as Omit<Headless.ButtonProps, 'as' | 'className'>)}
           className={clsx('cursor-default', classes)}
           data-current={current ? 'true' : undefined}
-          ref={ref}
+          ref={ref as React.ForwardedRef<HTMLButtonElement>}
         >
           <TouchTarget>{children}</TouchTarget>
         </Headless.Button>
