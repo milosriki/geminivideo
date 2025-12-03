@@ -1,3 +1,5 @@
+@import './styles/animations.css';
+
 * {
   margin: 0;
   padding: 0;
@@ -85,4 +87,57 @@ code {
   .grid-3 {
     grid-template-columns: 1fr;
   }
+}
+
+/* Custom range slider styles */
+input[type="range"].slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+
+input[type="range"].slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #6366f1;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"].slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #6366f1;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"].slider::-webkit-slider-track {
+  background: #3f3f46;
+  border-radius: 4px;
+  height: 8px;
+}
+
+input[type="range"].slider::-moz-range-track {
+  background: #3f3f46;
+  border-radius: 4px;
+  height: 8px;
+}
+
+input[type="range"].slider:focus {
+  outline: none;
+}
+
+input[type="range"].slider:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+input[type="range"].slider:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
 }

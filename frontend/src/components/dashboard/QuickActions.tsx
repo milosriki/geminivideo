@@ -69,31 +69,30 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ onActionClick }) => 
   const handleClick = (action: QuickAction) => {
     if (onActionClick) {
       onActionClick(action);
-    } else {
-      console.log(`Navigate to: ${action.route}`);
     }
+    // TODO: Implement default navigation
   };
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 shadow-lg shadow-black/20">
-      <h3 className="text-white font-semibold text-lg mb-4">Quick Actions</h3>
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 sm:p-5 shadow-lg shadow-black/20">
+      <h3 className="text-white font-semibold text-base sm:text-lg mb-4">Quick Actions</h3>
 
       <div className="grid grid-cols-1 gap-3">
         {defaultActions.map((action) => (
           <button
             key={action.id}
             onClick={() => handleClick(action)}
-            className="group flex items-center gap-4 p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50 hover:border-zinc-600 transition-all duration-200 text-left hover:scale-[1.02]"
+            className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50 hover:border-zinc-600 transition-all duration-200 text-left hover:scale-[1.02] min-h-[56px]"
           >
-            <div className={`w-10 h-10 rounded-lg ${action.color} flex items-center justify-center text-white shadow-lg`}>
+            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg ${action.color} flex items-center justify-center text-white shadow-lg shrink-0`}>
               {action.icon}
             </div>
-            <div className="flex-1">
-              <p className="text-white font-medium group-hover:text-indigo-300 transition-colors">
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm sm:text-base font-medium group-hover:text-indigo-300 transition-colors">
                 {action.label}
               </p>
               {action.description && (
-                <p className="text-zinc-500 text-sm">{action.description}</p>
+                <p className="text-zinc-500 text-xs sm:text-sm">{action.description}</p>
               )}
             </div>
             <svg
