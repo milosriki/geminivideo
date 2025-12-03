@@ -1,6 +1,37 @@
 /**
  * Gateway API - Prediction & Scoring Engine
  * Unified proxy to internal services with scoring capabilities
+ *
+ * ============================================================================
+ * 🔴 CRITICAL ANALYSIS FINDINGS (December 2024)
+ * ============================================================================
+ *
+ * FAKE/MOCK ENDPOINTS:
+ * - /api/analyze (line 353): Returns HARDCODED mock data immediately
+ *   "hook_style: High Energy", "pacing: Fast" - NEVER does real analysis
+ * - /api/metrics (line 518): Returns HARDCODED metrics
+ *   impressions: 15000, clicks: 800 - FAKE numbers
+ * - Scores in /api/generate (line 327-329): Falls back to hardcoded 85, 8, 8
+ *
+ * BROKEN DEPENDENCIES:
+ * - DRIVE_INTEL_URL: defaults to localhost:8001 - may not be running
+ * - VIDEO_AGENT_URL: defaults to localhost:8002 - may not be running
+ * - ML_SERVICE_URL: defaults to localhost:8003 - may not be running
+ * - META_PUBLISHER_URL: defaults to localhost:8083 - may not be running
+ *
+ * SYNC PROBLEMS:
+ * - Redis queue (line 171): Pushes jobs but no worker consuming them
+ * - PostgreSQL: Requires DATABASE_URL but schema may not match
+ * - Learning service: updateWeights() exists but no feedback data
+ *
+ * WHAT'S ACTUALLY WORKING:
+ * - Health check (/health)
+ * - Database connection
+ * - Proxy to other services (if they're running)
+ * - Story arc rendering with clips
+ *
+ * FAST FIX: Remove mock data from /api/analyze and /api/metrics
+ * ============================================================================
  */
 import express, { Request, Response } from 'express';
 import cors from 'cors';
@@ -348,19 +379,27 @@ app.post('/api/generate', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// 🔴 FAKE ENDPOINT - Returns hardcoded mock data, NO real analysis!
+// ============================================================================
 // Async analysis endpoint - queues job instead of blocking
 // MODIFIED: Returns synchronous mock for UI demo purposes while queuing
 app.post('/api/analyze', async (req: Request, res: Response) => {
   try {
     const { video_uri } = req.body; // Frontend sends video_uri
 
+    // ⚠️ THIS IS 100% FAKE - No AI analysis happens!
+    // TODO: Replace with actual Gemini vision analysis:
+    // const analysis = await gemini.analyzeVideo(video_uri);
+    // return res.json(analysis);
+
     // Return immediate analysis for UI
     res.json({
-      reasoning: "AI Analysis of " + (video_uri || "video"),
-      hook_style: "High Energy",
-      pacing: "Fast",
-      visual_elements: ["Person", "Text Overlay", "Product"],
-      emotional_trigger: "Excitement"
+      reasoning: "AI Analysis of " + (video_uri || "video"),  // FAKE
+      hook_style: "High Energy",      // HARDCODED - always returns this
+      pacing: "Fast",                 // HARDCODED - always returns this
+      visual_elements: ["Person", "Text Overlay", "Product"],  // HARDCODED
+      emotional_trigger: "Excitement" // HARDCODED - always returns this
     });
 
     // In a real scenario, we would still queue the deep analysis here
@@ -515,20 +554,28 @@ app.get('/api/timeseries', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// 🔴 FAKE ENDPOINT - Returns hardcoded metrics, NOT from real campaigns!
+// ============================================================================
 app.get('/api/metrics', async (req: Request, res: Response) => {
   try {
+    // ⚠️ ALL FAKE DATA BELOW - No real Meta integration
+    // TODO: Replace with actual Meta Ads API insights:
+    // const insights = await metaAdsManager.getAccountInsights();
+    // return res.json(insights);
+
     // Aggregate metrics from meta-publisher or return mock
     res.json({
       totals: {
-        impressions: 15000,
-        clicks: 800,
-        conversions: 120,
-        spend: 2500,
-        revenue: 7500,
-        ctr: 0.053,
-        cvr: 0.15,
-        cpa: 20.83,
-        roas: 3.0
+        impressions: 15000,   // FAKE: No real data source
+        clicks: 800,          // FAKE: No real data source
+        conversions: 120,     // FAKE: No real data source
+        spend: 2500,          // FAKE: No real data source
+        revenue: 7500,        // FAKE: No real data source
+        ctr: 0.053,           // FAKE: Calculated from fake numbers
+        cvr: 0.15,            // FAKE: Calculated from fake numbers
+        cpa: 20.83,           // FAKE: Calculated from fake numbers
+        roas: 3.0             // FAKE: Calculated from fake numbers
       }
     });
   } catch (error: any) {

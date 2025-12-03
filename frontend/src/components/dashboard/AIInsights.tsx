@@ -1,3 +1,32 @@
+/**
+ * AI Insights Component
+ *
+ * ============================================================================
+ * 🔴 CRITICAL ANALYSIS FINDINGS (December 2024)
+ * ============================================================================
+ *
+ * STATUS: 100% FAKE INSIGHTS - Not powered by AI at all!
+ *
+ * WHAT'S FAKE:
+ * - mockInsights array (lines 17-39): ALL hardcoded text
+ *   "23% better than average" - made up percentage
+ *   "2.1x higher engagement" - fabricated multiplier
+ *   "40% better on Instagram" - invented statistic
+ * - "Powered by Gemini AI" (line 150): FALSE - no AI is called
+ * - "Updated 5 min ago" (line 150): FALSE - data never updates
+ * - Refresh button: Just does setTimeout, no real refresh
+ *
+ * WHAT IT SHOULD DO:
+ * 1. Call Gemini API to analyze user's actual ad performance
+ * 2. Compare against industry benchmarks (from real data)
+ * 3. Generate personalized insights based on user's content
+ *
+ * FAST FIX:
+ * const insights = await fetch('/api/insights/ai').then(r => r.json());
+ * Where /api/insights/ai calls Gemini with user's performance data
+ * ============================================================================
+ */
+
 import React, { useState } from 'react';
 
 
@@ -14,26 +43,28 @@ interface AIInsightsProps {
   onRefresh?: () => void;
 }
 
+// ⚠️ ALL INSIGHTS BELOW ARE FAKE - Not from real AI analysis!
+// TODO: Replace with: const insights = await geminiService.generateInsights(userData);
 const mockInsights: Insight[] = [
   {
     id: 1,
     type: 'success',
     title: 'Top performing hook',
-    description: '"Did you know..." style hooks are converting 23% better than average this week.',
+    description: '"Did you know..." style hooks are converting 23% better than average this week.', // FAKE: No data source
     action: 'Generate similar',
   },
   {
     id: 2,
     type: 'trend',
     title: 'Trending format',
-    description: 'Split-screen before/after videos are seeing 2.1x higher engagement.',
+    description: 'Split-screen before/after videos are seeing 2.1x higher engagement.', // FAKE: Invented statistic
     action: 'Try this format',
   },
   {
     id: 3,
     type: 'tip',
     title: 'Optimization tip',
-    description: 'Videos under 15 seconds perform 40% better on Instagram Reels.',
+    description: 'Videos under 15 seconds perform 40% better on Instagram Reels.', // FAKE: No real analysis
     action: 'Optimize videos',
   },
 ];
