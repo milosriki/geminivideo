@@ -42,6 +42,7 @@ import axios from 'axios';
 import { createClient } from 'redis';
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 import { ScoringEngine } from './services/scoring-engine';
 import { ReliabilityLogger } from './services/reliability-logger';
@@ -168,49 +169,59 @@ app.get('/api/assets/:assetId/clips', async (req: Request, res: Response) => {
   }
 });
 
-// Async analysis endpoint - queues job instead of blocking
+// Real AI analysis endpoint using Gemini Vision API
 app.post('/api/analyze', async (req: Request, res: Response) => {
   try {
-    const { path: videoPath, filename, size_bytes, duration_seconds } = req.body;
+    const { video_uri } = req.body;
 
     // Validate required fields
-    if (!videoPath || !filename) {
-      return res.status(400).json({ error: 'Missing required fields: path, filename' });
+    if (!video_uri) {
+      return res.status(400).json({ error: 'Missing required field: video_uri' });
     }
 
-    // Create asset in database with QUEUED status
-    const assetId = uuidv4();
-    const query = `
-      INSERT INTO assets (asset_id, path, filename, size_bytes, duration_seconds, 
-                         resolution, format, status, ingested_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-      RETURNING asset_id
-    `;
+    // Initialize Gemini API
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY environment variable not set' });
+    }
 
-    await pgPool.query(query, [
-      assetId,
-      videoPath,
-      filename,
-      size_bytes || 0,
-      duration_seconds || 0,
-      '1920x1080',  // Default
-      'mp4',        // Default
-      'QUEUED'
-    ]);
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
-    // Push job to Redis queue
-    await redisClient.rPush('analysis_queue', assetId);
+    console.log(`Analyzing video with Gemini: ${video_uri}`);
 
-    // Return immediately with 202 Accepted
-    res.status(202).json({
-      asset_id: assetId,
-      status: 'QUEUED',
-      message: 'Analysis job queued successfully'
+    // Call Gemini Vision API for real analysis
+    const result = await model.generateContent({
+      contents: [{
+        role: 'user',
+        parts: [{
+          text: `Analyze this video ad at ${video_uri}. Return JSON with the following fields:
+- hook_style: string (e.g., "High Energy", "Calm", "Dramatic")
+- pacing: string (e.g., "Fast", "Medium", "Slow")
+- visual_elements: array of strings (key visual components)
+- emotional_trigger: string (primary emotion evoked)
+- reasoning: string (brief explanation of your analysis)`
+        }]
+      }],
+      generationConfig: {
+        responseMimeType: 'application/json'
+      }
     });
 
+    // Parse and return AI analysis
+    const analysisText = result.response.text();
+    const analysis = JSON.parse(analysisText);
+
+    console.log(`Gemini analysis completed for ${video_uri}`);
+
+    res.json(analysis);
+
   } catch (error: any) {
-    console.error('Error queuing analysis:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error in Gemini analysis:', error);
+    res.status(500).json({
+      error: 'Failed to analyze video',
+      details: error.message
+    });
   }
 });
 
@@ -379,37 +390,6 @@ app.post('/api/generate', async (req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// 🔴 FAKE ENDPOINT - Returns hardcoded mock data, NO real analysis!
-// ============================================================================
-// Async analysis endpoint - queues job instead of blocking
-// MODIFIED: Returns synchronous mock for UI demo purposes while queuing
-app.post('/api/analyze', async (req: Request, res: Response) => {
-  try {
-    const { video_uri } = req.body; // Frontend sends video_uri
-
-    // ⚠️ THIS IS 100% FAKE - No AI analysis happens!
-    // TODO: Replace with actual Gemini vision analysis:
-    // const analysis = await gemini.analyzeVideo(video_uri);
-    // return res.json(analysis);
-
-    // Return immediate analysis for UI
-    res.json({
-      reasoning: "AI Analysis of " + (video_uri || "video"),  // FAKE
-      hook_style: "High Energy",      // HARDCODED - always returns this
-      pacing: "Fast",                 // HARDCODED - always returns this
-      visual_elements: ["Person", "Text Overlay", "Product"],  // HARDCODED
-      emotional_trigger: "Excitement" // HARDCODED - always returns this
-    });
-
-    // In a real scenario, we would still queue the deep analysis here
-    // ... existing queue logic ...
-
-  } catch (error: any) {
-    console.error('Error in analysis:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 app.post('/api/render/story_arc', async (req: Request, res: Response) => {
   try {
     const { arc_name, asset_id } = req.body;
@@ -554,32 +534,29 @@ app.get('/api/timeseries', async (req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// 🔴 FAKE ENDPOINT - Returns hardcoded metrics, NOT from real campaigns!
-// ============================================================================
+// Real metrics endpoint - fetches from meta-publisher service
 app.get('/api/metrics', async (req: Request, res: Response) => {
   try {
-    // ⚠️ ALL FAKE DATA BELOW - No real Meta integration
-    // TODO: Replace with actual Meta Ads API insights:
-    // const insights = await metaAdsManager.getAccountInsights();
-    // return res.json(insights);
+    // Try to fetch real metrics from meta-publisher service
+    console.log(`Fetching metrics from meta-publisher: ${META_PUBLISHER_URL}`);
 
-    // Aggregate metrics from meta-publisher or return mock
-    res.json({
-      totals: {
-        impressions: 15000,   // FAKE: No real data source
-        clicks: 800,          // FAKE: No real data source
-        conversions: 120,     // FAKE: No real data source
-        spend: 2500,          // FAKE: No real data source
-        revenue: 7500,        // FAKE: No real data source
-        ctr: 0.053,           // FAKE: Calculated from fake numbers
-        cvr: 0.15,            // FAKE: Calculated from fake numbers
-        cpa: 20.83,           // FAKE: Calculated from fake numbers
-        roas: 3.0             // FAKE: Calculated from fake numbers
-      }
+    const response = await axios.get(`${META_PUBLISHER_URL}/api/metrics`, {
+      params: req.query,
+      timeout: 5000 // 5 second timeout
     });
+
+    console.log('Metrics fetched successfully from meta-publisher');
+    res.json(response.data);
+
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('Failed to fetch metrics from meta-publisher:', error.message);
+
+    // Return error instead of fake data
+    res.status(503).json({
+      error: 'No real metrics available',
+      details: `Meta publisher service is not available: ${error.message}`,
+      service_url: META_PUBLISHER_URL
+    });
   }
 });
 

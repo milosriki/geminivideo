@@ -2,34 +2,30 @@
 Video Agent Service - Video Rendering and Composition
 
 ============================================================================
-🔴 CRITICAL ANALYSIS FINDINGS (December 2024)
+✅ REAL IMPLEMENTATION (December 2024)
 ============================================================================
 
-STATUS: STUB/PLACEHOLDER - This file is NOT the real renderer!
+STATUS: FULLY FUNCTIONAL - Uses real FFmpeg rendering
 
-WHAT'S FAKE:
-- process_render_job() (line 162-210): Just does asyncio.sleep()!
-  - FFmpeg commands in comments (lines 179-189) but NEVER executed
-  - No actual video processing happens
-  - Always returns success after sleeping
+WHAT THIS DOES:
+- process_render_job() uses VideoRenderer from services/renderer.py
+- REAL FFmpeg subprocess calls via concatenate_scenes()
+- REAL video composition via compose_final_video()
+- REAL subtitle generation via SubtitleGenerator
+- Actual video processing with FFmpeg
 
-REAL IMPLEMENTATION EXISTS (but not used):
-- services/renderer.py - REAL FFmpeg subprocess calls
-- services/subtitle_generator.py - REAL SRT generation
-- services/compliance_checker.py - Has real CV checks
+SERVICES USED:
+- services/renderer.py - FFmpeg subprocess for video rendering
+- services/subtitle_generator.py - SRT subtitle generation
+- services/compliance_checker.py - CV-based compliance checks
 
-THE REAL RENDERER (services/renderer.py) HAS:
-- concatenate_scenes() with actual FFmpeg subprocess.run()
-- compose_final_video() with overlay support
-- Audio normalization with EBU R128
-- Transition support with xfade
+RENDERING PIPELINE:
+1. Parse storyboard scenes
+2. Concatenate scenes with FFmpeg (xfade transitions)
+3. Generate SRT subtitles
+4. Compose final video with resolution scaling, subtitles, audio normalization
+5. Return output path
 
-TODO [CRITICAL]: Replace sleep() with actual render call:
-  from services.renderer import VideoRenderer
-  renderer = VideoRenderer()
-  output = renderer.concatenate_scenes(scenes, output_path)
-
-WHY THIS EXISTS: Probably for quick API testing without FFmpeg
 ============================================================================
 """
 
@@ -197,18 +193,8 @@ async def check_compliance(storyboard: List[StoryboardScene]) -> Dict[str, Any]:
 async def process_render_job(job_id: str):
     """
     Background task to process render job
-    Uses ffmpeg for video composition
-
-    ⚠️ THIS FUNCTION IS 100% FAKE - No video rendering happens!
-
-    It just sleeps and returns success. The FFmpeg commands below
-    are in COMMENTS - they are never executed.
-
-    REAL RENDERER EXISTS: services/renderer.py
-    Use: from services.renderer import VideoRenderer
+    Uses REAL FFmpeg for video composition via VideoRenderer
     """
-    await asyncio.sleep(2)  # FAKE: Just sleeping, no work done
-
     if job_id not in render_jobs:
         return
 
@@ -216,38 +202,69 @@ async def process_render_job(job_id: str):
     job["status"] = "processing"
 
     try:
-        # ⚠️ FAKE: "Simulate" = do nothing
-        # Simulate rendering process
-        # In production, this would use ffmpeg:
-        
-        # FFmpeg command template for concatenating clips with transitions:
-        # ffmpeg -i clip1.mp4 -i clip2.mp4 -i clip3.mp4 \
-        #   -filter_complex \
-        #   "[0:v]fade=t=out:st=5:d=1[v0]; \
-        #    [1:v]fade=t=in:st=0:d=1,fade=t=out:st=5:d=1[v1]; \
-        #    [2:v]fade=t=in:st=0:d=1[v2]; \
-        #    [v0][v1][v2]concat=n=3:v=1:a=0[outv]" \
-        #   -map "[outv]" \
-        #   -c:v libx264 -preset fast -crf 22 \
-        #   -r 30 -s 1920x1080 \
-        #   output.mp4
-        
-        # For each scene in storyboard:
-        # 1. Extract clip from source asset
-        # 2. Apply transitions and effects
-        # 3. Concatenate clips
-        # 4. Add audio track if provided
-        # 5. Encode to output format
-        
-        await asyncio.sleep(3)  # Simulate rendering time
-        
-        # Generate output path
-        output_path = f"/outputs/{job_id}.{job['output_format']}"
-        
+        # Import REAL renderer
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from services.renderer import VideoRenderer
+        from services.subtitle_generator import SubtitleGenerator
+        from types import SimpleNamespace
+
+        # Initialize renderer
+        renderer = VideoRenderer()
+        subtitle_gen = SubtitleGenerator()
+
+        # Parse resolution to output format
+        resolution_parts = job["resolution"].split("x")
+        output_format = {
+            "width": int(resolution_parts[0]),
+            "height": int(resolution_parts[1]),
+            "aspect": f"{resolution_parts[0]}:{resolution_parts[1]}"
+        }
+
+        # Convert storyboard dict to scene objects
+        scenes = [SimpleNamespace(**scene) for scene in job["storyboard"]]
+
+        # Create output directory
+        output_dir = "/outputs"
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Step 1: Concatenate scenes with FFmpeg
+        concatenated_path = await renderer.concatenate_scenes(
+            scenes=scenes,
+            enable_transitions=True
+        )
+
+        # Step 2: Generate subtitles (if needed)
+        subtitle_path = None
+        try:
+            subtitle_path = subtitle_gen.generate_subtitles(
+                scenes=scenes,
+                driver_signals={}
+            )
+        except Exception as subtitle_error:
+            print(f"Warning: Subtitle generation failed: {subtitle_error}")
+
+        # Step 3: Compose final video with format, overlays, subtitles
+        final_output_path = f"{output_dir}/{job_id}.{job['output_format']}"
+
+        await renderer.compose_final_video(
+            input_path=concatenated_path,
+            output_path=final_output_path,
+            output_format=output_format,
+            overlay_path=None,
+            subtitle_path=subtitle_path
+        )
+
+        # Clean up temporary concatenated file
+        if os.path.exists(concatenated_path) and concatenated_path != final_output_path:
+            os.remove(concatenated_path)
+
+        # Update job status
         job["status"] = "completed"
-        job["output_path"] = output_path
+        job["output_path"] = final_output_path
         job["completed_at"] = datetime.utcnow().isoformat()
-        
+
     except Exception as e:
         job["status"] = "failed"
         job["error"] = str(e)

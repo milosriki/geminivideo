@@ -266,12 +266,16 @@ def generate_synthetic_training_data(n_samples: int = 1000) -> Tuple[np.ndarray,
     Generate synthetic training data for initial model training
     This creates realistic CTR data based on scoring features
 
+    DEPRECATED: This function is deprecated and should only be used for testing.
+    Production systems should learn from real data via the /api/ml/feedback endpoint.
+
     Args:
         n_samples: Number of samples to generate
 
     Returns:
         Tuple of (X, y) where X is feature matrix and y is CTR values
     """
+    logger.warning("DEPRECATED: generate_synthetic_training_data() should only be used for testing. Use real data for production.")
     np.random.seed(42)
 
     # Generate 40 features (matching feature_engineering.py)
