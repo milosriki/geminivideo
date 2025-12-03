@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 // Lazy load all pages for code splitting
 const HomePage = lazy(() => import('@/pages/HomePage'))
@@ -38,9 +39,10 @@ function ToastContainer() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-zinc-950 text-white">
-        <Routes>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <div className="min-h-screen bg-zinc-950 text-white">
+          <Routes>
           {/* Marketing Routes */}
           <Route
             path="/marketing"
@@ -185,6 +187,7 @@ function App() {
         <ToastContainer />
       </div>
     </BrowserRouter>
+  </ErrorBoundary>
   )
 }
 

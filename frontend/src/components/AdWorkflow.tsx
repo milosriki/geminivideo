@@ -245,15 +245,18 @@ const AdWorkflow: React.FC = () => {
   });
 
   useEffect(() => {
+    let isMounted = true;
     const loadAvatars = async () => {
       try {
         const fetchedAvatars = await apiClient.fetchAvatars();
+        if (!isMounted) return;
         setAvatars(fetchedAvatars);
+        // Only set default avatar on initial load (when selectedAvatar is empty)
         if (fetchedAvatars.length > 0 && !selectedAvatar) {
           setSelectedAvatar(fetchedAvatars[0].key);
         }
       } catch (err) {
-        setError(formatErrorMessage(err));
+        if (isMounted) setError(formatErrorMessage(err));
       }
     };
     loadAvatars();
@@ -261,7 +264,9 @@ const AdWorkflow: React.FC = () => {
     // Pre-initialize Google Drive Service to ensure scripts are loaded
     // This prevents popup blockers from blocking the sign-in window later
     googleDriveService.init().catch(err => console.warn("Background init of Google Drive failed:", err));
-  }, [selectedAvatar]);
+
+    return () => { isMounted = false; };
+  }, []); // Remove selectedAvatar from deps to prevent infinite loop
 
   const handleConnectDrive = async () => {
     setIsConnecting(true);

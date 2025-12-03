@@ -58,8 +58,18 @@ import { SmartModelRouter } from './services/smart-router';
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// Middleware
-app.use(cors());
+// Middleware - CORS with proper origin control
+const CORS_ORIGINS = process.env.CORS_ORIGINS?.split(',') || [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:8080'
+];
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' ? CORS_ORIGINS : true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Rate limiting
