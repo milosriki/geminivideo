@@ -1,518 +1,398 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { EyeIcon, TagIcon, BarChartIcon, FilmIcon, SparklesIcon, DownloadIcon } from './icons';
+import React, { useState, useMemo } from 'react';
+import { FilterBar, AdGrid, AdDetailModal } from './library';
 
-interface SpyAd {
+// Mock ad data with new structure
+interface LibraryAd {
   id: string;
-  platform: 'meta' | 'tiktok' | 'youtube' | 'google';
-  advertiser: string;
-  headline: string;
-  body: string;
-  mediaType: 'video' | 'image' | 'carousel';
   thumbnail: string;
-  cta: string;
-  firstSeen: string;
-  lastSeen: string;
-  daysRunning: number;
-  estimatedSpend: { min: number; max: number };
-  engagement: {
-    likes: number;
-    comments: number;
-    shares: number;
-  };
-  targeting: {
-    ageRange: string;
-    gender: string;
-    interests: string[];
-    countries: string[];
-  };
-  hooks: string[];
-  angles: string[];
-  landingPage?: string;
+  platform: 'meta' | 'tiktok' | 'youtube';
+  brand: string;
+  hook: string;
+  views: number;
+  likes: number;
+  shares?: number;
+  comments?: number;
+  date: string;
+  style: string;
+  script?: string;
+  impressions?: number;
+  ctr?: number;
+  engagement?: number;
 }
 
-interface FilterState {
-  platform: string;
-  mediaType: string;
-  daysRunning: string;
-  search: string;
-  sortBy: string;
-}
-
-const MOCK_ADS: SpyAd[] = [
+const MOCK_LIBRARY_ADS: LibraryAd[] = [
   {
     id: '1',
+    thumbnail: '/placeholder.jpg',
     platform: 'meta',
-    advertiser: 'FitLife Pro',
-    headline: 'Transform Your Body in 30 Days',
-    body: 'Join 100,000+ who have achieved their fitness goals with our proven program. No gym required!',
-    mediaType: 'video',
-    thumbnail: '/api/placeholder/320/180',
-    cta: 'Start Free Trial',
-    firstSeen: '2024-10-15',
-    lastSeen: '2024-12-01',
-    daysRunning: 47,
-    estimatedSpend: { min: 15000, max: 35000 },
-    engagement: { likes: 45000, comments: 2300, shares: 8900 },
-    targeting: {
-      ageRange: '25-44',
-      gender: 'All',
-      interests: ['Fitness', 'Weight Loss', 'Home Workouts'],
-      countries: ['US', 'UK', 'CA', 'AU'],
-    },
-    hooks: ['Transformation Hook', 'Social Proof', 'Time-Bound Promise'],
-    angles: ['Home Workout', 'Quick Results', 'No Equipment'],
+    brand: 'FitLife Pro',
+    hook: 'Transform Your Body in 30 Days - No Gym Required!',
+    views: 2500000,
+    likes: 45000,
+    shares: 8900,
+    comments: 2300,
+    date: '2024-11-15',
+    style: 'ugc',
+    script: 'Hey guys! So I tried this 30-day fitness program and wow... the results are insane!\n\nI was skeptical at first, but after just 2 weeks I started seeing real changes.\n\nNo gym membership needed. No fancy equipment. Just 20 minutes a day.\n\nThe best part? Over 100,000 people have already transformed their bodies with this exact program.\n\nClick the link below to start your free trial today!',
+    impressions: 5000000,
+    ctr: 3.2,
+    engagement: 2.8,
   },
   {
     id: '2',
+    thumbnail: '/placeholder.jpg',
     platform: 'tiktok',
-    advertiser: 'GlowUp Skincare',
-    headline: 'The viral serum everyone is talking about',
-    body: 'See why 2M+ people switched to our vitamin C serum. Results in just 7 days.',
-    mediaType: 'video',
-    thumbnail: '/api/placeholder/320/180',
-    cta: 'Shop Now',
-    firstSeen: '2024-11-01',
-    lastSeen: '2024-12-01',
-    daysRunning: 30,
-    estimatedSpend: { min: 50000, max: 100000 },
-    engagement: { likes: 234000, comments: 12000, shares: 45000 },
-    targeting: {
-      ageRange: '18-34',
-      gender: 'Female',
-      interests: ['Skincare', 'Beauty', 'Self Care'],
-      countries: ['US', 'UK'],
-    },
-    hooks: ['Viral/Trending', 'Quick Results', 'FOMO'],
-    angles: ['Before/After', 'User Generated', 'Tutorial Style'],
+    brand: 'GlowUp Skincare',
+    hook: 'The viral serum everyone is talking about - Results in 7 days!',
+    views: 3200000,
+    likes: 234000,
+    shares: 45000,
+    comments: 12000,
+    date: '2024-11-20',
+    style: 'ugc',
+    script: 'Okay so this vitamin C serum literally changed my skin in ONE WEEK.\n\nI know it sounds crazy but look at these before and afters.\n\nMy dark spots? GONE. My skin texture? SMOOTH AF.\n\n2 million people have already made the switch.\n\nGet yours now while it\'s still in stock!',
+    impressions: 6000000,
+    ctr: 4.1,
+    engagement: 4.5,
   },
   {
     id: '3',
+    thumbnail: '/placeholder.jpg',
     platform: 'youtube',
-    advertiser: 'InvestSmart Academy',
-    headline: 'How I Made $50K Trading From Home',
-    body: 'Free masterclass reveals the exact strategy used by top traders. Limited spots available.',
-    mediaType: 'video',
-    thumbnail: '/api/placeholder/320/180',
-    cta: 'Watch Free Class',
-    firstSeen: '2024-09-20',
-    lastSeen: '2024-12-01',
-    daysRunning: 72,
-    estimatedSpend: { min: 75000, max: 150000 },
-    engagement: { likes: 12000, comments: 890, shares: 2300 },
-    targeting: {
-      ageRange: '25-54',
-      gender: 'Male',
-      interests: ['Investing', 'Finance', 'Entrepreneurship'],
-      countries: ['US'],
-    },
-    hooks: ['Income Claim', 'Scarcity', 'Free Value'],
-    angles: ['Story/Journey', 'Expert Authority', 'Results Focus'],
+    brand: 'InvestSmart Academy',
+    hook: 'How I Made $50K Trading From Home (Free Masterclass)',
+    views: 850000,
+    likes: 12000,
+    shares: 2300,
+    comments: 890,
+    date: '2024-10-28',
+    style: 'professional',
+    script: 'In this free masterclass, I\'m going to reveal the exact strategy I used to make $50,000 trading from home.\n\nNo prior experience needed. No huge capital required.\n\nI\'ll walk you through my entire system step-by-step.\n\nBut spots are limited, so click below to reserve your seat now.',
+    impressions: 1500000,
+    ctr: 2.8,
+    engagement: 1.9,
   },
   {
     id: '4',
+    thumbnail: '/placeholder.jpg',
     platform: 'meta',
-    advertiser: 'PetPals Premium',
-    headline: 'Your Dog Deserves Better Food',
-    body: 'Vet-approved, human-grade ingredients. Free delivery on your first order + 20% off.',
-    mediaType: 'carousel',
-    thumbnail: '/api/placeholder/320/180',
-    cta: 'Get 20% Off',
-    firstSeen: '2024-11-10',
-    lastSeen: '2024-12-01',
-    daysRunning: 21,
-    estimatedSpend: { min: 8000, max: 20000 },
-    engagement: { likes: 18000, comments: 1200, shares: 3400 },
-    targeting: {
-      ageRange: '25-54',
-      gender: 'All',
-      interests: ['Dogs', 'Pet Care', 'Pet Food'],
-      countries: ['US', 'CA'],
-    },
-    hooks: ['Emotional Appeal', 'Discount Offer', 'Authority'],
-    angles: ['Health Focus', 'Premium Quality', 'Convenience'],
+    brand: 'PetPals Premium',
+    hook: 'Your Dog Deserves Better Food - Vet-Approved & Delivered',
+    views: 1200000,
+    likes: 18000,
+    shares: 3400,
+    comments: 1200,
+    date: '2024-11-25',
+    style: 'professional',
+    script: 'As a pet parent, you want the best for your furry friend.\n\nThat\'s why we created PetPals Premium - human-grade ingredients, vet-approved nutrition.\n\nFree delivery on your first order, plus 20% off.\n\nYour dog will love you for it. Order now!',
+    impressions: 2000000,
+    ctr: 2.5,
+    engagement: 2.1,
   },
   {
     id: '5',
+    thumbnail: '/placeholder.jpg',
     platform: 'tiktok',
-    advertiser: 'CodeMaster Pro',
-    headline: 'Learn to code in 30 days - no experience needed',
-    body: 'This AI-powered platform teaches you faster than any bootcamp. Start for free.',
-    mediaType: 'video',
-    thumbnail: '/api/placeholder/320/180',
-    cta: 'Start Learning',
-    firstSeen: '2024-10-25',
-    lastSeen: '2024-12-01',
-    daysRunning: 37,
-    estimatedSpend: { min: 25000, max: 60000 },
-    engagement: { likes: 89000, comments: 4500, shares: 12000 },
-    targeting: {
-      ageRange: '18-34',
-      gender: 'All',
-      interests: ['Technology', 'Career Development', 'Education'],
-      countries: ['US', 'UK', 'IN'],
-    },
-    hooks: ['Beginner Friendly', 'AI/Tech Appeal', 'Time Promise'],
-    angles: ['Career Change', 'Side Hustle', 'Future-Proof Skills'],
+    brand: 'CodeMaster Pro',
+    hook: 'Learn to Code in 30 Days - AI-Powered & Beginner-Friendly',
+    views: 1800000,
+    likes: 89000,
+    shares: 12000,
+    comments: 4500,
+    date: '2024-11-10',
+    style: 'ugc',
+    script: 'POV: You want to learn coding but don\'t know where to start.\n\nThis AI-powered platform taught me faster than any bootcamp.\n\nNo experience needed. Start for free.\n\nLiterally changed my career in 30 days.',
+    impressions: 3000000,
+    ctr: 3.8,
+    engagement: 3.5,
+  },
+  {
+    id: '6',
+    thumbnail: '/placeholder.jpg',
+    platform: 'youtube',
+    brand: 'MindfulMe Meditation',
+    hook: 'Reduce Anxiety in Just 10 Minutes a Day',
+    views: 920000,
+    likes: 15000,
+    shares: 2100,
+    comments: 780,
+    date: '2024-11-18',
+    style: 'testimonial',
+    script: 'I used to struggle with anxiety every single day.\n\nThen I discovered this 10-minute meditation technique.\n\nNow I\'m calmer, more focused, and actually enjoying life again.\n\nTry it free for 7 days and see the difference yourself.',
+    impressions: 1800000,
+    ctr: 2.9,
+    engagement: 2.2,
+  },
+  {
+    id: '7',
+    thumbnail: '/placeholder.jpg',
+    platform: 'meta',
+    brand: 'HomeChef Deluxe',
+    hook: 'Gourmet Meals Delivered - Save 3 Hours a Day Cooking',
+    views: 1500000,
+    likes: 22000,
+    shares: 4200,
+    comments: 1500,
+    date: '2024-11-22',
+    style: 'professional',
+    script: 'Tired of spending hours in the kitchen every day?\n\nHomeChef Deluxe delivers restaurant-quality meals right to your door.\n\nFresh ingredients, easy recipes, ready in 15 minutes.\n\nGet 50% off your first box - no commitment required!',
+    impressions: 2500000,
+    ctr: 3.0,
+    engagement: 2.4,
+  },
+  {
+    id: '8',
+    thumbnail: '/placeholder.jpg',
+    platform: 'tiktok',
+    brand: 'StyleSnap Fashion',
+    hook: 'This AI Stylist Picks Your Perfect Outfit Every Time',
+    views: 2100000,
+    likes: 156000,
+    shares: 28000,
+    comments: 8900,
+    date: '2024-11-28',
+    style: 'ugc',
+    script: 'Never know what to wear? Same.\n\nThis AI stylist literally picks the perfect outfit for any occasion.\n\nJust answer 3 questions and boom - styled.\n\nTry it free and thank me later!',
+    impressions: 4000000,
+    ctr: 3.9,
+    engagement: 4.2,
+  },
+  {
+    id: '9',
+    thumbnail: '/placeholder.jpg',
+    platform: 'youtube',
+    brand: 'TechGear Pro',
+    hook: 'The Laptop Every Remote Worker Needs in 2024',
+    views: 680000,
+    likes: 8900,
+    shares: 1200,
+    comments: 450,
+    date: '2024-11-05',
+    style: 'professional',
+    script: 'Working from home? You need the right tools.\n\nThis laptop has everything: 16-hour battery, ultra-fast processor, crystal-clear display.\n\nPerfect for remote work, content creation, or gaming.\n\nLimited stock - order now before it sells out!',
+    impressions: 1200000,
+    ctr: 2.6,
+    engagement: 1.7,
+  },
+  {
+    id: '10',
+    thumbnail: '/placeholder.jpg',
+    platform: 'meta',
+    brand: 'SleepWell Night',
+    hook: 'Finally Sleep Through the Night - Science-Backed Formula',
+    views: 1100000,
+    likes: 19000,
+    shares: 3800,
+    comments: 1100,
+    date: '2024-11-12',
+    style: 'testimonial',
+    script: 'I hadn\'t slept through the night in years.\n\nThen I tried this science-backed sleep formula.\n\nNow? I wake up refreshed and energized every morning.\n\n30-day guarantee - if it doesn\'t work, full refund.',
+    impressions: 2200000,
+    ctr: 2.7,
+    engagement: 2.3,
+  },
+  {
+    id: '11',
+    thumbnail: '/placeholder.jpg',
+    platform: 'tiktok',
+    brand: 'CleanHome Pro',
+    hook: 'This Robot Vacuum Changed My Life - No More Cleaning!',
+    views: 2800000,
+    likes: 198000,
+    shares: 35000,
+    comments: 15000,
+    date: '2024-11-30',
+    style: 'ugc',
+    script: 'Okay hear me out... this robot vacuum is LIFE CHANGING.\n\nI literally haven\'t vacuumed in 2 months and my floors are spotless.\n\nIt maps your entire house, avoids obstacles, and empties itself.\n\nBest purchase of 2024 hands down.',
+    impressions: 5000000,
+    ctr: 4.3,
+    engagement: 4.8,
+  },
+  {
+    id: '12',
+    thumbnail: '/placeholder.jpg',
+    platform: 'youtube',
+    brand: 'LearnLang Fast',
+    hook: 'Speak Spanish Fluently in 90 Days - Guaranteed',
+    views: 750000,
+    likes: 11000,
+    shares: 1800,
+    comments: 620,
+    date: '2024-11-08',
+    style: 'professional',
+    script: 'Want to speak Spanish fluently? We guarantee results in 90 days.\n\nOur proven method has helped 500,000+ students.\n\nPersonalized lessons, native speakers, real conversations.\n\nStart your free trial today and speak with confidence!',
+    impressions: 1500000,
+    ctr: 2.8,
+    engagement: 2.0,
   },
 ];
 
-const PLATFORMS = [
-  { id: 'all', name: 'All Platforms', color: 'bg-gray-600' },
-  { id: 'meta', name: 'Meta', color: 'bg-blue-600' },
-  { id: 'tiktok', name: 'TikTok', color: 'bg-pink-500' },
-  { id: 'youtube', name: 'YouTube', color: 'bg-red-600' },
-  { id: 'google', name: 'Google', color: 'bg-green-600' },
+const MOCK_BOARDS = [
+  { id: '1', name: 'My Boards', count: 24 },
+  { id: '2', name: 'Competitor Ads', count: 18 },
+  { id: '3', name: 'Inspiration', count: 42 },
+  { id: '4', name: 'UGC Collection', count: 31 },
+  { id: '5', name: 'High Performers', count: 15 },
 ];
 
-const formatNumber = (num: number): string => {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toString();
-};
-
 export const AdSpyDashboard: React.FC = () => {
-  const [filters, setFilters] = useState<FilterState>({
-    platform: 'all',
-    mediaType: 'all',
-    daysRunning: 'all',
-    search: '',
-    sortBy: 'daysRunning',
-  });
-  const [selectedAd, setSelectedAd] = useState<SpyAd | null>(null);
-  const [savedAds, setSavedAds] = useState<Set<string>>(new Set());
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [platform, setPlatform] = useState('all');
+  const [style, setStyle] = useState('all');
+  const [dateRange, setDateRange] = useState('all');
+  const [sortBy, setSortBy] = useState('recent');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+  // UI state
+  const [selectedAd, setSelectedAd] = useState<LibraryAd | null>(null);
+  const [savedAdIds, setSavedAdIds] = useState<Set<string>>(new Set(['1', '3', '7']));
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>('1');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Filter and sort ads
   const filteredAds = useMemo(() => {
-    return MOCK_ADS
-      .filter(ad => {
-        if (filters.platform !== 'all' && ad.platform !== filters.platform) return false;
-        if (filters.mediaType !== 'all' && ad.mediaType !== filters.mediaType) return false;
-        if (filters.daysRunning === '7+' && ad.daysRunning < 7) return false;
-        if (filters.daysRunning === '30+' && ad.daysRunning < 30) return false;
-        if (filters.daysRunning === '60+' && ad.daysRunning < 60) return false;
-        if (filters.search) {
-          const search = filters.search.toLowerCase();
-          return (
-            ad.advertiser.toLowerCase().includes(search) ||
-            ad.headline.toLowerCase().includes(search) ||
-            ad.body.toLowerCase().includes(search)
-          );
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        switch (filters.sortBy) {
-          case 'daysRunning': return b.daysRunning - a.daysRunning;
-          case 'spend': return b.estimatedSpend.max - a.estimatedSpend.max;
-          case 'engagement': return (b.engagement.likes + b.engagement.shares) - (a.engagement.likes + a.engagement.shares);
-          default: return 0;
-        }
-      });
-  }, [filters]);
+    let filtered = MOCK_LIBRARY_ADS;
 
-  const toggleSaveAd = useCallback((adId: string) => {
-    setSavedAds(prev => {
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (ad) =>
+          ad.brand.toLowerCase().includes(query) ||
+          ad.hook.toLowerCase().includes(query) ||
+          ad.style.toLowerCase().includes(query)
+      );
+    }
+
+    // Platform filter
+    if (platform !== 'all') {
+      filtered = filtered.filter((ad) => ad.platform === platform);
+    }
+
+    // Style filter
+    if (style !== 'all') {
+      filtered = filtered.filter((ad) => ad.style === style);
+    }
+
+    // Date range filter
+    if (dateRange !== 'all') {
+      const days = parseInt(dateRange);
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - days);
+      filtered = filtered.filter((ad) => new Date(ad.date) >= cutoffDate);
+    }
+
+    // Sort
+    filtered = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'recent':
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        case 'views':
+          return b.views - a.views;
+        case 'performance':
+          return (b.engagement || 0) - (a.engagement || 0);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [searchQuery, platform, style, dateRange, sortBy]);
+
+  const handleCardClick = (id: string) => {
+    const ad = MOCK_LIBRARY_ADS.find((a) => a.id === id);
+    if (ad) {
+      setSelectedAd(ad);
+    }
+  };
+
+  const handleSaveClick = (id: string) => {
+    setSavedAdIds((prev) => {
       const next = new Set(prev);
-      if (next.has(adId)) {
-        next.delete(adId);
+      if (next.has(id)) {
+        next.delete(id);
       } else {
-        next.add(adId);
+        next.add(id);
       }
       return next;
     });
-  }, []);
+  };
 
-  const getPlatformColor = (platform: string): string => {
-    return PLATFORMS.find(p => p.id === platform)?.color || 'bg-gray-600';
+  const handleSaveToBoard = (boardId: string) => {
+    setSelectedBoardId(boardId);
+    // TODO: Implement save to board functionality
+  };
+
+  const handleCreateBoard = () => {
+    // TODO: Implement create board functionality
+  };
+
+  const handleLoadMore = () => {
+    setIsLoading(true);
+    // Simulate loading more ads
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <EyeIcon className="w-6 h-6 text-indigo-400" />
-              Ad Spy Dashboard
-            </h1>
-            <p className="text-gray-400 text-sm mt-1">
-              Monitor competitor ads and discover winning creatives
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <span className="px-3 py-1.5 bg-gray-800 rounded-lg text-sm">
-              {filteredAds.length} ads found
-            </span>
-            <button className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm transition-colors">
-              + New Search
-            </button>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Ad Spy Library</h1>
+          <p className="text-zinc-400">
+            Discover high-performing ads and save them to your boards
+          </p>
         </div>
 
-        {/* Filters */}
-        <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Search</label>
-              <input
-                type="text"
-                placeholder="Search ads..."
-                value={filters.search}
-                onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                className="w-full px-3 py-2 bg-gray-900/60 border border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Platform</label>
-              <select
-                value={filters.platform}
-                onChange={e => setFilters(prev => ({ ...prev, platform: e.target.value }))}
-                className="w-full px-3 py-2 bg-gray-900/60 border border-gray-700 rounded-lg text-sm"
-              >
-                {PLATFORMS.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Media Type</label>
-              <select
-                value={filters.mediaType}
-                onChange={e => setFilters(prev => ({ ...prev, mediaType: e.target.value }))}
-                className="w-full px-3 py-2 bg-gray-900/60 border border-gray-700 rounded-lg text-sm"
-              >
-                <option value="all">All Types</option>
-                <option value="video">Video</option>
-                <option value="image">Image</option>
-                <option value="carousel">Carousel</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Days Running</label>
-              <select
-                value={filters.daysRunning}
-                onChange={e => setFilters(prev => ({ ...prev, daysRunning: e.target.value }))}
-                className="w-full px-3 py-2 bg-gray-900/60 border border-gray-700 rounded-lg text-sm"
-              >
-                <option value="all">Any Duration</option>
-                <option value="7+">7+ Days</option>
-                <option value="30+">30+ Days</option>
-                <option value="60+">60+ Days</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Sort By</label>
-              <select
-                value={filters.sortBy}
-                onChange={e => setFilters(prev => ({ ...prev, sortBy: e.target.value }))}
-                className="w-full px-3 py-2 bg-gray-900/60 border border-gray-700 rounded-lg text-sm"
-              >
-                <option value="daysRunning">Longest Running</option>
-                <option value="spend">Highest Spend</option>
-                <option value="engagement">Most Engagement</option>
-              </select>
-            </div>
-          </div>
+        {/* Filter Bar */}
+        <div className="mb-6">
+          <FilterBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            platform={platform}
+            onPlatformChange={setPlatform}
+            style={style}
+            onStyleChange={setStyle}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            sortBy={sortBy}
+            onSortByChange={setSortBy}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
         </div>
 
-        {/* Ads Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAds.map(ad => (
-            <div
-              key={ad.id}
-              className="bg-gray-800/60 border border-gray-700 rounded-xl overflow-hidden hover:border-indigo-500/50 transition-all group"
-            >
-              {/* Thumbnail */}
-              <div className="relative aspect-video bg-gray-900">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <FilmIcon className="w-12 h-12 text-gray-700" />
-                </div>
-                <div className="absolute top-2 left-2 flex gap-2">
-                  <span className={`px-2 py-0.5 ${getPlatformColor(ad.platform)} rounded text-xs font-medium`}>
-                    {ad.platform.charAt(0).toUpperCase() + ad.platform.slice(1)}
-                  </span>
-                  <span className="px-2 py-0.5 bg-gray-800/90 rounded text-xs">
-                    {ad.mediaType}
-                  </span>
-                </div>
-                <div className="absolute top-2 right-2">
-                  <button
-                    onClick={() => toggleSaveAd(ad.id)}
-                    className={`p-1.5 rounded-full transition-colors ${
-                      savedAds.has(ad.id) ? 'bg-indigo-600 text-white' : 'bg-gray-800/90 text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    <TagIcon className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-green-900/80 text-green-400 rounded text-xs font-medium">
-                  {ad.daysRunning} days
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-indigo-400">{ad.advertiser}</span>
-                </div>
-                <h3 className="font-semibold mb-1 line-clamp-1">{ad.headline}</h3>
-                <p className="text-sm text-gray-400 line-clamp-2 mb-3">{ad.body}</p>
-
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                  <div className="bg-gray-900/50 rounded p-2">
-                    <div className="text-xs text-gray-500">Likes</div>
-                    <div className="font-semibold">{formatNumber(ad.engagement.likes)}</div>
-                  </div>
-                  <div className="bg-gray-900/50 rounded p-2">
-                    <div className="text-xs text-gray-500">Comments</div>
-                    <div className="font-semibold">{formatNumber(ad.engagement.comments)}</div>
-                  </div>
-                  <div className="bg-gray-900/50 rounded p-2">
-                    <div className="text-xs text-gray-500">Shares</div>
-                    <div className="font-semibold">{formatNumber(ad.engagement.shares)}</div>
-                  </div>
-                </div>
-
-                {/* Estimated Spend */}
-                <div className="flex items-center justify-between text-sm mb-3">
-                  <span className="text-gray-400">Est. Spend</span>
-                  <span className="font-medium text-green-400">
-                    ${formatNumber(ad.estimatedSpend.min)} - ${formatNumber(ad.estimatedSpend.max)}
-                  </span>
-                </div>
-
-                {/* Hooks */}
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {ad.hooks.slice(0, 3).map(hook => (
-                    <span key={hook} className="px-2 py-0.5 bg-purple-900/30 text-purple-300 rounded text-xs">
-                      {hook}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSelectedAd(ad)}
-                    className="flex-1 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
-                  >
-                    View Details
-                  </button>
-                  <button className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm transition-colors flex items-center gap-1">
-                    <SparklesIcon className="w-4 h-4" />
-                    Remix
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* Results Count */}
+        <div className="mb-6">
+          <p className="text-sm text-zinc-500">
+            Showing {filteredAds.length} of {MOCK_LIBRARY_ADS.length} ads
+          </p>
         </div>
 
-        {/* Detail Modal */}
-        {selectedAd && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gray-900 border-b border-gray-700 p-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold">{selectedAd.advertiser}</h2>
-                <button
-                  onClick={() => setSelectedAd(null)}
-                  className="text-gray-400 hover:text-white text-2xl"
-                >
-                  &times;
-                </button>
-              </div>
-              <div className="p-6 space-y-6">
-                {/* Ad Preview */}
-                <div className="aspect-video bg-gray-800 rounded-lg flex items-center justify-center">
-                  <FilmIcon className="w-16 h-16 text-gray-700" />
-                </div>
+        {/* Ad Grid */}
+        <AdGrid
+          ads={filteredAds}
+          isLoading={isLoading && filteredAds.length === 0}
+          onCardClick={handleCardClick}
+          onSaveClick={handleSaveClick}
+          savedAdIds={savedAdIds}
+          onLoadMore={handleLoadMore}
+          hasMore={false} // Set to true when implementing pagination
+        />
 
-                {/* Copy */}
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs text-gray-400">Headline</label>
-                    <p className="font-semibold">{selectedAd.headline}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400">Body Copy</label>
-                    <p className="text-gray-300">{selectedAd.body}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400">CTA</label>
-                    <span className="inline-block px-3 py-1 bg-indigo-600 rounded text-sm">{selectedAd.cta}</span>
-                  </div>
-                </div>
-
-                {/* Targeting */}
-                <div className="bg-gray-800/60 rounded-lg p-4">
-                  <h3 className="font-semibold mb-3 flex items-center gap-2">
-                    <BarChartIcon className="w-4 h-4" />
-                    Targeting Insights
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-400">Age Range:</span>
-                      <span className="ml-2">{selectedAd.targeting.ageRange}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Gender:</span>
-                      <span className="ml-2">{selectedAd.targeting.gender}</span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-gray-400">Interests:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedAd.targeting.interests.map(i => (
-                          <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-xs">{i}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-gray-400">Countries:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedAd.targeting.countries.map(c => (
-                          <span key={c} className="px-2 py-0.5 bg-gray-700 rounded text-xs">{c}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Hooks & Angles */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-800/60 rounded-lg p-4">
-                    <h3 className="font-semibold mb-2">Hooks Used</h3>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedAd.hooks.map(h => (
-                        <span key={h} className="px-2 py-1 bg-purple-900/30 text-purple-300 rounded text-xs">{h}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-gray-800/60 rounded-lg p-4">
-                    <h3 className="font-semibold mb-2">Ad Angles</h3>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedAd.angles.map(a => (
-                        <span key={a} className="px-2 py-1 bg-green-900/30 text-green-300 rounded text-xs">{a}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3">
-                  <button className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center justify-center gap-2">
-                    <SparklesIcon className="w-5 h-5" />
-                    Create Similar Ad
-                  </button>
-                  <button className="px-4 py-2 border border-gray-600 hover:bg-gray-800 rounded-lg transition-colors flex items-center gap-2">
-                    <DownloadIcon className="w-5 h-5" />
-                    Export
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Ad Detail Modal */}
+        <AdDetailModal
+          ad={selectedAd}
+          isOpen={selectedAd !== null}
+          onClose={() => setSelectedAd(null)}
+          boards={MOCK_BOARDS}
+          selectedBoardId={selectedBoardId}
+          onSaveToBoard={handleSaveToBoard}
+          onCreateBoard={handleCreateBoard}
+        />
       </div>
     </div>
   );
