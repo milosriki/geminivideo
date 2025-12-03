@@ -8,9 +8,8 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-full bg-zinc-900 border-r border-zinc-800 transition-all duration-300 z-40 ${
-        isOpen ? 'w-64' : 'w-16'
-      }`}
+      className={`fixed left-0 top-0 h-full bg-zinc-900 border-r border-zinc-800 transition-all duration-300 z-40 ${isOpen ? 'w-56' : 'w-16'
+        }`}
     >
       {/* Logo */}
       <div className="h-16 flex items-center justify-center border-b border-zinc-800">

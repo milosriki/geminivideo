@@ -13,12 +13,11 @@ export function MainLayout() {
 
       {/* Main Content */}
       <div
-        className={`flex-1 flex flex-col transition-all duration-300 ${
-          isOpen ? 'ml-64' : 'ml-16'
-        }`}
+        className={`flex-1 flex flex-col transition-all duration-300 ${isOpen ? 'ml-56' : 'ml-16'
+          }`}
       >
         <TopBar />
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-4">
           <Outlet />
         </main>
       </div>
