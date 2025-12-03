@@ -31,7 +31,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const [showQuickActionsDropdown, setShowQuickActionsDropdown] = useState(false);
 
   return (
-    <div className="min-h-screen bg-zinc-950 p-6 lg:p-8">
+    <div className="min-h-screen bg-zinc-950 p-4 lg:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>

@@ -1,54 +1,158 @@
-import React, { Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { MainLayout } from './components/layout/MainLayout';
-import {
-  LoginPageWrapper,
-  CampaignBuilderWrapper,
-  AnalyticsDashboardWrapper,
-  ProVideoEditorWrapper,
-  AICreativeStudioWrapper,
-  AdSpyDashboardWrapper
-} from './components/wrappers';
-import HomeDashboard from './components/dashboard/HomeDashboard';
+import { lazy, Suspense } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { DashboardLayout } from '@/layouts/DashboardLayout'
 
-// Loading fallback
-const PageLoader = () => (
-  <div className="flex items-center justify-center h-screen bg-gray-900 text-white">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-  </div>
-);
+// Lazy load all pages for code splitting
+const HomePage = lazy(() => import('@/pages/HomePage'))
+const CreateCampaignPage = lazy(() => import('@/pages/campaigns/CreateCampaignPage'))
+const CampaignsPage = lazy(() => import('@/pages/campaigns/CampaignsPage'))
+const ProjectsPage = lazy(() => import('@/pages/ProjectsPage'))
+const AssetsPage = lazy(() => import('@/pages/AssetsPage'))
+const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
+const AdSpyPage = lazy(() => import('@/pages/AdSpyPage'))
+const StudioPage = lazy(() => import('@/pages/studio/StudioPage'))
+const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+
+// Loading fallback component
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative">
+          <div className="h-12 w-12 rounded-full border-4 border-zinc-800 border-t-violet-500 animate-spin" />
+        </div>
+        <p className="text-zinc-400 text-sm">Loading...</p>
+      </div>
+    </div>
+  )
+}
+
+// Toast Provider Component
+function ToastContainer() {
+  // Will be implemented with useToastStore
+  return null
+}
 
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageLoader />}>
+      <div className="min-h-screen bg-zinc-950 text-white">
         <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<LoginPageWrapper />} />
-
-          {/* Protected Routes (wrapped in MainLayout) */}
-          <Route element={<MainLayout />}>
-            <Route index element={<HomeDashboard />} />
-
+          {/* Dashboard Routes */}
+          <Route path="/" element={<DashboardLayout />}>
+            <Route
+              index
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <HomePage />
+                </Suspense>
+              }
+            />
+            
             {/* Campaign Routes */}
-            <Route path="campaigns" element={<CampaignBuilderWrapper />} />
-            <Route path="campaigns/:id" element={<CampaignBuilderWrapper />} />
-
-            {/* Analytics & Spy */}
-            <Route path="analytics" element={<AnalyticsDashboardWrapper />} />
-            <Route path="spy" element={<AdSpyDashboardWrapper />} />
-
-            {/* Studio Tools */}
-            <Route path="studio" element={<ProVideoEditorWrapper />} />
-            <Route path="studio/ai" element={<AICreativeStudioWrapper />} />
+            <Route
+              path="create"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CreateCampaignPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="campaigns"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CampaignsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="campaigns/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CampaignsPage />
+                </Suspense>
+              }
+            />
+            
+            {/* Projects */}
+            <Route
+              path="projects"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ProjectsPage />
+                </Suspense>
+              }
+            />
+            
+            {/* Assets / Library */}
+            <Route
+              path="assets"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AssetsPage />
+                </Suspense>
+              }
+            />
+            
+            {/* Analytics */}
+            <Route
+              path="analytics"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AnalyticsPage />
+                </Suspense>
+              }
+            />
+            
+            {/* Ad Spy */}
+            <Route
+              path="spy"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AdSpyPage />
+                </Suspense>
+              }
+            />
+            
+            {/* Studio */}
+            <Route
+              path="studio"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <StudioPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="studio/:projectId"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <StudioPage />
+                </Suspense>
+              }
+            />
+            
+            {/* Settings */}
+            <Route
+              path="settings"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <SettingsPage />
+                </Suspense>
+              }
+            />
+            
+            {/* Catch all - redirect to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </Suspense>
+        
+        {/* Global Toast Notifications */}
+        <ToastContainer />
+      </div>
     </BrowserRouter>
-  );
+  )
 }
 
-export default App;
+export default App
