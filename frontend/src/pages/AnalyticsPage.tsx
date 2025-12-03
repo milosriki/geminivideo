@@ -142,44 +142,46 @@ export function AnalyticsPage() {
         }
 
         if (kpiRes.ok) {
-          const data = await kpiRes.json()
+          const response = await kpiRes.json()
+          // Unwrap kpis object and map snake_case to camelCase
+          const data = response.kpis || response
           // Transform API response to match KPICardProps format
           const transformedKpis: KPICardProps[] = [
             {
               title: 'Total Revenue',
-              value: data.revenue > 0 ? `AED ${data.revenue.toLocaleString()}` : 'No data',
-              change: data.revenueChange || 0,
-              trend: (data.revenueChange || 0) >= 0 ? 'up' : 'down'
+              value: (data.total_revenue || data.revenue || 0) > 0 ? `AED ${(data.total_revenue || data.revenue).toLocaleString()}` : 'No data',
+              change: data.revenue_change || data.revenueChange || 0,
+              trend: (data.revenue_change || data.revenueChange || 0) >= 0 ? 'up' : 'down'
             },
             {
               title: 'Total Spend',
-              value: data.spend > 0 ? `AED ${data.spend.toLocaleString()}` : 'No data',
-              change: data.spendChange || 0,
-              trend: (data.spendChange || 0) >= 0 ? 'up' : 'down'
+              value: (data.total_spend || data.spend || 0) > 0 ? `AED ${(data.total_spend || data.spend).toLocaleString()}` : 'No data',
+              change: data.spend_change || data.spendChange || 0,
+              trend: (data.spend_change || data.spendChange || 0) >= 0 ? 'up' : 'down'
             },
             {
               title: 'ROAS',
-              value: data.roas > 0 ? `${data.roas.toFixed(1)}x` : 'No data',
-              change: data.roasChange || 0,
-              trend: (data.roasChange || 0) >= 0 ? 'up' : 'down'
+              value: (data.roas || 0) > 0 ? `${data.roas.toFixed(1)}x` : 'No data',
+              change: data.roas_change || data.roasChange || 0,
+              trend: (data.roas_change || data.roasChange || 0) >= 0 ? 'up' : 'down'
             },
             {
               title: 'Conversions',
-              value: data.conversions > 0 ? data.conversions.toString() : 'No data',
-              change: data.conversionsChange || 0,
-              trend: (data.conversionsChange || 0) >= 0 ? 'up' : 'down'
+              value: (data.conversions || 0) > 0 ? data.conversions.toString() : 'No data',
+              change: data.conversions_change || data.conversionsChange || 0,
+              trend: (data.conversions_change || data.conversionsChange || 0) >= 0 ? 'up' : 'down'
             },
             {
               title: 'CTR',
-              value: data.ctr > 0 ? `${data.ctr.toFixed(1)}%` : 'No data',
-              change: data.ctrChange || 0,
-              trend: (data.ctrChange || 0) >= 0 ? 'up' : 'down'
+              value: (data.ctr || 0) > 0 ? `${data.ctr.toFixed(1)}%` : 'No data',
+              change: data.ctr_change || data.ctrChange || 0,
+              trend: (data.ctr_change || data.ctrChange || 0) >= 0 ? 'up' : 'down'
             },
             {
               title: 'CPA',
-              value: data.cpa > 0 ? `AED ${data.cpa.toFixed(0)}` : 'No data',
-              change: data.cpaChange || 0,
-              trend: (data.cpaChange || 0) >= 0 ? 'up' : 'down'
+              value: (data.cpa || 0) > 0 ? `AED ${data.cpa.toFixed(0)}` : 'No data',
+              change: data.cpa_change || data.cpaChange || 0,
+              trend: (data.cpa_change || data.cpaChange || 0) >= 0 ? 'up' : 'down'
             }
           ]
           setKpis(transformedKpis)

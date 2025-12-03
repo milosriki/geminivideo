@@ -59,10 +59,12 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   useEffect(() => {
     const fetchCredits = async () => {
       try {
-        const creditsData = await getCredits();
+        const response = await getCredits();
+        // Handle nested credits object from backend
+        const creditsData = response.credits || response;
         setMetrics(prev => ({
           ...prev,
-          aiCredits: creditsData.remaining || creditsData.credits || 0,
+          aiCredits: creditsData.available || creditsData.remaining || creditsData.credits || 0,
           aiCreditsTotal: creditsData.total || creditsData.limit || 10000,
         }));
       } catch (error) {
