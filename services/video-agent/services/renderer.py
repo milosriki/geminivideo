@@ -11,6 +11,11 @@ import math
 
 logger = logging.getLogger(__name__)
 
+# FFmpeg timeout constants (in seconds)
+FFMPEG_TIMEOUT_KEN_BURNS = 300   # 5 minutes for Ken Burns effect
+FFMPEG_TIMEOUT_CONCAT = 600      # 10 minutes for concatenation
+FFMPEG_TIMEOUT_COMPOSE = 900     # 15 minutes for final composition
+
 class VideoRenderer:
     """
     Video renderer using FFmpeg for concatenation, transitions, and composition
@@ -74,7 +79,7 @@ class VideoRenderer:
                 check=True,
                 capture_output=True,
                 stdin=subprocess.DEVNULL,
-                timeout=300  # 5 minute timeout
+                timeout=FFMPEG_TIMEOUT_KEN_BURNS
             )
             return output_path
         except subprocess.CalledProcessError as e:
@@ -145,7 +150,7 @@ class VideoRenderer:
                 check=True,
                 capture_output=True,
                 stdin=subprocess.DEVNULL,
-                timeout=600  # 10 minute timeout for concat
+                timeout=FFMPEG_TIMEOUT_CONCAT
             )
             return output_path
             
@@ -213,7 +218,7 @@ class VideoRenderer:
                 check=True,
                 capture_output=True,
                 stdin=subprocess.DEVNULL,
-                timeout=900  # 15 minute timeout for final composition
+                timeout=FFMPEG_TIMEOUT_COMPOSE
             )
             
         except subprocess.CalledProcessError as e:

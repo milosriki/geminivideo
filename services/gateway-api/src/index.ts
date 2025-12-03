@@ -23,6 +23,7 @@ const PORT = process.env.PORT || 8000;
 // CORS configuration - use environment variable for allowed origins
 // CORS_ORIGINS should be comma-separated list of allowed origins
 // e.g., "https://frontend.run.app,http://localhost:3000"
+// Default allows frontend (port 3000) and gateway's external port (8080 in docker-compose)
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:8080').split(',');
 const corsOptions = {
   origin: CORS_ORIGINS,
