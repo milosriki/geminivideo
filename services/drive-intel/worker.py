@@ -109,12 +109,15 @@ class DriveWorker:
             print(f"❌ Error processing asset {asset_id}: {e}")
             import traceback
             traceback.print_exc()
-            
-            # Update status to ERROR
-            asset = db.query(Asset).filter(Asset.asset_id == asset_id).first()
-            if asset:
-                asset.status = "ERROR"
-                db.commit()
+
+            # Update status to ERROR - reuse asset from initial query to avoid N+1
+            try:
+                if asset:
+                    asset.status = "ERROR"
+                    db.commit()
+            except NameError:
+                # Asset was never fetched (early failure)
+                pass
     
     def detect_emotion_for_clip(
         self, 

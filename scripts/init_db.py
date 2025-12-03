@@ -116,11 +116,14 @@ def verify_setup():
     db = SessionLocal()
     
     try:
-        # Count assets
-        asset_count = db.query(Asset).count()
-        clip_count = db.query(Clip).count()
-        emotion_count = db.query(Emotion).count()
-        
+        # Count all entities in a single database round-trip using scalar subqueries
+        from sqlalchemy import func, select
+        asset_subq = select(func.count(Asset.asset_id)).scalar_subquery()
+        clip_subq = select(func.count(Clip.clip_id)).scalar_subquery()
+        emotion_subq = select(func.count(Emotion.id)).scalar_subquery()
+        result = db.execute(select(asset_subq, clip_subq, emotion_subq)).first()
+        asset_count, clip_count, emotion_count = result
+
         print(f"✅ Database verification complete:")
         print(f"   - Assets: {asset_count}")
         print(f"   - Clips: {clip_count}")
