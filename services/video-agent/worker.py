@@ -99,6 +99,50 @@ class VideoWorker:
             from types import SimpleNamespace
             scenes_objs = [SimpleNamespace(**s) for s in raw_scenes]
 
+            # Step 0: Smart Audio Sync (The Ears)
+            audio_url = request_data.get('driver_signals', {}).get('audio_url')
+            audio_path = None
+            
+            if audio_url:
+                try:
+                    import requests
+                    import tempfile
+                    
+                    # Download audio
+                    print(f"🎵 Downloading audio for beat sync: {audio_url}")
+                    response = requests.get(audio_url)
+                    if response.status_code == 200:
+                        fd, audio_path = tempfile.mkstemp(suffix=".mp3")
+                        os.write(fd, response.content)
+                        os.close(fd)
+                        
+                        # Detect beats
+                        beats = await self.renderer.detect_beats(audio_path)
+                        
+                        if beats:
+                            print(f"🎵 Syncing {len(scenes_objs)} scenes to {len(beats)} beats...")
+                            # Simple sync: Snap each scene end to nearest beat
+                            current_time = 0
+                            for i, scene in enumerate(scenes_objs):
+                                scene_dur = scene.end_time - scene.start_time
+                                target_end = current_time + scene_dur
+                                
+                                # Find nearest beat to target_end
+                                nearest_beat = min(beats, key=lambda x: abs(x - target_end))
+                                
+                                # Adjust duration (min 1s)
+                                new_end = max(nearest_beat, current_time + 1.0)
+                                new_dur = new_end - current_time
+                                
+                                # Update scene
+                                scene.end_time = scene.start_time + new_dur
+                                current_time = new_end
+                                
+                            print("✅ Scenes synced to beats")
+                except Exception as e:
+                    print(f"⚠️ Audio sync failed: {e}")
+
+            # Step 1: Concatenate
             concatenated_path = await self.renderer.concatenate_scenes(
                 scenes=scenes_objs,
                 enable_transitions=request_data.get('enable_transitions', True)

@@ -224,11 +224,33 @@ async def process_asset(asset_id: str):
         # Detect Scenes (Real)
         detected_scenes = scene_detector.detect_scenes(temp_path)
         
-        # Enrich with clip IDs and asset ID
+        # --- FEATURE EXTRACTION (THE EYES) ---
+        from src.feature_extractor import get_feature_extractor
+        extractor = get_feature_extractor()
+        
         final_clips = []
         for scene in detected_scenes:
             scene['asset_id'] = asset_id
             scene['thumbnail_url'] = f"/thumbnails/{asset_id}_{scene['clip_id']}.jpg"
+            
+            # 1. Detect Objects (YOLO)
+            # Sample middle of the scene
+            mid_point = (scene['start_time'] + scene['end_time']) / 2
+            objects = extractor.detect_objects_at_timestamp(temp_path, mid_point)
+            
+            # 2. Generate Embeddings (SentenceTransformer)
+            # Create a rich description for embedding
+            description = f"Scene with {', '.join(objects)}." if objects else "Scene with unknown content."
+            embedding = extractor.generate_embedding(description)
+            
+            # Update features
+            if 'features' not in scene:
+                scene['features'] = {}
+            
+            scene['features']['objects_detected'] = objects
+            scene['features']['embedding'] = embedding
+            scene['features']['description'] = description
+            
             final_clips.append(scene)
             
         clips_db[asset_id] = final_clips
