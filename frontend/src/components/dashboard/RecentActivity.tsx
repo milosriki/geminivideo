@@ -75,10 +75,10 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({
   const displayedActivities = activities.slice(0, maxItems);
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 shadow-lg shadow-black/20 h-full">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 sm:p-5 shadow-lg shadow-black/20 h-full">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white font-semibold text-lg">Recent Activity</h3>
-        <button className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors">
+        <h3 className="text-white font-semibold text-base sm:text-lg">Recent Activity</h3>
+        <button className="text-indigo-400 hover:text-indigo-300 text-xs sm:text-sm font-medium transition-colors">
           View all
         </button>
       </div>
@@ -87,7 +87,7 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({
         {displayedActivities.map((activity) => (
           <div
             key={activity.id}
-            className="flex items-start gap-3 p-3 rounded-lg hover:bg-zinc-800/50 transition-colors cursor-pointer"
+            className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg hover:bg-zinc-800/50 transition-colors cursor-pointer"
           >
             {getActivityIcon(activity.type)}
             <div className="flex-1 min-w-0">
