@@ -66,14 +66,23 @@ export const BadgeButton = forwardRef(function BadgeButton(
     'group relative inline-flex rounded-md focus:not-data-focus:outline-hidden data-focus:outline-2 data-focus:outline-offset-2 data-focus:outline-blue-500'
   )
 
+<<<<<<< HEAD
   return typeof props.href === 'string' ? (
     <Link {...props} className={classes} ref={ref as React.ForwardedRef<HTMLAnchorElement>}>
+=======
+  return 'href' in props && typeof props.href === 'string' ? (
+    <Link {...(props as React.ComponentPropsWithoutRef<typeof Link>)} className={classes} ref={ref as React.ForwardedRef<HTMLAnchorElement>}>
+>>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
       <TouchTarget>
         <Badge color={color}>{children}</Badge>
       </TouchTarget>
     </Link>
   ) : (
+<<<<<<< HEAD
     <Headless.Button {...props} className={classes} ref={ref}>
+=======
+    <Headless.Button {...(props as Omit<Headless.ButtonProps, 'as' | 'className'>)} className={classes} ref={ref as React.ForwardedRef<HTMLButtonElement>}>
+>>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
       <TouchTarget>
         <Badge color={color}>{children}</Badge>
       </TouchTarget>

@@ -1,0 +1,95 @@
+import { Link } from "react-router-dom";
+import { useRef } from "react";
+
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+
+  return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+export function VideoCard({
+  url,
+  target,
+  thumbnailUrl,
+  videoUrl,
+  duration,
+  title,
+  subtitle,
+}: {
+  url: string;
+  target?: string;
+  thumbnailUrl: string;
+  videoUrl?: string;
+  duration: number;
+  title: string;
+  subtitle: string;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const content = (
+    <>
+      {videoUrl ? (
+        <div
+          onPointerLeave={() => {
+            if (videoRef.current) {
+              videoRef.current.currentTime = 0;
+            }
+          }}
+          className="group relative"
+        >
+          <img
+            src={thumbnailUrl}
+            width={400}
+            height={225}
+            alt=""
+            className="aspect-video w-full rounded-lg bg-gray-950 object-cover group-hover:hidden dark:bg-gray-900"
+          />
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            muted
+            loop
+            playsInline
+            autoPlay
+            preload="auto"
+            className="hidden aspect-video w-full rounded-lg bg-gray-950 object-cover group-hover:block dark:bg-gray-900"
+          />
+          <div className="absolute right-3 bottom-3 rounded-sm bg-gray-950/50 p-1 text-xs/3 font-semibold text-white">
+            {formatDuration(duration)}
+          </div>
+        </div>
+      ) : (
+        <div className="relative">
+          <img
+            src={thumbnailUrl}
+            width={400}
+            height={225}
+            alt=""
+            className="aspect-video w-full rounded-lg bg-gray-950 object-cover dark:bg-gray-900"
+          />
+          <div className="absolute right-3 bottom-3 rounded-sm bg-gray-950/50 p-1 text-xs/3 font-semibold text-white">
+            {formatDuration(duration)}
+          </div>
+        </div>
+      )}
+      <p className="mt-4 text-sm/6 font-semibold text-gray-950 dark:text-white">
+        {title}
+      </p>
+      <p className="text-sm/6 text-gray-600 dark:text-gray-400">
+        {subtitle}
+      </p>
+    </>
+  );
+
+  if (target === "_blank") {
+    return (
+      <a href={url} target={target} rel="noopener noreferrer">
+        {content}
+      </a>
+    );
+  }
+
+  return <Link to={url}>{content}</Link>;
+}

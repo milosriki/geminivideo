@@ -20,12 +20,10 @@ interface ProVideoEditorWrapperProps {
 
 export const ProVideoEditorWrapper: React.FC<ProVideoEditorWrapperProps> = ({ projectId }) => {
   const handleSave = async (project: any) => {
-    console.log('Saving project:', project);
     // TODO: Implement actual save logic with API
   };
 
   const handleExport = async (settings: any) => {
-    console.log('Exporting with settings:', settings);
     // TODO: Implement actual export logic with video processing service
   };
 

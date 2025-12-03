@@ -177,12 +177,21 @@ export const Button = forwardRef(function Button(
     outline ? styles.outline : plain ? styles.plain : clsx(styles.solid, styles.colors[color ?? 'dark/zinc'])
   )
 
+<<<<<<< HEAD
   return typeof props.href === 'string' ? (
     <Link {...props} className={classes} ref={ref as React.ForwardedRef<HTMLAnchorElement>}>
       <TouchTarget>{children}</TouchTarget>
     </Link>
   ) : (
     <Headless.Button {...props} className={clsx(classes, 'cursor-default')} ref={ref}>
+=======
+  return 'href' in props && typeof props.href === 'string' ? (
+    <Link {...(props as React.ComponentPropsWithoutRef<typeof Link>)} className={classes} ref={ref as React.ForwardedRef<HTMLAnchorElement>}>
+      <TouchTarget>{children}</TouchTarget>
+    </Link>
+  ) : (
+    <Headless.Button {...(props as Omit<Headless.ButtonProps, 'as' | 'className'>)} className={clsx(classes, 'cursor-default')} ref={ref as React.ForwardedRef<HTMLButtonElement>}>
+>>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
       <TouchTarget>{children}</TouchTarget>
     </Headless.Button>
   )

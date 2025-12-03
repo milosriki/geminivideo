@@ -1,8 +1,14 @@
+<<<<<<< HEAD
 'use client'
 
 import * as Headless from '@headlessui/react'
 import clsx from 'clsx'
 import { LayoutGroup, motion } from 'motion/react'
+=======
+import * as Headless from '@headlessui/react'
+import clsx from 'clsx'
+import { LayoutGroup, motion } from 'framer-motion'
+>>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
 import React, { forwardRef, useId } from 'react'
 import { TouchTarget } from './button'
 import { Link } from './link'
@@ -113,6 +119,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
           className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-zinc-950 dark:bg-white"
         />
       )}
+<<<<<<< HEAD
       {typeof props.href === 'string' ? (
         <Headless.CloseButton
           as={Link}
@@ -120,15 +127,31 @@ export const SidebarItem = forwardRef(function SidebarItem(
           className={classes}
           data-current={current ? 'true' : undefined}
           ref={ref}
+=======
+      {'href' in props && typeof props.href === 'string' ? (
+        <Headless.CloseButton
+          as={Link}
+          {...(props as Omit<Headless.ButtonProps<typeof Link>, 'as' | 'className'>)}
+          className={classes}
+          data-current={current ? 'true' : undefined}
+          ref={ref as React.ForwardedRef<HTMLAnchorElement>}
+>>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
         >
           <TouchTarget>{children}</TouchTarget>
         </Headless.CloseButton>
       ) : (
         <Headless.Button
+<<<<<<< HEAD
           {...props}
           className={clsx('cursor-default', classes)}
           data-current={current ? 'true' : undefined}
           ref={ref}
+=======
+          {...(props as Omit<Headless.ButtonProps, 'as' | 'className'>)}
+          className={clsx('cursor-default', classes)}
+          data-current={current ? 'true' : undefined}
+          ref={ref as React.ForwardedRef<HTMLButtonElement>}
+>>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
         >
           <TouchTarget>{children}</TouchTarget>
         </Headless.Button>
