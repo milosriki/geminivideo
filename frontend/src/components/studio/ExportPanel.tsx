@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowDownTrayIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
 interface ExportSettings {
@@ -40,6 +40,16 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ duration = 25, onExpor
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [estimatedSize, setEstimatedSize] = useState(0);
+  const exportIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup interval on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (exportIntervalRef.current) {
+        clearInterval(exportIntervalRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     calculateEstimatedSize();
@@ -66,14 +76,22 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ duration = 25, onExpor
   };
 
   const handleExport = async () => {
+    // Clear any existing interval
+    if (exportIntervalRef.current) {
+      clearInterval(exportIntervalRef.current);
+    }
+
     setIsExporting(true);
     setExportProgress(0);
 
-    // Simulate export progress
-    const interval = setInterval(() => {
+    // Simulate export progress with stored ref for cleanup
+    exportIntervalRef.current = setInterval(() => {
       setExportProgress(prev => {
         if (prev >= 100) {
-          clearInterval(interval);
+          if (exportIntervalRef.current) {
+            clearInterval(exportIntervalRef.current);
+            exportIntervalRef.current = null;
+          }
           setTimeout(() => {
             setIsExporting(false);
             setExportProgress(0);

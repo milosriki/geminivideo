@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { BarChartIcon } from './icons';
 import { titanClient } from '../api/titan_client';
+import { API_BASE_URL } from '../config/api';
 
 const qc = new QueryClient();
 
@@ -37,7 +38,7 @@ type CreativePerf = {
 
 type TimeseriesPoint = { ts: number; value: number };
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
+const API_BASE = API_BASE_URL;
 
 const fetchJSON = async <T,>(url: string): Promise<T> => {
   const res = await fetch(url);
