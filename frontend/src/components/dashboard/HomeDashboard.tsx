@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { MetricCard } from './MetricCard';
 import { PerformanceChart } from './PerformanceChart';
 import { RecentActivity } from './RecentActivity';
 import { QuickActions } from './QuickActions';
 import { AIInsights } from './AIInsights';
+import { PendingJobs } from './PendingJobs';
 
 // Mock data for the dashboard
 const mockMetrics = {
@@ -31,11 +33,11 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const [showQuickActionsDropdown, setShowQuickActionsDropdown] = useState(false);
 
   return (
-    <div className="min-h-screen bg-zinc-950 p-6 lg:p-8">
+    <div className="min-h-screen bg-zinc-950">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-white">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
             Welcome back, {userName}! <span className="inline-block animate-wave">👋</span>
           </h1>
           <p className="text-zinc-400 mt-1">
@@ -44,10 +46,10 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         </div>
 
         {/* Quick Actions Dropdown */}
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <button
             onClick={() => setShowQuickActionsDropdown(!showQuickActionsDropdown)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors shadow-lg shadow-indigo-500/25"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors shadow-lg shadow-indigo-500/25 w-full sm:w-auto min-h-[44px]"
           >
             Quick Actions
             <svg
@@ -61,7 +63,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </button>
 
           {showQuickActionsDropdown && (
-            <div className="absolute right-0 mt-2 w-56 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50">
+            <div className="absolute right-0 mt-2 w-full sm:w-56 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50">
               <div className="py-1">
                 {[
                   { label: 'New Campaign', icon: '➕' },
@@ -71,7 +73,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                 ].map((item, idx) => (
                   <button
                     key={idx}
-                    className="w-full px-4 py-2.5 text-left text-white hover:bg-zinc-700 transition-colors flex items-center gap-3"
+                    className="w-full px-4 py-3 sm:py-2.5 text-left text-white hover:bg-zinc-700 transition-colors flex items-center gap-3 min-h-[44px] sm:min-h-0"
                     onClick={() => setShowQuickActionsDropdown(false)}
                   >
                     <span>{item.icon}</span>
@@ -85,12 +87,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <MetricCard
           label="Active Campaigns"
           value={mockMetrics.activeCampaigns}
           change={mockChanges.activeCampaigns}
           changeLabel="%"
+          index={0}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -102,6 +105,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           value={mockMetrics.videosGenerated}
           change={mockChanges.videosGenerated}
           changeLabel="this week"
+          index={1}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m22 8-6 4 6 4V8Z" />
@@ -114,6 +118,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           value={mockMetrics.roasAverage}
           change={mockChanges.roasAverage}
           format="multiplier"
+          index={2}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -124,6 +129,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           label="AI Credits"
           value={mockMetrics.aiCredits}
           changeLabel={`${mockChanges.aiCreditsPercentage}% remaining`}
+          index={3}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
@@ -132,20 +138,48 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         />
       </div>
 
+      {/* Pending Jobs - Full Width */}
+      <div className="mb-6 sm:mb-8">
+        <PendingJobs />
+      </div>
+
       {/* Charts and Activity Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
         <PerformanceChart />
-        <RecentActivity />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.3 }}
+        >
+          <RecentActivity />
+        </motion.div>
       </div>
 
       {/* Quick Actions and AI Insights Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <QuickActions />
-        <AIInsights />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.4 }}
+        >
+          <QuickActions />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.5 }}
+        >
+          <AIInsights />
+        </motion.div>
       </div>
 
       {/* Credits Progress Bar */}
-      <div className="mt-8 bg-zinc-900 border border-zinc-800 rounded-xl p-5 shadow-lg shadow-black/20">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.6 }}
+        className="mt-8 bg-zinc-900 border border-zinc-800 rounded-xl p-5 shadow-lg shadow-black/20"
+      >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -166,7 +200,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <p className="text-zinc-500 text-sm mt-2">
           {mockChanges.aiCreditsPercentage}% of your monthly credits remaining. Resets in 12 days.
         </p>
-      </div>
+      </motion.div>
 
       {/* Animate wave emoji */}
       <style>{`
