@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 type CampaignStatus = 'Active' | 'Paused' | 'Completed' | 'Draft';
 
@@ -17,172 +19,6 @@ type SortKey = keyof Campaign;
 type SortDirection = 'asc' | 'desc';
 
 const CAMPAIGNS_PER_PAGE = 10;
-
-// Mock campaign data
-const generateMockCampaigns = (): Campaign[] => [
-  {
-    id: '1',
-    name: 'Summer Sale 2024 - Meta',
-    status: 'Active',
-    spend: 5432.12,
-    revenue: 24567.89,
-    roas: 4.52,
-    conversions: 234,
-  },
-  {
-    id: '2',
-    name: 'Black Friday Promotion',
-    status: 'Active',
-    spend: 8901.45,
-    revenue: 42345.67,
-    roas: 4.76,
-    conversions: 456,
-  },
-  {
-    id: '3',
-    name: 'Brand Awareness Q4',
-    status: 'Active',
-    spend: 3456.78,
-    revenue: 8901.23,
-    roas: 2.57,
-    conversions: 123,
-  },
-  {
-    id: '4',
-    name: 'Product Launch - Fitness',
-    status: 'Paused',
-    spend: 2345.67,
-    revenue: 7890.12,
-    roas: 3.36,
-    conversions: 89,
-  },
-  {
-    id: '5',
-    name: 'Retargeting Campaign - Winter',
-    status: 'Active',
-    spend: 4567.89,
-    revenue: 23456.78,
-    roas: 5.13,
-    conversions: 345,
-  },
-  {
-    id: '6',
-    name: 'Holiday Special Offers',
-    status: 'Completed',
-    spend: 6789.01,
-    revenue: 18901.23,
-    roas: 2.78,
-    conversions: 234,
-  },
-  {
-    id: '7',
-    name: 'New Customer Acquisition',
-    status: 'Active',
-    spend: 9012.34,
-    revenue: 34567.89,
-    roas: 3.84,
-    conversions: 456,
-  },
-  {
-    id: '8',
-    name: 'YouTube Video Campaign',
-    status: 'Active',
-    spend: 1234.56,
-    revenue: 5678.90,
-    roas: 4.60,
-    conversions: 67,
-  },
-  {
-    id: '9',
-    name: 'TikTok Engagement Drive',
-    status: 'Paused',
-    spend: 2567.89,
-    revenue: 6789.01,
-    roas: 2.64,
-    conversions: 98,
-  },
-  {
-    id: '10',
-    name: 'Email Nurture Sequence',
-    status: 'Active',
-    spend: 567.89,
-    revenue: 2345.67,
-    roas: 4.13,
-    conversions: 45,
-  },
-  {
-    id: '11',
-    name: 'Spring Collection Launch',
-    status: 'Draft',
-    spend: 0,
-    revenue: 0,
-    roas: 0,
-    conversions: 0,
-  },
-  {
-    id: '12',
-    name: 'Influencer Collaboration',
-    status: 'Active',
-    spend: 7890.12,
-    revenue: 29012.34,
-    roas: 3.68,
-    conversions: 312,
-  },
-  {
-    id: '13',
-    name: 'Loyalty Program Promo',
-    status: 'Active',
-    spend: 1456.78,
-    revenue: 7234.56,
-    roas: 4.97,
-    conversions: 134,
-  },
-  {
-    id: '14',
-    name: 'Mobile App Install Campaign',
-    status: 'Paused',
-    spend: 3901.23,
-    revenue: 9345.67,
-    roas: 2.39,
-    conversions: 178,
-  },
-  {
-    id: '15',
-    name: 'Local Market Expansion',
-    status: 'Active',
-    spend: 5234.56,
-    revenue: 18901.23,
-    roas: 3.61,
-    conversions: 267,
-  },
-  {
-    id: '16',
-    name: 'Cross-Sell Campaign',
-    status: 'Completed',
-    spend: 2890.12,
-    revenue: 12345.67,
-    roas: 4.27,
-    conversions: 189,
-  },
-  {
-    id: '17',
-    name: 'Premium Product Showcase',
-    status: 'Active',
-    spend: 6123.45,
-    revenue: 28901.23,
-    roas: 4.72,
-    conversions: 401,
-  },
-  {
-    id: '18',
-    name: 'Customer Reactivation',
-    status: 'Active',
-    spend: 1789.01,
-    revenue: 6234.56,
-    roas: 3.48,
-    conversions: 92,
-  },
-];
 
 const StatusBadge: React.FC<{ status: CampaignStatus }> = ({ status }) => {
   const styles = {
@@ -233,8 +69,33 @@ export const CampaignTable: React.FC = () => {
   const [sortKey, setSortKey] = useState<SortKey>('spend');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(1);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const campaigns = useMemo(() => generateMockCampaigns(), []);
+  // Fetch campaigns from API
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/api/campaigns`);
+        if (!response.ok) {
+          throw new Error(response.status.toString());
+        }
+        const data = await response.json();
+        // Backend returns { campaigns: [...] } wrapper
+        setCampaigns(data.campaigns || data || []);
+        setError(null);
+      } catch (err) {
+        setError('Data source not configured. Please configure campaigns in the backend.');
+        setCampaigns([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCampaigns();
+  }, []);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -278,6 +139,41 @@ export const CampaignTable: React.FC = () => {
       minimumFractionDigits: 2,
     }).format(value);
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl shadow-lg overflow-hidden">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-zinc-400">Loading campaigns...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl shadow-lg overflow-hidden">
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="text-red-400 mb-2">Error loading campaigns</div>
+          <div className="text-zinc-500 text-sm">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state
+  if (campaigns.length === 0) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl shadow-lg overflow-hidden">
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="text-zinc-400">No campaigns available</div>
+          <div className="text-zinc-500 text-sm mt-1">Create your first campaign to get started</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl shadow-lg overflow-hidden">

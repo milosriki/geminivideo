@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import {
@@ -17,40 +17,7 @@ interface Job {
   createdAt: string;
 }
 
-const mockJobs: Job[] = [
-  {
-    id: '1',
-    type: 'video',
-    name: 'Product Demo - Summer Collection',
-    status: 'processing',
-    progress: 65,
-    createdAt: '2 min ago',
-  },
-  {
-    id: '2',
-    type: 'image',
-    name: 'Hero Banner Variations (x5)',
-    status: 'processing',
-    progress: 40,
-    createdAt: '5 min ago',
-  },
-  {
-    id: '3',
-    type: 'script',
-    name: 'Ad Script - Black Friday',
-    status: 'pending',
-    progress: 0,
-    createdAt: '8 min ago',
-  },
-  {
-    id: '4',
-    type: 'analysis',
-    name: 'Competitor Analysis - Nike',
-    status: 'completed',
-    progress: 100,
-    createdAt: '15 min ago',
-  },
-];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 const typeConfig = {
   video: {
@@ -107,9 +74,35 @@ const statusConfig = {
 };
 
 export const PendingJobs: React.FC = () => {
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleCancel = (jobId: string) => {
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/jobs/pending`);
+        if (response.ok) {
+          const data = await response.json();
+          setJobs(data.jobs || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch pending jobs:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJobs();
+    const interval = setInterval(fetchJobs, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleCancel = async (jobId: string) => {
+    try {
+      await fetch(`${API_BASE_URL}/api/jobs/${jobId}/cancel`, { method: 'POST' });
+    } catch (err) {
+      console.error('Failed to cancel job:', err);
+    }
     setJobs(jobs.filter(job => job.id !== jobId));
   };
 

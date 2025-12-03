@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
 export interface DateRange {
   start: Date;
   end: Date;
@@ -70,37 +72,28 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
     try {
       const { dateRange } = get();
 
-      // TODO: Replace with actual API call
-      // Example API call structure:
-      // const response = await fetch(`/api/analytics${campaignId ? `/${campaignId}` : ''}`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     startDate: dateRange.start.toISOString(),
-      //     endDate: dateRange.end.toISOString(),
-      //   }),
-      // });
-      // const data = await response.json();
+      const endpoint = campaignId
+        ? `${API_BASE_URL}/analytics/${campaignId}`
+        : `${API_BASE_URL}/analytics`;
 
-      // Mock data for now
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate: dateRange.start.toISOString(),
+          endDate: dateRange.end.toISOString(),
+        }),
+      });
 
-      const mockMetrics: Metrics = {
-        roas: 3.42,
-        spend: 12543.00,
-        revenue: 42876.00,
-        impressions: 1245678,
-        clicks: 23456,
-        conversions: 1234,
-        ctr: 1.88,
-        cpc: 0.54,
-        cpa: 10.17,
-      };
+      if (!response.ok) {
+        throw new Error('Data source not configured. Please configure analytics in the backend.');
+      }
 
-      set({ metrics: mockMetrics, isLoading: false });
+      const data = await response.json();
+      set({ metrics: data, isLoading: false });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch analytics';
-      set({ error: errorMessage, isLoading: false });
+      const errorMessage = error instanceof Error ? error.message : 'Data source not configured. Please configure analytics in the backend.';
+      set({ error: errorMessage, isLoading: false, metrics: initialMetrics });
     }
   },
 }));

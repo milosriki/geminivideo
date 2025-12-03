@@ -94,39 +94,39 @@ export default function RankedClipsPanel() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                       <span className="status-badge info">Rank #{clip.rank || idx + 1}</span>
                       <span style={{ fontWeight: 'bold', fontSize: '18px' }}>
-                        Score: {clip.score.toFixed(3)}
+                        Score: {(clip.score ?? 0).toFixed(3)}
                       </span>
                     </div>
                     <p style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>
-                      Time: {clip.start_time.toFixed(1)}s - {clip.end_time.toFixed(1)}s
-                      ({clip.duration.toFixed(1)}s)
+                      Time: {(clip.start_time ?? 0).toFixed(1)}s - {(clip.end_time ?? 0).toFixed(1)}s
+                      ({(clip.duration ?? 0).toFixed(1)}s)
                     </p>
                   </div>
                 </div>
 
                 <div style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
                   <div>
-                    <strong>Motion Score:</strong> {clip.features.motion_score.toFixed(3)}
+                    <strong>Motion Score:</strong> {(clip.features?.motion_score ?? 0).toFixed(3)}
                   </div>
                   <div>
-                    <strong>Technical Quality:</strong> {clip.features.technical_quality.toFixed(3)}
+                    <strong>Technical Quality:</strong> {(clip.features?.technical_quality ?? 0).toFixed(3)}
                   </div>
                   <div>
-                    <strong>Objects:</strong> {clip.features.objects.length}
-                    {clip.features.objects.length > 0 && (
-                      <span style={{ color: '#666' }}> ({clip.features.objects.slice(0, 3).join(', ')})</span>
+                    <strong>Objects:</strong> {clip.features?.objects?.length ?? 0}
+                    {(clip.features?.objects?.length ?? 0) > 0 && (
+                      <span style={{ color: '#666' }}> ({clip.features?.objects?.slice(0, 3).join(', ')})</span>
                     )}
                   </div>
                   <div>
-                    <strong>Text Detected:</strong> {clip.features.text_detected.length}
+                    <strong>Text Detected:</strong> {clip.features?.text_detected?.length ?? 0}
                   </div>
                 </div>
 
-                {clip.features.text_detected.length > 0 && (
+                {(clip.features?.text_detected?.length ?? 0) > 0 && (
                   <div style={{ marginTop: '10px', padding: '10px', background: '#f8f9fa', borderRadius: '4px' }}>
                     <strong style={{ fontSize: '12px' }}>Detected Text:</strong>
                     <p style={{ fontSize: '12px', marginTop: '5px', color: '#666' }}>
-                      {clip.features.text_detected.join(' • ')}
+                      {clip.features?.text_detected?.join(' • ') ?? ''}
                     </p>
                   </div>
                 )}
