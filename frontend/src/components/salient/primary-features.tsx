@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import clsx from 'clsx'
@@ -139,7 +137,7 @@ export function PrimaryFeatures() {
                                             <img
                                                 className="w-full"
                                                 src={feature.image}
-                                                alt=""
+                                                alt={`${feature.title} feature screenshot`}
                                                 sizes="(min-width: 1024px) 67.8125rem, (min-width: 640px) 100vw, 45rem"
                                             />
                                         </div>

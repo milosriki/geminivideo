@@ -1,6 +1,9 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useUIStore } from '@/stores/uiStore'
+import { cn } from '@/lib/utils'
 
 // Lazy load all pages for code splitting
 const HomePage = lazy(() => import('@/pages/HomePage'))
@@ -32,8 +35,35 @@ function PageLoader() {
 
 // Toast Provider Component
 function ToastContainer() {
-  // Will be implemented with useToastStore
-  return null
+  const toasts = useUIStore((state) => state.toasts)
+  const removeToast = useUIStore((state) => state.removeToast)
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      <AnimatePresence>
+        {toasts.map((toast) => (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={cn(
+              'px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]',
+              toast.type === 'success' && 'bg-green-900 text-green-100 border border-green-700',
+              toast.type === 'error' && 'bg-red-900 text-red-100 border border-red-700',
+              toast.type === 'warning' && 'bg-amber-900 text-amber-100 border border-amber-700',
+              toast.type === 'info' && 'bg-blue-900 text-blue-100 border border-blue-700'
+            )}
+          >
+            <span className="flex-1">{toast.message}</span>
+            <button onClick={() => removeToast(toast.id)} className="opacity-70 hover:opacity-100">
+              ✕
+            </button>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  )
 }
 
 function App() {

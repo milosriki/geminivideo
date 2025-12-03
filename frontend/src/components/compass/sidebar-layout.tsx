@@ -1,5 +1,3 @@
-"use client";
-
 import { IconButton } from "@/components/icon-button";
 import type { Module } from "@/data/lessons";
 import { SidebarIcon } from "@/icons/sidebar-icon";
@@ -10,8 +8,8 @@ import {
   DialogPanel,
 } from "@headlessui/react";
 import { clsx } from "clsx";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link } from "@/components/catalyst/link";
+import { useLocation } from "react-router-dom";
 import type React from "react";
 import { createContext, useContext, useState } from "react";
 import { Navbar } from "./navbar";
@@ -37,7 +35,8 @@ function CourseNavigation({
   onNavigate?: () => void;
   className?: string;
 }) {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
 
   return (
     <div className={clsx(className, "space-y-8")}>
@@ -61,7 +60,7 @@ function CourseNavigation({
                   aria-current={
                     `/${lesson.id}` === pathname ? "page" : undefined
                   }
-                  onNavigate={onNavigate}
+                  onClick={onNavigate}
                   className="aria-[current=page]:font-medium aria-[current=page]:text-gray-950 dark:aria-[current=page]:text-white"
                 >
                   {lesson.title}

@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Dropdown,
   DropdownButton,
@@ -17,7 +15,7 @@ import {
   DialogPanel,
 } from "@headlessui/react";
 import { clsx } from "clsx";
-import Link from "next/link";
+import { Link } from "@/components/catalyst/link";
 import type React from "react";
 import { useState } from "react";
 

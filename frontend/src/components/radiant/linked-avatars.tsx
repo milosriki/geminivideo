@@ -1,5 +1,3 @@
-'use client'
-
 import { CheckIcon } from '@heroicons/react/16/solid'
 import { clsx } from 'clsx'
 import { motion } from 'framer-motion'

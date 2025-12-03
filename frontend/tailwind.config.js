@@ -8,7 +8,8 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Inter', 'sans-serif'],
+                sans: ['Satoshi', 'Inter', 'system-ui', 'sans-serif'],
+                display: ['Satoshi', 'Inter', 'system-ui', 'sans-serif'],
             },
             fontSize: {
                 base: '14px',
