@@ -37,7 +37,7 @@ function CourseNavigation({
   onNavigate?: () => void;
   className?: string;
 }) {
-  let pathname = usePathname();
+  const pathname = usePathname();
 
   return (
     <div className={clsx(className, "space-y-8")}>
@@ -112,8 +112,8 @@ export function SidebarLayout({
   modules: Module[];
   children: React.ReactNode;
 }) {
-  let [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  let [isMobileDialogOpen, setIsMobileDialogOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileDialogOpen, setIsMobileDialogOpen] = useState(false);
 
   return (
     <SidebarContext.Provider
@@ -160,7 +160,7 @@ export function SidebarLayoutContent({
   breadcrumbs: React.ReactNode;
   children: React.ReactNode;
 }) {
-  let {
+  const {
     isSidebarOpen,
     setIsSidebarOpen,
     isMobileDialogOpen,

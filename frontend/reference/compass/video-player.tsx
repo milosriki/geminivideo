@@ -6,9 +6,9 @@ import type React from "react";
 import { useEffect, useRef } from "react";
 
 function formatTime(seconds: number): string {
-  let h = Math.floor(seconds / 3600);
-  let m = Math.floor((seconds % 3600) / 60);
-  let s = Math.floor(seconds % 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
 
   return h > 0
     ? `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
@@ -16,13 +16,13 @@ function formatTime(seconds: number): string {
 }
 
 export function Video({ className, ...props }: React.ComponentProps<"video">) {
-  let videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let videoContainer = videoContainerRef.current;
+    const videoContainer = videoContainerRef.current;
     if (!videoContainer) return;
 
-    let observer = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) {
           videoContainer.setAttribute("data-offscreen", "");
@@ -80,7 +80,7 @@ export function TimestampButton({
   return (
     <button
       onClick={() => {
-        let video = document.getElementById(videoId) as HTMLVideoElement;
+        const video = document.getElementById(videoId) as HTMLVideoElement;
         if (video) {
           video.currentTime = start;
           video.play();

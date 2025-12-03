@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-import { Heading } from '@/components/catalyst/heading'
-import { Text } from '@/components/catalyst/text'
-import { SparklesIcon } from '@heroicons/react/20/solid'
-=======
 import React, { useState } from 'react';
 import { StaggerContainer } from '../ui/StaggerContainer';
 
@@ -96,26 +91,8 @@ export const AIInsights: React.FC<AIInsightsProps> = ({
     }
     setIsRefreshing(false);
   };
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
 
-export function AIInsights() {
   return (
-<<<<<<< HEAD
-    <div className="p-6 rounded-lg border border-zinc-950/5 bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/30 dark:to-zinc-900 shadow-sm dark:border-white/5">
-      <div className="flex items-center gap-2 mb-4 text-indigo-600 dark:text-indigo-400">
-        <SparklesIcon className="size-5" />
-        <Heading level={2}>AI Insights</Heading>
-      </div>
-      <div className="space-y-4">
-        <div className="p-3 rounded-md bg-white/50 dark:bg-white/5 border border-indigo-100 dark:border-white/5">
-          <Text className="font-medium text-zinc-900 dark:text-white">Opportunity Detected</Text>
-          <Text className="mt-1 text-sm">Your "Tech Gadget" video has a 25% higher CTR than average. Consider increasing budget.</Text>
-        </div>
-        <div className="p-3 rounded-md bg-white/50 dark:bg-white/5 border border-indigo-100 dark:border-white/5">
-          <Text className="font-medium text-zinc-900 dark:text-white">Trend Alert</Text>
-          <Text className="mt-1 text-sm">UGC-style videos are trending in your niche. Generate 3 new variations?</Text>
-        </div>
-=======
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 sm:p-5 shadow-lg shadow-black/20">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -173,7 +150,6 @@ export function AIInsights() {
         <p className="text-zinc-500 text-xs text-center">
           Powered by Gemini AI • Updated 5 min ago
         </p>
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
       </div>
     </div>
   )

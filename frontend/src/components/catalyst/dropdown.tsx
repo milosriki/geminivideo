@@ -11,19 +11,12 @@ export function Dropdown(props: Headless.MenuProps) {
 }
 
 export function DropdownButton<T extends React.ElementType = typeof Button>({
-<<<<<<< HEAD
-  as = Button,
-  ...props
-}: { className?: string } & Omit<Headless.MenuButtonProps<T>, 'className'>) {
-  return <Headless.MenuButton as={as} {...props} />
-=======
   as,
   ...props
 }: { className?: string; as?: T } & Omit<Headless.MenuButtonProps<T>, 'className' | 'as'>) {
   const Component = (as ?? Button) as React.ElementType
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return <Headless.MenuButton as={Component} {...(props as any)} />
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
 }
 
 export function DropdownMenu({
@@ -66,7 +59,7 @@ export function DropdownItem({
   | ({ href?: never } & Omit<Headless.MenuItemProps<'button'>, 'as' | 'className'>)
   | ({ href: string } & Omit<Headless.MenuItemProps<typeof Link>, 'as' | 'className'>)
 )) {
-  let classes = clsx(
+  const classes = clsx(
     className,
     // Base styles
     'group cursor-default rounded-lg px-3.5 py-2.5 focus:outline-hidden sm:px-3 sm:py-1.5',
@@ -87,17 +80,10 @@ export function DropdownItem({
     '*:data-[slot=avatar]:mr-2.5 *:data-[slot=avatar]:-ml-1 *:data-[slot=avatar]:size-6 sm:*:data-[slot=avatar]:mr-2 sm:*:data-[slot=avatar]:size-5'
   )
 
-<<<<<<< HEAD
-  return typeof props.href === 'string' ? (
-    <Headless.MenuItem as={Link} {...props} className={classes} />
-  ) : (
-    <Headless.MenuItem as="button" type="button" {...props} className={classes} />
-=======
   return 'href' in props && typeof props.href === 'string' ? (
     <Headless.MenuItem as={Link} {...(props as Omit<Headless.MenuItemProps<typeof Link>, 'as' | 'className'>)} className={classes} />
   ) : (
     <Headless.MenuItem as="button" type="button" {...(props as Omit<Headless.MenuItemProps<'button'>, 'as' | 'className'>)} className={classes} />
->>>>>>> 6f56b443fc530e149eac70a51a1753661922ccf6
   )
 }
 

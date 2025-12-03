@@ -7,7 +7,7 @@ import { fileToBase64 } from "../utils/files";
 
 // Helper to get API key safely
 const getApiKey = () => {
-  // @ts-ignore
+
   const key = (import.meta as any).env.VITE_GEMINI_API_KEY || process.env.API_KEY;
   if (!key || key === 'undefined') {
     console.warn("Gemini API Key is missing or undefined. Some features may not work.");
@@ -40,7 +40,7 @@ const liveModel = 'gemini-3-pro';
 const veoModel = 'veo-3.1-fast-generate-preview';
 const proModel = 'gemini-3-pro';
 
-// @ts-ignore
+
 function readGenAIText(resp: any): string {
   const t = typeof resp.text === 'function' ? resp.text() : resp.text;
   if (typeof t !== 'string' || !t.trim()) {
@@ -131,7 +131,7 @@ export const generateStoryboard = async (prompt: string): Promise<{ description:
 };
 
 export const generateVideo = async (prompt: string, image: File | null, aspectRatio: '16:9' | '9:16', onProgress: (message: string) => void) => {
-  // @ts-ignore
+
   const key = getApiKey();
   if (!key) throw new Error("API Key is required for video generation.");
   const veoAI = new GoogleGenAI({ apiKey: key });
@@ -157,7 +157,7 @@ export const generateVideo = async (prompt: string, image: File | null, aspectRa
   const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
   if (!downloadLink) throw new Error("Video generation completed, but no download link was provided.");
 
-  // @ts-ignore
+
   const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
   if (!response.ok) throw new Error(`Failed to download the generated video. Status: ${response.status}`);
   return response.blob();
@@ -218,6 +218,6 @@ export const initChat = (): Chat => {
 
 export const connectLive = (callbacks: { onopen: () => void; onmessage: (message: any) => Promise<void>; onerror: (e: ErrorEvent) => void; onclose: (e: CloseEvent) => void; }): Promise<any> => {
   const ai = getAI();
-  // @ts-ignore
-  return ai.live.connect({ model: liveModel, callbacks, config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } }, inputAudioTranscription: {}, outputAudioTranscription: {}, systemInstruction: 'You are an AI ad strategist. Talk with me to brainstorm ideas. Be friendly and keep your responses brief.' } });
+
+  return ai.live.connect({ model: liveModel, callbacks, config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } }, systemInstruction: { parts: [{ text: 'You are an AI ad strategist. Talk with me to brainstorm ideas. Be friendly and keep your responses brief.' }] } } });
 };
