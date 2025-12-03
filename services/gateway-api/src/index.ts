@@ -47,6 +47,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ScoringEngine } from './services/scoring-engine';
 import { ReliabilityLogger } from './services/reliability-logger';
 import { LearningService } from './services/learning-service';
+import { adIntelligence, AdIntelligenceService } from './services/ad-intelligence';
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -757,6 +758,183 @@ app.post('/api/approval/approve/:ad_id', async (req: Request, res: Response) => 
   } catch (error: any) {
     console.error('Error processing approval:', error.message);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// AD INTELLIGENCE ENDPOINTS - Real data from multiple sources
+// ZERO MOCK DATA - Fails loudly if not configured
+// ============================================================================
+
+// GET /api/intelligence/status - Check what data sources are configured
+app.get('/api/intelligence/status', (req: Request, res: Response) => {
+  try {
+    const status = adIntelligence.getStatus();
+    res.json({
+      configured_sources: Object.entries(status).filter(([_, v]) => v.configured).length,
+      total_sources: Object.keys(status).length,
+      sources: status
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/intelligence/search - Search across all configured sources
+app.post('/api/intelligence/search', async (req: Request, res: Response) => {
+  try {
+    const { query, industry, limit } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ error: 'MISSING_PARAM: query is required' });
+    }
+
+    const result = await adIntelligence.searchAll({ query, industry, limit });
+    res.json(result);
+  } catch (error: any) {
+    // NEVER return mock data - fail loudly
+    res.status(503).json({
+      error: error.message,
+      help: 'Configure at least one data source. Run GET /api/intelligence/status to see options.'
+    });
+  }
+});
+
+// POST /api/intelligence/inject - Inject patterns into knowledge base for immediate use
+app.post('/api/intelligence/inject', async (req: Request, res: Response) => {
+  try {
+    const { query, industry, limit } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ error: 'MISSING_PARAM: query is required' });
+    }
+
+    // Search for patterns
+    const searchResult = await adIntelligence.searchAll({ query, industry, limit: limit || 100 });
+
+    // Inject into knowledge base
+    const injectResult = await adIntelligence.injectToKnowledgeBase(searchResult.patterns);
+
+    res.json({
+      message: 'Knowledge injected successfully',
+      patterns_found: searchResult.patterns.length,
+      patterns_injected: injectResult.injected,
+      sources_used: searchResult.source_counts,
+      file_path: injectResult.file_path,
+      errors: searchResult.errors
+    });
+  } catch (error: any) {
+    res.status(503).json({ error: error.message });
+  }
+});
+
+// GET /api/intelligence/patterns - Extract winning patterns from knowledge base
+app.get('/api/intelligence/patterns', async (req: Request, res: Response) => {
+  try {
+    const industry = req.query.industry as string | undefined;
+    const patterns = await adIntelligence.extractWinningPatterns(industry);
+    res.json(patterns);
+  } catch (error: any) {
+    res.status(404).json({
+      error: error.message,
+      help: 'Run POST /api/intelligence/inject first to build knowledge base'
+    });
+  }
+});
+
+// GET /api/ads/trending - Real trending ads (NO MOCK DATA)
+app.get('/api/ads/trending', async (req: Request, res: Response) => {
+  try {
+    const industry = req.query.industry as string || 'fitness';
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    // Try to get real data from intelligence service
+    const result = await adIntelligence.searchAll({
+      query: industry,
+      industry,
+      limit
+    });
+
+    // Transform to frontend format
+    const ads = result.patterns.slice(0, limit).map((p, i) => ({
+      id: `${p.source}-${i}`,
+      brand: p.raw_data?.page_name || p.raw_data?.brand || `${p.source} ad`,
+      title: p.transcript?.slice(0, 50) || p.hook_type,
+      views: p.performance_tier === 'top_1_percent' ? '1M+' :
+             p.performance_tier === 'top_10_percent' ? '100K+' : 'N/A',
+      engagement: p.performance_tier === 'top_1_percent' ? 'Top 1%' :
+                  p.performance_tier === 'top_10_percent' ? 'Top 10%' : 'Unknown',
+      platform: p.source === 'tiktok' ? 'TikTok' :
+                p.source === 'meta_library' ? 'Meta' : 'Foreplay'
+    }));
+
+    res.json({ ads, source_counts: result.source_counts });
+  } catch (error: any) {
+    // NO MOCK DATA - Return honest error
+    res.status(503).json({
+      error: 'NO_TRENDING_DATA',
+      details: error.message,
+      help: 'Configure data sources: Set FOREPLAY_API_KEY or META_ACCESS_TOKEN',
+      ads: [] // Empty array, not fake data
+    });
+  }
+});
+
+// GET /api/insights/ai - Real AI-powered insights (NO MOCK DATA)
+app.get('/api/insights/ai', async (req: Request, res: Response) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('GEMINI_NOT_CONFIGURED: Set GEMINI_API_KEY for AI insights');
+    }
+
+    // Get recent prediction data
+    const recentPredictions = reliabilityLogger.getReliabilityMetrics();
+
+    // Get winning patterns if available
+    let winningPatterns = null;
+    try {
+      winningPatterns = await adIntelligence.extractWinningPatterns();
+    } catch {
+      // Knowledge base not populated yet - that's ok
+    }
+
+    // Generate real AI insights using Gemini
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+
+    const prompt = `Based on this performance data, generate 3 actionable insights for improving video ad performance.
+
+Performance Data:
+${JSON.stringify(recentPredictions, null, 2)}
+
+${winningPatterns ? `Winning Patterns from competitors:\n${JSON.stringify(winningPatterns, null, 2)}` : 'No competitor data available yet.'}
+
+Return JSON array with objects containing: id (number), type (tip|warning|success|trend), title (string), description (string), action (string).
+Focus on specific, actionable recommendations.`;
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json' }
+    });
+
+    const insights = JSON.parse(result.response.text());
+
+    res.json({
+      insights: Array.isArray(insights) ? insights : insights.insights || [],
+      generated_at: new Date().toISOString(),
+      data_sources: {
+        predictions: !!recentPredictions,
+        competitor_patterns: !!winningPatterns
+      }
+    });
+  } catch (error: any) {
+    // NO MOCK DATA - Return honest error
+    res.status(503).json({
+      error: 'AI_INSIGHTS_UNAVAILABLE',
+      details: error.message,
+      insights: [] // Empty, not fake
+    });
   }
 });
 
