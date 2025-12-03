@@ -2,10 +2,12 @@ import { Book, Bookshelf } from '@/components/compass/bookshelf'
 import { PageSection } from '@/components/compass/page-section'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
+import { Link } from '@/components/catalyst/link'
+import { Container } from '@/components/radiant/container'
 
 export default function ResourcesPage() {
     return (
-        <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+        <Container className="py-6 lg:py-8">
             <div className="mb-12">
                 <Heading level={1} className="text-white">Resources & Tutorials</Heading>
                 <Text className="text-zinc-400 mt-1">
@@ -57,6 +59,6 @@ export default function ResourcesPage() {
                     />
                 </Bookshelf>
             </PageSection>
-        </div>
+        </Container>
     )
 }

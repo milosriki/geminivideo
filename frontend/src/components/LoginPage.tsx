@@ -1,5 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { KeyIcon, SparklesIcon } from './icons';
+import { Link } from '@/components/catalyst/link';
+import { Divider } from '@/components/catalyst/divider';
+import { AuthLayout } from '@/components/catalyst/auth-layout';
+import { SlimLayout } from '@/components/salient/SlimLayout';
+import { TextField } from '@/components/salient/Fields';
+import { Button as SalientButton } from '@/components/salient/Button';
 
 interface LoginPageProps {
   onLogin?: (credentials: { email: string; password: string }) => Promise<void>;
@@ -149,10 +155,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             {/* Google Login */}
             {mode !== 'forgot' && (
               <>
-                <button
+                <SalientButton
+                  outline
+                  className="w-full gap-3"
                   onClick={handleGoogleLogin}
                   disabled={isLoading}
-                  className="w-full py-3 px-4 bg-white text-gray-900 rounded-lg font-medium flex items-center justify-center gap-3 hover:bg-gray-100 transition-colors disabled:opacity-50"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path
@@ -173,15 +180,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     />
                   </svg>
                   Continue with Google
-                </button>
+                </SalientButton>
 
                 <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-700" />
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-gray-900/50 text-gray-500">or continue with email</span>
-                  </div>
+                  <Divider />
+                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-zinc-900 px-4 text-zinc-500 text-sm">
+                    or continue with email
+                  </span>
                 </div>
               </>
             )}
@@ -189,66 +194,50 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === 'signup' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    placeholder="John Doe"
-                    required
-                    className="w-full px-4 py-3 bg-gray-800/60 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
+                <TextField
+                  label="Full Name"
+                  name="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John Doe"
+                  required
+                />
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  className="w-full px-4 py-3 bg-gray-800/60 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
-              </div>
+              <TextField
+                label="Email Address"
+                name="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+              />
 
               {mode !== 'forgot' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    required
-                    minLength={8}
-                    className="w-full px-4 py-3 bg-gray-800/60 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
+                <TextField
+                  label="Password"
+                  name="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                  minLength={8}
+                />
               )}
 
               {mode === 'signup' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Confirm Password
-                  </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm your password"
-                    required
-                    className="w-full px-4 py-3 bg-gray-800/60 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
+                <TextField
+                  label="Confirm Password"
+                  name="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm your password"
+                  required
+                />
               )}
 
               {mode === 'login' && (
@@ -257,20 +246,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input type="checkbox" className="rounded bg-gray-800 border-gray-700" />
                     Remember me
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setMode('forgot')}
-                    className="text-indigo-400 hover:text-indigo-300"
+                  <Link
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setMode('forgot');
+                    }}
+                    className="text-indigo-400"
                   >
                     Forgot password?
-                  </button>
+                  </Link>
                 </div>
               )}
 
-              <button
+              <SalientButton
+                color="blue"
                 type="submit"
+                className="w-full"
                 disabled={isLoading}
-                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <>
@@ -288,7 +281,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     {mode === 'forgot' && 'Send Reset Link'}
                   </>
                 )}
-              </button>
+              </SalientButton>
             </form>
 
             {/* Mode Toggle */}
@@ -296,32 +289,44 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               {mode === 'login' && (
                 <>
                   Don't have an account?{' '}
-                  <button
-                    onClick={() => setMode('signup')}
-                    className="text-indigo-400 hover:text-indigo-300 font-medium"
+                  <Link
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setMode('signup');
+                    }}
+                    className="text-indigo-400 font-medium"
                   >
                     Sign up
-                  </button>
+                  </Link>
                 </>
               )}
               {mode === 'signup' && (
                 <>
                   Already have an account?{' '}
-                  <button
-                    onClick={() => setMode('login')}
-                    className="text-indigo-400 hover:text-indigo-300 font-medium"
+                  <Link
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setMode('login');
+                    }}
+                    className="text-indigo-400 font-medium"
                   >
                     Sign in
-                  </button>
+                  </Link>
                 </>
               )}
               {mode === 'forgot' && (
-                <button
-                  onClick={() => setMode('login')}
-                  className="text-indigo-400 hover:text-indigo-300 font-medium"
+                <Link
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMode('login');
+                  }}
+                  className="text-indigo-400 font-medium"
                 >
                   Back to login
-                </button>
+                </Link>
               )}
             </div>
           </div>
@@ -330,9 +335,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           {mode === 'signup' && (
             <p className="mt-6 text-center text-xs text-gray-500">
               By creating an account, you agree to our{' '}
-              <a href="#" className="text-indigo-400 hover:underline">Terms of Service</a>
+              <Link href="#" className="text-indigo-400">Terms of Service</Link>
               {' '}and{' '}
-              <a href="#" className="text-indigo-400 hover:underline">Privacy Policy</a>
+              <Link href="#" className="text-indigo-400">Privacy Policy</Link>
             </p>
           )}
         </div>

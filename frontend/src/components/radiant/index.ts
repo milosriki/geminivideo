@@ -1,4 +1,4 @@
-// Radiant Template Components - Vite/React Compatible
+// Radiant Template Components - Full Suite
 export { BentoCard } from './bento-card'
 export { Button } from './button'
 export { Container } from './container'
@@ -9,3 +9,13 @@ export { Logo, Mark } from './logo'
 export { Navbar } from './navbar'
 export { PlusGrid, PlusGridItem, PlusGridRow, PlusGridIcon } from './plus-grid'
 export { Heading, Subheading, Lead } from './text'
+export { AnimatedNumber } from './animated-number'
+export { Map } from './map'
+export { Testimonials } from './testimonials'
+// New additions from reference
+export * from './footer'
+export * from './keyboard'
+export * from './linked-avatars'
+export * from './logo-cluster'
+export * from './logo-timeline'
+export * from './screenshot'

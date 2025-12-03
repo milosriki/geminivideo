@@ -26,6 +26,8 @@ import { Badge } from '@/components/catalyst/badge'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table'
+import { Pagination, PaginationPrevious, PaginationNext, PaginationList, PaginationPage } from '@/components/catalyst/pagination'
+import { Divider } from '@/components/catalyst/divider'
 
 // Mock data
 const chartData = [
@@ -303,6 +305,16 @@ export function AnalyticsPage() {
             ))}
           </TableBody>
         </Table>
+        <div className="mt-6 border-t border-zinc-800 pt-6">
+          <Pagination>
+            <PaginationPrevious href={null} />
+            <PaginationList>
+              <PaginationPage href="#" current>1</PaginationPage>
+              <PaginationPage href="#">2</PaginationPage>
+            </PaginationList>
+            <PaginationNext href="#" />
+          </Pagination>
+        </div>
       </motion.div>
     </div>
   )

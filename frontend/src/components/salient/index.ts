@@ -1,4 +1,4 @@
-// Salient Template Components - Vite/React Compatible
+// Salient Template Components - Full Suite
 export { Button } from './Button'
 export { Container } from './Container'
 export { TextField, SelectField } from './Fields'
@@ -7,3 +7,11 @@ export { Hero } from './Hero'
 export { Logo } from './Logo'
 export { NavLink } from './NavLink'
 export { SlimLayout } from './SlimLayout'
+export { Pricing } from './Pricing'
+export * from './call-to-action'
+export * from './faqs'
+export * from './primary-features'
+export * from './secondary-features'
+// New additions from reference
+export * from './Footer'
+export * from './Testimonials'
