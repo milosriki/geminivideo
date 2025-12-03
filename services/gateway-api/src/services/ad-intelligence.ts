@@ -12,10 +12,12 @@
 import axios, { AxiosError } from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
+import { kaggleLoader, huggingfaceLoader } from './dataset-loaders';
+import { YouTubeClient } from './youtube-client';
 
 // Types
 interface AdPattern {
-  source: 'foreplay' | 'meta_library' | 'tiktok' | 'google';
+  source: 'foreplay' | 'meta_library' | 'tiktok' | 'google' | 'youtube' | 'kaggle' | 'huggingface';
   hook_type: string;
   emotional_triggers: string[];
   visual_style: string;
@@ -330,12 +332,14 @@ export class AdIntelligenceService {
   private foreplay: ForeplayClient;
   private metaLibrary: MetaAdsLibraryClient;
   private tiktok: TikTokCreativeCenterClient;
+  private youtube: YouTubeClient;
   private knowledgeBasePath: string;
 
   constructor() {
     this.foreplay = new ForeplayClient();
     this.metaLibrary = new MetaAdsLibraryClient();
     this.tiktok = new TikTokCreativeCenterClient();
+    this.youtube = new YouTubeClient();
     this.knowledgeBasePath = process.env.KNOWLEDGE_BASE_PATH || '/data/ad_knowledge';
   }
 
@@ -346,6 +350,7 @@ export class AdIntelligenceService {
     foreplay: { configured: boolean; note: string };
     meta_library: { configured: boolean; note: string };
     tiktok: { configured: boolean; note: string };
+    youtube: { configured: boolean; note: string };
   } {
     return {
       foreplay: {
@@ -363,6 +368,24 @@ export class AdIntelligenceService {
       tiktok: {
         configured: this.tiktok.isConfigured(),
         note: 'Ready (FREE public data)'
+      },
+      youtube: {
+        configured: this.youtube.isConfigured(),
+        note: this.youtube.isConfigured()
+          ? 'Ready (FREE - 10K quota/day)'
+          : 'Set YOUTUBE_API_KEY (free from console.cloud.google.com)'
+      },
+      kaggle: {
+        configured: kaggleLoader.getAvailableDatasets().length > 0,
+        note: kaggleLoader.getAvailableDatasets().length > 0
+          ? `Ready (${kaggleLoader.getAvailableDatasets().length} datasets - 100% OFFLINE)`
+          : 'Run scripts/download_datasets.sh to download FREE datasets'
+      },
+      huggingface: {
+        configured: huggingfaceLoader.isConfigured(),
+        note: huggingfaceLoader.isConfigured()
+          ? 'Ready (FREE AI ad generation)'
+          : 'Set HUGGINGFACE_API_TOKEN for free AI ad generation'
       }
     };
   }
@@ -421,6 +444,45 @@ export class AdIntelligenceService {
       errors.push(error.message);
     }
 
+    // Try YouTube (FREE with API key)
+    if (this.youtube.isConfigured()) {
+      try {
+        const youtubeVideos = await this.youtube.searchVideos({
+          query: params.query,
+          limit: params.limit,
+          order: 'viewCount'
+        });
+        results.push(...youtubeVideos);
+        sourceCounts['youtube'] = youtubeVideos.length;
+      } catch (error: any) {
+        errors.push(error.message);
+      }
+    }
+
+    // Try Kaggle datasets (100% OFFLINE, no API needed)
+    try {
+      const kagglePatterns = await this._fetch_kaggle_patterns(params);
+      if (kagglePatterns.length > 0) {
+        results.push(...kagglePatterns);
+        sourceCounts['kaggle'] = kagglePatterns.length;
+      }
+    } catch (error: any) {
+      errors.push(error.message);
+    }
+
+    // Try HuggingFace AI generation (FREE with API token)
+    if (huggingfaceLoader.isConfigured()) {
+      try {
+        const hfPatterns = await this._fetch_huggingface_insights(params);
+        if (hfPatterns.length > 0) {
+          results.push(...hfPatterns);
+          sourceCounts['huggingface'] = hfPatterns.length;
+        }
+      } catch (error: any) {
+        errors.push(error.message);
+      }
+    }
+
     // FAIL if no data from any source
     if (results.length === 0) {
       throw new Error(`NO_AD_INTELLIGENCE: All sources failed. Errors: ${errors.join('; ')}`);
@@ -460,6 +522,89 @@ export class AdIntelligenceService {
       injected: patterns.length,
       file_path: filePath
     };
+  }
+
+  /**
+   * Fetch patterns from Kaggle datasets (OFFLINE - no API needed)
+   * @private
+   */
+  private async _fetch_kaggle_patterns(params: {
+    query: string;
+    industry?: string;
+    limit?: number;
+  }): Promise<AdPattern[]> {
+    const datasets = kaggleLoader.getAvailableDatasets();
+
+    if (datasets.length === 0) {
+      throw new Error('KAGGLE_NO_DATASETS: Run scripts/download_datasets.sh first');
+    }
+
+    const allPatterns: AdPattern[] = [];
+
+    // Load patterns from all available datasets
+    for (const datasetPath of datasets) {
+      try {
+        const filename = path.basename(datasetPath);
+        const patterns = await kaggleLoader.loadAdDataset(filename);
+
+        // Filter by industry if specified
+        let filteredPatterns = patterns;
+        if (params.industry) {
+          filteredPatterns = patterns.filter(p =>
+            p.industry.toLowerCase().includes(params.industry!.toLowerCase())
+          );
+        }
+
+        allPatterns.push(...filteredPatterns);
+      } catch (error: any) {
+        console.warn(`Failed to load Kaggle dataset ${datasetPath}:`, error.message);
+      }
+    }
+
+    // Apply limit
+    const limit = params.limit || 50;
+    return allPatterns.slice(0, limit);
+  }
+
+  /**
+   * Fetch insights from HuggingFace AI models
+   * @private
+   */
+  private async _fetch_huggingface_insights(params: {
+    query: string;
+    industry?: string;
+    limit?: number;
+  }): Promise<AdPattern[]> {
+    if (!huggingfaceLoader.isConfigured()) {
+      throw new Error('HUGGINGFACE_NOT_CONFIGURED');
+    }
+
+    const patterns: AdPattern[] = [];
+    const variantCount = Math.min(params.limit || 3, 5); // Generate up to 5 variants
+
+    try {
+      // Generate ad variants based on the query
+      const prompt = params.industry
+        ? `Generate a compelling ad for ${params.query} in the ${params.industry} industry`
+        : `Generate a compelling ad for ${params.query}`;
+
+      const variants = await huggingfaceLoader.generateAdVariants(prompt, variantCount);
+
+      // Transform each variant to AdPattern
+      for (const variant of variants) {
+        if (variant && variant.trim()) {
+          const pattern = huggingfaceLoader.transformToPattern(variant, prompt);
+          if (params.industry) {
+            pattern.industry = params.industry;
+          }
+          patterns.push(pattern);
+        }
+      }
+
+      return patterns;
+    } catch (error: any) {
+      throw new Error(`HUGGINGFACE_GENERATION_FAILED: ${error.message}`);
+    }
   }
 
   /**

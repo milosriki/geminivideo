@@ -48,7 +48,6 @@ import { ScoringEngine } from './services/scoring-engine';
 import { ReliabilityLogger } from './services/reliability-logger';
 import { LearningService } from './services/learning-service';
 import { adIntelligence, AdIntelligenceService } from './services/ad-intelligence';
-import { kaggleLoader, huggingfaceLoader } from './services/dataset-loaders';
 import { youtubeClient } from './services/youtube-client';
 import { createCacheService, SemanticCache } from './services/cache-service';
 import { CostTracker } from './services/cost-tracker';
@@ -122,8 +121,7 @@ const scoringEngine = new ScoringEngine(weightsConfig, triggersConfig, personasC
 const reliabilityLogger = new ReliabilityLogger();
 const learningService = new LearningService(weightsConfig);
 const costTracker = new CostTracker(pgPool);
-
-// Smart Model Router (initialized after Redis connects)
+n// Smart Model Router (initialized after Redis connects)
 let smartRouter: SmartModelRouter;
 
 // Service URLs
@@ -234,23 +232,6 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
     const analysis = JSON.parse(analysisText);
 
     console.log(`Gemini analysis completed for ${video_uri}`);
-
-    // Record cost (estimate tokens: ~4 chars per token)
-    const latency = Date.now() - startTime;
-    const estimatedInputTokens = Math.ceil(300 / 4); // Estimated prompt length
-    const estimatedOutputTokens = Math.ceil(analysisText.length / 4);
-    const totalTokens = estimatedInputTokens + estimatedOutputTokens;
-
-    await costTracker.recordCost(
-      'gemini-2.0-flash-exp',
-      totalTokens,
-      latency,
-      'analysis',
-      {
-        inputTokens: estimatedInputTokens,
-        outputTokens: estimatedOutputTokens
-      }
-    );
 
     res.json(analysis);
 
@@ -1079,190 +1060,8 @@ app.get('/api/ads/trending', async (req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// DATASET LOADERS - Offline data sources (Kaggle + HuggingFace)
-// ============================================================================
-
-// GET /api/datasets/status - Check what datasets are available
-app.get('/api/datasets/status', async (req: Request, res: Response) => {
-  try {
-    const kaggleDatasets = kaggleLoader.getAvailableDatasets();
-    const datasetStats = [];
-
-    // Get stats for each dataset
-    for (const datasetPath of kaggleDatasets) {
-      try {
-        const filename = path.basename(datasetPath);
-        const stats = await kaggleLoader.getDatasetStats(filename);
-        datasetStats.push({
-          filename,
-          path: datasetPath,
-          ...stats
-        });
-      } catch (error: any) {
-        console.warn(`Failed to get stats for ${datasetPath}:`, error.message);
-      }
-    }
-
-    res.json({
-      kaggle: {
-        configured: kaggleDatasets.length > 0,
-        datasets_count: kaggleDatasets.length,
-        datasets: datasetStats,
-        data_path: process.env.KAGGLE_DATA_PATH || '/data/kaggle'
-      },
-      huggingface: {
-        configured: huggingfaceLoader.isConfigured(),
-        note: huggingfaceLoader.isConfigured()
-          ? 'Ready for AI ad generation'
-          : 'Set HUGGINGFACE_API_TOKEN (free from huggingface.co)'
-      },
-      help: kaggleDatasets.length === 0
-        ? 'Run scripts/download_datasets.sh to download free datasets'
-        : 'All datasets ready for use'
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// POST /api/datasets/import - Import patterns from local datasets
-app.post('/api/datasets/import', async (req: Request, res: Response) => {
-  try {
-    const { source, dataset, industry, limit } = req.body;
-
-    if (!source) {
-      return res.status(400).json({ error: 'MISSING_PARAM: source is required (kaggle or huggingface)' });
-    }
-
-    let patterns = [];
-
-    if (source === 'kaggle') {
-      if (!dataset) {
-        return res.status(400).json({ error: 'MISSING_PARAM: dataset filename is required for Kaggle' });
-      }
-
-      // Load patterns from specific dataset
-      patterns = await kaggleLoader.loadAdDataset(dataset);
-
-      // Filter by industry if specified
-      if (industry) {
-        patterns = patterns.filter((p: any) =>
-          p.industry.toLowerCase().includes(industry.toLowerCase())
-        );
-      }
-
-      // Apply limit
-      if (limit) {
-        patterns = patterns.slice(0, parseInt(limit));
-      }
-
-    } else if (source === 'huggingface') {
-      const { prompt, variant_count } = req.body;
-
-      if (!prompt) {
-        return res.status(400).json({ error: 'MISSING_PARAM: prompt is required for HuggingFace' });
-      }
-
-      // Generate ad variants
-      const variants = await huggingfaceLoader.generateAdVariants(
-        prompt,
-        variant_count || 3
-      );
-
-      // Transform to patterns
-      patterns = variants.map((v: string) =>
-        huggingfaceLoader.transformToPattern(v, prompt)
-      );
-
-      // Set industry if specified
-      if (industry) {
-        patterns.forEach((p: any) => {
-          p.industry = industry;
-        });
-      }
-
-    } else {
-      return res.status(400).json({ error: 'INVALID_SOURCE: source must be kaggle or huggingface' });
-    }
-
-    // Inject patterns into knowledge base
-    const injectResult = await adIntelligence.injectToKnowledgeBase(patterns);
-
-    res.json({
-      message: 'Patterns imported successfully',
-      source,
-      patterns_loaded: patterns.length,
-      patterns_injected: injectResult.injected,
-      file_path: injectResult.file_path,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error: any) {
-    res.status(500).json({
-      error: error.message,
-      help: error.message.includes('KAGGLE_FILE_NOT_FOUND')
-        ? 'Run scripts/download_datasets.sh to download datasets'
-        : error.message.includes('HUGGINGFACE_NOT_CONFIGURED')
-        ? 'Set HUGGINGFACE_API_TOKEN environment variable'
-        : undefined
-    });
-  }
-});
-
-// POST /api/datasets/generate-variants - Generate ad variants using HuggingFace
-app.post('/api/datasets/generate-variants', async (req: Request, res: Response) => {
-  try {
-    const { prompt, count, analyze } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'MISSING_PARAM: prompt is required' });
-    }
-
-    if (!huggingfaceLoader.isConfigured()) {
-      return res.status(503).json({
-        error: 'HUGGINGFACE_NOT_CONFIGURED',
-        help: 'Set HUGGINGFACE_API_TOKEN (free from huggingface.co)'
-      });
-    }
-
-    // Generate variants
-    const variants = await huggingfaceLoader.generateAdVariants(prompt, count || 3);
-
-    // Optionally analyze each variant
-    let analyzed = [];
-    if (analyze) {
-      for (const variant of variants) {
-        try {
-          const analysis = await huggingfaceLoader.analyzeAdText(variant);
-          analyzed.push({
-            text: variant,
-            ...analysis
-          });
-        } catch (error) {
-          analyzed.push({
-            text: variant,
-            error: 'Analysis failed'
-          });
-        }
-      }
-    }
-
-    res.json({
-      prompt,
-      variants: analyze ? analyzed : variants,
-      count: variants.length,
-      generated_at: new Date().toISOString()
-    });
-
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // GET /api/insights/ai - Real AI-powered insights (NO MOCK DATA)
 app.get('/api/insights/ai', async (req: Request, res: Response) => {
-  const startTime = Date.now();
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -1299,18 +1098,7 @@ Focus on specific, actionable recommendations.`;
       generationConfig: { responseMimeType: 'application/json' }
     });
 
-    const responseText = result.response.text();
-    const insights = JSON.parse(responseText);
-
-    // Record cost
-    const latency = Date.now() - startTime;
-    const estimatedTokens = Math.ceil((prompt.length + responseText.length) / 4);
-    await costTracker.recordCost(
-      'gemini-2.0-flash-exp',
-      estimatedTokens,
-      latency,
-      'insights'
-    );
+    const insights = JSON.parse(result.response.text());
 
     res.json({
       insights: Array.isArray(insights) ? insights : insights.insights || [],
