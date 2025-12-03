@@ -58,16 +58,28 @@ pgPool.query('SELECT NOW()')
   });
 
 // Load configuration
-const configPath = process.env.CONFIG_PATH || '../../shared/config';
-const weightsConfig = yaml.load(
-  fs.readFileSync(path.join(configPath, 'weights.yaml'), 'utf8')
-) as any;
-const triggersConfig = JSON.parse(
-  fs.readFileSync(path.join(configPath, 'triggers_config.json'), 'utf8')
-);
-const personasConfig = JSON.parse(
-  fs.readFileSync(path.join(configPath, 'personas.json'), 'utf8')
-);
+// Fix path to point to local shared directory if running from src or dist
+const configPath = process.env.CONFIG_PATH || path.join(__dirname, '../shared/config');
+
+let weightsConfig: any = {};
+let triggersConfig: any = {};
+let personasConfig: any = {};
+
+try {
+  weightsConfig = yaml.load(
+    fs.readFileSync(path.join(configPath, 'weights.yaml'), 'utf8')
+  );
+  triggersConfig = JSON.parse(
+    fs.readFileSync(path.join(configPath, 'triggers_config.json'), 'utf8')
+  );
+  personasConfig = JSON.parse(
+    fs.readFileSync(path.join(configPath, 'personas.json'), 'utf8')
+  );
+  console.log('✅ Configuration loaded from:', configPath);
+} catch (err: any) {
+  console.warn('⚠️ Failed to load configuration:', err.message);
+  // Fallback or exit depending on strictness
+}
 
 // Initialize services
 const scoringEngine = new ScoringEngine(weightsConfig, triggersConfig, personasConfig);
@@ -87,6 +99,18 @@ app.get('/', (req: Request, res: Response) => {
     status: 'running',
     version: '1.0.0'
   });
+});
+
+// Avatars Endpoint (Fix for Frontend 404)
+app.get('/avatars', (req: Request, res: Response) => {
+  try {
+    // Return personas as avatars
+    // Map personas structure to Avatar type if needed, or return raw
+    const avatars = personasConfig.personas || [];
+    res.json(avatars);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Helper function to validate service URLs
