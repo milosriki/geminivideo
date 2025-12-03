@@ -6,7 +6,8 @@ export class GeminiScoringService {
 
     constructor(apiKey: string) {
         this.genAI = new GoogleGenerativeAI(apiKey);
-        this.model = this.genAI.getGenerativeModel({ model: "gemini-pro" });
+        // User requested latest Gemini (2.0 Flash Experimental)
+        this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
     }
 
     async analyzeScene(text: string, context: string = ""): Promise<any> {
