@@ -15,6 +15,7 @@ import { Pagination, PaginationPrevious, PaginationNext, PaginationList, Paginat
 import { Field } from '@/components/catalyst/fieldset'
 import { Label } from '@/components/catalyst/fieldset'
 import { Input } from '@/components/catalyst/input'
+import { NoCampaignsEmpty } from '@/components/catalyst/empty-state'
 
 const campaigns = [
   { id: '1', name: 'PTD Transformation Q4', status: 'active', spend: 8500, roas: 4.5, videos: 12 },
@@ -41,42 +42,48 @@ export function CampaignsPage() {
       </div>
 
       <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableHeader>Campaign</TableHeader>
-              <TableHeader>Status</TableHeader>
-              <TableHeader className="text-right">Spend</TableHeader>
-              <TableHeader className="text-right">ROAS</TableHeader>
-              <TableHeader className="text-right">Videos</TableHeader>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {campaigns.map((campaign) => (
-              <TableRow key={campaign.id} className="hover:bg-zinc-800/50 cursor-pointer" onClick={() => setSelectedCampaign(campaign)}>
-                <TableCell className="font-medium text-white">{campaign.name}</TableCell>
-                <TableCell>
-                  <Badge color={campaign.status === 'active' ? 'green' : 'yellow'}>
-                    {campaign.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">AED {campaign.spend.toLocaleString()}</TableCell>
-                <TableCell className="text-right">{campaign.roas}x</TableCell>
-                <TableCell className="text-right">{campaign.videos}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <div className="mt-6 border-t border-zinc-800 pt-6">
-          <Pagination>
-            <PaginationPrevious href={null} />
-            <PaginationList>
-              <PaginationPage href="#" current>1</PaginationPage>
-              <PaginationPage href="#">2</PaginationPage>
-            </PaginationList>
-            <PaginationNext href="#" />
-          </Pagination>
-        </div>
+        {campaigns.length === 0 ? (
+          <NoCampaignsEmpty />
+        ) : (
+          <>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeader>Campaign</TableHeader>
+                  <TableHeader>Status</TableHeader>
+                  <TableHeader className="text-right">Spend</TableHeader>
+                  <TableHeader className="text-right">ROAS</TableHeader>
+                  <TableHeader className="text-right">Videos</TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {campaigns.map((campaign) => (
+                  <TableRow key={campaign.id} className="hover:bg-zinc-800/50 cursor-pointer" onClick={() => setSelectedCampaign(campaign)}>
+                    <TableCell className="font-medium text-white">{campaign.name}</TableCell>
+                    <TableCell>
+                      <Badge color={campaign.status === 'active' ? 'green' : 'yellow'}>
+                        {campaign.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">AED {campaign.spend.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{campaign.roas}x</TableCell>
+                    <TableCell className="text-right">{campaign.videos}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="mt-6 border-t border-zinc-800 pt-6">
+              <Pagination>
+                <PaginationPrevious href={null} />
+                <PaginationList>
+                  <PaginationPage href="#" current>1</PaginationPage>
+                  <PaginationPage href="#">2</PaginationPage>
+                </PaginationList>
+                <PaginationNext href="#" />
+              </Pagination>
+            </div>
+          </>
+        )}
       </div>
 
       <Dialog open={selectedCampaign !== null} onClose={() => setSelectedCampaign(null)} size="lg">

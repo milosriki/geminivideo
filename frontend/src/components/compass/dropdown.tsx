@@ -7,7 +7,7 @@ import {
   MenuItemsProps,
   MenuProps,
 } from "@headlessui/react";
-import Link from "next/link";
+import { Link } from "@/components/catalyst/link";
 import type React from "react";
 
 export function Dropdown(props: MenuProps) {

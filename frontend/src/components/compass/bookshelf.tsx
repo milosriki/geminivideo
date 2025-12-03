@@ -26,7 +26,7 @@ export function Book({
             <div className="relative z-10 mb-4 w-full overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-800">
                 <img
                     src={image}
-                    alt=""
+                    alt={`${title} cover image`}
                     className="aspect-[3/2] w-full object-cover object-center transition duration-500 group-hover:scale-105"
                 />
             </div>

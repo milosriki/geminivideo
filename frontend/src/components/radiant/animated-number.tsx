@@ -1,5 +1,3 @@
-'use client'
-
 import { useSpring, useTransform, motion, useInView } from 'framer-motion'
 import { useEffect, useRef } from 'react'
 import { clsx } from 'clsx'

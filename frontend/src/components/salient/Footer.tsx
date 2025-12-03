@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { Link } from '@/components/catalyst/link'
 
 import { Container } from '@/components/Container'
 import { Logo } from '@/components/Logo'

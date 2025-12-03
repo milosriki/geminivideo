@@ -89,10 +89,10 @@ const ImageEditor: React.FC = () => {
              {error && <p className="text-red-400 text-sm p-3 bg-red-900/30 rounded-md">{error}</p>}
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="w-full aspect-video bg-gray-900/50 rounded-lg border-2 border-dashed border-gray-600 flex items-center justify-center">
-                    {previewUrl ? <img src={previewUrl} className="max-h-full max-w-full object-contain rounded-md"/> : <span className="text-gray-400">Upload an image</span>}
+                    {previewUrl ? <img src={previewUrl} alt="Original image to edit" className="max-h-full max-w-full object-contain rounded-md"/> : <span className="text-gray-400">Upload an image</span>}
                 </div>
                 <div className="w-full aspect-video bg-gray-900/50 rounded-lg border-2 border-dashed border-gray-600 flex items-center justify-center">
-                    {isLoading ? <Spinner/> : outputImage ? <img src={outputImage} className="max-h-full max-w-full object-contain rounded-md"/> : <span className="text-gray-400">Edited image will appear here</span>}
+                    {isLoading ? <Spinner/> : outputImage ? <img src={outputImage} alt="AI-edited result image" className="max-h-full max-w-full object-contain rounded-md"/> : <span className="text-gray-400">Edited image will appear here</span>}
                 </div>
             </div>
              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden"/>
@@ -146,7 +146,7 @@ const ImageAnalyzer: React.FC = () => {
         <div className="space-y-4">
             {error && <p className="text-red-400 text-sm p-3 bg-red-900/30 rounded-md">{error}</p>}
             <div className="w-full h-64 bg-gray-900/50 rounded-lg border-2 border-dashed border-gray-600 flex items-center justify-center mb-4">
-                {previewUrl ? <img src={previewUrl} className="max-h-full max-w-full object-contain rounded-md"/> : <span className="text-gray-400">Upload an image</span>}
+                {previewUrl ? <img src={previewUrl} alt="Image to analyze" className="max-h-full max-w-full object-contain rounded-md"/> : <span className="text-gray-400">Upload an image</span>}
             </div>
              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden"/>
              <button onClick={() => fileInputRef.current?.click()} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2">

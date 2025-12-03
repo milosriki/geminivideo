@@ -1,11 +1,11 @@
-import Image from 'next/image'
-
 import { Container } from '@/components/Container'
-import avatarImage1 from '@/images/avatars/avatar-1.png'
-import avatarImage2 from '@/images/avatars/avatar-2.png'
-import avatarImage3 from '@/images/avatars/avatar-3.png'
-import avatarImage4 from '@/images/avatars/avatar-4.png'
-import avatarImage5 from '@/images/avatars/avatar-5.png'
+
+// Placeholder avatar images
+const avatarImage1 = 'https://ui-avatars.com/api/?name=Sheryl+Berge&background=random&size=56'
+const avatarImage2 = 'https://ui-avatars.com/api/?name=Erin+Powlowski&background=random&size=56'
+const avatarImage3 = 'https://ui-avatars.com/api/?name=Peter+Renolds&background=random&size=56'
+const avatarImage4 = 'https://ui-avatars.com/api/?name=Amy+Hahn&background=random&size=56'
+const avatarImage5 = 'https://ui-avatars.com/api/?name=Leland+Kiehn&background=random&size=56'
 
 const testimonials = [
   [
@@ -122,12 +122,10 @@ export function Testimonials() {
                           </div>
                         </div>
                         <div className="overflow-hidden rounded-full bg-slate-50">
-                          <Image
+                          <img
                             className="h-14 w-14 object-cover"
                             src={testimonial.author.image}
                             alt=""
-                            width={56}
-                            height={56}
                           />
                         </div>
                       </figcaption>

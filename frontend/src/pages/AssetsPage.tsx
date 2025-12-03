@@ -22,6 +22,7 @@ import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } fro
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert'
 import { Pagination, PaginationPrevious, PaginationNext, PaginationList, PaginationPage, PaginationGap } from '@/components/catalyst/pagination'
 import { IconButton } from '@/components/compass/icon-button'
+import { NoVideosEmpty } from '@/components/catalyst/empty-state'
 
 
 
@@ -116,6 +117,8 @@ export function AssetsPage() {
             <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
           </div>
         </div>
+      ) : !loading && assets.length === 0 ? (
+        <NoVideosEmpty />
       ) : (
         <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-4 space-y-4">
           {assets.map((asset, index) => (
