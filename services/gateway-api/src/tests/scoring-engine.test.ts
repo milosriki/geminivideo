@@ -72,7 +72,7 @@ describe('ScoringEngine', () => {
     engine = new ScoringEngine(mockWeightsConfig, mockTriggersConfig, mockPersonasConfig);
   });
 
-  test('should calculate hook strength with number', () => {
+  test('should calculate hook strength with number', async () => {
     const scenes = [
       {
         features: {
@@ -82,13 +82,13 @@ describe('ScoringEngine', () => {
       }
     ];
 
-    const scores = engine.scoreStoryboard(scenes);
-    
+    const scores = await engine.scoreStoryboard(scenes);
+
     expect(scores.hook_strength).toBeGreaterThan(0);
     expect(scores.hook_strength).toBeLessThanOrEqual(1);
   });
 
-  test('should calculate psychology score with keywords', () => {
+  test('should calculate psychology score with keywords', async () => {
     const scenes = [
       {
         features: {
@@ -98,12 +98,12 @@ describe('ScoringEngine', () => {
       }
     ];
 
-    const scores = engine.scoreStoryboard(scenes);
-    
+    const scores = await engine.scoreStoryboard(scenes);
+
     expect(scores.psychology_score).toBeGreaterThan(0);
   });
 
-  test('should assign correct probability band', () => {
+  test('should assign correct probability band', async () => {
     const scenes = [
       {
         features: {
@@ -115,14 +115,14 @@ describe('ScoringEngine', () => {
       }
     ];
 
-    const scores = engine.scoreStoryboard(scenes);
-    
+    const scores = await engine.scoreStoryboard(scenes);
+
     expect(scores.predicted_band).toMatch(/low|mid|high/);
     expect(scores.confidence).toBeGreaterThan(0);
     expect(scores.confidence).toBeLessThanOrEqual(1);
   });
 
-  test('should calculate composite score', () => {
+  test('should calculate composite score', async () => {
     const scenes = [
       {
         features: {
@@ -132,8 +132,8 @@ describe('ScoringEngine', () => {
       }
     ];
 
-    const scores = engine.scoreStoryboard(scenes);
-    
+    const scores = await engine.scoreStoryboard(scenes);
+
     expect(scores.composite_score).toBeGreaterThanOrEqual(0);
     expect(scores.composite_score).toBeLessThanOrEqual(1);
   });

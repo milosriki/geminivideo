@@ -240,8 +240,8 @@ app.post('/api/score/storyboard', async (req: Request, res: Response) => {
   try {
     const { scenes, metadata } = req.body;
 
-    // Calculate rule-based scores
-    const scores = scoringEngine.scoreStoryboard(scenes, metadata);
+    // Calculate rule-based scores (Now AI-Enhanced)
+    const scores = await scoringEngine.scoreStoryboard(scenes, metadata);
 
     // Get XGBoost CTR prediction
     let xgboostPrediction = null;
