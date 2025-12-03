@@ -41,15 +41,27 @@ export const googleDriveService = {
         }
 
         return new Promise<void>((resolve, reject) => {
+            let checkGapi: NodeJS.Timeout | null = null;
+            let checkGis: NodeJS.Timeout | null = null;
+
+            // Helper to cleanup all intervals/timeouts
+            const cleanup = () => {
+                if (checkGapi) clearInterval(checkGapi);
+                if (checkGis) clearInterval(checkGis);
+                clearTimeout(timeout);
+            };
+
             // Timeout to prevent hanging forever
             const timeout = setTimeout(() => {
+                cleanup();
                 console.error("Google API initialization timed out.");
                 reject(new Error("Google API initialization timed out. Check your internet connection or ad blockers."));
             }, 10000); // 10 seconds timeout
 
-            const checkGapi = setInterval(() => {
+            checkGapi = setInterval(() => {
                 if (window.gapi) {
-                    clearInterval(checkGapi);
+                    if (checkGapi) clearInterval(checkGapi);
+                    checkGapi = null;
                     console.log("gapi loaded. Loading client...");
                     window.gapi.load('client', async () => {
                         try {
@@ -61,17 +73,16 @@ export const googleDriveService = {
                             gapiInited = true;
                             console.log("gapi client initialized.");
                             if (gisInited) {
-                                clearTimeout(timeout);
+                                cleanup();
                                 resolve();
                             }
-                        } catch (err) {
+                        } catch (err: any) {
+                            cleanup();
                             console.error("gapi client init error:", err);
                             // If the error is "Invalid API Key", we should reject with a clearer message
                             if (err.result && err.result.error && err.result.error.code === 403) {
-                                clearTimeout(timeout);
                                 reject(new Error("Google Drive API is not enabled for this API Key. Please enable 'Google Drive API' in the Google Cloud Console for project 'ptd-fitness-demo'."));
                             } else {
-                                clearTimeout(timeout);
                                 reject(err);
                             }
                         }
@@ -79,9 +90,10 @@ export const googleDriveService = {
                 }
             }, 100);
 
-            const checkGis = setInterval(() => {
+            checkGis = setInterval(() => {
                 if (window.google) {
-                    clearInterval(checkGis);
+                    if (checkGis) clearInterval(checkGis);
+                    checkGis = null;
                     console.log("google (GIS) loaded. Initializing token client...");
                     try {
                         tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -98,12 +110,12 @@ export const googleDriveService = {
                         gisInited = true;
                         console.log("GIS initialized.");
                         if (gapiInited) {
-                            clearTimeout(timeout);
+                            cleanup();
                             resolve();
                         }
                     } catch (err) {
+                        cleanup();
                         console.error("GIS init error:", err);
-                        clearTimeout(timeout);
                         reject(err);
                     }
                 }

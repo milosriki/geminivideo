@@ -1,13 +1,28 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import axios, { AxiosError } from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 30000, // 30 second timeout
 });
+
+// Global error interceptor for consistent error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    const message = error.response?.data
+      ? (typeof error.response.data === 'string' ? error.response.data : JSON.stringify(error.response.data))
+      : error.message || 'Network error';
+
+    console.error(`API Error [${error.config?.method?.toUpperCase()} ${error.config?.url}]:`, message);
+
+    // Re-throw with a more informative error
+    return Promise.reject(new Error(`API Error: ${message}`));
+  }
+);
 
 // Assets
 export const getAssets = async (skip = 0, limit = 100) => {
@@ -15,9 +30,10 @@ export const getAssets = async (skip = 0, limit = 100) => {
   return response.data;
 };
 
-export const getAssetClips = async (assetId: string, ranked = true, top?: number) => {
+export const getAssetClips = async (assetId: string, ranked = true, top?: number, signal?: AbortSignal) => {
   const response = await api.get(`/assets/${assetId}/clips`, {
-    params: { ranked, top }
+    params: { ranked, top },
+    signal
   });
   return response.data;
 };
@@ -27,9 +43,9 @@ export const ingestLocalFolder = async (folderPath: string) => {
   return response.data;
 };
 
-// Search
-export const searchClips = async (query: string, topK = 10) => {
-  const response = await api.post('/search/clips', { query, top_k: topK });
+// Search - supports AbortController signal for cancellation
+export const searchClips = async (query: string, topK = 10, signal?: AbortSignal) => {
+  const response = await api.post('/search/clips', { query, top_k: topK }, { signal });
   return response.data;
 };
 
