@@ -104,29 +104,27 @@ async def ingest_drive_folder(request: IngestRequest):
     - Triggers processing pipeline
     """
     try:
-        # Simulate Drive ingestion
-        asset_id = str(uuid.uuid4())
+        from src.drive_client import drive_client
         
-        asset = {
-            "asset_id": asset_id,
-            "path": request.path,
-            "filename": "drive_video.mp4",
-            "size_bytes": 15728640,
-            "duration_seconds": 45.0,
-            "resolution": "1920x1080",
-            "format": "mp4",
-            "ingested_at": datetime.utcnow().isoformat(),
-            "status": "processing",
-            "source": "google_drive"
-        }
+        # List videos from Drive (real)
+        # If request.path is a folder ID, use it, else list root
+        folder_id = request.path if "drive.google.com" not in request.path else None
+        videos = drive_client.list_videos(folder_id=folder_id)
         
-        assets_db[asset_id] = asset
-        asyncio.create_task(process_asset(asset_id))
+        ingested_ids = []
+        for video in videos:
+            asset_id = video['asset_id']
+            assets_db[asset_id] = video
+            assets_db[asset_id]['status'] = 'processing'
+            
+            # Trigger background processing
+            asyncio.create_task(process_asset(asset_id))
+            ingested_ids.append(asset_id)
         
         return {
-            "asset_id": asset_id,
             "status": "processing",
-            "message": f"Drive ingestion started for {request.path}"
+            "message": f"Started ingestion for {len(videos)} videos from Drive",
+            "asset_ids": ingested_ids
         }
     
     except Exception as e:
@@ -197,60 +195,52 @@ async def process_asset(asset_id: str):
     if asset_id in assets_db:
         assets_db[asset_id]["status"] = "completed"
     
-    # Generate mock clips with scene detection
-    # TODO: [CRITICAL] Implement real scene detection using OpenCV/PySceneDetect
-    # Current implementation is purely random simulation
-    num_clips = 5  # Mock 5 scenes detected
-    
-    for i in range(num_clips):
-        clip_id = str(uuid.uuid4())
-        start_time = i * 6.0
-        end_time = start_time + 6.0
+    # Real Scene Detection
+    try:
+        from src.drive_client import drive_client
+        from src.scene_detector import scene_detector
+        import tempfile
+        import os
         
-        # Mock features
-        # TODO: [CRITICAL] Implement real feature extraction:
-        # 1. Emotion: DeepFace.analyze(frame)
-        # 2. Objects: YOLO/SSD detection
-        # 3. Audio: Speech-to-Text transcription
-        features = {
-            "motion_energy": 0.5 + (i * 0.1),
-            "face_detected": i % 2 == 0,
-            "text_overlay": i % 3 == 0,
-            "audio_peak": True,
-            "scene_complexity": 0.6 + (i * 0.05),
-            # YOLO detection stub
-            "objects_detected": ["person", "product"] if i % 2 == 0 else ["background"],
-            # OCR stub
-            "text_content": f"Scene {i+1} text" if i % 3 == 0 else None,
-            # Embedding placeholder (would use actual model)
-            "embedding_vector": [0.1] * 512
-        }
+        asset = assets_db.get(asset_id)
+        if not asset:
+            return
+
+        # Download file to temp for processing
+        # In production, we might stream or use a shared volume
+        with tempfile.NamedTemporaryFile(suffix=f".{asset['format']}", delete=False) as tmp_file:
+            temp_path = tmp_file.name
+            
+        # Download if it's a Drive file
+        if asset.get('source') == 'google_drive':
+            success = drive_client.download_file(asset_id, temp_path)
+            if not success:
+                logger.error(f"Failed to download asset {asset_id}")
+                return
+        else:
+            # Local file simulation (or copy if path exists)
+            pass 
+
+        # Detect Scenes (Real)
+        detected_scenes = scene_detector.detect_scenes(temp_path)
         
-        # Calculate mock scene score
-        scene_score = 0.5 + (i * 0.08) + (0.1 if features["face_detected"] else 0)
+        # Enrich with clip IDs and asset ID
+        final_clips = []
+        for scene in detected_scenes:
+            scene['asset_id'] = asset_id
+            scene['thumbnail_url'] = f"/thumbnails/{asset_id}_{scene['clip_id']}.jpg"
+            final_clips.append(scene)
+            
+        clips_db[asset_id] = final_clips
+        assets_db[asset_id]["status"] = "completed"
         
-        clip = {
-            "clip_id": clip_id,
-            "asset_id": asset_id,
-            "start_time": start_time,
-            "end_time": end_time,
-            "duration": 6.0,
-            "scene_score": min(scene_score, 1.0),
-            "features": features,
-            "thumbnail_url": f"/thumbnails/{clip_id}.jpg"
-        }
-        
-        clips.append(clip)
-    
-    clips_db[asset_id] = clips
-    
-    # In production, would also:
-    # 1. Store embeddings in FAISS index for similarity search
-    # 2. Run PySceneDetect for accurate scene boundaries
-    # 3. Extract motion features using OpenCV
-    # 4. Run YOLO object detection
-    # 5. Run OCR with Tesseract
-    # 6. Generate embeddings with vision transformer
+        # Cleanup
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            
+    except Exception as e:
+        logger.error(f"Processing failed for {asset_id}: {e}")
+        assets_db[asset_id]["status"] = "failed"
 
 
 if __name__ == "__main__":

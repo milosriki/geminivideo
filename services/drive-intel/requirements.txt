@@ -2,8 +2,12 @@ fastapi==0.115.0
 uvicorn[standard]==0.32.0
 pydantic==2.10.0
 pydantic-settings==2.1.0
+google-api-python-client==2.118.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
 scenedetect[opencv]==0.6.3
 opencv-python==4.10.0.84
+opencv-python-headless==4.9.0.80
 numpy==1.26.4
 pillow==10.4.0
 # Heavy ML packages - now supported with 16Gi memory + 4 CPU
