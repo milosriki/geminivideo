@@ -1,8 +1,6 @@
 import type { CampaignBrief, CampaignStrategy, AdCreative, Avatar, CreativeRanking } from '../types';
 import { titanClient } from '../api/titan_client';
-
-// PRO LEVEL CHANGE: Dynamic URL based on environment
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+import { API_BASE_URL } from '../config/api';
 
 async function handleResponse<T>(response: Response): Promise<T> {
     const contentType = response.headers.get('content-type') || '';

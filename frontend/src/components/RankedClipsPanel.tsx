@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAssets, getAssetClips } from '../services/api';
 
 export default function RankedClipsPanel() {
@@ -6,43 +6,68 @@ export default function RankedClipsPanel() {
   const [selectedAsset, setSelectedAsset] = useState('');
   const [clips, setClips] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingAssets, setLoadingAssets] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [topN, setTopN] = useState(10);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    const loadAssets = async () => {
+      setLoadingAssets(true);
+      try {
+        const data = await getAssets();
+        setAssets(data.assets || []);
+        if (data.assets?.length > 0) {
+          setSelectedAsset(data.assets[0].id);
+        }
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || 'Failed to load assets');
+      } finally {
+        setLoadingAssets(false);
+      }
+    };
+
     loadAssets();
   }, []);
 
-  const loadAssets = async () => {
-    try {
-      const data = await getAssets();
-      setAssets(data.assets || []);
-      if (data.assets?.length > 0) {
-        setSelectedAsset(data.assets[0].id);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const loadClips = async () => {
+  const loadClips = useCallback(async (signal: AbortSignal) => {
     if (!selectedAsset) return;
 
     setLoading(true);
+    setError(null);
     try {
-      const data = await getAssetClips(selectedAsset, true, topN);
+      const data = await getAssetClips(selectedAsset, true, topN, signal);
       setClips(data.clips || []);
-    } catch (err) {
+    } catch (err: any) {
+      // Ignore abort errors
+      if (err.name === 'CanceledError' || err.message?.includes('canceled')) {
+        return;
+      }
       console.error(err);
+      setError(err.message || 'Failed to load clips');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedAsset, topN]);
 
   useEffect(() => {
     if (selectedAsset) {
-      loadClips();
+      // Cancel any in-flight request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+      loadClips(abortControllerRef.current.signal);
     }
-  }, [selectedAsset, topN]);
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [selectedAsset, topN, loadClips]);
 
   return (
     <div>
@@ -79,13 +104,23 @@ export default function RankedClipsPanel() {
           />
         </div>
 
+        {loadingAssets && (
+          <div className="loading">Loading assets...</div>
+        )}
+
+        {error && (
+          <div style={{ color: '#dc3545', textAlign: 'center', padding: '20px' }}>
+            Error: {error}
+          </div>
+        )}
+
         {loading ? (
           <div className="loading">Loading ranked clips...</div>
-        ) : clips.length === 0 ? (
+        ) : !error && clips.length === 0 ? (
           <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
             No clips available. Select an asset with clips.
           </p>
-        ) : (
+        ) : !error && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {clips.map((clip, idx) => (
               <div key={clip.id} className="card" style={{ border: '1px solid #e0e0e0' }}>
