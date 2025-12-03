@@ -1,3 +1,5 @@
+import * as Headless from '@headlessui/react'
+import { clsx } from 'clsx'
 import { LayoutGroup, motion } from 'framer-motion'
 import React, { forwardRef, useId } from 'react'
 import { TouchTarget } from './button'
@@ -73,10 +75,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
     className,
     children,
     ...props
-  }: { current?: boolean; className?: string; children: React.ReactNode } & (
-    | ({ href?: never } & Omit<Headless.ButtonProps, 'as' | 'className'>)
-    | ({ href: string } & Omit<Headless.ButtonProps<typeof Link>, 'as' | 'className'>)
-  ),
+  }: { current?: boolean; className?: string; children: React.ReactNode; href?: string } & Headless.ButtonProps,
   ref: React.ForwardedRef<HTMLAnchorElement | HTMLButtonElement>
 ) {
   const classes = clsx(
@@ -112,7 +111,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
       {'href' in props && typeof props.href === 'string' ? (
         <Headless.CloseButton
           as={Link}
-          {...(props as Omit<Headless.ButtonProps<typeof Link>, 'as' | 'className'>)}
+          {...(props as any)}
           className={classes}
           data-current={current ? 'true' : undefined}
           ref={ref as React.ForwardedRef<HTMLAnchorElement>}

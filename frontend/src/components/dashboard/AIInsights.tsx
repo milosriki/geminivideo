@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StaggerContainer } from '../ui/StaggerContainer';
+
 
 interface Insight {
   id: number;
@@ -119,7 +119,7 @@ export const AIInsights: React.FC<AIInsightsProps> = ({
         </button>
       </div>
 
-      <StaggerContainer staggerDelay={0.1} className="space-y-4">
+      <div className="space-y-4">
         {insights.slice(0, 3).map((insight) => (
           <div
             key={insight.id}
@@ -144,7 +144,7 @@ export const AIInsights: React.FC<AIInsightsProps> = ({
             </div>
           </div>
         ))}
-      </StaggerContainer>
+      </div>
 
       <div className="mt-4 pt-4 border-t border-zinc-800">
         <p className="text-zinc-500 text-xs text-center">

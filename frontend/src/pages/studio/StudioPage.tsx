@@ -1,5 +1,7 @@
-import { useState, useRef } from 'react'
+
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { Switch } from '@headlessui/react'
 import {
   PlayIcon,
   PauseIcon,
@@ -19,6 +21,10 @@ import { Input } from '@/components/catalyst/input'
 import { Badge } from '@/components/catalyst/badge'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
+import { Video as VideoPlayer } from '@/components/compass/video-player'
+import { Breadcrumbs } from '@/components/compass/breadcrumbs'
+import { apiClient } from '@/services/apiClient'
+import { Avatar } from '@/types'
 
 // Timeline Clip Component
 interface TimelineClipProps {
@@ -67,10 +73,7 @@ function AvatarCard({ name, isSelected, onClick }: AvatarProps) {
       onClick={onClick}
       className={`
         p-3 rounded-xl border transition-all text-center
-        ${isSelected
-          ? 'border-violet-500 bg-violet-500/10'
-          : 'border-zinc-800 hover:border-zinc-700'
-        }
+        ${isSelected ? 'border-violet-500 bg-violet-500/10' : 'border-zinc-800 hover:border-zinc-700'}
       `}
     >
       <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 mx-auto" />
@@ -98,12 +101,23 @@ export function StudioPage() {
     { id: 'clip-4', name: 'Testimonial', duration: 7, thumbnail: '' },
   ]
 
-  const avatars = [
-    { id: 'avatar-1', name: 'Sarah', image: '' },
-    { id: 'avatar-2', name: 'Mike', image: '' },
-    { id: 'avatar-3', name: 'Emma', image: '' },
-    { id: 'avatar-4', name: 'James', image: '' },
-  ]
+  const [avatars, setAvatars] = useState<Avatar[]>([])
+  const [loadingAvatars, setLoadingAvatars] = useState(true)
+
+  useEffect(() => {
+    const loadAvatars = async () => {
+      try {
+        const data = await apiClient.fetchAvatars()
+        setAvatars(data)
+        if (data.length > 0) setSelectedAvatar(data[0].key)
+      } catch (error) {
+        console.error('Failed to load avatars:', error)
+      } finally {
+        setLoadingAvatars(false)
+      }
+    }
+    loadAvatars()
+  }, [])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -111,13 +125,53 @@ export function StudioPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  const handleGenerate = async () => {
+    if (!selectedAvatar) return
+
+    console.log('Generating video with script:', script)
+    try {
+      // Mock brief and strategy for now as StudioPage doesn't have full campaign context yet
+      const mockBrief = {
+        productName: 'Fitness App',
+        targetMarket: 'Fitness Enthusiasts',
+        offer: '90 Day Transformation',
+        cta: 'Sign Up Now',
+        angle: 'Transformation',
+        tone: 'inspirational' as const,
+        platform: 'reels' as const,
+        painPoints: '',
+        competitors: []
+      }
+      const mockStrategy = {
+        primaryVideoFileName: 'studio_generated.mp4',
+        bRollFileNames: [],
+        strategyJustification: '',
+        videoAnalyses: []
+      }
+
+      await apiClient.generateCreatives(mockBrief, selectedAvatar, mockStrategy)
+      alert('Generation started! Check the Jobs queue.')
+    } catch (error) {
+      console.error('Generation failed:', error)
+      alert('Generation failed. See console.')
+    }
+  }
+
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-zinc-900">
-        <div className="flex items-center gap-4">
-          <Heading level={2} className="text-white">Video Studio</Heading>
-          <Badge color="violet">Draft</Badge>
+        <div className="flex flex-col gap-1">
+          <Breadcrumbs
+            pages={[
+              { name: 'Assets', href: '/assets', current: false },
+              { name: 'Studio', href: '/studio', current: true },
+            ]}
+          />
+          <div className="flex items-center gap-4 mt-2">
+            <Heading level={2} className="text-white">Video Studio</Heading>
+            <Badge color="violet">Draft</Badge>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Button outline className="gap-2">
@@ -137,65 +191,11 @@ export function StudioPage() {
         <div className="flex-1 flex flex-col">
           {/* Video Preview */}
           <div className="flex-1 flex items-center justify-center bg-black p-8">
-            <div className="relative w-full max-w-2xl aspect-video bg-zinc-900 rounded-xl overflow-hidden">
-              {/* Video Element (placeholder) */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 mx-auto flex items-center justify-center">
-                    {isPlaying ? (
-                      <PauseIcon className="h-10 w-10 text-white" />
-                    ) : (
-                      <PlayIcon className="h-10 w-10 text-white ml-1" />
-                    )}
-                  </div>
-                  <p className="text-zinc-400 mt-4">Preview will appear here</p>
-                </div>
-              </div>
-
-              {/* Video Controls Overlay */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                {/* Progress Bar */}
-                <div className="mb-3">
-                  <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-violet-500"
-                      style={{ width: `${(currentTime / duration) * 100}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Controls */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      className="text-white hover:text-violet-400 transition-colors"
-                    >
-                      {isPlaying ? (
-                        <PauseIcon className="h-6 w-6" />
-                      ) : (
-                        <PlayIcon className="h-6 w-6" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setIsMuted(!isMuted)}
-                      className="text-white hover:text-violet-400 transition-colors"
-                    >
-                      {isMuted ? (
-                        <SpeakerXMarkIcon className="h-6 w-6" />
-                      ) : (
-                        <SpeakerWaveIcon className="h-6 w-6" />
-                      )}
-                    </button>
-                    <span className="text-white text-sm">
-                      {formatTime(currentTime)} / {formatTime(duration)}
-                    </span>
-                  </div>
-                  <button className="text-white hover:text-violet-400 transition-colors">
-                    <ArrowsPointingOutIcon className="h-6 w-6" />
-                  </button>
-                </div>
-              </div>
+            <div className="relative w-full max-w-2xl">
+              <VideoPlayer
+                src="https://assets.mixkit.co/videos/preview/mixkit-going-down-a-curved-highway-through-a-mountain-range-41576-large.mp4"
+                poster="https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80"
+              />
             </div>
           </div>
 
@@ -222,7 +222,7 @@ export function StudioPage() {
                   onClick={() => setSelectedClip(clip.id)}
                 />
               ))}
-              
+
               {/* Add Clip Button */}
               <button className="flex-shrink-0 w-32 h-20 rounded-lg border-2 border-dashed border-zinc-700 hover:border-zinc-600 flex items-center justify-center transition-colors">
                 <PlusIcon className="h-6 w-6 text-zinc-500" />
@@ -293,14 +293,20 @@ export function StudioPage() {
             <div>
               <Text className="text-white font-medium mb-3">AI Avatar</Text>
               <div className="grid grid-cols-4 gap-2">
-                {avatars.map((avatar) => (
-                  <AvatarCard
-                    key={avatar.id}
-                    {...avatar}
-                    isSelected={selectedAvatar === avatar.id}
-                    onClick={() => setSelectedAvatar(avatar.id)}
-                  />
-                ))}
+                {loadingAvatars ? (
+                  <div className="col-span-4 text-center text-zinc-500 text-sm">Loading avatars...</div>
+                ) : (
+                  avatars.map((avatar) => (
+                    <AvatarCard
+                      key={avatar.key}
+                      id={avatar.key}
+                      name={avatar.name}
+                      image={`https://api.dicebear.com/7.x/avataaars/svg?seed=${avatar.key}`}
+                      isSelected={selectedAvatar === avatar.key}
+                      onClick={() => setSelectedAvatar(avatar.key)}
+                    />
+                  ))
+                )}
               </div>
             </div>
 
@@ -333,7 +339,7 @@ export function StudioPage() {
 
           {/* Generate Button */}
           <div className="p-4 border-t border-zinc-800">
-            <Button color="violet" className="w-full gap-2">
+            <Button color="violet" className="w-full gap-2" onClick={handleGenerate}>
               <SparklesIcon className="h-4 w-4" />
               Generate Video
             </Button>

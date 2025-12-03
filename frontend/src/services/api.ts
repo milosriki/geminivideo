@@ -71,6 +71,11 @@ export const getDiversificationMetrics = async () => {
   return response.data;
 };
 
+export const getDashboardMetrics = async () => {
+  const response = await api.get('/metrics');
+  return response.data;
+};
+
 export const getReliabilityMetrics = async () => {
   const response = await api.get('/metrics/reliability');
   return response.data;

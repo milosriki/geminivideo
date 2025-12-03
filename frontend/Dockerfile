@@ -2,14 +2,14 @@ FROM node:18-slim as build
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy source code
+COPY . .
+
+# Remove any existing node_modules copied from host
+RUN rm -rf node_modules package-lock.json
 
 # Install dependencies
 RUN npm install
-
-# Copy source code
-COPY . .
 
 # Build arguments
 ARG VITE_API_BASE_URL

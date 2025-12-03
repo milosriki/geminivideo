@@ -10,6 +10,7 @@ import {
   SparklesIcon,
   PlusCircleIcon,
   QuestionMarkCircleIcon,
+  BookOpenIcon,
 } from '@heroicons/react/24/outline'
 import { SidebarLayout } from '@/components/catalyst/sidebar-layout'
 import { Sidebar, SidebarBody, SidebarHeader, SidebarItem, SidebarLabel, SidebarSection, SidebarFooter } from '@/components/catalyst/sidebar'
@@ -28,6 +29,7 @@ const navigation = [
 ]
 
 const secondaryNavigation = [
+  { name: 'Resources', href: '/resources', icon: BookOpenIcon },
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
   { name: 'Help & Docs', href: '/help', icon: QuestionMarkCircleIcon },
 ]

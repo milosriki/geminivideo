@@ -1,5 +1,4 @@
 import React from 'react';
-import { AdCard } from './AdCard';
 
 interface Ad {
   id: string;
@@ -33,6 +32,109 @@ const SkeletonCard: React.FC = () => (
     </div>
   </div>
 );
+
+const AdCard: React.FC<{
+  id: string;
+  thumbnail: string;
+  platform: string;
+  brand: string;
+  hook: string;
+  views: number;
+  likes?: number;
+  date: string;
+  style: string;
+  onCardClick: (id: string) => void;
+  onSaveClick: (id: string) => void;
+  isSaved: boolean;
+}> = ({
+  id,
+  thumbnail,
+  platform,
+  brand,
+  hook,
+  views,
+  likes,
+  date,
+  style,
+  onCardClick,
+  onSaveClick,
+  isSaved,
+}) => {
+    return (
+      <div
+        onClick={() => onCardClick(id)}
+        className="group relative bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden cursor-pointer hover:border-zinc-700 transition-all mb-4 break-inside-avoid"
+      >
+        {/* Thumbnail */}
+        <div className="aspect-[9/16] relative bg-zinc-800">
+          <img
+            src={thumbnail}
+            alt={hook}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+
+          {/* Platform Badge */}
+          <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium text-white capitalize">
+            {platform}
+          </div>
+
+          {/* Save Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSaveClick(id);
+            }}
+            className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-sm transition-colors ${isSaved ? 'bg-violet-500 text-white' : 'bg-black/50 text-white hover:bg-black/70'
+              }`}
+          >
+            <svg className="w-4 h-4" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </button>
+
+          {/* Stats Overlay */}
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs text-white/90">
+            <div className="flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              {(views / 1000).toFixed(1)}k
+            </div>
+            {likes && (
+              <div className="flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+                {(likes / 1000).toFixed(1)}k
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-5 h-5 rounded-full bg-zinc-800 flex-shrink-0" />
+            <span className="text-xs text-zinc-400 font-medium truncate">{brand}</span>
+          </div>
+          <h3 className="text-sm font-medium text-white line-clamp-2 mb-3 group-hover:text-violet-400 transition-colors">
+            {hook}
+          </h3>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400 capitalize">
+              {style}
+            </span>
+            <span className="text-[10px] text-zinc-500">
+              {new Date(date).toLocaleDateString()}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
 export const AdGrid: React.FC<AdGridProps> = ({
   ads,
