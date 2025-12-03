@@ -59,7 +59,9 @@ CREATE INDEX IF NOT EXISTS idx_performance_metrics_type ON performance_metrics(m
 -- Clips table for video segment analysis
 CREATE TABLE IF NOT EXISTS clips (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    clip_id UUID DEFAULT uuid_generate_v4(),  -- Alternative ID for queries
     video_id UUID,
+    asset_id VARCHAR(255),  -- Reference to source asset
     name VARCHAR(255),
     start_time DECIMAL(10, 3) DEFAULT 0,  -- seconds
     end_time DECIMAL(10, 3) DEFAULT 0,
@@ -69,13 +71,17 @@ CREATE TABLE IF NOT EXISTS clips (
     emotions JSONB DEFAULT '[]',
     visual_elements JSONB DEFAULT '[]',
     engagement_score DECIMAL(5, 2),
+    ctr_score DECIMAL(5, 2) DEFAULT 0,  -- CTR prediction score
+    scene_score DECIMAL(5, 2) DEFAULT 0,  -- Scene quality score
     storage_path TEXT,
     thumbnail_path TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_clips_video ON clips(video_id);
+CREATE INDEX IF NOT EXISTS idx_clips_asset ON clips(asset_id);
 CREATE INDEX IF NOT EXISTS idx_clips_scene_type ON clips(scene_type);
+CREATE INDEX IF NOT EXISTS idx_clips_ctr_score ON clips(ctr_score DESC);
 
 -- Emotions table for emotional analysis
 CREATE TABLE IF NOT EXISTS emotions (
@@ -102,6 +108,9 @@ CREATE TABLE IF NOT EXISTS ads (
     campaign_id UUID,
     video_id UUID,
     blueprint_id UUID,
+    asset_id VARCHAR(255),  -- Source asset reference
+    clip_ids TEXT[],  -- Array of clip IDs used in this ad
+    arc_name VARCHAR(255),  -- Story arc name (e.g., "problem-solution")
     title VARCHAR(255),
     description TEXT,
     status VARCHAR(50) DEFAULT 'pending',  -- pending, approved, rejected, published
@@ -117,6 +126,8 @@ CREATE TABLE IF NOT EXISTS ads (
     cta_url TEXT,
     targeting JSONB DEFAULT '{}',
     budget DECIMAL(12, 2),
+    predicted_ctr DECIMAL(8, 4),  -- ML-predicted CTR
+    predicted_roas DECIMAL(8, 2),  -- ML-predicted ROAS
     performance JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -152,6 +163,17 @@ SELECT
     (8 + random() * 20)::DECIMAL(8,2)
 FROM generate_series(0, 6) AS i
 WHERE NOT EXISTS (SELECT 1 FROM daily_analytics LIMIT 1);
+
+-- Add missing columns to existing campaigns table
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS budget_daily DECIMAL(12, 2) DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS spend DECIMAL(12, 2) DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS revenue DECIMAL(12, 2) DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS roas DECIMAL(8, 2) DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS conversions INTEGER DEFAULT 0;
+
+-- Update name from product_name if name is null
+UPDATE campaigns SET name = product_name WHERE name IS NULL AND product_name IS NOT NULL;
 
 COMMENT ON TABLE jobs IS 'Background job queue for async processing';
 COMMENT ON TABLE daily_analytics IS 'Daily aggregated analytics for dashboard charts';

@@ -78,12 +78,13 @@ export const CampaignTable: React.FC = () => {
     const fetchCampaigns = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/campaigns`);
+        const response = await fetch(`${API_BASE_URL}/api/campaigns`);
         if (!response.ok) {
           throw new Error(response.status.toString());
         }
         const data = await response.json();
-        setCampaigns(data);
+        // Backend returns { campaigns: [...] } wrapper
+        setCampaigns(data.campaigns || data || []);
         setError(null);
       } catch (err) {
         setError('Data source not configured. Please configure campaigns in the backend.');
