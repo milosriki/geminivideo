@@ -1,0 +1,67 @@
+{
+    "nodes": {
+        "fitness": {
+            "type": "niche",
+            "related": [
+                "high_energy",
+                "transformation",
+                "sweat"
+            ]
+        },
+        "high_energy": {
+            "type": "style",
+            "related": [
+                "jump_cuts",
+                "fast_paced_music",
+                "bold_text"
+            ]
+        },
+        "transformation": {
+            "type": "hook",
+            "related": [
+                "split_screen",
+                "before_after_label"
+            ]
+        },
+        "sweat": {
+            "type": "visual",
+            "related": [
+                "close_up",
+                "water_droplets"
+            ]
+        },
+        "tech": {
+            "type": "niche",
+            "related": [
+                "minimalist",
+                "clean",
+                "futuristic"
+            ]
+        },
+        "minimalist": {
+            "type": "style",
+            "related": [
+                "white_space",
+                "sans_serif",
+                "slow_pan"
+            ]
+        }
+    },
+    "edges": [
+        {
+            "source": "fitness",
+            "target": "high_energy",
+            "weight": 0.9
+        },
+        {
+            "source": "high_energy",
+            "target": "jump_cuts",
+            "weight": 0.8
+        },
+        {
+            "source": "fitness",
+            "target": "transformation",
+            "weight": 0.95
+        }
+    ]
+}

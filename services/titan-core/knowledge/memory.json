@@ -1,0 +1,16 @@
+{
+    "episodic_memory": [],
+    "semantic_memory": {
+        "rules": [
+            "Always start with a visual hook.",
+            "Avoid generic stock footage."
+        ],
+        "niche_preferences": {
+            "fitness": [
+                "High energy cuts",
+                "Before/After transformations"
+            ]
+        }
+    },
+    "last_updated": "2025-12-03T12:00:00Z"
+}

@@ -84,6 +84,41 @@ class PromptEngine:
         3. Is the solution credible?
         
         OUTPUT FORMAT:
-        If Score < 85: Return exactly: "REJECT: [Reason 1], [Reason 2]. Fix [Specific Section]."
-        If Score >= 85: Return exactly: "APPROVE"
+    @staticmethod
+    def get_reflection_prompt(critique: str) -> str:
+        """
+        Prompt for the agent to reflect on WHY it failed.
+        """
+        return f"""
+        🛑 STOP. The Council REJECTED your script.
+        
+        CRITIQUE:
+        "{critique}"
+        
+        TASK:
+        Reflect on this failure. Why did your previous attempt fail to meet the criteria?
+        Be specific. Did you miss the hook? Was the pain point weak?
+        
+        OUTPUT FORMAT:
+        "I failed because [reason]. I ignored the rule about [rule]."
+        """
+
+    @staticmethod
+    def get_planning_prompt(reflection: str) -> str:
+        """
+        Prompt for the agent to PLAN the fix based on reflection.
+        """
+        return f"""
+        REFLECTION:
+        "{reflection}"
+        
+        TASK:
+        Create a specific plan to fix the script. Do not write the script yet.
+        State 3 specific changes you will make.
+        
+        OUTPUT FORMAT:
+        "Plan:
+        1. Change hook to [type]
+        2. Intensify pain point by [action]
+        3. Shorten CTA to [length]"
         """
