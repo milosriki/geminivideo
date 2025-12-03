@@ -118,6 +118,51 @@ export class CostTracker {
   }
 
   /**
+   * Record a cost entry with explicit cost (e.g. from SmartRouter)
+   */
+  async recordModelCost(params: {
+    model: string;
+    operation: string;
+    tokens_in: number;
+    tokens_out: number;
+    cost_usd: number;
+    latency_ms: number;
+    metadata?: any;
+  }): Promise<void> {
+    try {
+      const query = `
+        INSERT INTO api_costs (
+          model_name,
+          operation_type,
+          input_tokens,
+          output_tokens,
+          total_tokens,
+          cost_usd,
+          latency_ms,
+          cache_hit,
+          early_exit
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `;
+
+      await this.pgPool.query(query, [
+        params.model,
+        params.operation,
+        params.tokens_in,
+        params.tokens_out,
+        params.tokens_in + params.tokens_out,
+        params.cost_usd,
+        params.latency_ms,
+        params.metadata?.cache_hit || false,
+        params.metadata?.early_exit || false,
+      ]);
+
+      console.log(`📊 Cost recorded (explicit): ${params.model} - $${params.cost_usd.toFixed(6)} - ${params.latency_ms}ms`);
+    } catch (error) {
+      console.error('Failed to record explicit cost:', error);
+    }
+  }
+
+  /**
    * Get daily costs for the last N days
    */
   async getDailyCosts(days: number = 30): Promise<DailyCost[]> {

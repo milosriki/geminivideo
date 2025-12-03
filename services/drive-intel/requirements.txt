@@ -19,7 +19,15 @@ faiss-cpu==1.9.0.post1
 # PaddlePaddle OCR - REQUIRED for text detection in videos
 paddlepaddle==3.0.0
 paddleocr==2.8.1
-# faster-whisper==1.1.0
+
+# Whisper for audio transcription
+openai-whisper==20231117
+
+# Wav2Vec2 and audio analysis
+transformers==4.46.3
+librosa==0.10.2.post1
+soundfile==0.12.1
+scipy==1.14.1
 PyYAML==6.0.2
 aiofiles==24.1.0
 python-multipart==0.0.20

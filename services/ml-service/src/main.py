@@ -16,6 +16,7 @@ from src.feature_engineering import feature_extractor
 from src.ctr_model import ctr_predictor
 from src.thompson_sampler import thompson_optimizer
 from src.data_loader import get_data_loader
+from src.enhanced_ctr_model import enhanced_ctr_predictor, generate_synthetic_training_data as generate_enhanced_data
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -79,10 +80,13 @@ async def health_check():
         "status": "healthy",
         "service": "ml-service",
         "xgboost_loaded": ctr_predictor.is_trained,
+        "enhanced_xgboost_loaded": enhanced_ctr_predictor.is_trained,
         "vowpal_wabbit_loaded": True,
         "thompson_sampling_active": len(thompson_optimizer.variants) > 0,
         "active_variants": len(thompson_optimizer.variants),
-        "model_metrics": ctr_predictor.training_metrics if ctr_predictor.is_trained else {}
+        "model_metrics": ctr_predictor.training_metrics if ctr_predictor.is_trained else {},
+        "enhanced_model_metrics": enhanced_ctr_predictor.training_metrics if enhanced_ctr_predictor.is_trained else {},
+        "enhanced_features_count": len(enhanced_ctr_predictor.feature_names)
     }
 
 # Root endpoint
@@ -91,7 +95,8 @@ async def root():
     """Root endpoint"""
     return {
         "service": "ML Service",
-        "version": "1.0.0",
+        "version": "2.0.0",
+        "description": "XGBoost CTR Prediction & Vowpal Wabbit A/B Testing with Enhanced 75+ Feature Model",
         "learning_mode": "real_data",
         "endpoints": {
             "health": "/health",
@@ -110,7 +115,10 @@ async def root():
                 "all_variants": "/api/ml/ab/all-variants",
                 "best_variant": "/api/ml/ab/best-variant",
                 "reallocate_budget": "/api/ml/ab/reallocate-budget"
-            }
+            },
+            "enhanced_predict_ctr": "/predict/ctr",
+            "enhanced_train_ctr": "/train/ctr",
+            "enhanced_feature_importance": "/model/importance"
         }
     }
 
@@ -263,6 +271,131 @@ async def get_feature_importance():
 
     except Exception as e:
         logger.error(f"Error getting feature importance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Enhanced XGBoost CTR Prediction Endpoints (Agent 5)
+
+class EnhancedCTRRequest(BaseModel):
+    """Request model for enhanced CTR prediction"""
+    clip_data: Dict[str, Any]
+
+
+class EnhancedCTRResponse(BaseModel):
+    """Response model for enhanced CTR prediction"""
+    predicted_ctr: float
+    predicted_band: str
+    confidence: float
+    features_used: int
+
+
+class EnhancedTrainingRequest(BaseModel):
+    """Request model for enhanced model training"""
+    use_synthetic_data: bool = True
+    n_samples: Optional[int] = 1000
+    historical_ads: Optional[List[Dict[str, Any]]] = None
+
+
+@app.post("/predict/ctr", response_model=EnhancedCTRResponse)
+async def predict_ctr_enhanced(request: EnhancedCTRRequest):
+    """
+    Predict CTR using enhanced model with 75+ features
+
+    Agent 5 - Enhanced XGBoost CTR Prediction
+    Target: R² > 0.88 (94% accuracy)
+    """
+    try:
+        if not enhanced_ctr_predictor.is_trained:
+            raise HTTPException(
+                status_code=400,
+                detail="Enhanced model not trained. Call /train/ctr first."
+            )
+
+        # Predict CTR
+        result = enhanced_ctr_predictor.predict(request.clip_data)
+
+        return EnhancedCTRResponse(
+            predicted_ctr=result['predicted_ctr'],
+            predicted_band=result['predicted_band'],
+            confidence=result['confidence'],
+            features_used=len(enhanced_ctr_predictor.feature_names)
+        )
+
+    except Exception as e:
+        logger.error(f"Error predicting CTR with enhanced model: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/train/ctr")
+async def train_enhanced_ctr_model(request: EnhancedTrainingRequest):
+    """
+    Train enhanced XGBoost CTR model with 75+ features
+
+    Agent 5 - Enhanced Model Training
+    Target: R² > 0.88 (94% accuracy)
+    """
+    try:
+        if request.use_synthetic_data:
+            logger.info(f"Generating {request.n_samples} synthetic enhanced training samples...")
+            historical_ads = generate_enhanced_data(n_samples=request.n_samples)
+        elif request.historical_ads:
+            logger.info(f"Using {len(request.historical_ads)} provided historical ads...")
+            historical_ads = request.historical_ads
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Must provide either use_synthetic_data=True or historical_ads"
+            )
+
+        # Train enhanced model
+        logger.info("Training enhanced XGBoost model with 75+ features...")
+        metrics = enhanced_ctr_predictor.train(historical_ads)
+
+        # Save model
+        enhanced_ctr_predictor.save()
+
+        return {
+            "status": "success",
+            "message": "Enhanced CTR model trained successfully",
+            "metrics": metrics,
+            "target_achieved": metrics.get('target_achieved', False),
+            "features_used": len(enhanced_ctr_predictor.feature_names)
+        }
+
+    except Exception as e:
+        logger.error(f"Error training enhanced model: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/model/importance")
+async def get_enhanced_feature_importance():
+    """
+    Get feature importance from enhanced XGBoost model
+
+    Agent 5 - Feature Importance Analysis
+    Returns importance scores for all 75+ features
+    """
+    try:
+        if not enhanced_ctr_predictor.is_trained:
+            raise HTTPException(
+                status_code=400,
+                detail="Enhanced model not trained. Call /train/ctr first."
+            )
+
+        importance = enhanced_ctr_predictor.get_feature_importance()
+
+        # Get top 20 most important features
+        top_20 = dict(list(importance.items())[:20])
+
+        return {
+            "feature_importance": importance,
+            "top_20_features": top_20,
+            "total_features": len(importance),
+            "model_metrics": enhanced_ctr_predictor.training_metrics
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting enhanced feature importance: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -597,6 +730,20 @@ async def startup_event():
         logger.info("Training scheduler started")
     except ImportError:
         logger.warning("Training scheduler not available")
+
+    # Train enhanced model if not already trained
+    if not enhanced_ctr_predictor.is_trained:
+        logger.info("No enhanced model found. Training with synthetic data...")
+        try:
+            historical_ads = generate_enhanced_data(n_samples=1000)
+            metrics = enhanced_ctr_predictor.train(historical_ads)
+            enhanced_ctr_predictor.save()
+            logger.info(f"Enhanced model trained on startup: Test R² = {metrics['test_r2']:.4f}")
+            logger.info(f"Target achieved: {metrics.get('target_achieved', False)}")
+        except Exception as e:
+            logger.warning(f"Failed to train enhanced model on startup: {e}")
+    else:
+        logger.info("Enhanced model loaded successfully from disk")
 
 
 if __name__ == "__main__":

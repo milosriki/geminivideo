@@ -1,0 +1,413 @@
+// Prisma Schema for Gateway API
+// Production-grade PostgreSQL database with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// User Management
+// ============================================================================
+
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  name          String
+  role          UserRole      @default(USER)
+  passwordHash  String?
+  apiKey        String?       @unique
+  settings      Json?         @default("{}")
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  // Relationships
+  assets        Asset[]
+  campaigns     Campaign[]
+
+  @@index([email])
+  @@index([apiKey])
+  @@index([createdAt])
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  ENTERPRISE
+}
+
+// ============================================================================
+// Asset Management
+// ============================================================================
+
+model Asset {
+  id              String        @id @default(uuid())
+  userId          String
+
+  filename        String
+  originalName    String
+  mimeType        String
+  fileSize        BigInt
+
+  gcsUrl          String        @unique
+  gcsBucket       String
+  gcsPath         String
+  thumbnailUrl    String?
+
+  duration        Float?        // Duration in seconds
+  width           Int?
+  height          Int?
+  fps             Float?
+  bitrate         Int?
+  codec           String?
+
+  status          AssetStatus   @default(PENDING)
+  processingError String?
+
+  metadata        Json?         @default("{}")
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  // Relationships
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clips           Clip[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([gcsUrl])
+  @@map("assets")
+}
+
+enum AssetStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  ARCHIVED
+}
+
+// ============================================================================
+// Clip Management
+// ============================================================================
+
+model Clip {
+  id              String        @id @default(uuid())
+  assetId         String
+
+  startTime       Float         // Start time in seconds
+  endTime         Float         // End time in seconds
+  duration        Float         // Duration in seconds
+
+  clipUrl         String?       // URL to extracted clip
+  thumbnailUrl    String?
+
+  // AI-detected features
+  features        Json          @default("{}")
+  faceCount       Int?
+  hasText         Boolean       @default(false)
+  hasSpeech       Boolean       @default(false)
+  hasMusic        Boolean       @default(false)
+
+  // Scoring
+  score           Float?        // Overall quality score
+  viralScore      Float?
+  engagementScore Float?
+  brandSafetyScore Float?
+
+  rank            Int?          // Ranking within asset
+
+  // Status
+  status          ClipStatus    @default(PENDING)
+
+  metadata        Json?         @default("{}")
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  // Relationships
+  asset           Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  predictions     Prediction[]
+
+  @@index([assetId])
+  @@index([score])
+  @@index([rank])
+  @@index([status])
+  @@index([createdAt])
+  @@map("clips")
+}
+
+enum ClipStatus {
+  PENDING
+  ANALYZED
+  SCORED
+  PUBLISHED
+  REJECTED
+}
+
+// ============================================================================
+// Campaign Management
+// ============================================================================
+
+model Campaign {
+  id                String          @id @default(uuid())
+  userId            String
+
+  name              String
+  description       String?
+  objective         CampaignObjective @default(CONVERSIONS)
+
+  budget            Decimal         @db.Decimal(10, 2)
+  dailyBudget       Decimal?        @db.Decimal(10, 2)
+  currency          String          @default("USD")
+
+  status            CampaignStatus  @default(DRAFT)
+
+  // Meta Ads Integration
+  metaCampaignId    String?         @unique
+  metaAdSetId       String?
+  metaAccountId     String?
+
+  // Targeting
+  targetAudience    Json?           @default("{}")
+  targetLocations   Json?           @default("[]")
+  targetAgeRange    Json?           @default("{}")
+
+  // Schedule
+  startDate         DateTime?
+  endDate           DateTime?
+
+  // Performance tracking
+  totalSpend        Decimal         @default(0) @db.Decimal(10, 2)
+  totalImpressions  BigInt          @default(0)
+  totalClicks       BigInt          @default(0)
+  totalConversions  BigInt          @default(0)
+
+  metadata          Json?           @default("{}")
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+
+  // Relationships
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experiments       Experiment[]
+  conversions       Conversion[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([metaCampaignId])
+  @@index([createdAt])
+  @@index([startDate, endDate])
+  @@map("campaigns")
+}
+
+enum CampaignObjective {
+  AWARENESS
+  TRAFFIC
+  ENGAGEMENT
+  LEADS
+  CONVERSIONS
+  SALES
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+// ============================================================================
+// A/B Testing & Experimentation
+// ============================================================================
+
+model Experiment {
+  id              String            @id @default(uuid())
+  campaignId      String
+
+  name            String
+  description     String?
+
+  variants        Json              @default("[]") // Array of variant configs
+
+  status          ExperimentStatus  @default(DRAFT)
+
+  // Winner selection
+  winnerVariantId String?
+  winnerSelectedAt DateTime?
+
+  // Metrics
+  metrics         Json              @default("{}")
+  confidence      Float?            // Statistical confidence level
+
+  // Schedule
+  startDate       DateTime?
+  endDate         DateTime?
+
+  metadata        Json?             @default("{}")
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+
+  // Relationships
+  campaign        Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("experiments")
+}
+
+enum ExperimentStatus {
+  DRAFT
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================================
+// ML Predictions & Analytics
+// ============================================================================
+
+model Prediction {
+  id                String      @id @default(uuid())
+  clipId            String
+
+  // Model information
+  modelVersion      String
+  modelType         String      @default("roas")
+
+  // Predicted metrics
+  predictedRoas     Float?
+  predictedCtr      Float?
+  predictedCpc      Float?
+  predictedCpa      Float?
+  predictedEngagement Float?
+
+  // Actual metrics (filled after campaign runs)
+  actualRoas        Float?
+  actualCtr         Float?
+  actualCpc         Float?
+  actualCpa         Float?
+  actualEngagement  Float?
+
+  // Model features used
+  features          Json        @default("{}")
+
+  // Confidence
+  confidence        Float?
+
+  // Performance tracking
+  predictionError   Float?      // MAE or RMSE
+
+  metadata          Json?       @default("{}")
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relationships
+  clip              Clip        @relation(fields: [clipId], references: [id], onDelete: Cascade)
+
+  @@index([clipId])
+  @@index([modelVersion])
+  @@index([createdAt])
+  @@map("predictions")
+}
+
+// ============================================================================
+// Conversion Tracking
+// ============================================================================
+
+model Conversion {
+  id              String          @id @default(uuid())
+  campaignId      String?
+
+  source          ConversionSource @default(META)
+  externalId      String?         @unique // ID from Meta/Google/etc
+
+  // Value
+  value           Decimal         @db.Decimal(10, 2)
+  currency        String          @default("USD")
+
+  // Attribution
+  attributedClipId String?
+  attributedAdId   String?
+
+  // Timestamp
+  timestamp       DateTime        @default(now())
+
+  // Additional data
+  metadata        Json?           @default("{}")
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relationships
+  campaign        Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+  @@index([timestamp])
+  @@index([externalId])
+  @@index([createdAt])
+  @@map("conversions")
+}
+
+enum ConversionSource {
+  META
+  GOOGLE
+  TIKTOK
+  MANUAL
+  WEBHOOK
+}
+
+// ============================================================================
+// Knowledge Management (RAG)
+// ============================================================================
+
+model KnowledgeDocument {
+  id              String      @id @default(uuid())
+
+  name            String
+  description     String?
+  content         String      @db.Text
+
+  // Vector embedding (stored as array of floats)
+  embedding       Float[]
+  embeddingModel  String      @default("text-embedding-3-small")
+
+  category        String
+  tags            String[]    @default([])
+
+  version         Int         @default(1)
+
+  // Metadata
+  source          String?     // URL, file path, etc
+  author          String?
+
+  metadata        Json?       @default("{}")
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+
+  @@index([category])
+  @@index([version])
+  @@index([createdAt])
+  @@map("knowledge_documents")
+}

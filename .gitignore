@@ -70,9 +70,16 @@ htmlcov/
 # Temporary files
 /tmp/
 *.tmp
+<<<<<<< HEAD
 
 # Zip archives (extracted to source folders)
 *.zip
 
 # Frontend build
 frontend/dist/
+=======
+.env.production
+.env.local
+.vercel
+.env*.local
+>>>>>>> origin/claude/plan-video-editing-solution-01K1NVwMYwFHsZECx5H2RVTT

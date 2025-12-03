@@ -1,0 +1,276 @@
+{
+  "patterns": [
+    {
+      "type": "hook",
+      "name": "Before/After Split Screen",
+      "description": "Side-by-side transformation visible in first frame",
+      "platform": "Meta (Facebook/Instagram)",
+      "success_rate": 0.85,
+      "avg_ctr": 4.8,
+      "avg_conversion": 3.2,
+      "best_niches": ["fitness", "beauty", "finance"],
+      "why_it_works": "Immediate visual proof creates pattern interrupt and curiosity",
+      "implementation": {
+        "visual": "Split screen with clear before/after contrast",
+        "text": "Minimal - let the visual tell the story",
+        "audio": "Optional testimonial or dramatic music",
+        "duration": "3-5 seconds for hook"
+      },
+      "examples": [
+        {
+          "niche": "fitness",
+          "caption": "90 days. Same person. What changed?",
+          "ctr": 5.2
+        },
+        {
+          "niche": "finance",
+          "caption": "$0 to $10k/month in 6 months",
+          "ctr": 4.3
+        }
+      ]
+    },
+    {
+      "type": "hook",
+      "name": "Contrarian Statement",
+      "description": "Challenge conventional wisdom with bold claim",
+      "platform": "All platforms",
+      "success_rate": 0.78,
+      "avg_ctr": 4.2,
+      "avg_conversion": 2.9,
+      "best_niches": ["all"],
+      "why_it_works": "Creates cognitive dissonance and forces engagement",
+      "implementation": {
+        "visual": "Direct to camera or text on screen",
+        "text": "Bold, contrarian statement",
+        "audio": "Confident delivery",
+        "duration": "3-5 seconds"
+      },
+      "examples": [
+        {
+          "niche": "fitness",
+          "caption": "Cardio is keeping you fat. Here's why...",
+          "ctr": 4.5
+        },
+        {
+          "niche": "business",
+          "caption": "College is the biggest scam in America",
+          "ctr": 3.8
+        }
+      ]
+    },
+    {
+      "type": "body",
+      "name": "Pain-Agitate-Solve",
+      "description": "Identify pain, make it worse, then offer solution",
+      "platform": "All platforms",
+      "success_rate": 0.82,
+      "avg_ctr": 3.8,
+      "avg_conversion": 3.5,
+      "best_niches": ["all"],
+      "why_it_works": "Emotional journey creates investment in solution",
+      "implementation": {
+        "structure": "Problem (5s) -> Agitation (7s) -> Solution (10s)",
+        "pacing": "Build tension then release",
+        "emotion": "Empathy to hope"
+      },
+      "examples": [
+        {
+          "niche": "fitness",
+          "flow": "Tired of diets failing -> Tried everything, nothing works -> This protocol changes everything",
+          "conversion": 3.8
+        }
+      ]
+    },
+    {
+      "type": "cta",
+      "name": "Scarcity-Based CTA",
+      "description": "Limited time or quantity offer",
+      "platform": "All platforms",
+      "success_rate": 0.79,
+      "avg_ctr": 3.5,
+      "avg_conversion": 4.1,
+      "best_niches": ["all"],
+      "why_it_works": "FOMO triggers immediate action",
+      "implementation": {
+        "timing": "Final 5-10 seconds",
+        "specificity": "Exact numbers and deadlines",
+        "urgency": "Clear consequence of waiting"
+      },
+      "examples": [
+        {
+          "text": "Link in bio - first 50 people get free meal plan",
+          "conversion": 4.5
+        },
+        {
+          "text": "DM me 'READY' - offer ends Sunday at midnight",
+          "conversion": 3.7
+        }
+      ]
+    },
+    {
+      "type": "full_ad",
+      "name": "Social Proof Avalanche",
+      "description": "Overwhelming evidence of success",
+      "platform": "Meta",
+      "success_rate": 0.81,
+      "avg_ctr": 3.5,
+      "avg_conversion": 3.3,
+      "best_niches": ["all"],
+      "why_it_works": "Crowd psychology and safety in numbers",
+      "implementation": {
+        "visual": "Grid of testimonials or results",
+        "numbers": "Specific, verifiable statistics",
+        "variety": "Different types of proof (numbers, faces, outcomes)"
+      },
+      "examples": [
+        {
+          "caption": "2,847 transformations. You're next.",
+          "elements": ["Number of clients", "Visual grid", "Call to join"],
+          "ctr": 3.8
+        }
+      ]
+    },
+    {
+      "type": "structure",
+      "name": "Rapid Fire Listicle",
+      "description": "Fast-paced list of tips or facts",
+      "platform": "TikTok, Instagram Reels",
+      "success_rate": 0.76,
+      "avg_ctr": 3.2,
+      "avg_conversion": 2.8,
+      "best_niches": ["education", "how-to"],
+      "why_it_works": "High information density keeps engagement",
+      "implementation": {
+        "pacing": "3-5 seconds per item",
+        "visual": "Quick cuts or transitions",
+        "text": "Large, readable text overlay"
+      },
+      "examples": [
+        {
+          "format": "5 mistakes keeping you fat",
+          "item_duration": 4,
+          "total_length": 25
+        }
+      ]
+    },
+    {
+      "type": "emotional_trigger",
+      "name": "Relatable Moment",
+      "description": "Tap into universal shared experience",
+      "platform": "All platforms",
+      "success_rate": 0.74,
+      "avg_ctr": 3.1,
+      "avg_conversion": 2.6,
+      "best_niches": ["all"],
+      "why_it_works": "Creates immediate emotional connection",
+      "implementation": {
+        "opening": "You know that feeling when...",
+        "specificity": "Vivid, sensory details",
+        "transition": "But what if..."
+      },
+      "examples": [
+        {
+          "hook": "That sinking feeling when nothing fits anymore...",
+          "relatability_score": 0.89
+        }
+      ]
+    }
+  ],
+  "meta_insights": {
+    "platform_performance": {
+      "facebook": {
+        "avg_ctr": 3.5,
+        "best_patterns": ["Before/After", "Social Proof", "Pain-Agitate-Solve"],
+        "optimal_length": "30-45 seconds"
+      },
+      "instagram_feed": {
+        "avg_ctr": 3.2,
+        "best_patterns": ["Before/After", "Contrarian", "Listicle"],
+        "optimal_length": "30-60 seconds"
+      },
+      "instagram_reels": {
+        "avg_ctr": 3.8,
+        "best_patterns": ["Pattern Interrupt", "Contrarian", "Rapid Listicle"],
+        "optimal_length": "15-30 seconds"
+      },
+      "tiktok": {
+        "avg_ctr": 4.1,
+        "best_patterns": ["Contrarian", "Relatable Moment", "Rapid Listicle"],
+        "optimal_length": "15-45 seconds"
+      }
+    },
+    "niche_performance": {
+      "fitness": {
+        "top_patterns": ["Before/After", "Contrarian", "Pain-Agitate-Solve"],
+        "avg_conversion": 3.4,
+        "key_triggers": ["transformation", "social proof", "specificity"]
+      },
+      "business": {
+        "top_patterns": ["Contrarian", "Social Proof", "Scarcity CTA"],
+        "avg_conversion": 3.1,
+        "key_triggers": ["income proof", "lifestyle", "FOMO"]
+      },
+      "education": {
+        "top_patterns": ["Listicle", "Pain-Agitate-Solve", "Relatable"],
+        "avg_conversion": 2.8,
+        "key_triggers": ["quick wins", "simplicity", "authority"]
+      }
+    },
+    "timing_insights": {
+      "hook_duration": "3-5 seconds maximum",
+      "optimal_total_length": {
+        "awareness": "15-30 seconds",
+        "consideration": "30-60 seconds",
+        "conversion": "45-90 seconds"
+      },
+      "cta_placement": "Last 20% of video"
+    },
+    "combination_strategies": {
+      "high_performance_combos": [
+        {
+          "name": "Contrarian + Social Proof",
+          "structure": "Bold claim -> Proof it works -> CTA",
+          "success_rate": 0.84
+        },
+        {
+          "name": "Before/After + Scarcity",
+          "structure": "Transformation -> How -> Limited offer",
+          "success_rate": 0.82
+        },
+        {
+          "name": "Relatable + Pain-Agitate-Solve",
+          "structure": "Shared experience -> Make it worse -> Solution",
+          "success_rate": 0.79
+        }
+      ]
+    }
+  },
+  "testing_framework": {
+    "recommended_tests": [
+      {
+        "variable": "Hook type",
+        "variants": ["Before/After", "Contrarian", "Relatable"],
+        "keep_constant": ["body", "CTA", "offer"]
+      },
+      {
+        "variable": "CTA timing",
+        "variants": ["20s", "30s", "40s"],
+        "keep_constant": ["creative", "offer"]
+      },
+      {
+        "variable": "Video length",
+        "variants": ["30s", "45s", "60s"],
+        "keep_constant": ["hook", "message", "CTA"]
+      }
+    ],
+    "success_metrics": {
+      "awareness": ["CTR", "Hook Rate", "3s View Rate"],
+      "consideration": ["Video Completion", "Click-Through", "Engagement"],
+      "conversion": ["CPL", "CPA", "ROAS", "Conversion Rate"]
+    }
+  },
+  "version": "2024-Q4",
+  "last_updated": "2024-12-01",
+  "data_source": "Meta Ads Library + Titan Learning Agent",
+  "sample_size": "10,000+ ads analyzed"
+}
