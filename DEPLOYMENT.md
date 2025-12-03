@@ -4,11 +4,16 @@ Complete guide to deploying the Gemini Video AI Ad Intelligence Suite across loc
 
 **Table of Contents**
 - [1. Quick Start (Local Development)](#1-quick-start-local-development)
-- [2. Cloud Deployment (Vercel + GCP)](#2-cloud-deployment-vercel--gcp)
-- [3. Environment Variables Reference](#3-environment-variables-reference)
-- [4. Testing the System](#4-testing-the-system)
-- [5. Troubleshooting](#5-troubleshooting)
-- [6. Architecture Diagram](#6-architecture-diagram)
+- [2. Production Deployment](#2-production-deployment)
+  - [2.1. Docker Compose Production](#21-docker-compose-production)
+  - [2.2. GCP Cloud Run Production](#22-gcp-cloud-run-production)
+  - [2.3. GitHub Actions CI/CD](#23-github-actions-cicd)
+- [3. Cloud Deployment (Vercel + GCP)](#3-cloud-deployment-vercel--gcp)
+- [4. Environment Variables Reference](#4-environment-variables-reference)
+- [5. Testing the System](#5-testing-the-system)
+- [6. Monitoring and Scaling](#6-monitoring-and-scaling)
+- [7. Troubleshooting](#7-troubleshooting)
+- [8. Architecture Diagram](#8-architecture-diagram)
 
 ---
 
@@ -283,7 +288,490 @@ docker compose exec postgres psql -U geminivideo -d geminivideo
 
 ---
 
-## 2. Cloud Deployment (Vercel + GCP)
+## 2. Production Deployment
+
+### 2.1. Docker Compose Production
+
+Production deployment using Docker Compose with optimized configuration, resource limits, and health checks.
+
+#### Prerequisites
+
+- Docker 20.10+ with Docker Compose
+- Production server (4+ CPU cores, 16GB+ RAM recommended)
+- SSL certificates (for HTTPS)
+- Domain name configured
+
+#### Step 1: Prepare Production Environment
+
+```bash
+# Clone repository on production server
+git clone https://github.com/milosriki/geminivideo.git
+cd geminivideo
+
+# Create production environment file
+cp .env.production.example .env.production
+
+# Edit with production credentials
+nano .env.production
+```
+
+#### Step 2: Configure Production Variables
+
+Edit `.env.production` with your production values:
+
+```bash
+# Database (use strong passwords!)
+POSTGRES_PASSWORD=YOUR_STRONG_PASSWORD_HERE
+DATABASE_URL=postgresql://geminivideo:YOUR_STRONG_PASSWORD_HERE@postgres:5432/geminivideo
+
+# Redis
+REDIS_URL=redis://redis:6379
+
+# API Keys
+GEMINI_API_KEY=your_production_api_key
+META_ACCESS_TOKEN=your_production_token
+
+# Security
+JWT_SECRET=$(openssl rand -base64 64)
+CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+
+# Image registry (optional, for private registry)
+REGISTRY_URL=your-registry.com/geminivideo
+IMAGE_TAG=v1.0.0
+```
+
+#### Step 3: Deploy with Production Compose
+
+```bash
+# Build images
+DOCKER_BUILDKIT=0 docker-compose -f docker-compose.production.yml build
+
+# Start services
+docker-compose -f docker-compose.production.yml up -d
+
+# Verify all services are healthy
+docker-compose -f docker-compose.production.yml ps
+
+# Check logs
+docker-compose -f docker-compose.production.yml logs -f
+```
+
+#### Step 4: Configure SSL/TLS (Nginx Proxy)
+
+For production HTTPS, use nginx-proxy with Let's Encrypt:
+
+```bash
+# Create nginx proxy network
+docker network create nginx-proxy
+
+# Run nginx proxy with Let's Encrypt
+docker run -d -p 80:80 -p 443:443 \
+  --name nginx-proxy \
+  --network nginx-proxy \
+  -v /var/run/docker.sock:/tmp/docker.sock:ro \
+  -v nginx-certs:/etc/nginx/certs:ro \
+  -v nginx-vhost:/etc/nginx/vhost.d \
+  -v nginx-html:/usr/share/nginx/html \
+  nginxproxy/nginx-proxy
+
+docker run -d \
+  --name nginx-proxy-acme \
+  --network nginx-proxy \
+  --volumes-from nginx-proxy \
+  -v nginx-certs:/etc/nginx/certs:rw \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -e DEFAULT_EMAIL=admin@yourdomain.com \
+  nginxproxy/acme-companion
+```
+
+Update `docker-compose.production.yml` frontend service:
+
+```yaml
+frontend:
+  # ... existing config ...
+  environment:
+    VIRTUAL_HOST: yourdomain.com,www.yourdomain.com
+    LETSENCRYPT_HOST: yourdomain.com,www.yourdomain.com
+    LETSENCRYPT_EMAIL: admin@yourdomain.com
+  networks:
+    - geminivideo-network
+    - nginx-proxy
+```
+
+#### Step 5: Production Monitoring
+
+```bash
+# View all service statuses
+docker-compose -f docker-compose.production.yml ps
+
+# Check resource usage
+docker stats
+
+# View specific service logs
+docker-compose -f docker-compose.production.yml logs -f gateway-api
+
+# Restart specific service
+docker-compose -f docker-compose.production.yml restart gateway-api
+```
+
+#### Step 6: Backup and Maintenance
+
+```bash
+# Backup database
+docker exec geminivideo-postgres-prod pg_dump -U geminivideo geminivideo > backup-$(date +%Y%m%d).sql
+
+# Backup volumes
+docker run --rm -v geminivideo_postgres_data:/data -v $(pwd)/backups:/backup alpine tar czf /backup/postgres-$(date +%Y%m%d).tar.gz /data
+
+# Update services (zero-downtime)
+docker-compose -f docker-compose.production.yml pull
+docker-compose -f docker-compose.production.yml up -d --no-deps --build gateway-api
+
+# Scale workers
+docker-compose -f docker-compose.production.yml up -d --scale drive-worker=4 --scale video-worker=2
+```
+
+---
+
+### 2.2. GCP Cloud Run Production
+
+Production deployment to Google Cloud Platform using Cloud Run for automatic scaling and managed infrastructure.
+
+#### Prerequisites
+
+- GCP account with billing enabled
+- `gcloud` CLI installed and authenticated
+- Docker installed locally
+- GitHub repository (for CI/CD)
+
+#### Step 1: GCP Project Setup
+
+```bash
+# Set variables
+export PROJECT_ID="geminivideo-prod"
+export REGION="us-central1"
+export REGISTRY_NAME="geminivideo"
+
+# Create GCP project
+gcloud projects create $PROJECT_ID --name="Gemini Video Production"
+gcloud config set project $PROJECT_ID
+
+# Enable required APIs
+gcloud services enable \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  secretmanager.googleapis.com \
+  cloudbuild.googleapis.com \
+  cloudresourcemanager.googleapis.com \
+  storage.googleapis.com \
+  sql.googleapis.com \
+  redis.googleapis.com
+
+# Set up billing (required for Cloud Run)
+# Visit: https://console.cloud.google.com/billing
+```
+
+#### Step 2: Create Artifact Registry
+
+```bash
+# Create Docker repository
+gcloud artifacts repositories create $REGISTRY_NAME \
+  --repository-format=docker \
+  --location=$REGION \
+  --description="Gemini Video Production Images"
+
+# Configure Docker authentication
+gcloud auth configure-docker ${REGION}-docker.pkg.dev
+```
+
+#### Step 3: Set Up Managed Database (Cloud SQL)
+
+```bash
+# Create Cloud SQL PostgreSQL instance
+gcloud sql instances create geminivideo-db \
+  --database-version=POSTGRES_15 \
+  --tier=db-g1-small \
+  --region=$REGION \
+  --storage-auto-increase \
+  --backup-start-time=03:00
+
+# Create database
+gcloud sql databases create geminivideo --instance=geminivideo-db
+
+# Create user
+gcloud sql users create geminivideo \
+  --instance=geminivideo-db \
+  --password=YOUR_STRONG_PASSWORD
+
+# Get connection string
+gcloud sql instances describe geminivideo-db --format="value(connectionName)"
+```
+
+#### Step 4: Set Up Secrets
+
+```bash
+# Store secrets in Secret Manager
+echo -n "YOUR_GEMINI_API_KEY" | gcloud secrets create gemini-api-key --data-file=-
+echo -n "YOUR_META_ACCESS_TOKEN" | gcloud secrets create meta-access-token --data-file=-
+echo -n "YOUR_JWT_SECRET" | gcloud secrets create jwt-secret --data-file=-
+echo -n "postgresql://user:pass@/dbname?host=/cloudsql/CONNECTION_NAME" | gcloud secrets create database-url --data-file=-
+
+# Grant Cloud Run service account access
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+
+for secret in gemini-api-key meta-access-token jwt-secret database-url; do
+  gcloud secrets add-iam-policy-binding $secret \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+done
+```
+
+#### Step 5: Use Production Deployment Script
+
+```bash
+# Create production environment file
+cp .env.production.example .env.production
+
+# Edit with your values
+nano .env.production
+
+# Make deploy script executable (if not already)
+chmod +x scripts/deploy-production.sh
+
+# Deploy to Cloud Run
+DEPLOYMENT_TARGET=cloud-run ./scripts/deploy-production.sh
+```
+
+The deployment script will:
+- ✅ Build all Docker images
+- ✅ Push to Artifact Registry
+- ✅ Deploy services in dependency order
+- ✅ Configure environment variables
+- ✅ Set up health checks
+- ✅ Verify deployment success
+- ✅ Display service URLs
+
+#### Step 6: Configure Custom Domain (Optional)
+
+```bash
+# Map custom domain to frontend
+gcloud run services update frontend \
+  --region=$REGION \
+  --update-env-vars="VITE_GATEWAY_URL=https://api.yourdomain.com"
+
+# Add domain mapping
+gcloud run domain-mappings create \
+  --service=frontend \
+  --domain=yourdomain.com \
+  --region=$REGION
+
+# Configure DNS (add the records shown in the output)
+```
+
+#### Step 7: Set Up Monitoring
+
+```bash
+# Enable Cloud Monitoring
+gcloud services enable monitoring.googleapis.com
+
+# Create uptime check
+gcloud monitoring uptime create frontend-uptime \
+  --resource-type=uptime-url \
+  --host=your-frontend-url.run.app \
+  --path=/health
+
+# View logs
+gcloud run services logs read gateway-api --region=$REGION --limit=50
+```
+
+#### Production Deployment Options
+
+The deployment script supports several options:
+
+```bash
+# Full deployment
+./scripts/deploy-production.sh
+
+# Skip build step (use existing images)
+./scripts/deploy-production.sh --skip-build
+
+# Skip push step
+./scripts/deploy-production.sh --skip-push
+
+# Deploy to Docker Compose
+./scripts/deploy-production.sh --target docker-compose
+
+# Rollback to previous version
+./scripts/deploy-production.sh --rollback
+
+# View help
+./scripts/deploy-production.sh --help
+```
+
+---
+
+### 2.3. GitHub Actions CI/CD
+
+Automated production deployment using GitHub Actions.
+
+#### Step 1: Configure GitHub Secrets
+
+In your GitHub repository, go to **Settings** → **Secrets and variables** → **Actions** and add:
+
+| Secret Name | Description | Example |
+|------------|-------------|---------|
+| `GCP_PROJECT_ID` | GCP project ID | `geminivideo-prod` |
+| `GCP_SA_KEY` | Service account key (base64) | See below |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://...` |
+| `REDIS_URL` | Redis connection string | `redis://...` |
+| `GEMINI_API_KEY` | Gemini API key | `AIza...` |
+| `META_ACCESS_TOKEN` | Meta access token | `EAAx...` |
+| `META_AD_ACCOUNT_ID` | Meta ad account ID | `act_123...` |
+| `META_APP_ID` | Meta app ID | `123456789` |
+| `META_APP_SECRET` | Meta app secret | `abc123...` |
+| `JWT_SECRET` | JWT secret key | Generated with `openssl rand -base64 64` |
+| `CORS_ORIGINS` | Allowed CORS origins | `https://yourdomain.com` |
+| `SLACK_WEBHOOK_URL` | Slack webhook (optional) | `https://hooks.slack.com/...` |
+
+#### Step 2: Create Service Account Key
+
+```bash
+# Create service account
+gcloud iam service-accounts create github-actions \
+  --display-name="GitHub Actions Deployer"
+
+# Grant necessary roles
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:github-actions@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:github-actions@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:github-actions@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+# Create key
+gcloud iam service-accounts keys create key.json \
+  --iam-account=github-actions@${PROJECT_ID}.iam.gserviceaccount.com
+
+# Base64 encode for GitHub secret
+cat key.json | base64 -w 0
+
+# Copy the output and add as GCP_SA_KEY secret in GitHub
+```
+
+#### Step 3: Workflow Configuration
+
+The workflow file `.github/workflows/deploy-production.yml` is already configured with:
+
+✅ **Build and Test Job**
+- Runs linting and tests
+- Validates code quality
+
+✅ **Build Images Job**
+- Builds all Docker images
+- Pushes to Artifact Registry
+- Tags with timestamp and git SHA
+
+✅ **Deploy Production Job**
+- Deploys to Cloud Run
+- Updates environment variables
+- Verifies service health
+
+✅ **Smoke Tests Job**
+- Runs post-deployment tests
+- Verifies all services are responding
+
+#### Step 4: Trigger Deployment
+
+Deployments are triggered automatically on:
+
+1. **Push to main branch**
+   ```bash
+   git push origin main
+   ```
+
+2. **Manual workflow dispatch**
+   - Go to **Actions** → **Deploy to Production** → **Run workflow**
+
+#### Step 5: Monitor Deployment
+
+```bash
+# View workflow progress in GitHub Actions tab
+# Monitor logs in real-time
+
+# After deployment, check service status
+gcloud run services list --region=$REGION
+
+# View deployment logs
+gcloud run services logs read gateway-api --region=$REGION
+```
+
+#### Deployment Flow
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  GitHub Actions Workflow                 │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  1. Trigger (push to main or manual)                    │
+│        ↓                                                 │
+│  2. Build & Test                                        │
+│     - Install dependencies                              │
+│     - Run linters                                       │
+│     - Run unit tests                                    │
+│        ↓                                                 │
+│  3. Build Docker Images                                 │
+│     - Build all 7 services                              │
+│     - Tag with timestamp-SHA                            │
+│     - Push to Artifact Registry                         │
+│        ↓                                                 │
+│  4. Deploy to Cloud Run                                 │
+│     - Deploy ML Service (independent)                   │
+│     - Deploy Drive Intel, Video Agent                   │
+│     - Deploy Meta Publisher, Titan Core                 │
+│     - Deploy Gateway API (with service URLs)            │
+│     - Deploy Frontend (with gateway URL)                │
+│        ↓                                                 │
+│  5. Health Checks                                       │
+│     - Verify all services responding                    │
+│     - Run smoke tests                                   │
+│        ↓                                                 │
+│  6. Notify (Slack)                                      │
+│     - Send deployment status                            │
+│     - Include service URLs                              │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Rollback Strategy
+
+If deployment fails or issues are detected:
+
+```bash
+# List revisions
+gcloud run revisions list --service=gateway-api --region=$REGION
+
+# Rollback to previous revision
+gcloud run services update-traffic gateway-api \
+  --to-revisions=PREVIOUS_REVISION=100 \
+  --region=$REGION
+
+# Rollback all services
+for service in gateway-api drive-intel video-agent ml-service meta-publisher titan-core frontend; do
+  PREV_REVISION=$(gcloud run revisions list --service=$service --region=$REGION --format="value(REVISION)" --limit=2 | tail -1)
+  gcloud run services update-traffic $service \
+    --to-revisions=$PREV_REVISION=100 \
+    --region=$REGION
+done
+```
+
+---
+
+## 3. Cloud Deployment (Vercel + GCP)
 
 ### Architecture Overview
 
@@ -1176,7 +1664,349 @@ curl http://localhost:8000/api/analytics/diversification
 
 ---
 
-## 5. Troubleshooting
+## 6. Monitoring and Scaling
+
+### 6.1. Production Monitoring
+
+#### Cloud Run Monitoring
+
+```bash
+# View service metrics
+gcloud monitoring dashboards list
+gcloud run services describe gateway-api --region=$REGION
+
+# Create custom dashboard
+gcloud monitoring dashboards create --config-from-file=monitoring-dashboard.json
+```
+
+#### Key Metrics to Monitor
+
+| Metric | Target | Alert Threshold |
+|--------|--------|-----------------|
+| Request latency (p95) | < 500ms | > 1000ms |
+| Error rate | < 1% | > 5% |
+| CPU utilization | < 70% | > 85% |
+| Memory utilization | < 80% | > 90% |
+| Instance count | 1-10 | > 15 |
+| Database connections | < 80 | > 90 |
+
+#### Set Up Alerting
+
+```bash
+# Create alert policy for high error rate
+gcloud alpha monitoring policies create \
+  --notification-channels=CHANNEL_ID \
+  --display-name="High Error Rate" \
+  --condition-display-name="Error rate > 5%" \
+  --condition-threshold-value=0.05 \
+  --condition-threshold-duration=300s
+
+# Create alert for high latency
+gcloud alpha monitoring policies create \
+  --notification-channels=CHANNEL_ID \
+  --display-name="High Latency" \
+  --condition-display-name="P95 latency > 1000ms" \
+  --condition-threshold-value=1000 \
+  --condition-threshold-duration=300s
+```
+
+#### Log Aggregation
+
+```bash
+# View logs from all services
+gcloud logging read "resource.type=cloud_run_revision" --limit=100 --format=json
+
+# Filter by severity
+gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --limit=50
+
+# Export logs to BigQuery for analysis
+gcloud logging sinks create bigquery-sink \
+  bigquery.googleapis.com/projects/PROJECT_ID/datasets/logs_dataset \
+  --log-filter='resource.type="cloud_run_revision"'
+
+# Export logs to Cloud Storage for archival
+gcloud logging sinks create gcs-sink \
+  storage.googleapis.com/BUCKET_NAME \
+  --log-filter='resource.type="cloud_run_revision"'
+```
+
+#### Application Performance Monitoring (APM)
+
+For detailed performance monitoring, integrate with APM tools:
+
+**Option 1: Google Cloud Trace**
+```javascript
+// In your Node.js services
+const tracing = require('@google-cloud/trace-agent');
+tracing.start({
+  projectId: process.env.GCP_PROJECT_ID,
+  keyFilename: process.env.GCP_SERVICE_ACCOUNT_JSON
+});
+```
+
+**Option 2: Sentry**
+```javascript
+const Sentry = require('@sentry/node');
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV,
+  tracesSampleRate: 0.1
+});
+```
+
+**Option 3: New Relic**
+```bash
+# Add New Relic to package.json
+npm install newrelic
+
+# Add to start of your app
+require('newrelic');
+```
+
+### 6.2. Scaling Guidelines
+
+#### Horizontal Scaling (Cloud Run)
+
+Cloud Run automatically scales based on load, but you can configure limits:
+
+```bash
+# Update scaling configuration
+gcloud run services update gateway-api \
+  --region=$REGION \
+  --min-instances=2 \
+  --max-instances=20 \
+  --concurrency=100
+
+# Scale based on CPU
+gcloud run services update gateway-api \
+  --region=$REGION \
+  --cpu-throttling \
+  --no-cpu-boost
+
+# Scale ML Service for high compute
+gcloud run services update ml-service \
+  --region=$REGION \
+  --min-instances=2 \
+  --max-instances=5 \
+  --memory=32Gi \
+  --cpu=8
+```
+
+#### Scaling Recommendations by Service
+
+| Service | Min Instances | Max Instances | Memory | CPU | Notes |
+|---------|--------------|---------------|---------|-----|-------|
+| Gateway API | 1-2 | 10-20 | 2Gi | 2 | High availability |
+| Drive Intel | 1 | 10 | 4-8Gi | 4 | CPU intensive |
+| Video Agent | 1 | 5 | 4-8Gi | 2-4 | Memory intensive |
+| ML Service | 1 | 5 | 16-32Gi | 4-8 | High compute |
+| Meta Publisher | 1 | 5 | 1Gi | 1 | Low resource |
+| Titan Core | 0 | 3 | 2Gi | 1 | On-demand |
+| Frontend | 1 | 10 | 512Mi | 1 | Static content |
+
+#### Docker Compose Scaling
+
+```bash
+# Scale worker services
+docker-compose -f docker-compose.production.yml up -d \
+  --scale drive-worker=4 \
+  --scale video-worker=2
+
+# Monitor resource usage
+docker stats
+
+# Scale down during off-hours (using cron)
+0 22 * * * cd /path/to/geminivideo && docker-compose -f docker-compose.production.yml up -d --scale drive-worker=1 --scale video-worker=1
+0 6 * * * cd /path/to/geminivideo && docker-compose -f docker-compose.production.yml up -d --scale drive-worker=4 --scale video-worker=2
+```
+
+#### Database Scaling
+
+**Cloud SQL**
+```bash
+# Increase instance size
+gcloud sql instances patch geminivideo-db \
+  --tier=db-n1-standard-2
+
+# Enable high availability
+gcloud sql instances patch geminivideo-db \
+  --availability-type=REGIONAL
+
+# Add read replicas
+gcloud sql instances create geminivideo-replica \
+  --master-instance-name=geminivideo-db \
+  --region=$REGION
+```
+
+**PostgreSQL (Docker)**
+```bash
+# Enable connection pooling with PgBouncer
+docker run -d \
+  --name pgbouncer \
+  --network geminivideo-network \
+  -e DATABASES_HOST=postgres \
+  -e DATABASES_PORT=5432 \
+  -e DATABASES_USER=geminivideo \
+  -e DATABASES_PASSWORD=$POSTGRES_PASSWORD \
+  -e DATABASES_DBNAME=geminivideo \
+  -e POOL_MODE=transaction \
+  -e MAX_CLIENT_CONN=1000 \
+  -e DEFAULT_POOL_SIZE=20 \
+  -p 6432:6432 \
+  edoburu/pgbouncer
+
+# Update connection string to use PgBouncer
+DATABASE_URL=postgresql://geminivideo:password@pgbouncer:6432/geminivideo
+```
+
+#### Redis Scaling
+
+```bash
+# For high throughput, use Redis Cluster
+docker run -d \
+  --name redis-cluster \
+  --network geminivideo-network \
+  -p 7000-7005:7000-7005 \
+  redis:7-alpine redis-cli --cluster create \
+  127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 \
+  127.0.0.1:7003 127.0.0.1:7004 127.0.0.1:7005 \
+  --cluster-replicas 1
+
+# Or use managed Redis (Memorystore on GCP)
+gcloud redis instances create geminivideo-redis \
+  --size=5 \
+  --region=$REGION \
+  --redis-version=redis_7_0
+```
+
+### 6.3. Cost Optimization
+
+#### Cloud Run Cost Optimization
+
+```bash
+# Set CPU throttling (save costs when idle)
+gcloud run services update gateway-api \
+  --region=$REGION \
+  --cpu-throttling
+
+# Set min instances to 0 for low-traffic services
+gcloud run services update titan-core \
+  --region=$REGION \
+  --min-instances=0
+
+# Use execution environment gen2 for better performance
+gcloud run services update gateway-api \
+  --region=$REGION \
+  --execution-environment=gen2
+```
+
+#### Cost Monitoring
+
+```bash
+# View estimated costs
+gcloud billing projects describe $PROJECT_ID
+
+# Set budget alerts
+gcloud billing budgets create \
+  --billing-account=BILLING_ACCOUNT_ID \
+  --display-name="Monthly Budget Alert" \
+  --budget-amount=500 \
+  --threshold-rule=percent=50 \
+  --threshold-rule=percent=90 \
+  --threshold-rule=percent=100
+
+# Analyze costs by service
+gcloud billing export describe
+```
+
+#### Best Practices for Cost Savings
+
+1. **Use appropriate instance sizes** - Don't over-provision
+2. **Enable autoscaling** - Scale to zero when not in use
+3. **Optimize images** - Smaller images = faster cold starts
+4. **Use caching** - Reduce redundant API calls
+5. **Batch processing** - Process multiple items together
+6. **Schedule non-critical jobs** - Run during off-peak hours
+7. **Monitor and alert** - Track spending in real-time
+
+### 6.4. Performance Optimization
+
+#### Frontend Optimization
+
+```bash
+# Enable CDN for static assets
+gcloud compute backend-services update frontend-backend \
+  --enable-cdn \
+  --cache-mode=CACHE_ALL_STATIC
+
+# Configure cache headers in nginx
+location / {
+  expires 1y;
+  add_header Cache-Control "public, immutable";
+}
+```
+
+#### API Response Caching
+
+```javascript
+// In Gateway API - cache expensive operations
+const redis = require('redis');
+const client = redis.createClient(process.env.REDIS_URL);
+
+app.get('/api/clips/:id', async (req, res) => {
+  const cacheKey = `clips:${req.params.id}`;
+
+  // Try cache first
+  const cached = await client.get(cacheKey);
+  if (cached) {
+    return res.json(JSON.parse(cached));
+  }
+
+  // Fetch from database
+  const data = await fetchClips(req.params.id);
+
+  // Cache for 5 minutes
+  await client.setEx(cacheKey, 300, JSON.stringify(data));
+
+  res.json(data);
+});
+```
+
+#### Database Query Optimization
+
+```sql
+-- Add indexes for frequent queries
+CREATE INDEX idx_clips_composite_score ON clips(asset_id, composite_score DESC);
+CREATE INDEX idx_predictions_campaign ON predictions(campaign_id, created_at DESC);
+CREATE INDEX idx_assets_user_created ON assets(user_id, created_at DESC);
+
+-- Analyze query performance
+EXPLAIN ANALYZE SELECT * FROM clips WHERE asset_id = 'xyz' ORDER BY composite_score DESC LIMIT 10;
+
+-- Update statistics
+ANALYZE clips;
+VACUUM ANALYZE;
+```
+
+#### Image Optimization
+
+```dockerfile
+# Multi-stage builds for smaller images
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+FROM node:18-alpine
+WORKDIR /app
+COPY --from=builder /app/node_modules ./node_modules
+COPY . .
+CMD ["node", "index.js"]
+```
+
+---
+
+## 7. Troubleshooting
 
 ### Common Issues and Solutions
 
@@ -1479,7 +2309,7 @@ curl -I http://localhost:8000 \
 
 ---
 
-## 6. Architecture Diagram
+## 8. Architecture Diagram
 
 ### System Overview
 

@@ -1,0 +1,30 @@
+# Auto-Caption System Requirements
+# Install with: pip install -r requirements_captions.txt
+
+# Core Whisper dependencies
+openai-whisper>=20231117
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# For GPU acceleration (CUDA)
+# Install appropriate version for your CUDA version from: https://pytorch.org/
+
+# Audio processing
+ffmpeg-python>=0.2.0
+pydub>=0.25.1
+
+# Speaker diarization (optional but recommended)
+pyannote.audio>=3.0.0
+
+# Profanity filtering
+better-profanity>=0.7.0
+
+# General utilities
+numpy>=1.24.0
+scipy>=1.10.0
+
+# HuggingFace for model downloads
+huggingface-hub>=0.19.0
+
+# Additional ML dependencies
+transformers>=4.35.0

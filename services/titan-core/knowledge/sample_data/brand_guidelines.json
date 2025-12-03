@@ -1,0 +1,62 @@
+{
+  "brand_name": "FitPro",
+  "voice": "energetic and motivational",
+  "values": [
+    "authenticity",
+    "results-driven",
+    "community",
+    "science-backed"
+  ],
+  "tone": "direct but empathetic",
+  "keywords": [
+    "transformation",
+    "proven",
+    "science-backed",
+    "no-BS",
+    "sustainable",
+    "real results"
+  ],
+  "avoid": [
+    "gimmicks",
+    "quick fixes",
+    "unrealistic promises",
+    "fad diets",
+    "magic pills"
+  ],
+  "target_audience": "busy professionals 30-45 who want real results",
+  "unique_selling_point": "15-minute science-backed workouts that fit any schedule",
+  "brand_personality": {
+    "authentic": "We show real transformations, not photoshopped lies",
+    "direct": "We tell you the truth even when it's not pretty",
+    "empathetic": "We understand the struggle because we've been there",
+    "motivational": "We believe in you and push you to be your best"
+  },
+  "messaging_guidelines": {
+    "do": [
+      "Use specific numbers and timeframes",
+      "Show real before/after transformations",
+      "Address pain points directly",
+      "Create urgency without pressure",
+      "Build community and social proof"
+    ],
+    "dont": [
+      "Make unrealistic promises",
+      "Use generic fitness cliches",
+      "Shame or judge the audience",
+      "Over-complicate the solution",
+      "Ignore the emotional aspect"
+    ]
+  },
+  "visual_style": {
+    "colors": ["#FF6B35", "#004E89", "#FFFFFF"],
+    "mood": "energetic, authentic, inspiring",
+    "imagery": "real people, real results, action shots",
+    "avoid_imagery": "stock photos, overly polished, fake before/afters"
+  },
+  "sample_headlines": [
+    "Lost 47 Pounds in 90 Days Without Giving Up Carbs",
+    "The 15-Minute Protocol That Changed 2,847 Lives",
+    "What If Everything You Know About Fat Loss Is Wrong?",
+    "From Exhausted to Energized in Just 6 Weeks"
+  ]
+}

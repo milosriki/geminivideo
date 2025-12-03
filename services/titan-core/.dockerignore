@@ -1,0 +1,64 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Documentation
+*.md
+README*
+IMPLEMENTATION_SUMMARY*
+WEBSOCKET_IMPLEMENTATION*
+META_ADS_LIBRARY_README*
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Output directories (will be created in container)
+outputs/
+cache/
+uploads/
+models/*.pt
+models/*.pth
+
+# Development files
+test_*.py
+*_test.py
+examples/
+docs/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Temporary files
+*.tmp
+tmp/
+temp/

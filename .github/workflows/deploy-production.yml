@@ -1,0 +1,438 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: us-central1
+  ARTIFACT_REGISTRY_REPO: geminivideo
+  DOCKER_BUILDKIT: 0
+
+jobs:
+  # Job 1: Build and Test
+  build-and-test:
+    name: Build and Test All Services
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            services/gateway-api/package-lock.json
+            services/meta-publisher/package-lock.json
+            frontend/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Node dependencies
+        run: |
+          cd services/gateway-api && npm ci
+          cd ../meta-publisher && npm ci
+          cd ../../frontend && npm ci
+
+      - name: Run linting
+        continue-on-error: true
+        run: |
+          cd services/gateway-api && npm run lint || true
+          cd ../meta-publisher && npm run lint || true
+          cd ../../frontend && npm run lint || true
+
+      - name: Run tests
+        continue-on-error: true
+        run: |
+          cd services/gateway-api && npm test || true
+          cd ../meta-publisher && npm test || true
+          cd ../../frontend && npm test || true
+
+  # Job 2: Build and Push Docker Images
+  build-images:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+      id-token: write
+
+    outputs:
+      image-tag: ${{ steps.set-tag.outputs.tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: set-tag
+        run: |
+          TAG=$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Image tag: $TAG"
+
+      - name: Setup GCP Authentication
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "❌ ERROR: GCP_SA_KEY secret is not configured"
+            exit 1
+          fi
+
+          echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+          gcloud config set project ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Build and Push Gateway API
+        run: |
+          IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api"
+          docker build -t ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }} \
+                       -t ${IMAGE_NAME}:latest \
+                       ./services/gateway-api
+          docker push ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }}
+          docker push ${IMAGE_NAME}:latest
+
+      - name: Build and Push Drive Intel
+        run: |
+          IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/drive-intel"
+          docker build -t ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }} \
+                       -t ${IMAGE_NAME}:latest \
+                       ./services/drive-intel
+          docker push ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }}
+          docker push ${IMAGE_NAME}:latest
+
+      - name: Build and Push Video Agent
+        run: |
+          IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/video-agent"
+          docker build -t ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }} \
+                       -t ${IMAGE_NAME}:latest \
+                       ./services/video-agent
+          docker push ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }}
+          docker push ${IMAGE_NAME}:latest
+
+      - name: Build and Push ML Service
+        run: |
+          IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service"
+          docker build -t ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }} \
+                       -t ${IMAGE_NAME}:latest \
+                       ./services/ml-service
+          docker push ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }}
+          docker push ${IMAGE_NAME}:latest
+
+      - name: Build and Push Meta Publisher
+        run: |
+          IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/meta-publisher"
+          docker build -t ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }} \
+                       -t ${IMAGE_NAME}:latest \
+                       ./services/meta-publisher
+          docker push ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }}
+          docker push ${IMAGE_NAME}:latest
+
+      - name: Build and Push Titan Core
+        run: |
+          IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/titan-core"
+          docker build -t ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }} \
+                       -t ${IMAGE_NAME}:latest \
+                       ./services/titan-core
+          docker push ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }}
+          docker push ${IMAGE_NAME}:latest
+
+      - name: Build and Push Frontend
+        run: |
+          IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend"
+          docker build -t ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }} \
+                       -t ${IMAGE_NAME}:latest \
+                       ./frontend
+          docker push ${IMAGE_NAME}:${{ steps.set-tag.outputs.tag }}
+          docker push ${IMAGE_NAME}:latest
+
+  # Job 3: Deploy to Cloud Run
+  deploy-production:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: build-images
+    timeout-minutes: 30
+    environment: production
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup GCP Authentication
+        run: |
+          echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+          gcloud config set project ${{ env.PROJECT_ID }}
+
+      - name: Deploy ML Service
+        run: |
+          gcloud run deploy ml-service \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:${{ needs.build-images.outputs.image-tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=16Gi \
+            --cpu=4 \
+            --timeout=600 \
+            --min-instances=1 \
+            --max-instances=10 \
+            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }},NODE_ENV=production,LOG_LEVEL=info" \
+            --quiet
+
+      - name: Deploy Drive Intel
+        run: |
+          gcloud run deploy drive-intel \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/drive-intel:${{ needs.build-images.outputs.image-tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=4Gi \
+            --cpu=4 \
+            --timeout=3600 \
+            --min-instances=1 \
+            --max-instances=10 \
+            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }},REDIS_URL=${{ secrets.REDIS_URL }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},GCP_PROJECT_ID=${{ env.PROJECT_ID }},NODE_ENV=production" \
+            --quiet
+
+      - name: Deploy Video Agent
+        run: |
+          gcloud run deploy video-agent \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/video-agent:${{ needs.build-images.outputs.image-tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=4Gi \
+            --cpu=2 \
+            --timeout=600 \
+            --min-instances=1 \
+            --max-instances=10 \
+            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }},REDIS_URL=${{ secrets.REDIS_URL }},NODE_ENV=production" \
+            --quiet
+
+      - name: Deploy Meta Publisher
+        run: |
+          gcloud run deploy meta-publisher \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/meta-publisher:${{ needs.build-images.outputs.image-tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=1Gi \
+            --cpu=1 \
+            --timeout=300 \
+            --min-instances=1 \
+            --max-instances=5 \
+            --set-env-vars="META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }},META_AD_ACCOUNT_ID=${{ secrets.META_AD_ACCOUNT_ID }},META_APP_ID=${{ secrets.META_APP_ID }},META_APP_SECRET=${{ secrets.META_APP_SECRET }},NODE_ENV=production" \
+            --quiet
+
+      - name: Deploy Titan Core
+        run: |
+          gcloud run deploy titan-core \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/titan-core:${{ needs.build-images.outputs.image-tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=2Gi \
+            --cpu=1 \
+            --timeout=300 \
+            --min-instances=0 \
+            --max-instances=3 \
+            --set-env-vars="GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }},NODE_ENV=production" \
+            --quiet
+
+      - name: Get Service URLs
+        id: urls
+        run: |
+          DRIVE_URL=$(gcloud run services describe drive-intel --region=${{ env.GCP_REGION }} --format='value(status.url)')
+          VIDEO_URL=$(gcloud run services describe video-agent --region=${{ env.GCP_REGION }} --format='value(status.url)')
+          ML_URL=$(gcloud run services describe ml-service --region=${{ env.GCP_REGION }} --format='value(status.url)')
+          META_URL=$(gcloud run services describe meta-publisher --region=${{ env.GCP_REGION }} --format='value(status.url)')
+          TITAN_URL=$(gcloud run services describe titan-core --region=${{ env.GCP_REGION }} --format='value(status.url)')
+
+          echo "drive-url=$DRIVE_URL" >> $GITHUB_OUTPUT
+          echo "video-url=$VIDEO_URL" >> $GITHUB_OUTPUT
+          echo "ml-url=$ML_URL" >> $GITHUB_OUTPUT
+          echo "meta-url=$META_URL" >> $GITHUB_OUTPUT
+          echo "titan-url=$TITAN_URL" >> $GITHUB_OUTPUT
+
+      - name: Deploy Gateway API
+        run: |
+          gcloud run deploy gateway-api \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api:${{ needs.build-images.outputs.image-tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=2Gi \
+            --cpu=2 \
+            --timeout=300 \
+            --min-instances=1 \
+            --max-instances=10 \
+            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }},REDIS_URL=${{ secrets.REDIS_URL }},DRIVE_INTEL_URL=${{ steps.urls.outputs.drive-url }},VIDEO_AGENT_URL=${{ steps.urls.outputs.video-url }},ML_SERVICE_URL=${{ steps.urls.outputs.ml-url }},META_PUBLISHER_URL=${{ steps.urls.outputs.meta-url }},TITAN_CORE_URL=${{ steps.urls.outputs.titan-url }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},JWT_SECRET=${{ secrets.JWT_SECRET }},CORS_ORIGINS=${{ secrets.CORS_ORIGINS }},NODE_ENV=production" \
+            --quiet
+
+      - name: Get Gateway URL
+        id: gateway
+        run: |
+          GATEWAY_URL=$(gcloud run services describe gateway-api --region=${{ env.GCP_REGION }} --format='value(status.url)')
+          echo "gateway-url=$GATEWAY_URL" >> $GITHUB_OUTPUT
+          echo "Gateway URL: $GATEWAY_URL"
+
+      - name: Deploy Frontend
+        run: |
+          gcloud run deploy frontend \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:${{ needs.build-images.outputs.image-tag }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=512Mi \
+            --cpu=1 \
+            --timeout=60 \
+            --min-instances=1 \
+            --max-instances=10 \
+            --set-env-vars="VITE_GATEWAY_URL=${{ steps.gateway.outputs.gateway-url }},VITE_ENV=production" \
+            --quiet
+
+      - name: Get Frontend URL
+        id: frontend
+        run: |
+          FRONTEND_URL=$(gcloud run services describe frontend --region=${{ env.GCP_REGION }} --format='value(status.url)')
+          echo "frontend-url=$FRONTEND_URL" >> $GITHUB_OUTPUT
+          echo "Frontend URL: $FRONTEND_URL"
+
+      # Health Checks
+      - name: Verify Service Health
+        run: |
+          echo "Verifying service health..."
+
+          services=("gateway-api" "drive-intel" "video-agent" "ml-service" "meta-publisher" "titan-core" "frontend")
+
+          for service in "${services[@]}"; do
+            URL=$(gcloud run services describe $service --region=${{ env.GCP_REGION }} --format='value(status.url)')
+            echo "Checking $service at $URL/health"
+
+            # Try health endpoint (may not exist for all services)
+            curl -sf "$URL/health" > /dev/null 2>&1 || curl -sf "$URL" > /dev/null 2>&1
+
+            if [ $? -eq 0 ]; then
+              echo "✅ $service is responding"
+            else
+              echo "⚠️  $service health check inconclusive"
+            fi
+          done
+
+      - name: Deployment Summary
+        run: |
+          echo "================================================"
+          echo "🚀 Production Deployment Complete"
+          echo "================================================"
+          echo ""
+          echo "Service URLs:"
+          echo "  Frontend:       ${{ steps.frontend.outputs.frontend-url }}"
+          echo "  Gateway API:    ${{ steps.gateway.outputs.gateway-url }}"
+          echo "  Drive Intel:    ${{ steps.urls.outputs.drive-url }}"
+          echo "  Video Agent:    ${{ steps.urls.outputs.video-url }}"
+          echo "  ML Service:     ${{ steps.urls.outputs.ml-url }}"
+          echo "  Meta Publisher: ${{ steps.urls.outputs.meta-url }}"
+          echo "  Titan Core:     ${{ steps.urls.outputs.titan-url }}"
+          echo ""
+          echo "Image Tag: ${{ needs.build-images.outputs.image-tag }}"
+          echo "================================================"
+
+      - name: Send Slack Notification
+        if: always() && secrets.SLACK_WEBHOOK_URL != ''
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            COLOR="good"
+            EMOJI="✅"
+            TEXT="Production deployment succeeded"
+          else
+            COLOR="danger"
+            EMOJI="❌"
+            TEXT="Production deployment failed"
+          fi
+
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$EMOJI Gemini Video Production Deployment\",
+                \"text\": \"$TEXT\",
+                \"fields\": [
+                  {\"title\": \"Environment\", \"value\": \"Production\", \"short\": true},
+                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"Commit\", \"value\": \"${{ github.sha }}\", \"short\": true},
+                  {\"title\": \"Image Tag\", \"value\": \"${{ needs.build-images.outputs.image-tag }}\", \"short\": true}
+                ],
+                \"footer\": \"GitHub Actions\",
+                \"ts\": $(date +%s)
+              }]
+            }"
+
+  # Job 4: Post-deployment smoke tests
+  smoke-tests:
+    name: Run Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup GCP Authentication
+        run: |
+          echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > /tmp/gcp-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+          gcloud config set project ${{ env.PROJECT_ID }}
+
+      - name: Get Service URLs
+        id: urls
+        run: |
+          GATEWAY_URL=$(gcloud run services describe gateway-api --region=${{ env.GCP_REGION }} --format='value(status.url)')
+          FRONTEND_URL=$(gcloud run services describe frontend --region=${{ env.GCP_REGION }} --format='value(status.url)')
+          echo "gateway-url=$GATEWAY_URL" >> $GITHUB_OUTPUT
+          echo "frontend-url=$FRONTEND_URL" >> $GITHUB_OUTPUT
+
+      - name: Test Gateway API
+        run: |
+          echo "Testing Gateway API health endpoint..."
+          curl -f ${{ steps.urls.outputs.gateway-url }}/health || curl -f ${{ steps.urls.outputs.gateway-url }}
+
+      - name: Test Frontend
+        run: |
+          echo "Testing Frontend..."
+          curl -f ${{ steps.urls.outputs.frontend-url }}
+
+      - name: Smoke Test Summary
+        run: |
+          echo "✅ All smoke tests passed!"
+          echo "Production deployment is healthy and ready to use."

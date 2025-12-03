@@ -15,6 +15,11 @@ class ClipFeatures(BaseModel):
     transcript: str = ""
     embedding: Optional[List[float]] = None
     technical_quality: float = 0.0
+
+    # Visual pattern features (CNN-based)
+    visual_pattern: Optional[str] = None
+    visual_confidence: Optional[float] = None
+    visual_energy: Optional[float] = None
     
 
 class Clip(BaseModel):

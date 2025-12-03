@@ -1,0 +1,21 @@
+# Smart Crop System Dependencies
+
+# Core video processing
+opencv-python>=4.5.0
+opencv-contrib-python>=4.5.0
+
+# Numerical computing
+numpy>=1.19.0,<2.0
+
+# Optional: For faster processing
+# opencv-python-headless>=4.5.0  # Use instead of opencv-python on servers
+
+# System requirements:
+# - Python 3.7+
+# - FFmpeg (must be installed separately)
+
+# Installation:
+# pip install -r requirements_smart_crop.txt
+
+# After installation, download models:
+# python download_models.py
