@@ -30,6 +30,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Production safety check - prevent debug mode in production
+if app.debug and os.environ.get('ENVIRONMENT') == 'production':
+    raise RuntimeError("Debug mode detected in production!")
+
 # CORS
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080").split(",")
 
