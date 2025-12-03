@@ -4,6 +4,7 @@
  */
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
@@ -19,9 +20,52 @@ import { LearningService } from './services/learning-service';
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+// CORS configuration - use environment variable for allowed origins
+// CORS_ORIGINS should be comma-separated list of allowed origins
+// e.g., "https://frontend.run.app,http://localhost:3000"
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:8080').split(',');
+const corsOptions = {
+  origin: CORS_ORIGINS,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+// Rate limiting configuration
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Stricter limit for auth endpoints
+  message: { error: 'Too many authentication attempts, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const heavyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 50, // Limit heavy operations
+  message: { error: 'Too many heavy operations, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
+app.use(generalLimiter); // Apply general rate limit to all routes
+
+// Apply stricter rate limits to sensitive endpoints
+app.use('/api/auth', authLimiter);
+app.use('/api/ingest', heavyLimiter);
+app.use('/api/render', heavyLimiter);
+app.use('/api/generate', heavyLimiter);
 
 // Redis client for async queues
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -92,6 +136,11 @@ const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || 'http://localhost:8002';
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
 const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
 
+// Create axios instance with default timeout
+const axiosClient = axios.create({
+  timeout: 30000, // 30 second default timeout
+});
+
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
   res.json({
@@ -136,7 +185,7 @@ app.get('/api/assets', async (req: Request, res: Response) => {
     if (!validateServiceUrl(DRIVE_INTEL_URL)) {
       throw new Error('Invalid service URL');
     }
-    const response = await axios.get(`${DRIVE_INTEL_URL}/assets`, {
+    const response = await axiosClient.get(`${DRIVE_INTEL_URL}/assets`, {
       params: req.query
     });
     res.json(response.data);
@@ -149,7 +198,7 @@ app.get('/api/assets', async (req: Request, res: Response) => {
 
 app.get('/api/assets/:assetId/clips', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(
+    const response = await axiosClient.get(
       `${DRIVE_INTEL_URL}/assets/${req.params.assetId}/clips`,
       { params: req.query }
     );
@@ -209,7 +258,7 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
 
 app.post('/api/ingest/local/folder', async (req: Request, res: Response) => {
   try {
-    const response = await axios.post(
+    const response = await axiosClient.post(
       `${DRIVE_INTEL_URL}/ingest/local/folder`,
       req.body
     );
@@ -223,7 +272,7 @@ app.post('/api/ingest/local/folder', async (req: Request, res: Response) => {
 
 app.post('/api/search/clips', async (req: Request, res: Response) => {
   try {
-    const response = await axios.post(
+    const response = await axiosClient.post(
       `${DRIVE_INTEL_URL}/search/clips`,
       req.body
     );
@@ -246,7 +295,7 @@ app.post('/api/score/storyboard', async (req: Request, res: Response) => {
     // Get XGBoost CTR prediction
     let xgboostPrediction = null;
     try {
-      const mlResponse = await axios.post(`${ML_SERVICE_URL}/api/ml/predict-ctr`, {
+      const mlResponse = await axiosClient.post(`${ML_SERVICE_URL}/api/ml/predict-ctr`, {
         clip_data: {
           ...scores,
           ...metadata,
@@ -292,7 +341,7 @@ app.post('/api/render/remix', async (req: Request, res: Response) => {
     if (!validateServiceUrl(VIDEO_AGENT_URL)) {
       throw new Error('Invalid service URL');
     }
-    const response = await axios.post(
+    const response = await axiosClient.post(
       `${VIDEO_AGENT_URL}/render/remix`,
       req.body
     );
@@ -319,7 +368,7 @@ app.post('/api/generate', async (req: Request, res: Response) => {
     };
 
     // Call Titan Core
-    const response = await axios.post(`${TITAN_CORE_URL}/generate`, titanPayload);
+    const response = await axiosClient.post(`${TITAN_CORE_URL}/generate`, titanPayload);
     const titanResult = response.data;
 
     // Parse blueprint if it's a string
@@ -481,7 +530,7 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
 
 app.get('/api/render/status/:jobId', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(
+    const response = await axiosClient.get(
       `${VIDEO_AGENT_URL}/render/status/${req.params.jobId}`
     );
     res.json(response.data);
@@ -495,7 +544,7 @@ app.get('/api/render/status/:jobId', async (req: Request, res: Response) => {
 // Proxy to meta-publisher service
 app.post('/api/publish/meta', async (req: Request, res: Response) => {
   try {
-    const response = await axios.post(
+    const response = await axiosClient.post(
       `${META_PUBLISHER_URL}/publish/meta`,
       req.body
     );
@@ -509,7 +558,7 @@ app.post('/api/publish/meta', async (req: Request, res: Response) => {
 
 app.get('/api/insights', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(
+    const response = await axiosClient.get(
       `${META_PUBLISHER_URL}/insights`,
       { params: req.query }
     );
@@ -523,7 +572,7 @@ app.get('/api/insights', async (req: Request, res: Response) => {
 
 app.get('/api/creatives', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(`${META_PUBLISHER_URL}/api/creatives`, { params: req.query });
+    const response = await axiosClient.get(`${META_PUBLISHER_URL}/api/creatives`, { params: req.query });
     res.json(response.data);
   } catch (error: any) {
     res.status(error.response?.status || 500).json({ error: error.message });
@@ -532,7 +581,7 @@ app.get('/api/creatives', async (req: Request, res: Response) => {
 
 app.get('/api/timeseries', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(`${META_PUBLISHER_URL}/api/timeseries`, { params: req.query });
+    const response = await axiosClient.get(`${META_PUBLISHER_URL}/api/timeseries`, { params: req.query });
     res.json(response.data);
   } catch (error: any) {
     res.status(error.response?.status || 500).json({ error: error.message });
@@ -621,7 +670,7 @@ app.post('/api/trigger/analyze-drive-folder', async (req: Request, res: Response
     console.log(`Triggering Drive folder analysis: folder_id=${folder_id}, max_videos=${max_videos || 'all'}`);
 
     // Call drive-intel service bulk_analyzer
-    const response = await axios.post(`${DRIVE_INTEL_URL}/bulk_analyzer`, {
+    const response = await axiosClient.post(`${DRIVE_INTEL_URL}/bulk_analyzer`, {
       folder_id,
       max_videos: max_videos || 10
     });
@@ -652,7 +701,7 @@ app.post('/api/trigger/refresh-meta-metrics', async (req: Request, res: Response
     console.log(`Triggering Meta learning cycle: days_back=${days_back || 7}`);
 
     // Call ML service meta learning agent
-    const response = await axios.post(`${ML_SERVICE_URL}/api/ml/learning-cycle`, {
+    const response = await axiosClient.post(`${ML_SERVICE_URL}/api/ml/learning-cycle`, {
       days_back: days_back || 7
     });
 

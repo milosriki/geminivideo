@@ -108,9 +108,9 @@ class VideoWorker:
                     import requests
                     import tempfile
                     
-                    # Download audio
+                    # Download audio with timeout
                     print(f"🎵 Downloading audio for beat sync: {audio_url}")
-                    response = requests.get(audio_url)
+                    response = requests.get(audio_url, timeout=(5, 30))  # (connect, read) timeouts
                     if response.status_code == 200:
                         fd, audio_path = tempfile.mkstemp(suffix=".mp3")
                         os.write(fd, response.content)

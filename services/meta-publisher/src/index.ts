@@ -11,8 +11,19 @@ import { InsightsIngestionService } from './services/insights-ingestion';
 const app = express();
 const PORT = process.env.PORT || 8083;
 
+// CORS configuration - use environment variable for allowed origins
+// CORS_ORIGINS should be comma-separated list of allowed origins
+// e.g., "https://frontend.run.app,http://localhost:3000"
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:8080').split(',');
+const corsOptions = {
+  origin: CORS_ORIGINS,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Meta API configuration
