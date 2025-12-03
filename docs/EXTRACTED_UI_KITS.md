@@ -6,12 +6,12 @@ This document describes the UI kits that have been extracted from the uploaded z
 
 ## 🗂️ What Was Extracted
 
-From your uploaded zip files, I extracted the following:
+From your uploaded files, the following UI kits are available:
 
-### 1. Catalyst UI Kit (from `catalyst-ui-kit.zip`)
+### 1. Catalyst UI Kit
 **Location:** `frontend/reference/catalyst/`
 
-Professional TypeScript components from Tailwind Labs:
+Professional TypeScript components from Tailwind Labs (28 components):
 - `alert.tsx` - Alert banners
 - `avatar.tsx` - User avatars
 - `badge.tsx` - Status badges
@@ -39,8 +39,32 @@ Professional TypeScript components from Tailwind Labs:
 - `text.tsx` - Text components
 - `textarea.tsx` - Text areas
 
-### 2. Compass Template (from `compass.zip`)
-**Location:** `frontend/reference/templates/compass/`
+### 2. Radiant Template ✨ NEW
+**Location:** `frontend/reference/radiant/`
+
+Modern animated components (20 components):
+- `animated-number.tsx` - Animated number counters
+- `bento-card.tsx` - Bento grid cards
+- `button.tsx` - Styled buttons
+- `container.tsx` - Layout containers
+- `footer.tsx` - Footer component
+- `gradient.tsx` - Gradient backgrounds
+- `keyboard.tsx` - Keyboard visualizations
+- `link.tsx` - Styled links
+- `linked-avatars.tsx` - Linked avatar groups
+- `logo-cloud.tsx` - Logo cloud displays
+- `logo-cluster.tsx` - Clustered logo layouts
+- `logo-timeline.tsx` - Timeline with logos
+- `logo.tsx` - Logo component
+- `map.tsx` - Map visualizations
+- `navbar.tsx` - Navigation bar
+- `plus-grid.tsx` - Plus grid layouts
+- `screenshot.tsx` - Screenshot displays
+- `testimonials.tsx` - Testimonials carousel
+- `text.tsx` - Typography components
+
+### 3. Compass Template
+**Location:** `frontend/reference/compass/`
 
 Video-focused components:
 - `video-player.jsx` - Custom video player
@@ -50,8 +74,8 @@ Video-focused components:
 - `table-of-contents.jsx` - TOC component
 - And more...
 
-### 3. Salient Template (from `salient.zip`)
-**Location:** `frontend/reference/templates/salient/`
+### 4. Salient Template
+**Location:** `frontend/reference/salient/`
 
 Marketing/landing components:
 - `Hero.jsx` - Hero sections
@@ -124,17 +148,20 @@ frontend/
 │   │   └── ...
 │   └── ...
 └── reference/              # UI kit reference files (not built)
-    ├── catalyst/           # Catalyst UI Kit (TypeScript)
+    ├── catalyst/           # Catalyst UI Kit (28 TypeScript components)
     │   ├── button.tsx
     │   ├── input.tsx
-    │   └── ... (28 components)
-    └── templates/
-        ├── compass/        # Video player components (JSX)
-        │   ├── video-player.jsx
-        │   └── ...
-        └── salient/        # Marketing components (JSX)
-            ├── Hero.jsx
-            └── ...
+    │   └── ...
+    ├── radiant/            # Radiant Template (20 TypeScript components)
+    │   ├── bento-card.tsx
+    │   ├── animated-number.tsx
+    │   └── ...
+    ├── compass/            # Compass Template (JSX)
+    │   ├── video-player.jsx
+    │   └── ...
+    └── salient/            # Salient Template (JSX)
+        ├── Hero.jsx
+        └── ...
 ```
 
 ---
