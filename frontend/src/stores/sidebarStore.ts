@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-interface SidebarState {
+export interface SidebarState {
   isOpen: boolean;
   toggle: () => void;
   open: () => void;

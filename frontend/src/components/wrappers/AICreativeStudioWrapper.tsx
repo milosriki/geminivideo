@@ -21,7 +21,6 @@ interface AICreativeStudioWrapperProps {
 
 export const AICreativeStudioWrapper: React.FC<AICreativeStudioWrapperProps> = ({ projectId }) => {
   const handleAssetGenerated = (asset: any) => {
-    console.log('Asset generated:', asset);
     // TODO: Implement asset library integration
   };
 

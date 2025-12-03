@@ -20,13 +20,11 @@ interface CampaignBuilderWrapperProps {
 }
 
 export const CampaignBuilderWrapper: React.FC<CampaignBuilderWrapperProps> = ({ campaignId }) => {
-  const handleSave = async (campaign: any) => {
-    console.log('Saving campaign:', campaign);
+  const handleSave = async () => {
     // TODO: Implement actual save logic with API
   };
 
-  const handlePublish = async (campaign: any) => {
-    console.log('Publishing campaign:', campaign);
+  const handlePublish = async () => {
     // TODO: Implement actual publish logic with API
   };
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { StaggerContainer } from '../ui/StaggerContainer';
 
 interface Insight {
   id: number;
@@ -92,7 +93,7 @@ export const AIInsights: React.FC<AIInsightsProps> = ({
   };
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 shadow-lg shadow-black/20">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 sm:p-5 shadow-lg shadow-black/20">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
@@ -100,12 +101,12 @@ export const AIInsights: React.FC<AIInsightsProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
             </svg>
           </div>
-          <h3 className="text-white font-semibold text-lg">AI Insights</h3>
+          <h3 className="text-white font-semibold text-base sm:text-lg">AI Insights</h3>
         </div>
         <button
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className="p-2 rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50"
+          className="p-2 rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-50 min-h-[44px] min-w-[44px] flex items-center justify-center sm:min-h-0 sm:min-w-0"
         >
           <svg
             className={`w-4 h-4 text-zinc-400 ${isRefreshing ? 'animate-spin' : ''}`}
@@ -118,11 +119,11 @@ export const AIInsights: React.FC<AIInsightsProps> = ({
         </button>
       </div>
 
-      <div className="space-y-4">
+      <StaggerContainer staggerDelay={0.1} className="space-y-4">
         {insights.slice(0, 3).map((insight) => (
           <div
             key={insight.id}
-            className="p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50"
+            className="p-3 sm:p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800 transition-colors"
           >
             <div className="flex items-start gap-3">
               {getInsightIcon(insight.type)}
@@ -143,7 +144,7 @@ export const AIInsights: React.FC<AIInsightsProps> = ({
             </div>
           </div>
         ))}
-      </div>
+      </StaggerContainer>
 
       <div className="mt-4 pt-4 border-t border-zinc-800">
         <p className="text-zinc-500 text-xs text-center">
