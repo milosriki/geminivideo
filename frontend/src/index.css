@@ -1,18 +1,24 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', sans-serif;
+  /* Premium Typography - Satoshi Font */
+  --font-sans: 'Satoshi', 'Inter', system-ui, sans-serif;
+  --font-display: 'Satoshi', sans-serif;
 
   --color-zinc-950: #09090b;
 
+  /* Animation definitions */
   --animate-fade-in: fadeIn 0.5s ease-in-out;
   --animate-slide-in: slideIn 0.3s ease-out;
+  --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-bounce-subtle: bounceSubtle 1s ease-in-out infinite;
+  --animate-scale-in: scaleIn 0.2s ease-out;
 
   @keyframes fadeIn {
     0% {
       opacity: 0;
     }
-
     100% {
       opacity: 1;
     }
@@ -22,19 +28,129 @@
     0% {
       transform: translateX(-100%);
     }
-
     100% {
       transform: translateX(0);
     }
   }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  @keyframes bounceSubtle {
+    0%, 100% {
+      transform: translateY(-2%);
+      animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+    }
+    50% {
+      transform: translateY(0);
+      animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    }
+  }
+
+  @keyframes scaleIn {
+    0% {
+      transform: scale(0.95);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
 }
 
-/* Global resets not covered by Tailwind preflight if needed, 
-   but usually v4 handles this well. Keeping minimal. */
+/* Global styles */
 html {
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   @apply bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-white;
+}
+
+/* Focus styles for accessibility (WCAG 2.1 AA compliance) */
+:focus-visible {
+  @apply outline-none ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-zinc-950;
+}
+
+/* Reduced motion preferences - respects user settings while preserving essential UI */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-shimmer,
+  .animate-bounce-subtle,
+  .animate-fade-in,
+  .animate-slide-in,
+  .animate-scale-in {
+    animation: none !important;
+  }
+  
+  /* Reduce but don't eliminate transitions for essential feedback */
+  *:not([data-essential-animation="true"]) {
+    transition-duration: 0.1s !important;
+  }
+}
+
+/* Skip to main content link for accessibility */
+.skip-to-content {
+  @apply absolute left-4 top-4 z-50 -translate-y-16 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-transform focus:translate-y-0;
+}
+
+/* Shimmer effect for loading states */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0.5) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* Dark mode shimmer */
+.dark .shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 20%,
+    rgba(255, 255, 255, 0.1) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  background-size: 200% 100%;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-zinc-300 dark:bg-zinc-700;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-zinc-400 dark:bg-zinc-600;
 }
