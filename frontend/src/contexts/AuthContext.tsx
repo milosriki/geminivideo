@@ -392,7 +392,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const refreshInterval = setInterval(async () => {
       try {
         await refreshToken();
-        console.log('🔄 Token refreshed successfully');
+        // console.log('🔄 Token refreshed successfully');
       } catch (error) {
         console.error('Token refresh failed:', error);
       }

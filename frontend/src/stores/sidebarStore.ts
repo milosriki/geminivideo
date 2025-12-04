@@ -1,20 +1,4 @@
 import { create } from 'zustand';
-<<<<<<< HEAD
-
-export interface SidebarState {
-  isOpen: boolean;
-  toggle: () => void;
-  open: () => void;
-  close: () => void;
-}
-
-export const useSidebarStore = create<SidebarState>((set) => ({
-  isOpen: true,
-  toggle: () => set((state) => ({ isOpen: !state.isOpen })),
-  open: () => set({ isOpen: true }),
-  close: () => set({ isOpen: false }),
-}));
-=======
 import { persist } from 'zustand/middleware';
 
 interface SidebarState {
@@ -60,4 +44,3 @@ export const useSidebarStore = create<SidebarState>()(
     }
   )
 );
->>>>>>> origin/claude/sidebar-navigation-01URvTwECmKL6WyihRC8Ac3D

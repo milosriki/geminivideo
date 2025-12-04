@@ -28,7 +28,7 @@ interface PerformanceChartProps {
 
 type MetricType = 'roas' | 'revenue' | 'spend' | 'clicks';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+import { API_BASE_URL } from '../../config/api';
 
 const metricConfig = {
   roas: {
@@ -211,8 +211,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
                         setIsDropdownOpen(false);
                       }}
                       className={`w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 transition-colors ${selectedMetric === metric
-                          ? 'bg-zinc-700 text-white'
-                          : 'text-zinc-300 hover:bg-zinc-700/50'
+                        ? 'bg-zinc-700 text-white'
+                        : 'text-zinc-300 hover:bg-zinc-700/50'
                         }`}
                     >
                       <div

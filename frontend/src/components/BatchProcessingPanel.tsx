@@ -33,7 +33,7 @@ export default function BatchProcessingPanel() {
   // Setup callbacks
   useEffect(() => {
     batchProcessor.onJobComplete((job) => {
-      console.log('Job completed:', job.id);
+      // console.log('Job completed:', job.id);
       setQueueState(batchProcessor.getQueueState());
     });
 
@@ -43,7 +43,7 @@ export default function BatchProcessingPanel() {
     });
 
     batchProcessor.onQueueComplete(() => {
-      console.log('All jobs completed!');
+      // console.log('All jobs completed!');
       setQueueState(batchProcessor.getQueueState());
     });
   }, []);
@@ -135,7 +135,7 @@ export default function BatchProcessingPanel() {
 
     // Add jobs to queue
     const jobIds = batchProcessor.addToQueue(selectedFiles, template);
-    console.log(`Added ${jobIds.length} jobs to queue`);
+    // console.log(`Added ${jobIds.length} jobs to queue`);
 
     // Clear selected files
     setSelectedFiles([]);
@@ -520,13 +520,12 @@ export default function BatchProcessingPanel() {
                 className="card"
                 style={{
                   marginBottom: '15px',
-                  border: `1px solid ${
-                    job.status === 'complete' ? '#28a745' :
-                    job.status === 'error' ? '#dc3545' :
-                    job.status === 'processing' ? '#ffc107' :
-                    job.status === 'cancelled' ? '#6c757d' :
-                    '#007bff'
-                  }`
+                  border: `1px solid ${job.status === 'complete' ? '#28a745' :
+                      job.status === 'error' ? '#dc3545' :
+                        job.status === 'processing' ? '#ffc107' :
+                          job.status === 'cancelled' ? '#6c757d' :
+                            '#007bff'
+                    }`
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -537,13 +536,12 @@ export default function BatchProcessingPanel() {
                     </div>
                   </div>
                   <span
-                    className={`status-badge ${
-                      job.status === 'complete' ? 'success' :
-                      job.status === 'error' ? 'error' :
-                      job.status === 'processing' ? 'warning' :
-                      job.status === 'cancelled' ? 'info' :
-                      'info'
-                    }`}
+                    className={`status-badge ${job.status === 'complete' ? 'success' :
+                        job.status === 'error' ? 'error' :
+                          job.status === 'processing' ? 'warning' :
+                            job.status === 'cancelled' ? 'info' :
+                              'info'
+                      }`}
                   >
                     {job.status.toUpperCase()}
                   </span>

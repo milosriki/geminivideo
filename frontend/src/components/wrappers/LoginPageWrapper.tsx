@@ -18,40 +18,11 @@ interface LoginPageWrapperProps {
   onLoginSuccess?: () => void;
 }
 
-export const LoginPageWrapper: React.FC<LoginPageWrapperProps> = ({ onLoginSuccess }) => {
-  const handleLogin = async (credentials: { email: string; password: string }) => {
-    // TODO: Implement actual login logic with Firebase/Auth service
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    onLoginSuccess?.();
-  };
-
-  const handleSignup = async (data: { email: string; password: string; name: string }) => {
-    // TODO: Implement actual signup logic with Firebase/Auth service
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    onLoginSuccess?.();
-  };
-
-  const handleForgotPassword = async (email: string) => {
-    // TODO: Implement actual password reset logic
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  };
-
-  const handleGoogleLogin = async () => {
-    // TODO: Implement Google OAuth login
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    onLoginSuccess?.();
-  };
-
+export const LoginPageWrapper: React.FC<LoginPageWrapperProps> = () => {
   return (
     <ErrorBoundary>
       <Suspense fallback={<LoadingFallback />}>
-        <LoginPage
-          onLogin={handleLogin}
-          onSignup={handleSignup}
-          onForgotPassword={handleForgotPassword}
-          onGoogleLogin={handleGoogleLogin}
-        />
+        <LoginPage />
       </Suspense>
     </ErrorBoundary>
   );

@@ -18,13 +18,19 @@ export const titanClient = {
      * Analyzes a video to extract the winning pattern.
      */
     analyzeVideo: async (videoUri: string): Promise<VideoAnalysis> => {
-        const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ path: videoUri, filename: 'upload.mp4' }), // Match gateway-api expectations
-        });
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/api/analyze`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ path: videoUri, filename: 'upload.mp4' }), // Match gateway-api expectations
+            });
+        } catch (error) {
+            console.error('Error analyzing video:', error);
+            throw error;
+        }
 
         if (!response.ok) {
             throw new Error(`Analysis failed: ${response.statusText}`);
@@ -38,13 +44,19 @@ export const titanClient = {
      */
     generateCampaign: async (request: CampaignRequest): Promise<any> => {
         // Placeholder for the generate endpoint which would use VeoDirector
-        const response = await fetch(`${API_BASE_URL}/api/generate`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(request),
-        });
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/api/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(request),
+            });
+        } catch (error) {
+            console.error('Error generating campaign:', error);
+            throw error;
+        }
 
         if (!response.ok) {
             throw new Error(`Generation failed: ${response.statusText}`);
@@ -57,9 +69,15 @@ export const titanClient = {
      * Retrieves dashboard metrics from the Cortex Data Engine.
      */
     getDashboardMetrics: async (days: number = 30): Promise<any> => {
-        const response = await fetch(`${API_BASE_URL}/api/metrics?days=${days}`, {
-            method: 'GET',
-        });
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/api/metrics?days=${days}`, {
+                method: 'GET',
+            });
+        } catch (error) {
+            console.error('Error fetching dashboard metrics:', error);
+            throw error;
+        }
 
         if (!response.ok) {
             throw new Error(`Failed to fetch metrics: ${response.statusText}`);

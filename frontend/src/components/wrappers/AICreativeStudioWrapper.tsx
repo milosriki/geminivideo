@@ -20,7 +20,7 @@ interface AICreativeStudioWrapperProps {
 }
 
 export const AICreativeStudioWrapper: React.FC<AICreativeStudioWrapperProps> = ({ projectId }) => {
-  const handleAssetGenerated = (asset: any) => {
+  const handleCreativeGenerated = (creative: any) => {
     // TODO: Implement asset library integration
   };
 
@@ -28,8 +28,7 @@ export const AICreativeStudioWrapper: React.FC<AICreativeStudioWrapperProps> = (
     <ErrorBoundary>
       <Suspense fallback={<LoadingFallback />}>
         <AICreativeStudio
-          projectId={projectId}
-          onAssetGenerated={handleAssetGenerated}
+          onCreativeGenerated={handleCreativeGenerated}
         />
       </Suspense>
     </ErrorBoundary>

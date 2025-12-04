@@ -1941,7 +1941,7 @@ const ExportSettingsPanel: React.FC = () => {
   };
 
   const handleExport = () => {
-    console.log('Exporting with settings:', exportSettings);
+    // console.log('Exporting with settings:', exportSettings);
     alert('Export started! This would trigger the rendering process.');
   };
 

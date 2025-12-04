@@ -58,7 +58,7 @@ class RealtimePreview {
 
         const instance = new FFmpeg();
         instance.on('log', ({ message }: { message: string }) => {
-            console.log('[RealtimePreview FFmpeg]:', message);
+            // console.log('[RealtimePreview FFmpeg]:', message);
         });
 
         await instance.load({ coreURL });
@@ -73,12 +73,12 @@ class RealtimePreview {
         if (this.isFontLoaded || !this.ffmpeg) return;
 
         try {
-            console.log('[RealtimePreview] Loading custom font...');
+            // console.log('[RealtimePreview] Loading custom font...');
             const fontResponse = await fetch('https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Mu4mxK.woff2');
             const fontBlob = await fontResponse.arrayBuffer();
             await this.ffmpeg.writeFile('/fonts/Roboto-Regular.ttf', new Uint8Array(fontBlob));
             this.isFontLoaded = true;
-            console.log('[RealtimePreview] Custom font loaded.');
+            // console.log('[RealtimePreview] Custom font loaded.');
         } catch (e) {
             console.error('[RealtimePreview] Failed to load custom font.', e);
         }
@@ -333,7 +333,7 @@ class RealtimePreview {
                 '-y', 'preview_output.mp4'
             );
 
-            console.log('[RealtimePreview] Executing FFmpeg command:', command);
+            // console.log('[RealtimePreview] Executing FFmpeg command:', command);
 
             // Check if aborted before executing
             if (this.abortController?.signal.aborted) {

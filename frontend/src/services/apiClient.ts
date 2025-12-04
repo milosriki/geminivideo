@@ -15,7 +15,13 @@ export const apiClient = {
     // 1. Fetch Avatars (Route to Python)
     async fetchAvatars(): Promise<Avatar[]> {
         // In Pro version, these should live in the DB, but for now we fetch from backend config
-        return fetch(`${API_BASE_URL}/avatars`).then(res => handleResponse<Avatar[]>(res));
+        try {
+            const response = await fetch(`${API_BASE_URL}/avatars`);
+            return handleResponse<Avatar[]>(response);
+        } catch (error) {
+            console.error('Error fetching avatars:', error);
+            throw error;
+        }
     },
 
     // 2. Deep Analysis (Route to Python Director Agent)
@@ -24,11 +30,17 @@ export const apiClient = {
         const videoUri = allVideoData[0]?.videoFile?.name || "unknown";
 
         // Call the Titan Backend
-        const response = await fetch(`${API_BASE_URL}/analyze`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ video_uri: videoUri }), // In real prod, upload file first and send URL
-        });
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_uri: videoUri }), // In real prod, upload file first and send URL
+            });
+        } catch (error) {
+            console.error('Error analyzing videos:', error);
+            throw error;
+        }
 
         const analysis = await handleResponse<any>(response);
 
@@ -52,14 +64,20 @@ export const apiClient = {
     // 3. Generate Creatives (Route to Veo/Titan)
     async generateCreatives(brief: CampaignBrief, avatarKey: string, strategy: CampaignStrategy): Promise<AdCreative[]> {
         // This calls the /generate endpoint on Python which triggers Veo
-        const response = await fetch(`${API_BASE_URL}/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                assets: [strategy.primaryVideoFileName],
-                target_audience: brief.targetMarket
-            }),
-        });
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    assets: [strategy.primaryVideoFileName],
+                    target_audience: brief.targetMarket
+                }),
+            });
+        } catch (error) {
+            console.error('Error generating creatives:', error);
+            throw error;
+        }
 
         const result = await handleResponse<any>(response);
 
@@ -92,13 +110,23 @@ export const apiClient = {
 
     // 5. Fetch AI Insights (Real-time Gemini analysis)
     async fetchAIInsights(): Promise<any> {
-        const response = await fetch(`${API_BASE_URL}/api/insights/ai`);
-        return handleResponse<any>(response);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/insights/ai`);
+            return handleResponse<any>(response);
+        } catch (error) {
+            console.error('Error fetching AI insights:', error);
+            throw error;
+        }
     },
 
     // 6. Fetch Trending Ads (Competitor spy data)
     async fetchTrendingAds(): Promise<any> {
-        const response = await fetch(`${API_BASE_URL}/api/ads/trending`);
-        return handleResponse<any>(response);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/ads/trending`);
+            return handleResponse<any>(response);
+        } catch (error) {
+            console.error('Error fetching trending ads:', error);
+            throw error;
+        }
     }
 };

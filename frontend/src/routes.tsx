@@ -77,7 +77,7 @@ function CampaignBuilderPage() {
   return (
     <CampaignBuilder
       onComplete={(campaign) => {
-        console.log('Campaign created:', campaign);
+        // console.log('Campaign created:', campaign);
         // In production, navigate to campaign details or campaigns list
         window.location.href = '/analytics';
       }}
@@ -94,7 +94,7 @@ function AICreativeStudioPage() {
   return (
     <AICreativeStudio
       onCreativeGenerated={(creative) => {
-        console.log('Creative generated:', creative);
+        // console.log('Creative generated:', creative);
       }}
     />
   );

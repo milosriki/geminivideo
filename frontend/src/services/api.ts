@@ -103,11 +103,13 @@ export const triggerLearningUpdate = async () => {
   return response.data;
 };
 
-<<<<<<< HEAD
+
 // Credits
 export const getCredits = async () => {
   const response = await api.get('/credits');
-=======
+  return response.data;
+};
+
 // Campaign Builder
 export const predictCampaign = async (campaignData: any) => {
   const response = await api.post('/campaigns/predict', campaignData);
@@ -148,7 +150,7 @@ export const updateCampaign = async (campaignId: string, updates: any) => {
 
 export const deleteCampaign = async (campaignId: string) => {
   const response = await api.delete(`/campaigns/${campaignId}`);
->>>>>>> origin/claude/plan-video-editing-solution-01K1NVwMYwFHsZECx5H2RVTT
+
   return response.data;
 };
 

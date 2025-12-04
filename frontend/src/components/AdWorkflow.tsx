@@ -536,8 +536,8 @@ const AdWorkflow: React.FC = () => {
             <h3 className="text-lg font-bold text-indigo-400 mb-4">Winning Ad Strategy</h3>
             <div className="space-y-4">
               <p><strong className="text-gray-400">Strategy Summary:</strong> {campaignStrategy.summary}</p>
-              <p><strong className="text-gray-400">Key Angles:</strong> {campaignStrategy.keyAngles.join(', ') || 'None'}</p>
-              <p><strong className="text-gray-400">Risks to Avoid:</strong> {campaignStrategy.risksToAvoid.join(', ') || 'None'}</p>
+              <p><strong className="text-gray-400">Key Angles:</strong> {campaignStrategy.keyAngles?.join(', ') || 'None'}</p>
+              <p><strong className="text-gray-400">Risks to Avoid:</strong> {campaignStrategy.risksToAvoid?.join(', ') || 'None'}</p>
 
               <button disabled={isProcessing || !selectedAvatar} onClick={handleGenerateVariations} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all text-lg mt-4 disabled:bg-gray-600 disabled:cursor-not-allowed">
                 <SparklesIcon className="w-6 h-6" /> Generate Ad Blueprints
