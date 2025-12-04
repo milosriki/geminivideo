@@ -43,22 +43,22 @@ sleep 10
 services_ok=true
 
 # Check drive-intel
-if ! check_service "Drive Intel" "http://localhost:8001/health"; then
+if ! check_service "Drive Intel" "http://localhost:8081/health"; then
     services_ok=false
 fi
 
 # Check video-agent
-if ! check_service "Video Agent" "http://localhost:8002/health"; then
+if ! check_service "Video Agent" "http://localhost:8082/health"; then
     services_ok=false
 fi
 
 # Check meta-publisher
-if ! check_service "Meta Publisher" "http://localhost:8003/health"; then
+if ! check_service "Meta Publisher" "http://localhost:8083/health"; then
     services_ok=false
 fi
 
 # Check gateway-api
-if ! check_service "Gateway API" "http://localhost:8000/health"; then
+if ! check_service "Gateway API" "http://localhost:8080/health"; then
     services_ok=false
 fi
 
@@ -72,7 +72,7 @@ echo -e "${BLUE}=== Testing Service Connections ===${NC}"
 
 # Test gateway to drive-intel connection
 echo -e "${YELLOW}Testing Gateway → Drive Intel connection...${NC}"
-if curl -s -f "http://localhost:8000/api/assets" > /dev/null 2>&1; then
+if curl -s -f "http://localhost:8080/api/assets" > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Gateway can reach Drive Intel${NC}"
 else
     echo -e "${RED}✗ Gateway cannot reach Drive Intel${NC}"
@@ -81,7 +81,7 @@ fi
 
 # Test gateway to meta-publisher connection
 echo -e "${YELLOW}Testing Gateway → Meta Publisher connection...${NC}"
-if curl -s -f "http://localhost:8000/api/insights" > /dev/null 2>&1 || curl -s "http://localhost:8000/api/insights" | grep -q "adId"; then
+if curl -s -f "http://localhost:8080/api/insights" > /dev/null 2>&1 || curl -s "http://localhost:8080/api/insights" | grep -q "adId"; then
     echo -e "${GREEN}✓ Gateway can reach Meta Publisher${NC}"
 else
     echo -e "${YELLOW}⚠ Gateway → Meta Publisher connection check inconclusive${NC}"
@@ -90,10 +90,10 @@ fi
 echo ""
 echo -e "${BLUE}=== Service URLs ===${NC}"
 echo -e "Frontend:       ${GREEN}http://localhost:3000${NC}"
-echo -e "Gateway API:    ${GREEN}http://localhost:8000${NC}"
-echo -e "Drive Intel:    ${GREEN}http://localhost:8001${NC}"
-echo -e "Video Agent:    ${GREEN}http://localhost:8002${NC}"
-echo -e "Meta Publisher: ${GREEN}http://localhost:8003${NC}"
+echo -e "Gateway API:    ${GREEN}http://localhost:8080${NC}"
+echo -e "Drive Intel:    ${GREEN}http://localhost:8081${NC}"
+echo -e "Video Agent:    ${GREEN}http://localhost:8082${NC}"
+echo -e "Meta Publisher: ${GREEN}http://localhost:8083${NC}"
 
 echo ""
 if [ "$services_ok" = true ]; then
