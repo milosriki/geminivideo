@@ -508,26 +508,11 @@ app.get('/insights', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'adId is required' });
     }
 
-    // Dry-run mode
+    // Require META_ACCESS_TOKEN for production use
     if (!META_ACCESS_TOKEN) {
-      return res.json({
-        status: 'dry_run',
-        message: 'No META_ACCESS_TOKEN provided - dry run mode',
-        mock_data: {
-          ad_id: adId,
-          impressions: 1000,
-          clicks: 50,
-          ctr: 0.05,
-          spend: 25.50,
-          actions: [
-            { action_type: 'link_click', value: 45 },
-            { action_type: 'video_view', value: 800 }
-          ],
-          video_metrics: {
-            video_30_sec_watched_actions: 600,
-            video_avg_time_watched_actions: 8.5
-          }
-        }
+      return res.status(400).json({
+        error: 'Meta SDK not configured',
+        message: 'Set META_ACCESS_TOKEN to fetch real insights'
       });
     }
 
