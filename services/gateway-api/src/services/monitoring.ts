@@ -162,7 +162,7 @@ export class MonitoringService {
         new Sentry.Integrations.Http({ tracing: true }),
         new Sentry.Integrations.Express({ app: undefined }),
       ],
-      beforeSend(event, hint) {
+      beforeSend(event: any, hint: any) {
         // Filter out sensitive data
         if (event.request?.headers) {
           delete event.request.headers['authorization'];
@@ -186,7 +186,7 @@ export class MonitoringService {
       return;
     }
 
-    Sentry.withScope((scope) => {
+    Sentry.withScope((scope: any) => {
       if (context) {
         scope.setContext('additional', context);
       }
@@ -213,8 +213,8 @@ export class MonitoringService {
       level === 'info'
         ? Sentry.Severity.Info
         : level === 'warning'
-        ? Sentry.Severity.Warning
-        : Sentry.Severity.Error;
+          ? Sentry.Severity.Warning
+          : Sentry.Severity.Error;
 
     Sentry.captureMessage(message, sentryLevel);
   }
@@ -282,8 +282,8 @@ export class MonitoringService {
       state === CircuitState.CLOSED
         ? 0
         : state === CircuitState.HALF_OPEN
-        ? 1
-        : 2;
+          ? 1
+          : 2;
     this.circuitBreakerState.set({ service }, stateValue);
   }
 

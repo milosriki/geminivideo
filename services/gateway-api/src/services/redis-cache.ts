@@ -1,5 +1,5 @@
 import Redis, { RedisOptions, Cluster } from 'ioredis';
-import { logger } from '../logger';
+import { logger } from '../utils/logger';
 
 export interface SessionData {
   userId: string;
@@ -51,7 +51,7 @@ export class RedisCacheService {
       reconnectOnError: (err: Error) => {
         const targetErrors = ['READONLY', 'ECONNREFUSED', 'ETIMEDOUT'];
         if (targetErrors.some(targetError => err.message.includes(targetError))) {
-          logger.warn('Redis reconnecting due to error:', err.message);
+          logger.warn('Redis reconnecting due to error:', { error: err.message });
           return true;
         }
         return false;

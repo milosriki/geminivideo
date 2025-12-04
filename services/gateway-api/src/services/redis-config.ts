@@ -1,5 +1,5 @@
 import { RedisCacheService } from './redis-cache';
-import { logger } from '../logger';
+import { logger } from '../utils/logger';
 
 export interface RedisConfig {
   url: string;
