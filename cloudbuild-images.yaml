@@ -1,0 +1,180 @@
+steps:
+  # =============================================================================
+  # Step 1: Build all Docker images (Sequential to avoid OOM)
+  # =============================================================================
+
+  # Gateway API
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-gateway-api
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${_SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:latest"
+      - "--cache-from"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:latest"
+      - "./services/gateway-api"
+
+  # Drive Intel
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-drive-intel
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${_SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:latest"
+      - "--cache-from"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:latest"
+      - "./services/drive-intel"
+    waitFor: ["build-gateway-api"]
+
+  # Video Agent
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-video-agent
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${_SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:latest"
+      - "--cache-from"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:latest"
+      - "./services/video-agent"
+    waitFor: ["build-drive-intel"]
+
+  # ML Service
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-ml-service
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${_SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:latest"
+      - "--cache-from"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:latest"
+      - "./services/ml-service"
+    waitFor: ["build-video-agent"]
+
+  # Meta Publisher
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-meta-publisher
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${_SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:latest"
+      - "--cache-from"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:latest"
+      - "./services/meta-publisher"
+    waitFor: ["build-ml-service"]
+
+  # Titan Core
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-titan-core
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${_SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:latest"
+      - "--cache-from"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:latest"
+      - "./services/titan-core"
+    waitFor: ["build-meta-publisher"]
+
+  # Frontend
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-frontend
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${_SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:latest"
+      - "--cache-from"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:latest"
+      - "--build-arg"
+      - "VITE_ENV=production"
+      - "./frontend"
+    waitFor: ["build-titan-core"]
+
+  # =============================================================================
+  # Step 2: Push all images
+  # =============================================================================
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-gateway-api
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api"
+    waitFor:
+      - build-gateway-api
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-drive-intel
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel"
+    waitFor:
+      - build-drive-intel
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-video-agent
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent"
+    waitFor:
+      - build-video-agent
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-ml-service
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service"
+    waitFor:
+      - build-ml-service
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-meta-publisher
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher"
+    waitFor:
+      - build-meta-publisher
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-titan-core
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core"
+    waitFor:
+      - build-titan-core
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-frontend
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend"
+    waitFor:
+      - build-frontend
+
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: geminivideo-repo
+
+options:
+  machineType: "E2_HIGHCPU_32"
+  diskSizeGb: 500
+  substitutionOption: "ALLOW_LOOSE"
+  logging: CLOUD_LOGGING_ONLY
