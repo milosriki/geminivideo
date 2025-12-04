@@ -996,28 +996,41 @@ app.get('/api/experiments', async (req: Request, res: Response) => {
 
     // Query campaign_outcomes table for real experiment data
     const query = `
+      WITH numbered_variants AS (
+        SELECT 
+          co.id,
+          co.campaign_id,
+          co.impressions,
+          co.clicks,
+          co.conversions,
+          co.spend,
+          co.roas,
+          co.created_at,
+          ROW_NUMBER() OVER (PARTITION BY co.campaign_id ORDER BY co.created_at) as variant_num
+        FROM campaign_outcomes co
+      )
       SELECT 
-        c.campaign_id as id,
+        c.id as id,
         c.name,
         c.status,
         c.created_at as "startDate",
-        c.objective,
-        c.daily_budget as "totalBudget",
+        'conversions' as objective,
+        c.budget_daily as "totalBudget",
         json_agg(json_build_object(
-          'id', co.outcome_id,
-          'name', c.name || ' - Variant ' || ROW_NUMBER() OVER (PARTITION BY c.campaign_id ORDER BY co.created_at),
-          'impressions', COALESCE(co.impressions, 0),
-          'clicks', COALESCE(co.clicks, 0),
-          'conversions', COALESCE(co.conversions, 0),
-          'spend', COALESCE(co.spend, 0),
-          'revenue', COALESCE(co.revenue, 0),
-          'alpha', COALESCE(co.clicks, 0) + 1,
-          'beta', (COALESCE(co.impressions, 0) - COALESCE(co.clicks, 0)) + 1
-        )) FILTER (WHERE co.outcome_id IS NOT NULL) as variants
+          'id', nv.id,
+          'name', c.name || ' - Variant ' || nv.variant_num,
+          'impressions', COALESCE(nv.impressions, 0),
+          'clicks', COALESCE(nv.clicks, 0),
+          'conversions', COALESCE(nv.conversions, 0),
+          'spend', COALESCE(nv.spend, 0),
+          'revenue', COALESCE(nv.roas * nv.spend, 0),
+          'alpha', COALESCE(nv.clicks, 0) + 1,
+          'beta', (COALESCE(nv.impressions, 0) - COALESCE(nv.clicks, 0)) + 1
+        )) FILTER (WHERE nv.id IS NOT NULL) as variants
       FROM campaigns c
-      LEFT JOIN campaign_outcomes co ON c.campaign_id = co.campaign_id
+      LEFT JOIN numbered_variants nv ON c.id = nv.campaign_id
       WHERE c.status IN ('active', 'running', 'paused')
-      GROUP BY c.campaign_id, c.name, c.status, c.created_at, c.objective, c.daily_budget
+      GROUP BY c.id, c.name, c.status, c.created_at, c.budget_daily
       ORDER BY c.created_at DESC
       LIMIT 10
     `;

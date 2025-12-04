@@ -807,56 +807,133 @@ async def render_winning_blueprints(request: RenderWinningRequest, background_ta
 
     try:
         job_ids = []
-
-        # Create render jobs for each blueprint
-        for blueprint in request.blueprints[:request.max_concurrent]:
+        for blueprint in request.blueprints:
+            # Create render request for each blueprint
+            render_req = RenderStartRequest(
+                blueprint=blueprint,
+                platform=request.platform,
+                quality=request.quality,
+                aspect_ratio=request.aspect_ratio
+            )
+            
             job_id = f"render_{uuid.uuid4().hex[:12]}"
-
-            # Create job entry
             app_state.render_jobs[job_id] = {
                 "id": job_id,
                 "status": RenderStatus.PENDING,
-                "request": {
-                    "blueprint": blueprint,
-                    "platform": request.platform,
-                    "quality": request.quality,
-                    "aspect_ratio": request.aspect_ratio
-                },
+                "request": render_req.model_dump(),
                 "progress": 0.0,
                 "output_path": None,
                 "error": None,
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }
-
-            # Start render in background
-            render_request = RenderStartRequest(
-                blueprint=blueprint,
-                platform=request.platform,
-                quality=request.quality,
-                aspect_ratio=request.aspect_ratio
-            )
-
+            
+            # Add to background tasks
             background_tasks.add_task(
                 _process_render_job,
                 job_id,
-                render_request
+                render_req
             )
-
             job_ids.append(job_id)
 
         return RenderWinningResponse(
             job_ids=job_ids,
             total_jobs=len(job_ids),
-            status="started",
+            status="processing",
             message=f"Started {len(job_ids)} render jobs"
         )
     except Exception as e:
-        logger.error(f"Failed to start render jobs: {e}")
+        logger.error(f"Render winning failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to start renders: {str(e)}"
+            detail=f"Render winning failed: {str(e)}"
         )
+
+
+# ============================================================================
+# META ADS LIBRARY & INSIGHTS ENDPOINTS (ADDED FOR FRONTEND INTEGRATION)
+# ============================================================================
+
+class MetaAdsSearchRequest(BaseModel):
+    search_terms: str
+    countries: Optional[List[str]] = None
+    platforms: List[str] = ["facebook", "instagram"]
+    media_type: Optional[str] = None
+    active_status: Optional[str] = None
+    limit: int = 10
+
+@app.post("/meta/ads-library/search", tags=["Meta Ads"])
+async def search_meta_ads(request: MetaAdsSearchRequest):
+    """
+    Search Meta Ads Library (Mock/Proxy)
+    """
+    # Mock response for now to unblock frontend
+    return {
+        "ads": [
+            {
+                "id": "ad_1",
+                "brand": "Fitness Elite",
+                "title": "Get Fit Fast",
+                "views": "1.2M",
+                "engagement": "4.5%",
+                "platform": "instagram"
+            },
+            {
+                "id": "ad_2", 
+                "brand": "Gym Shark",
+                "title": "Summer Sale",
+                "views": "850K",
+                "engagement": "3.2%",
+                "platform": "facebook"
+            }
+        ]
+    }
+
+@app.get("/insights/generate", tags=["Insights"])
+async def generate_insights(context: str = "dashboard"):
+    """
+    Generate AI Insights (Mock/Proxy)
+    """
+    return {
+        "insights": [
+            {
+                "id": 1,
+                "type": "success",
+                "title": "High Engagement Rate",
+                "description": "Your recent video ads are performing 23% better than industry average.",
+                "action": "Scale budget"
+            },
+            {
+                "id": 2,
+                "type": "tip",
+                "title": "Try Shorter Hooks",
+                "description": "Videos with 3-second hooks are seeing 2x higher retention.",
+                "action": "Edit hooks"
+            }
+        ]
+    }
+
+@app.get("/avatars/list", tags=["Avatars"])
+async def list_avatars():
+    """
+    List Available Avatars (Mock/Proxy)
+    """
+    return [
+        {
+            "key": "avatar-1",
+            "name": "Sarah",
+            "voice": "natural-female",
+            "style": "professional"
+        },
+        {
+            "key": "avatar-2",
+            "name": "James",
+            "voice": "natural-male",
+            "style": "authoritative"
+        }
+    ]
+
+
 
 
 # ============================================================================
