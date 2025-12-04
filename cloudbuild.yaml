@@ -127,7 +127,7 @@ steps:
   # =============================================================================
 
   - name: "gcr.io/cloud-builders/docker"
-    id: push-images
+    id: push-gateway-api
     args:
       - "push"
       - "--all-tags"
@@ -136,6 +136,7 @@ steps:
       - build-gateway-api
 
   - name: "gcr.io/cloud-builders/docker"
+    id: push-drive-intel
     args:
       - "push"
       - "--all-tags"
@@ -144,6 +145,7 @@ steps:
       - build-drive-intel
 
   - name: "gcr.io/cloud-builders/docker"
+    id: push-video-agent
     args:
       - "push"
       - "--all-tags"
@@ -152,6 +154,7 @@ steps:
       - build-video-agent
 
   - name: "gcr.io/cloud-builders/docker"
+    id: push-ml-service
     args:
       - "push"
       - "--all-tags"
@@ -160,6 +163,7 @@ steps:
       - build-ml-service
 
   - name: "gcr.io/cloud-builders/docker"
+    id: push-meta-publisher
     args:
       - "push"
       - "--all-tags"
@@ -168,6 +172,7 @@ steps:
       - build-meta-publisher
 
   - name: "gcr.io/cloud-builders/docker"
+    id: push-titan-core
     args:
       - "push"
       - "--all-tags"
@@ -176,6 +181,7 @@ steps:
       - build-titan-core
 
   - name: "gcr.io/cloud-builders/docker"
+    id: push-frontend
     args:
       - "push"
       - "--all-tags"
@@ -201,7 +207,7 @@ steps:
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
-      - push-images
+      - push-drive-intel
 
   # Deploy Video Agent
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -217,7 +223,7 @@ steps:
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
-      - push-images
+      - push-video-agent
 
   # Deploy ML Service
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -233,7 +239,7 @@ steps:
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
-      - push-images
+      - push-ml-service
 
   # Deploy Meta Publisher
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -249,7 +255,7 @@ steps:
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
-      - push-images
+      - push-meta-publisher
 
   # Deploy Titan Core
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -265,7 +271,7 @@ steps:
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
-      - push-images
+      - push-titan-core
 
   # Deploy Gateway API (depends on all backend services)
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -281,6 +287,7 @@ steps:
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
+      - push-gateway-api
       - deploy-drive-intel
       - deploy-video-agent
       - deploy-ml-service
@@ -301,6 +308,8 @@ steps:
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
+      - push-frontend
+      - deploy-gateway-api
       - deploy-gateway-api
 
   # =============================================================================
