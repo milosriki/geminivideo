@@ -143,32 +143,35 @@ export async function authenticateUser(
   } catch (error: any) {
     // Handle Firebase-specific errors
     if (error.code === 'auth/id-token-expired') {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Token expired',
         code: 'TOKEN_EXPIRED',
         message: 'Your session has expired. Please login again.'
       });
+      return;
     }
 
     if (error.code === 'auth/argument-error') {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Invalid token format',
         code: 'INVALID_TOKEN',
         message: 'The authentication token is malformed.'
       });
+      return;
     }
 
     if (error instanceof AuthenticationError) {
-      return res.status(error.statusCode).json({
+      res.status(error.statusCode).json({
         error: error.message,
         code: error.code
       });
+      return;
     }
 
     // Log unexpected errors
     console.error('Authentication error:', error);
 
-    return res.status(401).json({
+    res.status(401).json({
       error: 'Authentication failed',
       code: 'AUTH_FAILED',
       message: error.message || 'Unable to authenticate request'
@@ -189,21 +192,23 @@ export function requireRole(...allowedRoles: UserRole[]) {
     const user = (req as AuthenticatedRequest).user;
 
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Unauthorized',
         code: 'NO_USER',
         message: 'User not authenticated. Please use authenticateUser middleware first.'
       });
+      return;
     }
 
     if (!allowedRoles.includes(user.role)) {
-      return res.status(403).json({
+      res.status(403).json({
         error: 'Forbidden',
         code: 'INSUFFICIENT_PERMISSIONS',
         message: `This action requires one of the following roles: ${allowedRoles.join(', ')}`,
         requiredRoles: allowedRoles,
         currentRole: user.role
       });
+      return;
     }
 
     next();
@@ -273,19 +278,21 @@ export function requireEmailVerification(
   const user = (req as AuthenticatedRequest).user;
 
   if (!user) {
-    return res.status(401).json({
+    res.status(401).json({
       error: 'Unauthorized',
       code: 'NO_USER',
       message: 'User not authenticated'
     });
+    return;
   }
 
   if (!user.emailVerified) {
-    return res.status(403).json({
+    res.status(403).json({
       error: 'Email not verified',
       code: 'EMAIL_NOT_VERIFIED',
       message: 'Please verify your email address to access this resource'
     });
+    return;
   }
 
   next();

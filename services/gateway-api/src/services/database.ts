@@ -3,7 +3,7 @@
  * Provides CRUD operations, transactions, and query optimization
  */
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, ClipStatus, ExperimentStatus } from '@prisma/client';
 import type {
   User,
   Asset,
@@ -15,10 +15,8 @@ import type {
   KnowledgeDocument,
   UserRole,
   AssetStatus,
-  ClipStatus,
   CampaignStatus,
   CampaignObjective,
-  ExperimentStatus,
   ConversionSource,
 } from '@prisma/client';
 

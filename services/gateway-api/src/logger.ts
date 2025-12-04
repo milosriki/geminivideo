@@ -2,6 +2,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PredictionLogEntry } from './types';
 
+/**
+ * Simple console-based logger for services that don't need Winston
+ */
+export const logger = {
+  debug: (msg: string, ...args: any[]) => {
+    if (process.env.LOG_LEVEL === 'debug') console.debug(`[DEBUG] ${msg}`, ...args);
+  },
+  info: (msg: string, ...args: any[]) => console.log(`[INFO] ${msg}`, ...args),
+  warn: (msg: string, ...args: any[]) => console.warn(`[WARN] ${msg}`, ...args),
+  error: (msg: string, ...args: any[]) => console.error(`[ERROR] ${msg}`, ...args),
+};
+
 const LOGS_DIR = process.env.LOGS_DIR || '/tmp/logs';
 const PREDICTIONS_LOG = path.join(LOGS_DIR, 'predictions.jsonl');
 
