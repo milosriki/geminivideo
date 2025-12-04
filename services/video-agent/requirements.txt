@@ -14,6 +14,7 @@ PyYAML>=6.0.1
 aiofiles>=23.2.1
 sqlalchemy>=2.0.23
 psycopg2-binary>=2.9.9
+opencv-python-headless>=4.9.0.80
 
 # Redis for async queues
 redis==5.0.1
