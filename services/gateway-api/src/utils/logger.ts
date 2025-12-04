@@ -95,7 +95,7 @@ export class Logger {
   private productionFormat() {
     return format.combine(
       format.json(),
-      format.printf((info) => {
+      format.printf((info: any) => {
         const { timestamp, level, message, metadata, ...rest } = info;
         return JSON.stringify({
           timestamp,
@@ -115,7 +115,7 @@ export class Logger {
   private developmentFormat() {
     return format.combine(
       format.colorize(),
-      format.printf((info) => {
+      format.printf((info: any) => {
         const { timestamp, level, message, metadata } = info;
         const metaStr = metadata && Object.keys(metadata).length > 0
           ? `\n${JSON.stringify(metadata, null, 2)}`
