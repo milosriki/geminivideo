@@ -60,7 +60,7 @@ export function NoVideosEmpty() {
       }
       title="No videos yet"
       description="Upload your first video to get started with AI-powered editing and analysis."
-      action={{ label: 'Upload Video', href: '/upload' }}
+      action={{ label: 'Upload Video', href: '/assets' }}
     />
   )
 }
