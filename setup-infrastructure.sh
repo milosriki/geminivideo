@@ -4,8 +4,8 @@ set -e
 # GeminVideo Infrastructure Setup Script
 # This script sets up Cloud SQL and Redis for the GeminVideo application
 
-PROJECT_ID="gen-lang-client-0427673522"
-REGION="us-west1"
+PROJECT_ID="${GCP_PROJECT_ID:-ptd-fitness-demo}"
+REGION="${GCP_REGION:-us-central1}"
 SQL_INSTANCE="geminivideo-db"
 REDIS_INSTANCE="geminivideo-redis"
 

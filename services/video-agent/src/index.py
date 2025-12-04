@@ -273,4 +273,6 @@ async def process_render_job(job_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8082)
+    import os
+    port = int(os.getenv("PORT", 8082))
+    uvicorn.run(app, host="0.0.0.0", port=port)
