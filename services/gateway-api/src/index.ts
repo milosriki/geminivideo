@@ -65,16 +65,35 @@ app.use(xssProtection);
 
 // Initialize security Redis for distributed rate limiting
 initializeSecurityRedis().catch(err => {
-  console.warn('Security Redis initialization failed:', err.message);
+  console.warn('Security Redis initialization failed (non-fatal):', err.message);
 });
 
-// Redis client for async queues
+// Redis client for async queues (optional - graceful degradation)
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const redisClient = createClient({ url: REDIS_URL });
-redisClient.on('error', (err) => console.error('Redis Client Error', err));
-redisClient.connect().then(() => {
-  console.log('✅ Redis connected for async queues');
-});
+const REDIS_ENABLED = process.env.REDIS_ENABLED !== 'false';
+let redisClient: ReturnType<typeof createClient> | null = null;
+let redisConnected = false;
+
+if (REDIS_ENABLED) {
+  redisClient = createClient({ url: REDIS_URL });
+  redisClient.on('error', (err) => {
+    if (redisConnected) {
+      console.error('Redis Client Error:', err.message);
+    }
+    // Don't spam logs if Redis is unavailable
+  });
+  redisClient.connect()
+    .then(() => {
+      redisConnected = true;
+      console.log('✅ Redis connected for async queues');
+    })
+    .catch((err) => {
+      console.warn('⚠️ Redis connection failed (Queue disabled):', err.message);
+      redisClient = null;
+    });
+} else {
+  console.log('ℹ️ Redis disabled via REDIS_ENABLED=false');
+}
 
 // PostgreSQL client for database access
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -215,14 +234,18 @@ app.post('/api/analyze',
       'QUEUED'
     ]);
     
-    // Push job to Redis queue
-    await redisClient.rPush('analysis_queue', assetId);
-    
+    // Push job to Redis queue (if available)
+    if (redisClient && redisConnected) {
+      await redisClient.rPush('analysis_queue', assetId);
+    } else {
+      console.warn('⚠️ Redis unavailable - job queued in DB only');
+    }
+
     // Return immediately with 202 Accepted
     res.status(202).json({
       asset_id: assetId,
       status: 'QUEUED',
-      message: 'Analysis job queued successfully'
+      message: redisClient ? 'Analysis job queued successfully' : 'Analysis job queued (sync mode - no Redis)'
     });
     
   } catch (error: any) {
@@ -437,13 +460,17 @@ app.post('/api/render/story_arc',
       output_path: `/tmp/output_${jobId}.mp4`
     };
     
-    // Push to render queue
-    await redisClient.rPush('render_queue', JSON.stringify(renderJob));
-    
+    // Push to render queue (if available)
+    if (redisClient && redisConnected) {
+      await redisClient.rPush('render_queue', JSON.stringify(renderJob));
+    } else {
+      console.warn('⚠️ Redis unavailable - render job not queued');
+    }
+
     // Return job info
     res.status(202).json({
       job_id: jobId,
-      status: 'QUEUED',
+      status: redisClient ? 'QUEUED' : 'PENDING',
       arc_name,
       selected_clips: selectedClips,
       message: 'Render job queued successfully'
