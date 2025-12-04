@@ -309,8 +309,10 @@ export function HomePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1 }}
       >
-        <div className="relative">
-          <GradientBackground className="absolute inset-0 opacity-20" />
+        <div className="relative overflow-hidden rounded-xl">
+          <div className="absolute inset-0 opacity-20">
+            <GradientBackground />
+          </div>
           <div className="relative rounded-xl border border-violet-500/30 p-6">
             <div className="flex items-start gap-4">
               <div className="rounded-lg bg-violet-500/20 p-3">

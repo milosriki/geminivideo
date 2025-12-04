@@ -1,4 +1,4 @@
-import { Container } from '@/components/Container'
+import { Container } from './Container'
 
 // Placeholder avatar images
 const avatarImage1 = 'https://ui-avatars.com/api/?name=Sheryl+Berge&background=random&size=56'

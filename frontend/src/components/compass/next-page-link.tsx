@@ -1,4 +1,4 @@
-import { ChevronRightIcon } from "@/icons/chevron-right-icon";
+import { ChevronRightIcon } from "./icons/chevron-right-icon";
 import { Link } from "@/components/catalyst/link";
 
 export function NextPageLink({

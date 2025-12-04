@@ -21,7 +21,6 @@ import { VideoCard } from '@/components/compass/video-card'
 import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/catalyst/dialog'
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert'
 import { Pagination, PaginationPrevious, PaginationNext, PaginationList, PaginationPage, PaginationGap } from '@/components/catalyst/pagination'
-import { IconButton } from '@/components/compass/icon-button'
 import { NoVideosEmpty } from '@/components/catalyst/empty-state'
 
 
@@ -96,16 +95,28 @@ export function AssetsPage() {
             More Filters
           </Button>
           <div className="flex gap-1">
-            <IconButton
+            <button
               onClick={() => setView('grid')}
-              variant={view === 'grid' ? 'solid' : 'ghost'}
-              icon={Squares2X2Icon}
-            />
-            <IconButton
+              className={`p-2 rounded-lg transition-colors ${
+                view === 'grid'
+                  ? 'bg-violet-500 text-white'
+                  : 'bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-800'
+              }`}
+              aria-label="Grid view"
+            >
+              <Squares2X2Icon className="h-5 w-5" />
+            </button>
+            <button
               onClick={() => setView('list')}
-              variant={view === 'list' ? 'solid' : 'ghost'}
-              icon={ListBulletIcon}
-            />
+              className={`p-2 rounded-lg transition-colors ${
+                view === 'list'
+                  ? 'bg-violet-500 text-white'
+                  : 'bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-800'
+              }`}
+              aria-label="List view"
+            >
+              <ListBulletIcon className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </div>

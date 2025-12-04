@@ -3,11 +3,11 @@ import {
   DropdownButton,
   DropdownItem,
   DropdownMenu,
-} from "@/components/dropdown";
-import { IconButton } from "@/components/icon-button";
-import { ChevronDownIcon } from "@/icons/chevron-down-icon";
-import { CloseIcon } from "@/icons/close-icon";
-import { MenuIcon } from "@/icons/menu-icon";
+} from "./dropdown";
+import { IconButton } from "./icon-button";
+import { ChevronDownIcon } from "./icons/chevron-down-icon";
+import { CloseIcon } from "./icons/close-icon";
+import { MenuIcon } from "./icons/menu-icon";
 import {
   CloseButton,
   Dialog,
