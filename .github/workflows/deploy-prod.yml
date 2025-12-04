@@ -35,9 +35,9 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: us-central1
+  GCP_REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
-  REPOSITORY: geminivideo
+  ARTIFACT_REGISTRY_REPO: geminivideo-repo
 
 jobs:
   # ===========================================================================

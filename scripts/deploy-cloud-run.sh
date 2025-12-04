@@ -61,7 +61,7 @@ export $(grep -v '^#' "$ENV_FILE" | grep -v '^$' | xargs)
 # GCP Configuration
 PROJECT_ID="${GCP_PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
 REGION="${CLOUD_RUN_REGION:-us-central1}"
-REPOSITORY="${ARTIFACT_REGISTRY_REPO:-geminivideo}"
+REPOSITORY="${ARTIFACT_REGISTRY_REPO:-geminivideo-repo}"
 SERVICE_ACCOUNT="${CLOUD_RUN_SERVICE_ACCOUNT:-geminivideo-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com}"
 
 # Validate required variables

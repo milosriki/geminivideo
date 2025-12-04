@@ -9,7 +9,7 @@ on:
 env:
   PROJECT_ID: ptd-fitness-demo
   GCP_REGION: us-central1
-  ARTIFACT_REGISTRY_REPO: cloud-run-repo
+  ARTIFACT_REGISTRY_REPO: geminivideo-repo
   GCS_BUCKET: ptd-fitness-demo_cloudbuild
   DOCKER_BUILDKIT: 1
 
@@ -126,7 +126,69 @@ jobs:
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/meta-publisher:${{ github.sha }}
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/meta-publisher:latest
 
-  # 5. Build Frontend
+  # 5. Build ML Service
+  build-ml-service:
+    name: Build ML Service
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+      - run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Build and Push
+        run: |
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:${{ github.sha }} \
+            -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:latest \
+            ./services/ml-service
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:${{ github.sha }}
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:latest
+
+  # 6. Build Titan Core
+  build-titan-core:
+    name: Build Titan Core
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+      - run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Build and Push
+        run: |
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/titan-core:${{ github.sha }} \
+            -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/titan-core:latest \
+            ./services/titan-core
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/titan-core:${{ github.sha }}
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/titan-core:latest
+
+  # 7. Build Frontend
   build-frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
@@ -151,7 +213,7 @@ jobs:
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:${{ github.sha }}
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:latest
 
-  # 6. Deploy All Services
+  # 8. Deploy All Services
   deploy:
     name: Deploy Services
     needs:
@@ -160,6 +222,8 @@ jobs:
         build-drive-intel,
         build-video-agent,
         build-meta-publisher,
+        build-ml-service,
+        build-titan-core,
         build-frontend,
       ]
     runs-on: ubuntu-latest
@@ -185,7 +249,9 @@ jobs:
             --allow-unauthenticated \
             --memory=2Gi \
             --cpu=2 \
-            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}"
+            --timeout=300 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
+            --set-secrets="OPENAI_API_KEY=openai-api-key:latest,SUPABASE_URL=supabase-url:latest,SUPABASE_KEY=supabase-key:latest,GEMINI_API_KEY=gemini-api-key:latest"
 
       # Deploy Video Agent
       - run: |
@@ -198,7 +264,22 @@ jobs:
             --memory=4Gi \
             --cpu=2 \
             --timeout=600 \
-            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}"
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
+            --set-secrets="OPENAI_API_KEY=openai-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest"
+
+      # Deploy ML Service
+      - run: |
+          gcloud run deploy ml-service \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:${{ github.sha }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --ingress=internal \
+            --allow-unauthenticated \
+            --memory=4Gi \
+            --cpu=2 \
+            --timeout=300 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
+            --set-secrets="DATABASE_URL=database-url:latest,REDIS_URL=redis-url:latest"
 
       # Deploy Meta Publisher
       - run: |
@@ -210,7 +291,23 @@ jobs:
             --allow-unauthenticated \
             --memory=1Gi \
             --cpu=1 \
-            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }},META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }},META_AD_ACCOUNT_ID=${{ secrets.META_AD_ACCOUNT_ID }},META_PAGE_ID=${{ secrets.META_PAGE_ID }},SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}"
+            --timeout=300 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
+            --set-secrets="META_ACCESS_TOKEN=meta-access-token:latest,SUPABASE_URL=supabase-url:latest,SUPABASE_KEY=supabase-key:latest"
+
+      # Deploy Titan Core
+      - run: |
+          gcloud run deploy titan-core \
+            --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/titan-core:${{ github.sha }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --ingress=internal \
+            --allow-unauthenticated \
+            --memory=4Gi \
+            --cpu=2 \
+            --timeout=900 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
+            --set-secrets="GEMINI_API_KEY=gemini-api-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,OPENAI_API_KEY=openai-api-key:latest"
 
       # Deploy Gateway API
       - run: |
@@ -220,9 +317,10 @@ jobs:
             --platform=managed \
             --ingress=all \
             --allow-unauthenticated \
-            --memory=1Gi \
-            --cpu=1 \
-            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCS_BUCKET=${{ env.GCS_BUCKET }},GCP_REGION=${{ env.GCP_REGION }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }},SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}"
+            --memory=2Gi \
+            --cpu=2 \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCS_BUCKET=${{ env.GCS_BUCKET }},GCP_REGION=${{ env.GCP_REGION }}" \
+            --set-secrets="GEMINI_API_KEY=gemini-api-key:latest,OPENAI_API_KEY=openai-api-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,DATABASE_URL=database-url:latest,REDIS_URL=redis-url:latest,SUPABASE_URL=supabase-url:latest,SUPABASE_KEY=supabase-key:latest"
 
       # Deploy Frontend
       - run: |
