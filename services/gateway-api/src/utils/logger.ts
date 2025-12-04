@@ -1,4 +1,8 @@
-import { createLogger, format, transports, Logger as WinstonLogger } from 'winston';
+/**
+ * Logger Utility - Console-based implementation
+ * Falls back to console logging when Winston is not available.
+ */
+
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -35,137 +39,76 @@ interface LoggerConfig {
 }
 
 /**
- * Structured logger using Winston
- * Provides JSON logging in production, pretty printing in development
+ * Console-based logger implementation
  */
 export class Logger {
-  private logger: WinstonLogger;
   private serviceName: string;
   private defaultContext: LogContext;
+  private logLevel: string;
 
   constructor(config: LoggerConfig = {}) {
     this.serviceName = config.serviceName || 'gateway-api';
     this.defaultContext = {};
+    this.logLevel = config.level || process.env.LOG_LEVEL || 'info';
+  }
 
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    const logLevel = config.level || process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info');
+  private shouldLog(level: string): boolean {
+    const levels = ['debug', 'info', 'warn', 'error', 'fatal'];
+    const currentIndex = levels.indexOf(this.logLevel);
+    const messageIndex = levels.indexOf(level);
+    return messageIndex >= currentIndex;
+  }
 
-    // Define custom format
-    const customFormat = format.combine(
-      format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-      format.errors({ stack: true }),
-      format.metadata({ fillExcept: ['message', 'level', 'timestamp'] }),
-      isDevelopment ? this.developmentFormat() : this.productionFormat()
-    );
+  private formatLog(level: string, message: string, context?: LogContext): string {
+    const timestamp = new Date().toISOString();
+    const mergedContext = { ...this.defaultContext, ...context };
 
-    // Configure transports
-    const logTransports: any[] = [];
-
-    if (config.enableConsole !== false) {
-      logTransports.push(
-        new transports.Console({
-          level: logLevel,
-        })
-      );
+    if (process.env.NODE_ENV === 'production') {
+      return JSON.stringify({
+        timestamp,
+        level,
+        service: this.serviceName,
+        message,
+        ...mergedContext,
+      });
     }
 
-    if (config.enableFile) {
-      logTransports.push(
-        new transports.File({
-          filename: config.filename || 'logs/error.log',
-          level: 'error',
-        }),
-        new transports.File({
-          filename: 'logs/combined.log',
-        })
-      );
-    }
-
-    this.logger = createLogger({
-      level: logLevel,
-      format: customFormat,
-      defaultMeta: { service: this.serviceName },
-      transports: logTransports,
-    });
+    const contextStr = Object.keys(mergedContext).length > 0
+      ? ` ${JSON.stringify(mergedContext)}`
+      : '';
+    return `${timestamp} [${level.toUpperCase()}] [${this.serviceName}]: ${message}${contextStr}`;
   }
 
-  /**
-   * Production format - JSON output
-   */
-  private productionFormat() {
-    return format.combine(
-      format.json(),
-      format.printf((info: any) => {
-        const { timestamp, level, message, metadata, ...rest } = info;
-        return JSON.stringify({
-          timestamp,
-          level,
-          service: this.serviceName,
-          message,
-          ...metadata,
-          ...rest,
-        });
-      })
-    );
-  }
-
-  /**
-   * Development format - Pretty colored output
-   */
-  private developmentFormat() {
-    return format.combine(
-      format.colorize(),
-      format.printf((info: any) => {
-        const { timestamp, level, message, metadata } = info;
-        const metaStr = metadata && Object.keys(metadata).length > 0
-          ? `\n${JSON.stringify(metadata, null, 2)}`
-          : '';
-        return `${timestamp} [${level}]: ${message}${metaStr}`;
-      })
-    );
-  }
-
-  /**
-   * Set default context for all logs
-   */
   setDefaultContext(context: LogContext): void {
     this.defaultContext = { ...this.defaultContext, ...context };
   }
 
-  /**
-   * Clear default context
-   */
   clearDefaultContext(): void {
     this.defaultContext = {};
   }
 
-  /**
-   * Debug level log
-   */
   debug(message: string, context?: LogContext): void {
-    this.logger.debug(message, this.mergeContext(context));
+    if (this.shouldLog('debug')) {
+      console.debug(this.formatLog('debug', message, context));
+    }
   }
 
-  /**
-   * Info level log
-   */
   info(message: string, context?: LogContext): void {
-    this.logger.info(message, this.mergeContext(context));
+    if (this.shouldLog('info')) {
+      console.log(this.formatLog('info', message, context));
+    }
   }
 
-  /**
-   * Warning level log
-   */
   warn(message: string, context?: LogContext): void {
-    this.logger.warn(message, this.mergeContext(context));
+    if (this.shouldLog('warn')) {
+      console.warn(this.formatLog('warn', message, context));
+    }
   }
 
-  /**
-   * Error level log
-   */
   error(message: string, error?: Error | unknown, context?: LogContext): void {
-    const errorContext: any = this.mergeContext(context);
+    if (!this.shouldLog('error')) return;
 
+    const errorContext: any = { ...context };
     if (error instanceof Error) {
       errorContext.error = {
         name: error.name,
@@ -176,15 +119,13 @@ export class Logger {
       errorContext.error = error;
     }
 
-    this.logger.error(message, errorContext);
+    console.error(this.formatLog('error', message, errorContext));
   }
 
-  /**
-   * Fatal level log
-   */
   fatal(message: string, error?: Error | unknown, context?: LogContext): void {
-    const errorContext: any = this.mergeContext(context);
+    if (!this.shouldLog('fatal')) return;
 
+    const errorContext: any = { ...context };
     if (error instanceof Error) {
       errorContext.error = {
         name: error.name,
@@ -195,30 +136,18 @@ export class Logger {
       errorContext.error = error;
     }
 
-    this.logger.log('fatal', message, errorContext);
+    console.error(this.formatLog('fatal', message, errorContext));
   }
 
-  /**
-   * Merge context with default context
-   */
-  private mergeContext(context?: LogContext): any {
-    return { ...this.defaultContext, ...context };
-  }
-
-  /**
-   * Create a child logger with pre-set context
-   */
   child(context: LogContext): Logger {
     const childLogger = new Logger({
       serviceName: this.serviceName,
+      level: this.logLevel,
     });
     childLogger.setDefaultContext({ ...this.defaultContext, ...context });
     return childLogger;
   }
 
-  /**
-   * Generate a unique request ID
-   */
   static generateRequestId(): string {
     return uuidv4();
   }
@@ -226,18 +155,13 @@ export class Logger {
 
 /**
  * Request logger middleware
- * Adds request ID and logs all HTTP requests
  */
 export function requestLoggerMiddleware(logger: Logger) {
   return (req: any, res: any, next: any) => {
-    // Generate request ID
     const requestId = Logger.generateRequestId();
     req.id = requestId;
-
-    // Create request-scoped logger
     req.logger = logger.child({ requestId });
 
-    // Log request start
     const startTime = Date.now();
     req.logger.info(`${req.method} ${req.path}`, {
       method: req.method,
@@ -247,7 +171,6 @@ export function requestLoggerMiddleware(logger: Logger) {
       userAgent: req.get('user-agent'),
     });
 
-    // Log response
     const originalSend = res.send;
     res.send = function (data: any) {
       const duration = Date.now() - startTime;
@@ -270,7 +193,6 @@ export function requestLoggerMiddleware(logger: Logger) {
 export const logger = new Logger({
   serviceName: process.env.SERVICE_NAME || 'gateway-api',
   enableConsole: true,
-  enableFile: process.env.NODE_ENV === 'production',
 });
 
 export default logger;
