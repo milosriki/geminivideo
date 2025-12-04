@@ -31,14 +31,14 @@ mediapipe
 # AI APIs
 openai>=1.6.1
 anthropic>=0.8.1
-pyautogen>=0.2.8
-autogen-agentchat>=0.4.0
-autogen-core>=0.4.0
-autogen-ext[openai]>=0.4.0
+# pyautogen>=0.2.8
+autogen-agentchat==0.4.4
+autogen-core==0.4.4
+autogen-ext[openai]==0.4.4
 
 # Audio/Video
 openai-whisper==20231117
-tiktoken==0.5.2
+tiktoken>=0.8.0
 
 # HTTP
 requests==2.31.0

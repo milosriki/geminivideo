@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
 # Pre-download ML models during build to avoid runtime delays
 # Download YOLO model
