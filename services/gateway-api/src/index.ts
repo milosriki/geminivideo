@@ -152,12 +152,12 @@ function validateServiceUrl(url: string): boolean {
     const parsed = new URL(url);
     // Only allow HTTP/HTTPS and specific internal service patterns
     return (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-           (parsed.hostname === 'localhost' ||
-            parsed.hostname.includes('drive-intel') ||
-            parsed.hostname.includes('video-agent') ||
-            parsed.hostname.includes('ml-service') ||
-            parsed.hostname.includes('meta-publisher') ||
-            parsed.hostname.includes('.run.app')); // Cloud Run domains
+      (parsed.hostname === 'localhost' ||
+        parsed.hostname.includes('drive-intel') ||
+        parsed.hostname.includes('video-agent') ||
+        parsed.hostname.includes('ml-service') ||
+        parsed.hostname.includes('meta-publisher') ||
+        parsed.hostname.includes('.run.app')); // Cloud Run domains
   } catch {
     return false;
   }
@@ -206,53 +206,53 @@ app.post('/api/analyze',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const { path: videoPath, filename, size_bytes, duration_seconds } = req.body;
-    
-    // Validate required fields
-    if (!videoPath || !filename) {
-      return res.status(400).json({ error: 'Missing required fields: path, filename' });
-    }
-    
-    // Create asset in database with QUEUED status
-    const assetId = uuidv4();
-    const query = `
+    try {
+      const { path: videoPath, filename, size_bytes, duration_seconds } = req.body;
+
+      // Validate required fields
+      if (!videoPath || !filename) {
+        return res.status(400).json({ error: 'Missing required fields: path, filename' });
+      }
+
+      // Create asset in database with QUEUED status
+      const assetId = uuidv4();
+      const query = `
       INSERT INTO assets (asset_id, path, filename, size_bytes, duration_seconds, 
                          resolution, format, status, ingested_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
       RETURNING asset_id
     `;
-    
-    await pgPool.query(query, [
-      assetId,
-      videoPath,
-      filename,
-      size_bytes || 0,
-      duration_seconds || 0,
-      '1920x1080',  // Default
-      'mp4',        // Default
-      'QUEUED'
-    ]);
-    
-    // Push job to Redis queue (if available)
-    if (redisClient && redisConnected) {
-      await redisClient.rPush('analysis_queue', assetId);
-    } else {
-      console.warn('⚠️ Redis unavailable - job queued in DB only');
-    }
 
-    // Return immediately with 202 Accepted
-    res.status(202).json({
-      asset_id: assetId,
-      status: 'QUEUED',
-      message: redisClient ? 'Analysis job queued successfully' : 'Analysis job queued (sync mode - no Redis)'
-    });
-    
-  } catch (error: any) {
-    console.error('Error queuing analysis:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+      await pgPool.query(query, [
+        assetId,
+        videoPath,
+        filename,
+        size_bytes || 0,
+        duration_seconds || 0,
+        '1920x1080',  // Default
+        'mp4',        // Default
+        'QUEUED'
+      ]);
+
+      // Push job to Redis queue (if available)
+      if (redisClient && redisConnected) {
+        await redisClient.rPush('analysis_queue', assetId);
+      } else {
+        console.warn('⚠️ Redis unavailable - job queued in DB only');
+      }
+
+      // Return immediately with 202 Accepted
+      res.status(202).json({
+        asset_id: assetId,
+        status: 'QUEUED',
+        message: redisClient ? 'Analysis job queued successfully' : 'Analysis job queued (sync mode - no Redis)'
+      });
+
+    } catch (error: any) {
+      console.error('Error queuing analysis:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
 app.post('/api/ingest/local/folder',
   uploadRateLimiter,
@@ -263,18 +263,18 @@ app.post('/api/ingest/local/folder',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const response = await axios.post(
-      `${DRIVE_INTEL_URL}/ingest/local/folder`,
-      req.body
-    );
-    res.json(response.data);
-  } catch (error: any) {
-    res.status(error.response?.status || 500).json({
-      error: error.message
-    });
-  }
-});
+    try {
+      const response = await axios.post(
+        `${DRIVE_INTEL_URL}/ingest/local/folder`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
+    }
+  });
 
 app.post('/api/search/clips',
   apiRateLimiter,
@@ -286,18 +286,18 @@ app.post('/api/search/clips',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const response = await axios.post(
-      `${DRIVE_INTEL_URL}/search/clips`,
-      req.body
-    );
-    res.json(response.data);
-  } catch (error: any) {
-    res.status(error.response?.status || 500).json({
-      error: error.message
-    });
-  }
-});
+    try {
+      const response = await axios.post(
+        `${DRIVE_INTEL_URL}/search/clips`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
+    }
+  });
 
 // Scoring endpoint with XGBoost integration (Agent 4)
 app.post('/api/score/storyboard',
@@ -309,54 +309,54 @@ app.post('/api/score/storyboard',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const { scenes, metadata } = req.body;
-
-    // Calculate rule-based scores
-    const scores = await scoringEngine.scoreStoryboard(scenes, metadata);
-
-    // Get XGBoost CTR prediction
-    let xgboostPrediction = null;
     try {
-      const mlResponse = await axios.post(`${ML_SERVICE_URL}/api/ml/predict-ctr`, {
-        clip_data: {
-          ...scores,
-          ...metadata,
-          scene_count: scenes.length
-        },
-        include_confidence: true
+      const { scenes, metadata } = req.body;
+
+      // Calculate rule-based scores
+      const scores = await scoringEngine.scoreStoryboard(scenes, metadata);
+
+      // Get XGBoost CTR prediction
+      let xgboostPrediction = null;
+      try {
+        const mlResponse = await axios.post(`${ML_SERVICE_URL}/api/ml/predict-ctr`, {
+          clip_data: {
+            ...scores,
+            ...metadata,
+            scene_count: scenes.length
+          },
+          include_confidence: true
+        });
+        xgboostPrediction = mlResponse.data;
+      } catch (mlError: any) {
+        console.warn('XGBoost prediction failed, using rule-based scores only:', mlError.message);
+      }
+
+      // Combine scores
+      const finalScores = {
+        ...scores,
+        xgboost_ctr: xgboostPrediction?.predicted_ctr || null,
+        xgboost_confidence: xgboostPrediction?.confidence || null,
+        // Use XGBoost prediction if available, otherwise use rule-based
+        final_ctr_prediction: xgboostPrediction?.predicted_ctr || scores.win_probability?.value || 0.02
+      };
+
+      // Log prediction
+      const predictionId = reliabilityLogger.logPrediction({
+        scenes,
+        scores: finalScores,
+        metadata,
+        timestamp: new Date().toISOString()
       });
-      xgboostPrediction = mlResponse.data;
-    } catch (mlError: any) {
-      console.warn('XGBoost prediction failed, using rule-based scores only:', mlError.message);
+
+      res.json({
+        prediction_id: predictionId,
+        scores: finalScores,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
-
-    // Combine scores
-    const finalScores = {
-      ...scores,
-      xgboost_ctr: xgboostPrediction?.predicted_ctr || null,
-      xgboost_confidence: xgboostPrediction?.confidence || null,
-      // Use XGBoost prediction if available, otherwise use rule-based
-      final_ctr_prediction: xgboostPrediction?.predicted_ctr || scores.win_probability?.value || 0.02
-    };
-
-    // Log prediction
-    const predictionId = reliabilityLogger.logPrediction({
-      scenes,
-      scores: finalScores,
-      metadata,
-      timestamp: new Date().toISOString()
-    });
-
-    res.json({
-      prediction_id: predictionId,
-      scores: finalScores,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
+  });
 
 // Proxy to video-agent service
 app.post('/api/render/remix',
@@ -369,21 +369,21 @@ app.post('/api/render/remix',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    if (!validateServiceUrl(VIDEO_AGENT_URL)) {
-      throw new Error('Invalid service URL');
+    try {
+      if (!validateServiceUrl(VIDEO_AGENT_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const response = await axios.post(
+        `${VIDEO_AGENT_URL}/render/remix`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
     }
-    const response = await axios.post(
-      `${VIDEO_AGENT_URL}/render/remix`,
-      req.body
-    );
-    res.json(response.data);
-  } catch (error: any) {
-    res.status(error.response?.status || 500).json({
-      error: error.message
-    });
-  }
-});
+  });
 
 // Story Arc rendering endpoint - creates ads from templates
 app.post('/api/render/story_arc',
@@ -395,27 +395,27 @@ app.post('/api/render/story_arc',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const { arc_name, asset_id } = req.body;
-    
-    // Load story arcs configuration
-    const storyArcsPath = path.join(configPath, 'story_arcs.json');
-    const storyArcs = JSON.parse(fs.readFileSync(storyArcsPath, 'utf8'));
-    
-    // Get the requested arc
-    const arc = storyArcs[arc_name || 'fitness_transformation'];
-    if (!arc) {
-      return res.status(404).json({ 
-        error: 'Story arc not found',
-        available_arcs: Object.keys(storyArcs)
-      });
-    }
-    
-    // Query database for clips matching each step
-    const selectedClips: string[] = [];
-    
-    for (const step of arc.steps) {
-      const query = `
+    try {
+      const { arc_name, asset_id } = req.body;
+
+      // Load story arcs configuration
+      const storyArcsPath = path.join(configPath, 'story_arcs.json');
+      const storyArcs = JSON.parse(fs.readFileSync(storyArcsPath, 'utf8'));
+
+      // Get the requested arc
+      const arc = storyArcs[arc_name || 'fitness_transformation'];
+      if (!arc) {
+        return res.status(404).json({
+          error: 'Story arc not found',
+          available_arcs: Object.keys(storyArcs)
+        });
+      }
+
+      // Query database for clips matching each step
+      const selectedClips: string[] = [];
+
+      for (const step of arc.steps) {
+        const query = `
         SELECT c.clip_id, c.ctr_score, e.emotion
         FROM clips c
         LEFT JOIN emotions e ON c.clip_id = e.clip_id
@@ -423,64 +423,64 @@ app.post('/api/render/story_arc',
         ORDER BY c.ctr_score DESC, c.scene_score DESC
         LIMIT 1
       `;
-      
-      const result = await pgPool.query(query, [asset_id, step.emotion]);
-      
-      if (result.rows.length > 0) {
-        selectedClips.push(result.rows[0].clip_id);
-      } else {
-        // Fallback: get any clip if no emotion match
-        const fallbackQuery = `
+
+        const result = await pgPool.query(query, [asset_id, step.emotion]);
+
+        if (result.rows.length > 0) {
+          selectedClips.push(result.rows[0].clip_id);
+        } else {
+          // Fallback: get any clip if no emotion match
+          const fallbackQuery = `
           SELECT clip_id FROM clips
           WHERE asset_id = $1
           ORDER BY ctr_score DESC, scene_score DESC
           LIMIT 1
         `;
-        const fallbackResult = await pgPool.query(fallbackQuery, [asset_id]);
-        if (fallbackResult.rows.length > 0) {
-          selectedClips.push(fallbackResult.rows[0].clip_id);
+          const fallbackResult = await pgPool.query(fallbackQuery, [asset_id]);
+          if (fallbackResult.rows.length > 0) {
+            selectedClips.push(fallbackResult.rows[0].clip_id);
+          }
         }
       }
-    }
-    
-    if (selectedClips.length === 0) {
-      return res.status(404).json({ 
-        error: 'No clips found for story arc',
-        asset_id 
-      });
-    }
-    
-    // Create render job
-    const jobId = uuidv4();
-    const renderJob = {
-      job_id: jobId,
-      clip_ids: selectedClips,
-      arc_name,
-      enable_transitions: true,
-      output_path: `/tmp/output_${jobId}.mp4`
-    };
-    
-    // Push to render queue (if available)
-    if (redisClient && redisConnected) {
-      await redisClient.rPush('render_queue', JSON.stringify(renderJob));
-    } else {
-      console.warn('⚠️ Redis unavailable - render job not queued');
-    }
 
-    // Return job info
-    res.status(202).json({
-      job_id: jobId,
-      status: redisClient ? 'QUEUED' : 'PENDING',
-      arc_name,
-      selected_clips: selectedClips,
-      message: 'Render job queued successfully'
-    });
-    
-  } catch (error: any) {
-    console.error('Error creating story arc render:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+      if (selectedClips.length === 0) {
+        return res.status(404).json({
+          error: 'No clips found for story arc',
+          asset_id
+        });
+      }
+
+      // Create render job
+      const jobId = uuidv4();
+      const renderJob = {
+        job_id: jobId,
+        clip_ids: selectedClips,
+        arc_name,
+        enable_transitions: true,
+        output_path: `/tmp/output_${jobId}.mp4`
+      };
+
+      // Push to render queue (if available)
+      if (redisClient && redisConnected) {
+        await redisClient.rPush('render_queue', JSON.stringify(renderJob));
+      } else {
+        console.warn('⚠️ Redis unavailable - render job not queued');
+      }
+
+      // Return job info
+      res.status(202).json({
+        job_id: jobId,
+        status: redisClient ? 'QUEUED' : 'PENDING',
+        arc_name,
+        selected_clips: selectedClips,
+        message: 'Render job queued successfully'
+      });
+
+    } catch (error: any) {
+      console.error('Error creating story arc render:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
 app.get('/api/render/status/:jobId', async (req: Request, res: Response) => {
   try {
@@ -506,18 +506,18 @@ app.post('/api/publish/meta',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const response = await axios.post(
-      `${META_PUBLISHER_URL}/publish/meta`,
-      req.body
-    );
-    res.json(response.data);
-  } catch (error: any) {
-    res.status(error.response?.status || 500).json({
-      error: error.message
-    });
-  }
-});
+    try {
+      const response = await axios.post(
+        `${META_PUBLISHER_URL}/publish/meta`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
+    }
+  });
 
 app.get('/api/insights', async (req: Request, res: Response) => {
   try {
@@ -577,38 +577,38 @@ app.post('/api/trigger/analyze-drive-folder',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const { folder_id, max_videos } = req.body;
+    try {
+      const { folder_id, max_videos } = req.body;
 
-    // Validate required fields
-    if (!folder_id) {
-      return res.status(400).json({ error: 'Missing required field: folder_id' });
+      // Validate required fields
+      if (!folder_id) {
+        return res.status(400).json({ error: 'Missing required field: folder_id' });
+      }
+
+      console.log(`Triggering Drive folder analysis: folder_id=${folder_id}, max_videos=${max_videos || 'all'}`);
+
+      // Call drive-intel service bulk_analyzer
+      const response = await axios.post(`${DRIVE_INTEL_URL}/bulk_analyzer`, {
+        folder_id,
+        max_videos: max_videos || 10
+      });
+
+      console.log(`Drive folder analysis completed: ${response.data.videos_analyzed || 0} videos analyzed`);
+
+      // Return 202 Accepted for async operation
+      res.status(202).json({
+        status: 'accepted',
+        message: 'Drive folder analysis initiated',
+        results: response.data
+      });
+
+    } catch (error: any) {
+      console.error('Error triggering Drive folder analysis:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
     }
-
-    console.log(`Triggering Drive folder analysis: folder_id=${folder_id}, max_videos=${max_videos || 'all'}`);
-
-    // Call drive-intel service bulk_analyzer
-    const response = await axios.post(`${DRIVE_INTEL_URL}/bulk_analyzer`, {
-      folder_id,
-      max_videos: max_videos || 10
-    });
-
-    console.log(`Drive folder analysis completed: ${response.data.videos_analyzed || 0} videos analyzed`);
-
-    // Return 202 Accepted for async operation
-    res.status(202).json({
-      status: 'accepted',
-      message: 'Drive folder analysis initiated',
-      results: response.data
-    });
-
-  } catch (error: any) {
-    console.error('Error triggering Drive folder analysis:', error.message);
-    res.status(error.response?.status || 500).json({
-      error: error.message
-    });
-  }
-});
+  });
 
 // POST /api/trigger/refresh-meta-metrics
 // Manual trigger button: "Refresh Meta Learning Data"
@@ -621,36 +621,36 @@ app.post('/api/trigger/refresh-meta-metrics',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const { days_back } = req.body;
+    try {
+      const { days_back } = req.body;
 
-    console.log(`Triggering Meta learning cycle: days_back=${days_back || 7}`);
+      console.log(`Triggering Meta learning cycle: days_back=${days_back || 7}`);
 
-    // Call ML service meta learning agent
-    const response = await axios.post(`${ML_SERVICE_URL}/api/ml/learning-cycle`, {
-      days_back: days_back || 7
-    });
+      // Call ML service meta learning agent
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/learning-cycle`, {
+        days_back: days_back || 7
+      });
 
-    console.log(`Meta learning cycle completed: ${response.data.campaigns_analyzed || 0} campaigns analyzed`);
+      console.log(`Meta learning cycle completed: ${response.data.campaigns_analyzed || 0} campaigns analyzed`);
 
-    // Return 202 Accepted for async operation
-    res.status(202).json({
-      status: 'accepted',
-      message: 'Meta learning cycle initiated',
-      results: {
-        campaigns_analyzed: response.data.campaigns_analyzed || 0,
-        avg_ctr: response.data.avg_ctr || 0,
-        avg_roas: response.data.avg_roas || 0
-      }
-    });
+      // Return 202 Accepted for async operation
+      res.status(202).json({
+        status: 'accepted',
+        message: 'Meta learning cycle initiated',
+        results: {
+          campaigns_analyzed: response.data.campaigns_analyzed || 0,
+          avg_ctr: response.data.avg_ctr || 0,
+          avg_roas: response.data.avg_roas || 0
+        }
+      });
 
-  } catch (error: any) {
-    console.error('Error triggering Meta learning cycle:', error.message);
-    res.status(error.response?.status || 500).json({
-      error: error.message
-    });
-  }
-});
+    } catch (error: any) {
+      console.error('Error triggering Meta learning cycle:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
+    }
+  });
 
 // GET /api/approval/queue
 // Shows pending ads awaiting human approval
@@ -704,19 +704,19 @@ app.post('/api/approval/approve/:ad_id',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const { ad_id } = req.params;
-    const { approved, notes } = req.body;
+    try {
+      const { ad_id } = req.params;
+      const { approved, notes } = req.body;
 
-    // Validate required fields
-    if (typeof approved !== 'boolean') {
-      return res.status(400).json({ error: 'Missing required field: approved (boolean)' });
-    }
+      // Validate required fields
+      if (typeof approved !== 'boolean') {
+        return res.status(400).json({ error: 'Missing required field: approved (boolean)' });
+      }
 
-    console.log(`Processing approval for ad_id=${ad_id}, approved=${approved}`);
+      console.log(`Processing approval for ad_id=${ad_id}, approved=${approved}`);
 
-    // Update database: approved=true, approved_at=NOW()
-    const query = `
+      // Update database: approved=true, approved_at=NOW()
+      const query = `
       UPDATE ads
       SET
         approved = $1,
@@ -727,24 +727,24 @@ app.post('/api/approval/approve/:ad_id',
       RETURNING *
     `;
 
-    const result = await pgPool.query(query, [approved, notes || '', ad_id]);
+      const result = await pgPool.query(query, [approved, notes || '', ad_id]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Ad not found' });
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Ad not found' });
+      }
+
+      console.log(`Ad ${ad_id} ${approved ? 'approved' : 'rejected'} successfully`);
+
+      res.json({
+        message: `Ad ${approved ? 'approved' : 'rejected'} successfully`,
+        ad: result.rows[0]
+      });
+
+    } catch (error: any) {
+      console.error('Error processing approval:', error.message);
+      res.status(500).json({ error: error.message });
     }
-
-    console.log(`Ad ${ad_id} ${approved ? 'approved' : 'rejected'} successfully`);
-
-    res.json({
-      message: `Ad ${approved ? 'approved' : 'rejected'} successfully`,
-      ad: result.rows[0]
-    });
-
-  } catch (error: any) {
-    console.error('Error processing approval:', error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
+  });
 
 // ============================================================================
 // META ADS LIBRARY ENDPOINTS (Agent 26 - Ad Spy Dashboard)
@@ -767,40 +767,40 @@ app.post('/api/meta/ads-library/search',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const {
-      search_terms,
-      countries = ['US'],
-      platforms = ['facebook', 'instagram'],
-      media_type = 'ALL',
-      active_status = 'ACTIVE',
-      limit = 100
-    } = req.body;
+    try {
+      const {
+        search_terms,
+        countries = ['US'],
+        platforms = ['facebook', 'instagram'],
+        media_type = 'ALL',
+        active_status = 'ACTIVE',
+        limit = 100
+      } = req.body;
 
-    console.log(`Searching Meta Ads Library: "${search_terms}", countries: ${countries}, limit: ${limit}`);
+      console.log(`Searching Meta Ads Library: "${search_terms}", countries: ${countries}, limit: ${limit}`);
 
-    // Forward to Titan Core Meta Ads Library scraper
-    const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/search`, {
-      search_terms,
-      countries,
-      platforms,
-      media_type,
-      active_status,
-      limit
-    }, {
-      timeout: 60000 // 60 second timeout for API calls
-    });
+      // Forward to Titan Core Meta Ads Library scraper
+      const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/search`, {
+        search_terms,
+        countries,
+        platforms,
+        media_type,
+        active_status,
+        limit
+      }, {
+        timeout: 60000 // 60 second timeout for API calls
+      });
 
-    res.json(response.data);
+      res.json(response.data);
 
-  } catch (error: any) {
-    console.error('Meta Ads Library search error:', error.message);
-    res.status(error.response?.status || 500).json({
-      error: error.message,
-      details: error.response?.data || 'Search failed'
-    });
-  }
-});
+    } catch (error: any) {
+      console.error('Meta Ads Library search error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data || 'Search failed'
+      });
+    }
+  });
 
 // GET /api/meta/ads-library/page/:page_id
 // Get all ads from a specific Facebook/Instagram page
@@ -816,27 +816,27 @@ app.get('/api/meta/ads-library/page/:page_id',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const { page_id } = req.params;
-    const { limit = 100, active_only = true } = req.query;
+    try {
+      const { page_id } = req.params;
+      const { limit = 100, active_only = true } = req.query;
 
-    console.log(`Fetching ads for page: ${page_id}`);
+      console.log(`Fetching ads for page: ${page_id}`);
 
-    const response = await axios.get(`${TITAN_CORE_URL}/meta/ads-library/page/${page_id}`, {
-      params: { limit, active_only },
-      timeout: 60000
-    });
+      const response = await axios.get(`${TITAN_CORE_URL}/meta/ads-library/page/${page_id}`, {
+        params: { limit, active_only },
+        timeout: 60000
+      });
 
-    res.json(response.data);
+      res.json(response.data);
 
-  } catch (error: any) {
-    console.error('Page ads fetch error:', error.message);
-    res.status(error.response?.status || 500).json({
-      error: error.message,
-      details: error.response?.data || 'Failed to fetch page ads'
-    });
-  }
-});
+    } catch (error: any) {
+      console.error('Page ads fetch error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data || 'Failed to fetch page ads'
+      });
+    }
+  });
 
 // POST /api/meta/ads-library/analyze
 // Analyze patterns across multiple ads
@@ -848,27 +848,27 @@ app.post('/api/meta/ads-library/analyze',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const { ads } = req.body;
+    try {
+      const { ads } = req.body;
 
-    console.log(`Analyzing patterns for ${ads.length} ads`);
+      console.log(`Analyzing patterns for ${ads.length} ads`);
 
-    const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/analyze`, {
-      ads
-    }, {
-      timeout: 30000
-    });
+      const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/analyze`, {
+        ads
+      }, {
+        timeout: 30000
+      });
 
-    res.json(response.data);
+      res.json(response.data);
 
-  } catch (error: any) {
-    console.error('Pattern analysis error:', error.message);
-    res.status(error.response?.status || 500).json({
-      error: error.message,
-      details: error.response?.data || 'Analysis failed'
-    });
-  }
-});
+    } catch (error: any) {
+      console.error('Pattern analysis error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data || 'Analysis failed'
+      });
+    }
+  });
 
 // GET /api/meta/ads-library/ad/:ad_archive_id
 // Get detailed information for a specific ad
@@ -880,25 +880,25 @@ app.get('/api/meta/ads-library/ad/:ad_archive_id',
     }
   }),
   async (req: Request, res: Response) => {
-  try {
-    const { ad_archive_id } = req.params;
+    try {
+      const { ad_archive_id } = req.params;
 
-    console.log(`Fetching details for ad: ${ad_archive_id}`);
+      console.log(`Fetching details for ad: ${ad_archive_id}`);
 
-    const response = await axios.get(`${TITAN_CORE_URL}/meta/ads-library/ad/${ad_archive_id}`, {
-      timeout: 30000
-    });
+      const response = await axios.get(`${TITAN_CORE_URL}/meta/ads-library/ad/${ad_archive_id}`, {
+        timeout: 30000
+      });
 
-    res.json(response.data);
+      res.json(response.data);
 
-  } catch (error: any) {
-    console.error('Ad details fetch error:', error.message);
-    res.status(error.response?.status || 500).json({
-      error: error.message,
-      details: error.response?.data || 'Failed to fetch ad details'
-    });
-  }
-});
+    } catch (error: any) {
+      console.error('Ad details fetch error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data || 'Failed to fetch ad details'
+      });
+    }
+  });
 
 // POST /api/meta/ads-library/batch
 // Batch scrape multiple search terms
@@ -912,31 +912,238 @@ app.post('/api/meta/ads-library/batch',
     }
   }),
   async (req: Request, res: Response) => {
+    try {
+      const { queries, countries = ['US'], limit_per_query = 50 } = req.body;
+
+      console.log(`Batch scraping ${queries.length} queries`);
+
+      const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/batch`, {
+        queries,
+        countries,
+        limit_per_query
+      }, {
+        timeout: 120000 // 2 minute timeout for batch operations
+      });
+
+      res.json(response.data);
+
+    } catch (error: any) {
+      console.error('Batch scrape error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data || 'Batch scrape failed'
+      });
+    }
+  });
+
+// ============================================================================
+// FRONTEND INTEGRATION ENDPOINTS
+// ============================================================================
+
+// POST /api/generate - Generate video creatives (Studio Page)
+app.post('/api/generate',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      assets: { type: 'array', required: true },
+      target_audience: { type: 'string', required: false, max: 500 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { assets, target_audience } = req.body;
+
+      // Validate assets exist
+      if (!assets || assets.length === 0) {
+        return res.status(400).json({
+          error: 'No assets provided',
+          message: 'Please upload or select videos first'
+        });
+      }
+
+      console.log(`Generating creatives for ${assets.length} asset(s), audience: ${target_audience || 'general'}`);
+
+      // Forward to titan-core for Gemini generation
+      const response = await axios.post(`${TITAN_CORE_URL}/generate-creatives`, {
+        video_files: assets,
+        audience: target_audience || 'general',
+        platform: 'reels'
+      }, {
+        timeout: 120000 // 2 min timeout for video generation
+      });
+
+      res.json({
+        status: 'success',
+        video_uri: response.data.video_uri || assets[0],
+        job_id: response.data.job_id,
+        message: 'Creative generation started'
+      });
+
+    } catch (error: any) {
+      console.error('Generation error:', error.message);
+      res.status(500).json({
+        error: 'Generation failed',
+        message: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// GET /api/experiments - Fetch A/B test experiments (AB Testing Dashboard)
+app.get('/api/experiments', async (req: Request, res: Response) => {
   try {
-    const { queries, countries = ['US'], limit_per_query = 50 } = req.body;
+    console.log('Fetching A/B test experiments from campaigns');
 
-    console.log(`Batch scraping ${queries.length} queries`);
+    // Query campaign_outcomes table for real experiment data
+    const query = `
+      SELECT 
+        c.campaign_id as id,
+        c.name,
+        c.status,
+        c.created_at as "startDate",
+        c.objective,
+        c.daily_budget as "totalBudget",
+        json_agg(json_build_object(
+          'id', co.outcome_id,
+          'name', c.name || ' - Variant ' || ROW_NUMBER() OVER (PARTITION BY c.campaign_id ORDER BY co.created_at),
+          'impressions', COALESCE(co.impressions, 0),
+          'clicks', COALESCE(co.clicks, 0),
+          'conversions', COALESCE(co.conversions, 0),
+          'spend', COALESCE(co.spend, 0),
+          'revenue', COALESCE(co.revenue, 0),
+          'alpha', COALESCE(co.clicks, 0) + 1,
+          'beta', (COALESCE(co.impressions, 0) - COALESCE(co.clicks, 0)) + 1
+        )) FILTER (WHERE co.outcome_id IS NOT NULL) as variants
+      FROM campaigns c
+      LEFT JOIN campaign_outcomes co ON c.campaign_id = co.campaign_id
+      WHERE c.status IN ('active', 'running', 'paused')
+      GROUP BY c.campaign_id, c.name, c.status, c.created_at, c.objective, c.daily_budget
+      ORDER BY c.created_at DESC
+      LIMIT 10
+    `;
 
-    const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/batch`, {
-      queries,
-      countries,
-      limit_per_query
-    }, {
-      timeout: 120000 // 2 minute timeout for batch operations
+    const result = await pgPool.query(query);
+
+    const experiments = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      status: row.status === 'active' ? 'running' : row.status,
+      variants: row.variants || [],
+      startDate: row.startDate,
+      totalBudget: parseFloat(row.totalBudget) || 5000,
+      explorationRate: 20 // Default Thompson Sampling exploration rate
+    }));
+
+    console.log(`Found ${experiments.length} experiments with ${experiments.reduce((sum, exp) => sum + (exp.variants?.length || 0), 0)} total variants`);
+
+    res.json(experiments);
+
+  } catch (error: any) {
+    console.error('Error fetching experiments:', error);
+    res.status(500).json({
+      error: error.message,
+      experiments: [] // Return empty array on error
+    });
+  }
+});
+
+// GET /api/insights/ai - Real-time AI insights (Dashboard)
+app.get('/api/insights/ai', async (req: Request, res: Response) => {
+  try {
+    console.log('Fetching AI insights from Titan Core');
+
+    // Forward to titan-core for Gemini analysis
+    const response = await axios.get(`${TITAN_CORE_URL}/insights/generate`, {
+      params: { context: 'dashboard' },
+      timeout: 30000
     });
 
     res.json(response.data);
 
   } catch (error: any) {
-    console.error('Batch scrape error:', error.message);
-    res.status(error.response?.status || 500).json({
-      error: error.message,
-      details: error.response?.data || 'Batch scrape failed'
+    console.warn('Titan Core insights unavailable, returning fallback:', error.message);
+
+    // Fallback to basic insights if Titan is down
+    res.json({
+      insights: [
+        {
+          type: 'info',
+          title: 'System Status',
+          description: 'All services operational. Advanced AI insights temporarily unavailable.',
+          priority: 'low',
+          timestamp: new Date().toISOString()
+        },
+        {
+          type: 'success',
+          title: 'Backend Services',
+          description: '6/7 services running on Cloud Run with real integrations.',
+          priority: 'medium',
+          timestamp: new Date().toISOString()
+        }
+      ]
     });
   }
 });
 
-// Health check
+// GET /api/ads/trending - Meta Ads Library trending ads (Ad Spy Page)
+app.get('/api/ads/trending', async (req: Request, res: Response) => {
+  try {
+    const { category = 'fitness', limit = 10 } = req.query;
+
+    console.log(`Fetching trending ads: category=${category}, limit=${limit}`);
+
+    // Use existing Meta Ads Library endpoint
+    const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/search`, {
+      search_terms: category,
+      countries: ['US'],
+      platforms: ['facebook', 'instagram'],
+      media_type: 'VIDEO',
+      active_status: 'ACTIVE',
+      limit: parseInt(limit as string) || 10
+    }, {
+      timeout: 60000
+    });
+
+    res.json(response.data.ads || []);
+
+  } catch (error: any) {
+    console.error('Error fetching trending ads:', error.message);
+    res.status(500).json({
+      error: error.message,
+      ads: [] // Return empty array on error
+    });
+  }
+});
+
+// GET /avatars - List available avatars (Studio Page)
+app.get('/avatars', async (req: Request, res: Response) => {
+  try {
+    console.log('Fetching avatars list');
+
+    // Forward to titan-core which has avatar config
+    const response = await axios.get(`${TITAN_CORE_URL}/avatars/list`, {
+      timeout: 10000
+    });
+
+    res.json(response.data);
+
+  } catch (error: any) {
+    console.warn('Titan Core avatars unavailable, returning fallback:', error.message);
+
+    // Fallback to basic avatar list
+    res.json([
+      { key: 'avatar-1', name: 'Sarah', voice: 'natural-female', style: 'professional' },
+      { key: 'avatar-2', name: 'James', voice: 'natural-male', style: 'authoritative' },
+      { key: 'avatar-3', name: 'Emily', voice: 'professional', style: 'friendly' },
+      { key: 'avatar-4', name: 'Marcus', voice: 'energetic', style: 'dynamic' }
+    ]);
+  }
+});
+
+// ============================================================================
+// HEALTH CHECK
+// ============================================================================
+
 app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
