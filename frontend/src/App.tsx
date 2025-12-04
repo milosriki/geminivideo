@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { useToastStore } from '@/stores/toastStore'
 import { CheckCircleIcon, ExclamationCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Lazy load all pages for code splitting
 const HomePage = lazy(() => import('@/pages/HomePage'))
@@ -80,123 +81,125 @@ function ToastContainer() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-zinc-950 text-white">
-        <Routes>
-          {/* Dashboard Routes */}
-          <Route path="/" element={<DashboardLayout />}>
-            <Route
-              index
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <HomePage />
-                </Suspense>
-              }
-            />
-            
-            {/* Campaign Routes */}
-            <Route
-              path="create"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <CreateCampaignPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="campaigns"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <CampaignsPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="campaigns/:id"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <CampaignsPage />
-                </Suspense>
-              }
-            />
-            
-            {/* Projects */}
-            <Route
-              path="projects"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <ProjectsPage />
-                </Suspense>
-              }
-            />
-            
-            {/* Assets / Library */}
-            <Route
-              path="assets"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <AssetsPage />
-                </Suspense>
-              }
-            />
-            
-            {/* Analytics */}
-            <Route
-              path="analytics"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <AnalyticsPage />
-                </Suspense>
-              }
-            />
-            
-            {/* Ad Spy */}
-            <Route
-              path="spy"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <AdSpyPage />
-                </Suspense>
-              }
-            />
-            
-            {/* Studio */}
-            <Route
-              path="studio"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <StudioPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="studio/:projectId"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <StudioPage />
-                </Suspense>
-              }
-            />
-            
-            {/* Settings */}
-            <Route
-              path="settings"
-              element={
-                <Suspense fallback={<PageLoader />}>
-                  <SettingsPage />
-                </Suspense>
-              }
-            />
-            
-            {/* Catch all - redirect to home */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-        
-        {/* Global Toast Notifications */}
-        <ToastContainer />
-      </div>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <div className="min-h-screen bg-zinc-950 text-white font-sans antialiased selection:bg-violet-500/30">
+          <Routes>
+            {/* Dashboard Routes */}
+            <Route path="/" element={<DashboardLayout />}>
+              <Route
+                index
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <HomePage />
+                  </Suspense>
+                }
+              />
+
+              {/* Campaign Routes */}
+              <Route
+                path="create"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <CreateCampaignPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="campaigns"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <CampaignsPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="campaigns/:id"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <CampaignsPage />
+                  </Suspense>
+                }
+              />
+
+              {/* Projects */}
+              <Route
+                path="projects"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ProjectsPage />
+                  </Suspense>
+                }
+              />
+
+              {/* Assets / Library */}
+              <Route
+                path="assets"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <AssetsPage />
+                  </Suspense>
+                }
+              />
+
+              {/* Analytics */}
+              <Route
+                path="analytics"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <AnalyticsPage />
+                  </Suspense>
+                }
+              />
+
+              {/* Ad Spy */}
+              <Route
+                path="spy"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <AdSpyPage />
+                  </Suspense>
+                }
+              />
+
+              {/* Studio */}
+              <Route
+                path="studio"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <StudioPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="studio/:projectId"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <StudioPage />
+                  </Suspense>
+                }
+              />
+
+              {/* Settings */}
+              <Route
+                path="settings"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <SettingsPage />
+                  </Suspense>
+                }
+              />
+
+              {/* Catch all - redirect to home */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+
+          {/* Global Toast Notifications */}
+          <ToastContainer />
+        </div>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 

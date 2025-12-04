@@ -30,10 +30,7 @@ let accessToken: string | null = null;
 export const googleDriveService = {
     // Initialize the Google API Client
     init: async () => {
-        console.log("Initializing Google Drive Service...");
-        console.log("API Key Present:", !!API_KEY);
-        console.log("Client ID Present:", !!CLIENT_ID);
-        if (CLIENT_ID) console.log("Client ID Prefix:", CLIENT_ID.substring(0, 15) + "...");
+
 
         if (!API_KEY || !CLIENT_ID) {
             console.warn("Google Drive API Key or Client ID is missing in environment variables.");
@@ -62,16 +59,16 @@ export const googleDriveService = {
                 if (window.gapi) {
                     if (checkGapi) clearInterval(checkGapi);
                     checkGapi = null;
-                    console.log("gapi loaded. Loading client...");
+
                     window.gapi.load('client', async () => {
                         try {
-                            console.log("Initializing gapi client...");
+
                             await window.gapi.client.init({
                                 apiKey: API_KEY,
                                 discoveryDocs: [DISCOVERY_DOC],
                             });
                             gapiInited = true;
-                            console.log("gapi client initialized.");
+
                             if (gisInited) {
                                 cleanup();
                                 resolve();
@@ -94,7 +91,7 @@ export const googleDriveService = {
                 if (window.google) {
                     if (checkGis) clearInterval(checkGis);
                     checkGis = null;
-                    console.log("google (GIS) loaded. Initializing token client...");
+
                     try {
                         tokenClient = window.google.accounts.oauth2.initTokenClient({
                             client_id: CLIENT_ID,
@@ -104,11 +101,11 @@ export const googleDriveService = {
                                     throw (resp);
                                 }
                                 accessToken = resp.access_token;
-                                console.log("Access Token received.");
+
                             },
                         });
                         gisInited = true;
-                        console.log("GIS initialized.");
+
                         if (gapiInited) {
                             cleanup();
                             resolve();
@@ -130,7 +127,7 @@ export const googleDriveService = {
         }
 
         if (!gapiInited || !gisInited) {
-            console.log("Initializing Google APIs...");
+
             await googleDriveService.init();
         }
 
@@ -143,14 +140,14 @@ export const googleDriveService = {
                         return;
                     }
                     accessToken = resp.access_token;
-                    console.log("Google Sign-In Successful. Token received.");
+
                     resolve({ name: 'Google User', email: 'user@gmail.com' });
                 };
-                
+
                 if (accessToken === null) {
-                    tokenClient.requestAccessToken({prompt: 'consent'});
+                    tokenClient.requestAccessToken({ prompt: 'consent' });
                 } else {
-                    tokenClient.requestAccessToken({prompt: ''});
+                    tokenClient.requestAccessToken({ prompt: '' });
                 }
             } catch (err) {
                 console.error("Sign-In Exception:", err);
@@ -164,16 +161,15 @@ export const googleDriveService = {
         if (!accessToken) throw new Error("Not authenticated. Please sign in first.");
 
         try {
-            console.log("Fetching files from Google Drive...");
+
             const response = await window.gapi.client.drive.files.list({
                 'pageSize': 20,
                 'fields': "nextPageToken, files(id, name, mimeType, thumbnailLink, webContentLink, videoMediaMetadata)",
                 'q': "mimeType contains 'video/' and trashed = false"
             });
-            
+
             const files = response.result.files;
-            console.log(`Found ${files?.length || 0} video files.`);
-            
+
             if (!files || files.length === 0) {
                 return [];
             }

@@ -1,8 +1,8 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getFunctions } from 'firebase/functions';
+import { FirebaseApp, initializeApp } from 'firebase/app';
+import { Auth, getAuth } from 'firebase/auth';
+import { Firestore, getFirestore } from 'firebase/firestore';
+import { FirebaseStorage, getStorage } from 'firebase/storage';
+import { Functions, getFunctions } from 'firebase/functions';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import { getPerformance } from 'firebase/performance';
 
@@ -39,29 +39,27 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app;
-let auth;
-let db;
-let storage;
-let functions;
+let app: FirebaseApp;
+let auth: Auth;
+let db: Firestore;
+let storage: FirebaseStorage;
+let functions: Functions;
 
 try {
   app = initializeApp(firebaseConfig);
-  
+
   // Initialize Firebase services
   auth = getAuth(app);
   db = getFirestore(app);
   storage = getStorage(app);
   functions = getFunctions(app);
-  
+
   // Initialize Performance Monitoring
   if (typeof window !== 'undefined') {
     const perf = getPerformance(app);
-    console.log('🚀 Performance Monitoring initialized');
   }
-  
-  console.log('🔥 Firebase initialized successfully!');
-  console.log('📦 Project ID:', firebaseConfig.projectId);
+
+
 } catch (error) {
   console.warn('⚠️ Firebase initialization failed:', error);
 }
@@ -74,16 +72,14 @@ if (typeof window !== 'undefined') {
   isSupported().then(yes => {
     if (yes) {
       analytics = getAnalytics(app);
-      console.log('📊 Analytics initialized');
     }
   }).catch(() => {
-    console.log('📊 Analytics not supported in this environment');
+
   });
 }
 export { analytics };
 
 // Log Firebase initialization for testing
-console.log('🔥 Firebase initialized successfully!');
-console.log('📦 Project ID:', firebaseConfig.projectId);
 
-export default app;
+
+export default app!;

@@ -287,7 +287,7 @@ export class BatchProcessor {
             this.saveToStorage();
           },
           (logMessage) => {
-            console.log(`[Job ${job.id}] ${logMessage}`);
+            // console.log(`[Job ${job.id}] ${logMessage}`);
           }
         );
       } else {
@@ -302,7 +302,7 @@ export class BatchProcessor {
             this.saveToStorage();
           },
           (logMessage) => {
-            console.log(`[Job ${job.id}] ${logMessage}`);
+            // console.log(`[Job ${job.id}] ${logMessage}`);
           }
         );
       }

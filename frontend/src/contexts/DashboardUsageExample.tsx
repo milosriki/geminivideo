@@ -281,8 +281,8 @@ export const MetricsDashboard: React.FC = () => {
   };
 
   const loading = isLoading('diversificationMetrics') ||
-                 isLoading('reliabilityMetrics') ||
-                 isLoading('predictionAccuracy');
+    isLoading('reliabilityMetrics') ||
+    isLoading('predictionAccuracy');
 
   if (loading) {
     return <div>Loading metrics...</div>;
@@ -422,7 +422,7 @@ dashboardAPI.setAuthToken('your-jwt-token-here');
 const analyzeVideoDirectly = async (file: File) => {
   try {
     const result = await dashboardAPI.analyzeVideo(file);
-    console.log('Analysis result:', result);
+    // console.log('Analysis result:', result);
   } catch (error) {
     console.error('Analysis failed:', error);
   }
@@ -432,7 +432,7 @@ const analyzeVideoDirectly = async (file: File) => {
 const getQueue = async () => {
   try {
     const items = await dashboardAPI.getApprovalQueue();
-    console.log('Approval queue:', items);
+    // console.log('Approval queue:', items);
   } catch (error) {
     console.error('Failed to get queue:', error);
   }

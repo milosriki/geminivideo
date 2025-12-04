@@ -27,7 +27,7 @@ import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+import { API_BASE_URL } from '@/config/api'
 
 interface ChartDataPoint {
   date: string
@@ -381,8 +381,8 @@ export function AnalyticsPage() {
                       campaign.status === 'active'
                         ? 'green'
                         : campaign.status === 'paused'
-                        ? 'yellow'
-                        : 'zinc'
+                          ? 'yellow'
+                          : 'zinc'
                     }
                   >
                     {campaign.status}

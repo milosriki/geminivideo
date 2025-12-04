@@ -20,11 +20,7 @@ interface CampaignBuilderWrapperProps {
 }
 
 export const CampaignBuilderWrapper: React.FC<CampaignBuilderWrapperProps> = ({ campaignId }) => {
-  const handleSave = async () => {
-    // TODO: Implement actual save logic with API
-  };
-
-  const handlePublish = async () => {
+  const handleComplete = (campaign: any) => {
     // TODO: Implement actual publish logic with API
   };
 
@@ -32,9 +28,7 @@ export const CampaignBuilderWrapper: React.FC<CampaignBuilderWrapperProps> = ({ 
     <ErrorBoundary>
       <Suspense fallback={<LoadingFallback />}>
         <CampaignBuilder
-          campaignId={campaignId}
-          onSave={handleSave}
-          onPublish={handlePublish}
+          onComplete={handleComplete}
         />
       </Suspense>
     </ErrorBoundary>

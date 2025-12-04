@@ -10,7 +10,7 @@ export const ColorGradingPanelDemo: React.FC = () => {
   const [currentGrade, setCurrentGrade] = useState<any>(null);
 
   const handleGradeChange = (grade: any) => {
-    console.log('Color grade updated:', grade);
+    // console.log('Color grade updated:', grade);
     setCurrentGrade(grade);
 
     // Here you would apply the color grade to your video
@@ -116,7 +116,7 @@ export const ColorGradingPanelDemo: React.FC = () => {
         <div className="mt-12 bg-gray-900 rounded-lg p-6 border border-gray-700">
           <h3 className="text-white font-semibold mb-4">Integration Example</h3>
           <pre className="bg-black p-4 rounded text-sm text-green-400 overflow-x-auto">
-{`import { ColorGradingPanel } from './components/pro/ColorGradingPanel';
+            {`import { ColorGradingPanel } from './components/pro/ColorGradingPanel';
 import './components/pro/ColorGradingPanel.css';
 
 function VideoEditor() {

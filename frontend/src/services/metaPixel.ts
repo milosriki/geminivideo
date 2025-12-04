@@ -269,7 +269,7 @@ class MetaPixelService {
     }
 
     if (this.debugMode) {
-      console.log('[MetaPixel] Track:', eventName, params, options);
+      // console.log('[MetaPixel] Track:', eventName, params, options);
     }
 
     if (params) {
@@ -531,7 +531,7 @@ class MetaPixelService {
     }
 
     if (this.debugMode) {
-      console.log('[MetaPixel] TrackCustom:', eventName, params, options);
+      // console.log('[MetaPixel] TrackCustom:', eventName, params, options);
     }
 
     if (params) {
@@ -560,7 +560,7 @@ class MetaPixelService {
    */
   enableDebugMode(): void {
     this.debugMode = true;
-    console.log('[MetaPixel] Debug mode enabled');
+    // console.log('[MetaPixel] Debug mode enabled');
   }
 
   /**

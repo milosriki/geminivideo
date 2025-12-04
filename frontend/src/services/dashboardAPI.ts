@@ -8,6 +8,8 @@
 
 import axios, { AxiosInstance, AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 
+import { API_BASE_URL } from '../config/api';
+
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
@@ -257,7 +259,7 @@ class DashboardAPIClass {
   private authToken: string | null = null;
 
   constructor() {
-    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const baseURL = API_BASE_URL;
 
     this.client = axios.create({
       baseURL,
