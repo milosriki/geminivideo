@@ -140,7 +140,7 @@ export function registerCreditsEndpoints(app: any, pgPool: Pool) {
       const usageResult = await pgPool.query(usageQuery, [userId]);
 
       // Format usage history
-      const usageHistory = usageResult.rows.map(row => ({
+      const usageHistory = usageResult.rows.map((row: { date: Date; used: string; operation: string; metadata: Record<string, unknown> }) => ({
         date: row.date.toISOString().split('T')[0],
         used: parseInt(row.used),
         operation: row.operation,

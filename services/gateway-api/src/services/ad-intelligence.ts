@@ -351,6 +351,8 @@ export class AdIntelligenceService {
     meta_library: { configured: boolean; note: string };
     tiktok: { configured: boolean; note: string };
     youtube: { configured: boolean; note: string };
+    kaggle: { configured: boolean; note: string };
+    huggingface: { configured: boolean; note: string };
   } {
     return {
       foreplay: {
