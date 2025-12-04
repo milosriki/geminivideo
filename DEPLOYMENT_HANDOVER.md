@@ -1,7 +1,7 @@
 # Titan Engine - Deployment Handover & Setup Guide
 
 **Date:** December 4, 2025
-**Status:** Cloud Deployment In Progress (Build ID: `df0618ef`)
+**Status:** Cloud Deployment In Progress (Build ID: `412fc961`)
 **Repository:** `https://github.com/milosriki/geminivideo`
 
 ## 1. Cloud Deployment Access
@@ -34,19 +34,21 @@ To run the Titan Engine locally or develop on another machine, follow these step
 
 ### Step-by-Step Setup
 
+### Step-by-Step Setup
+
 1.  **Clone the Repository:**
     ```bash
     git clone https://github.com/milosriki/geminivideo.git
     cd geminivideo
     ```
 
-2.  **Configure Environment Variables:**
-    *   Copy the `.env.template` to `.env` (if I created one, otherwise use the provided keys).
-    *   **CRITICAL:** You must populate the `.env` file with the API keys provided in our chat history (Gemini, OpenAI, Anthropic, Meta, Firebase, Supabase).
-    *   *Note: For security, keys are not committed to the repo.*
+2.  **Configure Environment Variables (CRITICAL):**
+    *   Copy the template: `cp .env.example .env`
+    *   **Fill in the `.env` file** with your real API keys.
+    *   *Note: You can copy the content from your main machine's `.env` file if available.*
 
 3.  **Start with Docker (Recommended):**
-    This will spin up the Frontend, all Microservices, Redis, and Postgres.
+    This will spin up the Frontend, all Microservices, and database connections.
     ```bash
     # Make scripts executable
     chmod +x scripts/*.sh
