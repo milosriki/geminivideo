@@ -9,7 +9,7 @@ on:
 env:
   PROJECT_ID: ptd-fitness-demo
   GCP_REGION: us-central1
-  ARTIFACT_REGISTRY_REPO: cloud-run-repo
+  ARTIFACT_REGISTRY_REPO: geminivideo-repo
   GCS_BUCKET: ptd-fitness-demo_cloudbuild
   DOCKER_BUILDKIT: 1
 

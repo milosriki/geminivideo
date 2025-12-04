@@ -16,6 +16,8 @@ substitutions:
   _REGION: us-central1
   _REPOSITORY: geminivideo-repo
   _SERVICE_ACCOUNT: titan-bot@ptd-fitness-demo.iam.gserviceaccount.com
+  # SHORT_SHA is only available in trigger-based builds, use _SHORT_SHA for manual builds
+  _SHORT_SHA: ${SHORT_SHA:-latest}
 
 steps:
   # =============================================================================
@@ -28,7 +30,7 @@ steps:
     args:
       - "build"
       - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${SHORT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${_SHORT_SHA}"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:latest"
       - "--cache-from"
@@ -42,7 +44,7 @@ steps:
     args:
       - "build"
       - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${SHORT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${_SHORT_SHA}"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:latest"
       - "--cache-from"
@@ -56,7 +58,7 @@ steps:
     args:
       - "build"
       - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${SHORT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${_SHORT_SHA}"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:latest"
       - "--cache-from"
@@ -70,7 +72,7 @@ steps:
     args:
       - "build"
       - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${SHORT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${_SHORT_SHA}"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:latest"
       - "--cache-from"
@@ -84,7 +86,7 @@ steps:
     args:
       - "build"
       - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${SHORT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${_SHORT_SHA}"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:latest"
       - "--cache-from"
@@ -98,7 +100,7 @@ steps:
     args:
       - "build"
       - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${SHORT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${_SHORT_SHA}"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:latest"
       - "--cache-from"
@@ -112,7 +114,7 @@ steps:
     args:
       - "build"
       - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${SHORT_SHA}"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${_SHORT_SHA}"
       - "-t"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:latest"
       - "--cache-from"
@@ -201,7 +203,7 @@ steps:
       - "run"
       - "deploy"
       - "drive-intel"
-      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${SHORT_SHA}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
       - "--service-account=${_SERVICE_ACCOUNT}"
@@ -217,7 +219,7 @@ steps:
       - "run"
       - "deploy"
       - "video-agent"
-      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${SHORT_SHA}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
       - "--service-account=${_SERVICE_ACCOUNT}"
@@ -233,7 +235,7 @@ steps:
       - "run"
       - "deploy"
       - "ml-service"
-      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${SHORT_SHA}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
       - "--service-account=${_SERVICE_ACCOUNT}"
@@ -249,7 +251,7 @@ steps:
       - "run"
       - "deploy"
       - "meta-publisher"
-      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${SHORT_SHA}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
       - "--service-account=${_SERVICE_ACCOUNT}"
@@ -265,7 +267,7 @@ steps:
       - "run"
       - "deploy"
       - "titan-core"
-      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${SHORT_SHA}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
       - "--service-account=${_SERVICE_ACCOUNT}"
@@ -281,7 +283,7 @@ steps:
       - "run"
       - "deploy"
       - "ptd-fitness-backend"
-      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${SHORT_SHA}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
       - "--service-account=${_SERVICE_ACCOUNT}"
@@ -302,7 +304,7 @@ steps:
       - "run"
       - "deploy"
       - "frontend"
-      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${SHORT_SHA}"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
       - "--service-account=${_SERVICE_ACCOUNT}"
@@ -344,10 +346,10 @@ steps:
       - deploy-frontend
 
 images:
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${SHORT_SHA}"
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${SHORT_SHA}"
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${SHORT_SHA}"
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${SHORT_SHA}"
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${SHORT_SHA}"
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${SHORT_SHA}"
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${_SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${_SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${_SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${_SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${_SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${_SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${_SHORT_SHA}"

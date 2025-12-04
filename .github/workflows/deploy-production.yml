@@ -18,7 +18,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCP_REGION: us-central1
-  ARTIFACT_REGISTRY_REPO: geminivideo
+  ARTIFACT_REGISTRY_REPO: geminivideo-repo
   DOCKER_BUILDKIT: 0
 
 jobs:
