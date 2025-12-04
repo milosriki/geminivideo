@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { API_BASE_URL as API_BASE } from '../config/api';
+import { ValidationStatusPanel, PredictionAccuracyChart, CorrelationHeatmap } from './predictions';
+import { ROIDashboard } from './roi-dashboard';
 import {
   LineChart,
   Line,
@@ -439,7 +441,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   });
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
-  const [activeTab, setActiveTab] = useState<'overview' | 'creatives' | 'attribution' | 'alerts' | 'reports'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'creatives' | 'attribution' | 'alerts' | 'reports' | 'roi'>('overview');
   const [sortColumn, setSortColumn] = useState<keyof CreativePerformance>('roas');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
@@ -1510,6 +1512,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             { id: 'overview', label: 'Overview', icon: '📈' },
             { id: 'creatives', label: 'Creatives', icon: '🎨' },
             { id: 'attribution', label: 'Attribution', icon: '🔗' },
+            { id: 'roi', label: 'ROI & Predictions', icon: '🎯' },
             { id: 'alerts', label: 'Alerts', icon: '🔔' },
             { id: 'reports', label: 'Reports', icon: '📅' },
           ].map((tab) => (
@@ -1533,6 +1536,16 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         {activeTab === 'attribution' && renderAttributionTab()}
         {activeTab === 'alerts' && renderAlertsTab()}
         {activeTab === 'reports' && renderReportsTab()}
+        {activeTab === 'roi' && (
+          <div className="space-y-8 mt-6">
+            <ROIDashboard />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <PredictionAccuracyChart />
+              <CorrelationHeatmap />
+            </div>
+            <ValidationStatusPanel />
+          </div>
+        )}
       </div>
     </div>
   );
