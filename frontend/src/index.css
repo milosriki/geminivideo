@@ -90,14 +90,20 @@ body {
   @apply outline-none ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-zinc-950;
 }
 
-/* Reduced motion preferences */
+/* Reduced motion preferences - respects user settings while preserving essential UI */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  .animate-pulse,
+  .animate-shimmer,
+  .animate-bounce-subtle,
+  .animate-fade-in,
+  .animate-slide-in,
+  .animate-scale-in {
+    animation: none !important;
+  }
+  
+  /* Reduce but don't eliminate transitions for essential feedback */
+  *:not([data-essential-animation="true"]) {
+    transition-duration: 0.1s !important;
   }
 }
 

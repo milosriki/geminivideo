@@ -39,7 +39,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = Math.random().toString(36).substring(2, 9)
+    const id = crypto.randomUUID()
     const newToast = { ...toast, id }
     
     setToasts((prev) => [...prev, newToast])
@@ -165,23 +165,4 @@ function ToastItem({
       </button>
     </motion.div>
   )
-}
-
-/**
- * Convenience functions for creating toasts
- */
-export const toast = {
-  success: (title: string, description?: string, duration?: number) => {
-    // This will be replaced with actual implementation when used within ToastProvider
-    console.log('Toast success:', title, description)
-  },
-  error: (title: string, description?: string, duration?: number) => {
-    console.log('Toast error:', title, description)
-  },
-  warning: (title: string, description?: string, duration?: number) => {
-    console.log('Toast warning:', title, description)
-  },
-  info: (title: string, description?: string, duration?: number) => {
-    console.log('Toast info:', title, description)
-  },
 }

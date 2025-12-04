@@ -5,4 +5,4 @@ export { Skeleton, SkeletonCard, SkeletonTableRow, SkeletonAvatar } from './skel
 export { EmptyState, NoSearchResults, NoDataAvailable } from './empty-state'
 
 // Toast components
-export { ToastProvider, useToast, toast } from './toast'
+export { ToastProvider, useToast } from './toast'
