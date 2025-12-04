@@ -10,8 +10,11 @@ moviepy>=1.0.3
 librosa>=0.10.1
 Pillow>=10.2.0
 numpy>=1.26.0
-opencv-python-headless>=4.9.0.80
 PyYAML>=6.0.1
+aiofiles>=23.2.1
+sqlalchemy>=2.0.23
+psycopg2-binary>=2.9.9
+opencv-python-headless>=4.9.0.80
 
 # Redis for async queues
 redis==5.0.1
