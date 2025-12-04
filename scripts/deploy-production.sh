@@ -39,7 +39,7 @@ fi
 # Required configuration
 PROJECT_ID="${GCP_PROJECT_ID}"
 REGION="${CLOUD_RUN_REGION:-us-central1}"
-REGISTRY_URL="${REGISTRY_URL:-${REGION}-docker.pkg.dev/${PROJECT_ID}/geminivideo}"
+REGISTRY_URL="${REGISTRY_URL:-${REGION}-docker.pkg.dev/${PROJECT_ID}/geminivideo-repo}"
 IMAGE_TAG="${IMAGE_TAG:-$(date +%Y%m%d-%H%M%S)}"
 DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-cloud-run}" # cloud-run or docker-compose
 
