@@ -34,6 +34,7 @@ anthropic>=0.8.0
 pyautogen>=0.2.36
 autogen-agentchat[openai]>=0.2.36
 autogen-core>=0.2.36
+autogen-ext>=0.2.36
 
 # Audio/Video
 openai-whisper==20231117
