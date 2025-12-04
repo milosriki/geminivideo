@@ -148,8 +148,8 @@ class RealtimePreview {
                 }
                 case 'fade': {
                     const fadeDuration = edit.duration;
-                    let videoFilters = [];
-                    let audioFilters = [];
+                    const videoFilters = [];
+                    const audioFilters = [];
 
                     if (edit.typeIn) {
                         videoFilters.push(`fade=t=in:st=0:d=${fadeDuration}`);

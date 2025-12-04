@@ -629,7 +629,7 @@ export class AudioProcessor {
         const videoData = await blobToUint8Array(videoBlob);
         await ffmpegInstance.writeFile('input.mp4', videoData);
 
-        let stats: LoudnessStats = {
+        const stats: LoudnessStats = {
             integratedLoudness: -23,
             loudnessRange: 7,
             truePeak: -1
