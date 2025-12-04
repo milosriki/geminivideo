@@ -118,6 +118,14 @@ overlay_generator = OverlayGenerator(hook_templates)
 subtitle_generator = SubtitleGenerator()
 compliance_checker = ComplianceChecker()
 
+# Redis Client (Lazy initialization)
+import redis
+try:
+    redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
+except Exception as e:
+    print(f"Warning: Redis connection failed: {e}")
+    redis_client = None
+
 # In-memory job storage (would be Redis/DB in production)
 render_jobs: Dict[str, RenderJob] = {}
 
@@ -168,16 +176,18 @@ async def render_remix(
         render_jobs[job_id] = job
         
         # Enqueue job to Redis
-        import redis
-        redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
-        
-        job_payload = {
-            "job_id": job_id,
-            "request": request.dict(),
-            "created_at": datetime.utcnow().isoformat()
-        }
-        
-        redis_client.rpush("render_queue", json.dumps(job_payload))
+        if redis_client:
+            try:
+                job_payload = {
+                    "job_id": job_id,
+                    "request": request.dict(),
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                redis_client.rpush("render_queue", json.dumps(job_payload))
+            except Exception as e:
+                print(f"Redis enqueue failed: {e}")
+        else:
+            print("Redis not available, job stored in memory only")
         
         return {
             "job_id": job_id,
@@ -332,7 +342,11 @@ async def generate_batch(request: dict, background_tasks: BackgroundTasks):
                 "created_at": datetime.utcnow().isoformat()
             }
             
-            redis_client.rpush("render_queue", json.dumps(job_payload))
+            if redis_client:
+                try:
+                    redis_client.rpush("render_queue", json.dumps(job_payload))
+                except Exception as e:
+                    print(f"Redis batch enqueue failed: {e}")
             job_ids.append({
                 "job_id": job_id,
                 "variant_id": variant["variant_id"],
