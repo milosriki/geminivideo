@@ -87,7 +87,7 @@ const calculateSignificance = (v1: Variant, v2: Variant): { pValue: number; sign
   if (n1 === 0 || n2 === 0) return { pValue: 1, significant: false };
 
   const pPool = (v1.clicks + v2.clicks) / (n1 + n2);
-  const se = Math.sqrt(pPool * (1 - pPool) * (1/n1 + 1/n2));
+  const se = Math.sqrt(pPool * (1 - pPool) * (1 / n1 + 1 / n2));
 
   if (se === 0) return { pValue: 1, significant: false };
 
@@ -585,44 +585,38 @@ const ABTestingDashboard: React.FC = () => {
   const [explorationRate, setExplorationRate] = useState(20);
   const [autoShift, setAutoShift] = useState(true);
 
-  // Initialize with mock data
+  // Fetch real experiments from API
   useEffect(() => {
-    const mockData = generateMockExperiments();
-    setExperiments(mockData);
-    setSelectedExperiment(mockData[0]);
-  }, []);
+    const fetchExperiments = async () => {
+      try {
+        console.log('Fetching experiments from /api/experiments');
+        const response = await fetch('/api/experiments');
 
-  // Simulate real-time updates (polling every 5 seconds)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setExperiments(prev => prev.map(exp => {
-        if (exp.status !== 'running') return exp;
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
 
-        return {
-          ...exp,
-          variants: exp.variants.map(variant => {
-            // Simulate new data
-            const newImpressions = Math.floor(Math.random() * 10) + 1;
-            const newClicks = Math.floor(Math.random() * 3);
-            const newConversions = Math.random() > 0.7 ? 1 : 0;
+        const data = await response.json();
+        console.log(`Loaded ${data.length} experiments from API`);
 
-            return {
-              ...variant,
-              impressions: variant.impressions + newImpressions,
-              clicks: variant.clicks + newClicks,
-              conversions: variant.conversions + newConversions,
-              alpha: variant.alpha + newClicks,
-              beta: variant.beta + (newImpressions - newClicks),
-              spend: variant.spend + newImpressions * 0.1,
-              revenue: variant.revenue + newConversions * 15,
-            };
-          }),
-        };
-      }));
-    }, 5000);
+        setExperiments(data);
+        if (data.length > 0) {
+          setSelectedExperiment(data[0]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch experiments:', error);
+        // Fallback to empty state instead of mock data
+        setExperiments([]);
+      }
+    };
 
+    fetchExperiments();
+
+    // Poll for updates every 30 seconds
+    const interval = setInterval(fetchExperiments, 30000);
     return () => clearInterval(interval);
   }, []);
+
 
   // Filter experiments
   const filteredExperiments = experiments.filter(exp =>

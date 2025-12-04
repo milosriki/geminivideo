@@ -140,36 +140,46 @@ export function StudioPage() {
   }
 
   const handleGenerate = async () => {
-    if (!selectedAvatar) return
+    if (!selectedAvatar) {
+      alert('Please select an avatar first');
+      return;
+    }
 
-    // console.log('Generating video with script:', script)
+    // Validate script input
+    if (!script.trim()) {
+      alert('Please enter a script first');
+      return;
+    }
+
+    console.log('Generating video with script:', script);
+
     try {
-      // Mock brief and strategy for now as StudioPage doesn't have full campaign context yet
-      const mockBrief = {
-        productName: 'Fitness App',
-        targetMarket: 'Fitness Enthusiasts',
-        offer: '90 Day Transformation',
-        cta: 'Sign Up Now',
-        angle: 'Transformation',
-        tone: 'inspirational' as const,
-        platform: 'reels' as const,
-        painPoints: '',
-        competitors: []
-      }
-      const mockStrategy = {
-        primaryVideoFileName: 'studio_generated.mp4',
-        bRollFileNames: [],
-        strategyJustification: '',
-        videoAnalyses: []
+      // Call real /api/generate endpoint
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assets: ['studio_generated.mp4'], // Will be replaced with actual video upload
+          target_audience: 'General audience'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Generation failed');
       }
 
-      await apiClient.generateCreatives(mockBrief, selectedAvatar, mockStrategy)
-      alert('Generation started! Check the Jobs queue.')
-    } catch (error) {
-      console.error('Generation failed:', error)
-      alert('Generation failed. See console.')
+      const result = await response.json();
+
+      console.log('Generation result:', result);
+      alert(`✅ Video generation started!\nJob ID: ${result.job_id || 'pending'}\n\nCheck the Jobs queue for status.`);
+
+    } catch (error: any) {
+      console.error('Generation failed:', error);
+      alert(`❌ Generation failed: ${error.message}\n\nPlease check the console for details.`);
     }
   }
+
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
