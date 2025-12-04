@@ -1,16 +1,26 @@
 # Titan Engine - Deployment Handover & Setup Guide
 
 **Date:** December 4, 2025
-**Status:** Cloud Deployment In Progress (Build ID: `8b7e04aa`)
+**Status:** Cloud Deployment In Progress (Build ID: `df0618ef`)
 **Repository:** `https://github.com/milosriki/geminivideo`
 
 ## 1. Cloud Deployment Access
 
 Once the current deployment completes, the Titan Engine will be accessible at the following URLs:
 
-*   **Frontend Dashboard:** `https://frontend-489769736562.us-central1.run.app` (Estimated)
+*   **Frontend Dashboard:** `https://frontend-489769736562.us-central1.run.app`
 *   **Gateway API:** `https://ptd-fitness-backend-489769736562.us-central1.run.app`
 *   **API Documentation:** See `docs/API_REFERENCE.md` in the repo.
+
+## 2. Latest Updates (Merged Fixes)
+
+*   **Redis Stability:** 
+    *   `gateway-api`: Redis is now optional (controlled by `REDIS_ENABLED`).
+    *   `video-agent`: Connection failures are handled gracefully (no crash on startup).
+*   **Dependency Fixes:**
+    *   `titan-core`: Updated `autogen` packages to `0.4.0+` to fix missing modules.
+    *   `drive-intel`: Resolved `opencv` and `torch` version conflicts.
+*   **Build Pipeline:** Fixed race conditions in `cloudbuild.yaml`.
 
 ## 2. Setting Up on a New Machine
 
