@@ -185,7 +185,7 @@ jobs:
             --allow-unauthenticated \
             --memory=2Gi \
             --cpu=2 \
-            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}"
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}"
 
       # Deploy Video Agent
       - run: |
@@ -198,7 +198,7 @@ jobs:
             --memory=4Gi \
             --cpu=2 \
             --timeout=600 \
-            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}"
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}"
 
       # Deploy Meta Publisher
       - run: |
@@ -210,7 +210,7 @@ jobs:
             --allow-unauthenticated \
             --memory=1Gi \
             --cpu=1 \
-            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}"
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }},META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }},SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}"
 
       # Deploy Gateway API
       - run: |
@@ -222,7 +222,7 @@ jobs:
             --allow-unauthenticated \
             --memory=1Gi \
             --cpu=1 \
-            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCS_BUCKET=${{ env.GCS_BUCKET }},GCP_REGION=${{ env.GCP_REGION }}"
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCS_BUCKET=${{ env.GCS_BUCKET }},GCP_REGION=${{ env.GCP_REGION }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }},SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}"
 
       # Deploy Frontend
       - run: |
