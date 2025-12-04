@@ -31,9 +31,9 @@ mediapipe
 # AI APIs
 openai==1.6.1
 anthropic==0.8.1
-pyautogen==0.2.8
-autogen-agentchat[openai]==0.2.8
-autogen-core==0.2.8
+pyautogen>=0.2.36
+autogen-agentchat[openai]>=0.2.36
+autogen-core>=0.2.36
 
 # Audio/Video
 openai-whisper==20231117
