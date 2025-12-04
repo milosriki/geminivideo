@@ -25,7 +25,6 @@ import { Field, Label } from '@/components/catalyst/fieldset'
 import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/catalyst/dialog'
 import { Listbox, ListboxOption, ListboxLabel, ListboxDescription } from '@/components/catalyst/listbox'
 import { Button as CompassButton } from '@/components/compass/button'
-import { IconButton } from '@/components/compass/icon-button'
 import { Video as VideoPlayer } from '@/components/compass/video-player'
 import { Breadcrumbs } from '@/components/compass/breadcrumbs'
 import { apiClient } from '@/services/apiClient'
@@ -221,16 +220,28 @@ export function StudioPage() {
                 <ScissorsIcon className="h-4 w-4 text-zinc-400" />
                 <Text className="text-zinc-400 text-sm">Timeline</Text>
                 <div className="flex items-center gap-1 ml-4">
-                  <IconButton
-                    icon={isPlaying ? PauseIcon : PlayIcon}
+                  <button
                     onClick={() => setIsPlaying(!isPlaying)}
+                    className="p-2 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
                     aria-label={isPlaying ? 'Pause' : 'Play'}
-                  />
-                  <IconButton
-                    icon={isMuted ? SpeakerXMarkIcon : SpeakerWaveIcon}
+                  >
+                    {isPlaying ? (
+                      <PauseIcon className="h-5 w-5" />
+                    ) : (
+                      <PlayIcon className="h-5 w-5" />
+                    )}
+                  </button>
+                  <button
                     onClick={() => setIsMuted(!isMuted)}
+                    className="p-2 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
                     aria-label={isMuted ? 'Unmute' : 'Mute'}
-                  />
+                  >
+                    {isMuted ? (
+                      <SpeakerXMarkIcon className="h-5 w-5" />
+                    ) : (
+                      <SpeakerWaveIcon className="h-5 w-5" />
+                    )}
+                  </button>
                 </div>
               </div>
               <Button plain className="gap-1 text-sm">

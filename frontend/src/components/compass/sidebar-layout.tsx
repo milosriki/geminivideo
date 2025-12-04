@@ -1,6 +1,18 @@
-import { IconButton } from "@/components/icon-button";
-import type { Module } from "@/data/lessons";
-import { SidebarIcon } from "@/icons/sidebar-icon";
+import { IconButton } from "./icon-button";
+import { SidebarIcon } from "./icons/sidebar-icon";
+
+// Define Module type locally since @/data/lessons is not available
+interface Lesson {
+  id: string;
+  title: string;
+}
+
+interface Module {
+  id: string;
+  title: string;
+  lessons: Lesson[];
+}
+
 import {
   CloseButton,
   Dialog,

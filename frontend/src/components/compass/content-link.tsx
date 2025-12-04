@@ -1,6 +1,6 @@
-import { ArticleIcon } from "@/icons/article-icon";
-import { CheckmarkIcon } from "@/icons/checkmark-icon";
-import { CirclePlayIcon } from "@/icons/circle-play-icon";
+import { ArticleIcon } from "./icons/article-icon";
+import { CheckmarkIcon } from "./icons/checkmark-icon";
+import { CirclePlayIcon } from "./icons/circle-play-icon";
 import { Link } from "@/components/catalyst/link";
 
 function formatDuration(seconds: number): string {
