@@ -225,10 +225,10 @@ on:
     branches: [main]
 
 env:
-  PROJECT_ID: gen-lang-client-0427673522
-  GCP_REGION: us-west1
-  ARTIFACT_REGISTRY_REPO: cloud-run-repo
-  GCS_BUCKET: ai-studio-bucket-208288753973-us-west1
+  PROJECT_ID: ptd-fitness-demo
+  GCP_REGION: us-central1
+  ARTIFACT_REGISTRY_REPO: geminivideo-repo
+  GCS_BUCKET: ptd-fitness-demo_cloudbuild
 
 jobs:
   test:
