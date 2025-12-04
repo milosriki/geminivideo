@@ -143,7 +143,7 @@ Return JSON: {"pain_point": N, "transformation": N, "urgency": N, "authority": N
           responseMimeType: 'application/json',
           temperature: 0.1
         }
-      });
+      } as any);
 
       const scores = JSON.parse(result.response.text());
 
@@ -255,7 +255,7 @@ Return JSON: {"persona_match": N, "age_range": N, "fitness_level": N, "trigger_a
           responseMimeType: 'application/json',
           temperature: 0.1
         }
-      });
+      } as any);
 
       const analysis = JSON.parse(result.response.text());
 
