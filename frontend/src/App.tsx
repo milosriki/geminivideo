@@ -15,6 +15,18 @@ const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
 const AdSpyPage = lazy(() => import('@/pages/AdSpyPage'))
 const StudioPage = lazy(() => import('@/pages/studio/StudioPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const HelpPage = lazy(() => import('@/pages/HelpPage'))
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
+
+// Auth Pages (standalone, no dashboard layout)
+const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
+const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'))
+const OTPPage = lazy(() => import('@/pages/auth/OTPPage'))
+
+// Marketing Pages (standalone with Radiant layout)
+const BlogPage = lazy(() => import('@/pages/BlogPage'))
+const CompanyPage = lazy(() => import('@/pages/CompanyPage'))
+const PricingPage = lazy(() => import('@/pages/PricingPage'))
 
 // Loading fallback component
 function PageLoader() {
@@ -85,6 +97,58 @@ function App() {
       <BrowserRouter>
         <div className="min-h-screen bg-zinc-950 text-white font-sans antialiased selection:bg-violet-500/30">
           <Routes>
+            {/* Auth Routes (standalone - no dashboard) */}
+            <Route
+              path="/login"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LoginPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <RegisterPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/verify"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <OTPPage />
+                </Suspense>
+              }
+            />
+
+            {/* Marketing Pages (standalone with Radiant layout) */}
+            <Route
+              path="/blog"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <BlogPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/company"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CompanyPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pricing"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <PricingPage />
+                </Suspense>
+              }
+            />
+
             {/* Dashboard Routes */}
             <Route path="/" element={<DashboardLayout />}>
               <Route
@@ -190,8 +254,25 @@ function App() {
                 }
               />
 
-              {/* Catch all - redirect to home */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* Help / Support */}
+              <Route
+                path="help"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <HelpPage />
+                  </Suspense>
+                }
+              />
+
+              {/* 404 Not Found - Catch all */}
+              <Route
+                path="*"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <NotFoundPage />
+                  </Suspense>
+                }
+              />
             </Route>
           </Routes>
 

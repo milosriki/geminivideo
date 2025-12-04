@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { API_BASE_URL as API_BASE } from '../config/api';
+import { ValidationStatusPanel, PredictionAccuracyChart, CorrelationHeatmap } from './predictions';
+import { ROIDashboard } from './roi-dashboard';
 import {
   LineChart,
   Line,
@@ -18,8 +20,6 @@ import {
   AreaChart
 } from 'recharts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ROIDashboard } from './roi-dashboard/ROIDashboard';
-import { ValidationStatusPanel } from './predictions/ValidationStatusPanel';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -1512,9 +1512,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             { id: 'overview', label: 'Overview', icon: '📈' },
             { id: 'creatives', label: 'Creatives', icon: '🎨' },
             { id: 'attribution', label: 'Attribution', icon: '🔗' },
+            { id: 'roi', label: 'ROI & Predictions', icon: '🎯' },
             { id: 'alerts', label: 'Alerts', icon: '🔔' },
             { id: 'reports', label: 'Reports', icon: '📅' },
-            { id: 'roi', label: 'ROI & Predictions', icon: '🔮' },
+
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1537,9 +1538,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         {activeTab === 'alerts' && renderAlertsTab()}
         {activeTab === 'reports' && renderReportsTab()}
         {activeTab === 'roi' && (
-          <div className="space-y-6">
-            <ValidationStatusPanel />
+          <div className="space-y-8 mt-6">
             <ROIDashboard />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <PredictionAccuracyChart />
+              <CorrelationHeatmap />
+            </div>
+            <ValidationStatusPanel />
           </div>
         )}
       </div>

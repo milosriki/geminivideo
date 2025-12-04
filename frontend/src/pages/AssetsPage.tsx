@@ -18,6 +18,10 @@ import { Badge } from '@/components/catalyst/badge'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
 import { VideoCard } from '@/components/compass/video-card'
+import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/catalyst/dialog'
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert'
+import { Pagination, PaginationPrevious, PaginationNext, PaginationList, PaginationPage, PaginationGap } from '@/components/catalyst/pagination'
+import { NoVideosEmpty } from '@/components/catalyst/empty-state'
 
 
 
@@ -28,6 +32,10 @@ export function AssetsPage() {
   const [search, setSearch] = useState('')
   const [assets, setAssets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedAsset, setSelectedAsset] = useState<any>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [assetToDelete, setAssetToDelete] = useState<any>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -86,16 +94,26 @@ export function AssetsPage() {
             <FunnelIcon className="h-4 w-4" />
             More Filters
           </Button>
-          <div className="flex border border-zinc-800 rounded-lg overflow-hidden">
+          <div className="flex gap-1">
             <button
               onClick={() => setView('grid')}
-              className={`p-2 ${view === 'grid' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
+              className={`p-2 rounded-lg transition-colors ${
+                view === 'grid'
+                  ? 'bg-violet-500 text-white'
+                  : 'bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-800'
+              }`}
+              aria-label="Grid view"
             >
               <Squares2X2Icon className="h-5 w-5" />
             </button>
             <button
               onClick={() => setView('list')}
-              className={`p-2 ${view === 'list' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}
+              className={`p-2 rounded-lg transition-colors ${
+                view === 'list'
+                  ? 'bg-violet-500 text-white'
+                  : 'bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-800'
+              }`}
+              aria-label="List view"
             >
               <ListBulletIcon className="h-5 w-5" />
             </button>
@@ -110,6 +128,8 @@ export function AssetsPage() {
             <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
           </div>
         </div>
+      ) : !loading && assets.length === 0 ? (
+        <NoVideosEmpty />
       ) : (
         <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-4 space-y-4">
           {assets.map((asset, index) => (
@@ -131,6 +151,42 @@ export function AssetsPage() {
           ))}
         </div>
       )}
+
+      {/* Pagination */}
+      <Pagination className="mt-8">
+        <PaginationPrevious href={currentPage > 1 ? '#' : null} />
+        <PaginationList>
+          <PaginationPage href="#" current={currentPage === 1}>1</PaginationPage>
+          <PaginationPage href="#">2</PaginationPage>
+          <PaginationPage href="#">3</PaginationPage>
+        </PaginationList>
+        <PaginationNext href="#" />
+      </Pagination>
+
+      {/* Asset Detail Dialog */}
+      <Dialog open={isDetailOpen} onClose={() => setIsDetailOpen(false)} size="2xl">
+        <DialogTitle>{selectedAsset?.filename || 'Asset Details'}</DialogTitle>
+        <DialogDescription>View and manage this video asset.</DialogDescription>
+        <DialogBody>
+          <div className="aspect-video bg-black rounded-lg">
+            <video src={selectedAsset?.url} controls className="w-full h-full" />
+          </div>
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setIsDetailOpen(false)}>Close</Button>
+          <Button color="violet">Edit in Studio</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Alert */}
+      <Alert open={assetToDelete !== null} onClose={() => setAssetToDelete(null)}>
+        <AlertTitle>Delete Asset</AlertTitle>
+        <AlertDescription>Are you sure? This cannot be undone.</AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setAssetToDelete(null)}>Cancel</Button>
+          <Button color="red">Delete</Button>
+        </AlertActions>
+      </Alert>
     </div>
   )
 }
