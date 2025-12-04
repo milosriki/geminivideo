@@ -1,0 +1,344 @@
+# =============================================================================
+# Gemini Video - Cloud Build Configuration
+# Agent 24: Cloud Run Deployment Automation
+# =============================================================================
+# This file is used by Cloud Build triggers for automated deployments
+# =============================================================================
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  substitutionOption: 'ALLOW_LOOSE'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '3600s' # 1 hour
+
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: geminivideo
+  _SERVICE_ACCOUNT: geminivideo-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com
+
+steps:
+  # =============================================================================
+  # Step 1: Build all Docker images in parallel
+  # =============================================================================
+
+  # Gateway API
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-gateway-api
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:latest'
+      - '--cache-from'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:latest'
+      - './services/gateway-api'
+    waitFor: ['-']
+
+  # Drive Intel
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-drive-intel
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:latest'
+      - '--cache-from'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:latest'
+      - './services/drive-intel'
+    waitFor: ['-']
+
+  # Video Agent
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-video-agent
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:latest'
+      - '--cache-from'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:latest'
+      - './services/video-agent'
+    waitFor: ['-']
+
+  # ML Service
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-ml-service
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:latest'
+      - '--cache-from'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:latest'
+      - './services/ml-service'
+    waitFor: ['-']
+
+  # Meta Publisher
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-meta-publisher
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:latest'
+      - '--cache-from'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:latest'
+      - './services/meta-publisher'
+    waitFor: ['-']
+
+  # Titan Core
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-titan-core
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:latest'
+      - '--cache-from'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:latest'
+      - './services/titan-core'
+    waitFor: ['-']
+
+  # Frontend
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-frontend
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:latest'
+      - '--cache-from'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:latest'
+      - '--build-arg'
+      - 'VITE_ENV=production'
+      - './frontend'
+    waitFor: ['-']
+
+  # =============================================================================
+  # Step 2: Push all images
+  # =============================================================================
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: push-images
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api'
+    waitFor:
+      - build-gateway-api
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel'
+    waitFor:
+      - build-drive-intel
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent'
+    waitFor:
+      - build-video-agent
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service'
+    waitFor:
+      - build-ml-service
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher'
+    waitFor:
+      - build-meta-publisher
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core'
+    waitFor:
+      - build-titan-core
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend'
+    waitFor:
+      - build-frontend
+
+  # =============================================================================
+  # Step 3: Deploy to Cloud Run (sequential for dependencies)
+  # =============================================================================
+
+  # Deploy Drive Intel
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy-drive-intel
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'geminivideo-drive-intel'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--allow-unauthenticated'
+    waitFor:
+      - push-images
+
+  # Deploy Video Agent
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy-video-agent
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'geminivideo-video-agent'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--allow-unauthenticated'
+    waitFor:
+      - push-images
+
+  # Deploy ML Service
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy-ml-service
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'geminivideo-ml-service'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--allow-unauthenticated'
+    waitFor:
+      - push-images
+
+  # Deploy Meta Publisher
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy-meta-publisher
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'geminivideo-meta-publisher'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--allow-unauthenticated'
+    waitFor:
+      - push-images
+
+  # Deploy Titan Core
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy-titan-core
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'geminivideo-titan-core'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--allow-unauthenticated'
+    waitFor:
+      - push-images
+
+  # Deploy Gateway API (depends on all backend services)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy-gateway-api
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'geminivideo-gateway-api'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--allow-unauthenticated'
+    waitFor:
+      - deploy-drive-intel
+      - deploy-video-agent
+      - deploy-ml-service
+      - deploy-meta-publisher
+      - deploy-titan-core
+
+  # Deploy Frontend (depends on gateway)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy-frontend
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'geminivideo-frontend'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--allow-unauthenticated'
+    waitFor:
+      - deploy-gateway-api
+
+  # =============================================================================
+  # Step 4: Health Checks
+  # =============================================================================
+
+  - name: 'gcr.io/cloud-builders/curl'
+    id: health-check
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Running health checks..."
+
+        GATEWAY_URL=$(gcloud run services describe geminivideo-gateway-api --region=${_REGION} --format='value(status.url)')
+        FRONTEND_URL=$(gcloud run services describe geminivideo-frontend --region=${_REGION} --format='value(status.url)')
+
+        echo "Gateway URL: $GATEWAY_URL"
+        echo "Frontend URL: $FRONTEND_URL"
+
+        # Wait for services to be ready
+        sleep 30
+
+        # Test Gateway
+        curl -f "$GATEWAY_URL/health" || exit 1
+
+        # Test Frontend
+        curl -f "$FRONTEND_URL" || exit 1
+
+        echo "All health checks passed!"
+    waitFor:
+      - deploy-frontend
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${SHORT_SHA}'

@@ -24,6 +24,10 @@ export interface WizardData {
   objective: string;
   budget: number;
   platforms: string[];
+  targetAudience?: string;
+  creativeStyle?: string;
+  hookStyle?: string;
+  variants?: number;
   creativeSettings: {
     aspectRatio?: string;
     duration?: number;
@@ -54,6 +58,10 @@ const initialWizardData: WizardData = {
   objective: '',
   budget: 0,
   platforms: [],
+  targetAudience: '',
+  creativeStyle: '',
+  hookStyle: '',
+  variants: 1,
   creativeSettings: {},
 };
 

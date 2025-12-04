@@ -1,6 +1,7 @@
 /**
  * Gateway API - Prediction & Scoring Engine
  * Unified proxy to internal services with scoring capabilities
+ * Enhanced with comprehensive security middleware (Agent 5)
  */
 import express, { Request, Response } from 'express';
 import cors from 'cors';
@@ -16,21 +17,63 @@ import { ScoringEngine } from './services/scoring-engine';
 import { ReliabilityLogger } from './services/reliability-logger';
 import { LearningService } from './services/learning-service';
 
+// Security middleware imports (Agent 5)
+import {
+  initializeSecurityRedis,
+  securityHeaders,
+  corsConfig,
+  globalRateLimiter,
+  authRateLimiter,
+  apiRateLimiter,
+  uploadRateLimiter,
+  validateInput,
+  sqlInjectionProtection,
+  xssProtection,
+  auditLog,
+  bruteForceProtection,
+  validateApiKey
+} from './middleware/security';
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// ============================================================================
+// SECURITY MIDDLEWARE LAYER (Agent 5 - OWASP Best Practices)
+// ============================================================================
+
+// 1. Security Headers - Must be first
+app.use(securityHeaders);
+
+// 2. CORS Configuration - Secure cross-origin requests
+app.use(cors(corsConfig));
+
+// 3. Body Parser - Parse JSON with size limits
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 4. Audit Logging - Log all requests
+app.use(auditLog);
+
+// 5. Global Rate Limiting - Prevent abuse
+app.use(globalRateLimiter);
+
+// 6. SQL Injection Protection - Sanitize inputs
+app.use(sqlInjectionProtection);
+
+// 7. XSS Protection - Sanitize HTML
+app.use(xssProtection);
+
+// Initialize security Redis for distributed rate limiting
+initializeSecurityRedis().catch(err => {
+  console.warn('Security Redis initialization failed:', err.message);
+});
 
 // Redis client for async queues
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const redisClient = createClient({ url: REDIS_URL });
-redisClient.on('error', (err) => console.warn('Redis Client Error (Queue disabled):', err.message));
+redisClient.on('error', (err) => console.error('Redis Client Error', err));
 redisClient.connect().then(() => {
   console.log('✅ Redis connected for async queues');
-}).catch((err) => {
-  console.warn('⚠️ Redis connection failed. Async queues will not work:', err.message);
 });
 
 // PostgreSQL client for database access
@@ -41,12 +84,7 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-const pgPool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: DATABASE_URL.includes('localhost') || DATABASE_URL.includes('postgres')
-    ? false
-    : { rejectUnauthorized: false }
-});
+const pgPool = new Pool({ connectionString: DATABASE_URL });
 pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
 
 // Verify database connection
@@ -58,28 +96,16 @@ pgPool.query('SELECT NOW()')
   });
 
 // Load configuration
-// Fix path to point to local shared directory if running from src or dist
-const configPath = process.env.CONFIG_PATH || path.join(__dirname, '../shared/config');
-
-let weightsConfig: any = {};
-let triggersConfig: any = {};
-let personasConfig: any = {};
-
-try {
-  weightsConfig = yaml.load(
-    fs.readFileSync(path.join(configPath, 'weights.yaml'), 'utf8')
-  );
-  triggersConfig = JSON.parse(
-    fs.readFileSync(path.join(configPath, 'triggers_config.json'), 'utf8')
-  );
-  personasConfig = JSON.parse(
-    fs.readFileSync(path.join(configPath, 'personas.json'), 'utf8')
-  );
-  console.log('✅ Configuration loaded from:', configPath);
-} catch (err: any) {
-  console.warn('⚠️ Failed to load configuration:', err.message);
-  // Fallback or exit depending on strictness
-}
+const configPath = process.env.CONFIG_PATH || '../../shared/config';
+const weightsConfig = yaml.load(
+  fs.readFileSync(path.join(configPath, 'weights.yaml'), 'utf8')
+) as any;
+const triggersConfig = JSON.parse(
+  fs.readFileSync(path.join(configPath, 'triggers_config.json'), 'utf8')
+);
+const personasConfig = JSON.parse(
+  fs.readFileSync(path.join(configPath, 'personas.json'), 'utf8')
+);
 
 // Initialize services
 const scoringEngine = new ScoringEngine(weightsConfig, triggersConfig, personasConfig);
@@ -101,30 +127,18 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
-// Avatars Endpoint (Fix for Frontend 404)
-app.get('/avatars', (req: Request, res: Response) => {
-  try {
-    // Return personas as avatars
-    // Map personas structure to Avatar type if needed, or return raw
-    const avatars = personasConfig.personas || [];
-    res.json(avatars);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Helper function to validate service URLs
 function validateServiceUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     // Only allow HTTP/HTTPS and specific internal service patterns
     return (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-      (parsed.hostname === 'localhost' ||
-        parsed.hostname.includes('drive-intel') ||
-        parsed.hostname.includes('video-agent') ||
-        parsed.hostname.includes('ml-service') ||
-        parsed.hostname.includes('meta-publisher') ||
-        parsed.hostname.includes('.run.app')); // Cloud Run domains
+           (parsed.hostname === 'localhost' ||
+            parsed.hostname.includes('drive-intel') ||
+            parsed.hostname.includes('video-agent') ||
+            parsed.hostname.includes('ml-service') ||
+            parsed.hostname.includes('meta-publisher') ||
+            parsed.hostname.includes('.run.app')); // Cloud Run domains
   } catch {
     return false;
   }
@@ -162,15 +176,25 @@ app.get('/api/assets/:assetId/clips', async (req: Request, res: Response) => {
 });
 
 // Async analysis endpoint - queues job instead of blocking
-app.post('/api/analyze', async (req: Request, res: Response) => {
+app.post('/api/analyze',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      path: { type: 'string', required: true, min: 1, max: 1000 },
+      filename: { type: 'string', required: true, min: 1, max: 255 },
+      size_bytes: { type: 'number', required: false, min: 0 },
+      duration_seconds: { type: 'number', required: false, min: 0 }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { path: videoPath, filename, size_bytes, duration_seconds } = req.body;
-
+    
     // Validate required fields
     if (!videoPath || !filename) {
       return res.status(400).json({ error: 'Missing required fields: path, filename' });
     }
-
+    
     // Create asset in database with QUEUED status
     const assetId = uuidv4();
     const query = `
@@ -179,7 +203,7 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
       RETURNING asset_id
     `;
-
+    
     await pgPool.query(query, [
       assetId,
       videoPath,
@@ -190,24 +214,32 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
       'mp4',        // Default
       'QUEUED'
     ]);
-
+    
     // Push job to Redis queue
     await redisClient.rPush('analysis_queue', assetId);
-
+    
     // Return immediately with 202 Accepted
     res.status(202).json({
       asset_id: assetId,
       status: 'QUEUED',
       message: 'Analysis job queued successfully'
     });
-
+    
   } catch (error: any) {
     console.error('Error queuing analysis:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/ingest/local/folder', async (req: Request, res: Response) => {
+app.post('/api/ingest/local/folder',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      folder_path: { type: 'string', required: true, min: 1, max: 1000 },
+      max_files: { type: 'number', required: false, min: 1, max: 1000 }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const response = await axios.post(
       `${DRIVE_INTEL_URL}/ingest/local/folder`,
@@ -221,7 +253,16 @@ app.post('/api/ingest/local/folder', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/search/clips', async (req: Request, res: Response) => {
+app.post('/api/search/clips',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      query: { type: 'string', required: true, min: 1, max: 500, sanitize: true },
+      filters: { type: 'object', required: false },
+      limit: { type: 'number', required: false, min: 1, max: 100 }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const response = await axios.post(
       `${DRIVE_INTEL_URL}/search/clips`,
@@ -236,12 +277,20 @@ app.post('/api/search/clips', async (req: Request, res: Response) => {
 });
 
 // Scoring endpoint with XGBoost integration (Agent 4)
-app.post('/api/score/storyboard', async (req: Request, res: Response) => {
+app.post('/api/score/storyboard',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      scenes: { type: 'array', required: true },
+      metadata: { type: 'object', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { scenes, metadata } = req.body;
 
-    // Calculate rule-based scores (Now AI-Enhanced)
-    const scores = await scoringEngine.scoreStoryboard(scenes, metadata);
+    // Calculate rule-based scores
+    const scores = scoringEngine.scoreStoryboard(scenes, metadata);
 
     // Get XGBoost CTR prediction
     let xgboostPrediction = null;
@@ -287,7 +336,16 @@ app.post('/api/score/storyboard', async (req: Request, res: Response) => {
 });
 
 // Proxy to video-agent service
-app.post('/api/render/remix', async (req: Request, res: Response) => {
+app.post('/api/render/remix',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      clip_ids: { type: 'array', required: true },
+      transitions: { type: 'boolean', required: false },
+      output_format: { type: 'string', required: false, enum: ['mp4', 'webm', 'mov'] }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     if (!validateServiceUrl(VIDEO_AGENT_URL)) {
       throw new Error('Invalid service URL');
@@ -304,117 +362,35 @@ app.post('/api/render/remix', async (req: Request, res: Response) => {
   }
 });
 
-// Generation endpoint - Proxies to Titan Core
-app.post('/api/generate', async (req: Request, res: Response) => {
-  try {
-    const { assets, target_audience } = req.body;
-    const TITAN_CORE_URL = process.env.TITAN_CORE_URL || 'http://localhost:8088'; // Default to 8088 based on docker-compose usually
-
-    console.log(`Generating creative via Titan Core: ${TITAN_CORE_URL}`);
-
-    // Transform payload for Titan Core
-    const titanPayload = {
-      video_context: assets && assets.length > 0 ? assets[0] : "Generic Video",
-      niche: target_audience || "General"
-    };
-
-    // Call Titan Core
-    const response = await axios.post(`${TITAN_CORE_URL}/generate`, titanPayload);
-    const titanResult = response.data;
-
-    // Parse blueprint if it's a string
-    let blueprint: any = {};
-    try {
-      if (typeof titanResult.blueprint === 'string') {
-        // Try to find JSON in the string if it's wrapped in markdown code blocks
-        const jsonMatch = titanResult.blueprint.match(/```json\n([\s\S]*?)\n```/) ||
-          titanResult.blueprint.match(/```\n([\s\S]*?)\n```/) ||
-          [null, titanResult.blueprint];
-        const jsonStr = jsonMatch[1] || titanResult.blueprint;
-        blueprint = JSON.parse(jsonStr);
-      } else {
-        blueprint = titanResult.blueprint;
-      }
-    } catch (e) {
-      console.warn("Failed to parse blueprint JSON", e);
-      blueprint = { hook: "Generated Hook", body: titanResult.blueprint, cta: "Sign Up" };
+// Story Arc rendering endpoint - creates ads from templates
+app.post('/api/render/story_arc',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      arc_name: { type: 'string', required: false, min: 1, max: 100 },
+      asset_id: { type: 'uuid', required: true }
     }
-
-    // Transform response for Frontend (AdCreative[])
-    const adCreative = {
-      primarySourceFileName: assets && assets.length > 0 ? assets[0] : "generated.mp4",
-      variationTitle: "Titan Generated Ad",
-      headline: blueprint.hook || "Viral Hook",
-      body: blueprint.body || "Compelling Ad Body",
-      cta: blueprint.cta || "Learn More",
-      editPlan: [],
-      __roiScore: titanResult.council_review?.final_score || 85,
-      __hookScore: titanResult.council_review?.breakdown?.gemini_3_pro || 8,
-      __ctaScore: titanResult.council_review?.breakdown?.gpt_4o || 8
-    };
-
-    res.json(adCreative);
-
-  } catch (error: any) {
-    console.error("Generation Error:", error.message);
-    // Fallback for demo if Titan is down
-    res.json({
-      primarySourceFileName: req.body.assets?.[0] || "fallback.mp4",
-      variationTitle: "Fallback Generated Ad",
-      headline: "Error connecting to Titan",
-      body: "Please check backend logs. " + error.message,
-      cta: "Retry",
-      editPlan: [],
-      __roiScore: 0,
-      __hookScore: 0,
-      __ctaScore: 0
-    });
-  }
-});
-
-// Async analysis endpoint - queues job instead of blocking
-// MODIFIED: Returns synchronous mock for UI demo purposes while queuing
-app.post('/api/analyze', async (req: Request, res: Response) => {
-  try {
-    const { video_uri } = req.body; // Frontend sends video_uri
-
-    // Return immediate analysis for UI
-    res.json({
-      reasoning: "AI Analysis of " + (video_uri || "video"),
-      hook_style: "High Energy",
-      pacing: "Fast",
-      visual_elements: ["Person", "Text Overlay", "Product"],
-      emotional_trigger: "Excitement"
-    });
-
-    // In a real scenario, we would still queue the deep analysis here
-    // ... existing queue logic ...
-
-  } catch (error: any) {
-    console.error('Error in analysis:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-app.post('/api/render/story_arc', async (req: Request, res: Response) => {
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { arc_name, asset_id } = req.body;
-
+    
     // Load story arcs configuration
     const storyArcsPath = path.join(configPath, 'story_arcs.json');
     const storyArcs = JSON.parse(fs.readFileSync(storyArcsPath, 'utf8'));
-
+    
     // Get the requested arc
     const arc = storyArcs[arc_name || 'fitness_transformation'];
     if (!arc) {
-      return res.status(404).json({
+      return res.status(404).json({ 
         error: 'Story arc not found',
         available_arcs: Object.keys(storyArcs)
       });
     }
-
+    
     // Query database for clips matching each step
     const selectedClips: string[] = [];
-
+    
     for (const step of arc.steps) {
       const query = `
         SELECT c.clip_id, c.ctr_score, e.emotion
@@ -424,9 +400,9 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
         ORDER BY c.ctr_score DESC, c.scene_score DESC
         LIMIT 1
       `;
-
+      
       const result = await pgPool.query(query, [asset_id, step.emotion]);
-
+      
       if (result.rows.length > 0) {
         selectedClips.push(result.rows[0].clip_id);
       } else {
@@ -443,14 +419,14 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
         }
       }
     }
-
+    
     if (selectedClips.length === 0) {
-      return res.status(404).json({
+      return res.status(404).json({ 
         error: 'No clips found for story arc',
-        asset_id
+        asset_id 
       });
     }
-
+    
     // Create render job
     const jobId = uuidv4();
     const renderJob = {
@@ -460,10 +436,10 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
       enable_transitions: true,
       output_path: `/tmp/output_${jobId}.mp4`
     };
-
+    
     // Push to render queue
     await redisClient.rPush('render_queue', JSON.stringify(renderJob));
-
+    
     // Return job info
     res.status(202).json({
       job_id: jobId,
@@ -472,7 +448,7 @@ app.post('/api/render/story_arc', async (req: Request, res: Response) => {
       selected_clips: selectedClips,
       message: 'Render job queued successfully'
     });
-
+    
   } catch (error: any) {
     console.error('Error creating story arc render:', error);
     res.status(500).json({ error: error.message });
@@ -493,7 +469,16 @@ app.get('/api/render/status/:jobId', async (req: Request, res: Response) => {
 });
 
 // Proxy to meta-publisher service
-app.post('/api/publish/meta', async (req: Request, res: Response) => {
+app.post('/api/publish/meta',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      video_path: { type: 'string', required: true, min: 1, max: 1000 },
+      caption: { type: 'string', required: false, max: 2200, sanitize: true },
+      scheduled_time: { type: 'string', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const response = await axios.post(
       `${META_PUBLISHER_URL}/publish/meta`,
@@ -519,60 +504,6 @@ app.get('/api/insights', async (req: Request, res: Response) => {
       error: error.message
     });
   }
-});
-
-app.get('/api/creatives', async (req: Request, res: Response) => {
-  try {
-    const response = await axios.get(`${META_PUBLISHER_URL}/api/creatives`, { params: req.query });
-    res.json(response.data);
-  } catch (error: any) {
-    res.status(error.response?.status || 500).json({ error: error.message });
-  }
-});
-
-app.get('/api/timeseries', async (req: Request, res: Response) => {
-  try {
-    const response = await axios.get(`${META_PUBLISHER_URL}/api/timeseries`, { params: req.query });
-    res.json(response.data);
-  } catch (error: any) {
-    res.status(error.response?.status || 500).json({ error: error.message });
-  }
-});
-
-app.get('/api/metrics', async (req: Request, res: Response) => {
-  try {
-    // Aggregate metrics from meta-publisher or return mock
-    res.json({
-      totals: {
-        impressions: 15000,
-        clicks: 800,
-        conversions: 120,
-        spend: 2500,
-        revenue: 7500,
-        ctr: 0.053,
-        cvr: 0.15,
-        cpa: 20.83,
-        roas: 3.0
-      }
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/stream', (req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  const interval = setInterval(() => {
-    res.write(`data: ${JSON.stringify({ timestamp: Date.now() })}\n\n`);
-  }, 5000);
-
-  req.on('close', () => {
-    clearInterval(interval);
-  });
 });
 
 // Learning loop endpoint
@@ -609,7 +540,16 @@ app.get('/api/metrics/reliability', (req: Request, res: Response) => {
 
 // POST /api/trigger/analyze-drive-folder
 // Manual trigger button: "Analyze My Google Drive Ads"
-app.post('/api/trigger/analyze-drive-folder', async (req: Request, res: Response) => {
+app.post('/api/trigger/analyze-drive-folder',
+  authRateLimiter,
+  bruteForceProtection({ freeRetries: 3 }),
+  validateInput({
+    body: {
+      folder_id: { type: 'string', required: true, min: 1, max: 200 },
+      max_videos: { type: 'number', required: false, min: 1, max: 1000 }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { folder_id, max_videos } = req.body;
 
@@ -645,7 +585,15 @@ app.post('/api/trigger/analyze-drive-folder', async (req: Request, res: Response
 
 // POST /api/trigger/refresh-meta-metrics
 // Manual trigger button: "Refresh Meta Learning Data"
-app.post('/api/trigger/refresh-meta-metrics', async (req: Request, res: Response) => {
+app.post('/api/trigger/refresh-meta-metrics',
+  authRateLimiter,
+  bruteForceProtection({ freeRetries: 3 }),
+  validateInput({
+    body: {
+      days_back: { type: 'number', required: false, min: 1, max: 365 }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { days_back } = req.body;
 
@@ -717,7 +665,18 @@ app.get('/api/approval/queue', async (req: Request, res: Response) => {
 
 // POST /api/approval/approve/:ad_id
 // Human clicks "Approve" button
-app.post('/api/approval/approve/:ad_id', async (req: Request, res: Response) => {
+app.post('/api/approval/approve/:ad_id',
+  authRateLimiter,
+  validateInput({
+    params: {
+      ad_id: { type: 'uuid', required: true }
+    },
+    body: {
+      approved: { type: 'boolean', required: true },
+      notes: { type: 'string', required: false, max: 1000, sanitize: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { ad_id } = req.params;
     const { approved, notes } = req.body;
@@ -760,45 +719,202 @@ app.post('/api/approval/approve/:ad_id', async (req: Request, res: Response) => 
   }
 });
 
+// ============================================================================
+// META ADS LIBRARY ENDPOINTS (Agent 26 - Ad Spy Dashboard)
+// ============================================================================
+
+const TITAN_CORE_URL = process.env.TITAN_CORE_URL || 'http://localhost:8004';
+
+// POST /api/meta/ads-library/search
+// Search Meta Ads Library with filters
+app.post('/api/meta/ads-library/search',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      search_terms: { type: 'string', required: false, min: 1, max: 500, sanitize: true },
+      countries: { type: 'array', required: false },
+      platforms: { type: 'array', required: false },
+      media_type: { type: 'string', required: false, enum: ['ALL', 'VIDEO', 'IMAGE'] },
+      active_status: { type: 'string', required: false, enum: ['ALL', 'ACTIVE', 'INACTIVE'] },
+      limit: { type: 'number', required: false, min: 1, max: 200 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+  try {
+    const {
+      search_terms,
+      countries = ['US'],
+      platforms = ['facebook', 'instagram'],
+      media_type = 'ALL',
+      active_status = 'ACTIVE',
+      limit = 100
+    } = req.body;
+
+    console.log(`Searching Meta Ads Library: "${search_terms}", countries: ${countries}, limit: ${limit}`);
+
+    // Forward to Titan Core Meta Ads Library scraper
+    const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/search`, {
+      search_terms,
+      countries,
+      platforms,
+      media_type,
+      active_status,
+      limit
+    }, {
+      timeout: 60000 // 60 second timeout for API calls
+    });
+
+    res.json(response.data);
+
+  } catch (error: any) {
+    console.error('Meta Ads Library search error:', error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.message,
+      details: error.response?.data || 'Search failed'
+    });
+  }
+});
+
+// GET /api/meta/ads-library/page/:page_id
+// Get all ads from a specific Facebook/Instagram page
+app.get('/api/meta/ads-library/page/:page_id',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      page_id: { type: 'string', required: true, min: 1, max: 100 }
+    },
+    query: {
+      limit: { type: 'number', required: false, min: 1, max: 200 },
+      active_only: { type: 'boolean', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
+  try {
+    const { page_id } = req.params;
+    const { limit = 100, active_only = true } = req.query;
+
+    console.log(`Fetching ads for page: ${page_id}`);
+
+    const response = await axios.get(`${TITAN_CORE_URL}/meta/ads-library/page/${page_id}`, {
+      params: { limit, active_only },
+      timeout: 60000
+    });
+
+    res.json(response.data);
+
+  } catch (error: any) {
+    console.error('Page ads fetch error:', error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.message,
+      details: error.response?.data || 'Failed to fetch page ads'
+    });
+  }
+});
+
+// POST /api/meta/ads-library/analyze
+// Analyze patterns across multiple ads
+app.post('/api/meta/ads-library/analyze',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      ads: { type: 'array', required: true, min: 1, max: 500 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+  try {
+    const { ads } = req.body;
+
+    console.log(`Analyzing patterns for ${ads.length} ads`);
+
+    const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/analyze`, {
+      ads
+    }, {
+      timeout: 30000
+    });
+
+    res.json(response.data);
+
+  } catch (error: any) {
+    console.error('Pattern analysis error:', error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.message,
+      details: error.response?.data || 'Analysis failed'
+    });
+  }
+});
+
+// GET /api/meta/ads-library/ad/:ad_archive_id
+// Get detailed information for a specific ad
+app.get('/api/meta/ads-library/ad/:ad_archive_id',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      ad_archive_id: { type: 'string', required: true, min: 1, max: 100 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+  try {
+    const { ad_archive_id } = req.params;
+
+    console.log(`Fetching details for ad: ${ad_archive_id}`);
+
+    const response = await axios.get(`${TITAN_CORE_URL}/meta/ads-library/ad/${ad_archive_id}`, {
+      timeout: 30000
+    });
+
+    res.json(response.data);
+
+  } catch (error: any) {
+    console.error('Ad details fetch error:', error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.message,
+      details: error.response?.data || 'Failed to fetch ad details'
+    });
+  }
+});
+
+// POST /api/meta/ads-library/batch
+// Batch scrape multiple search terms
+app.post('/api/meta/ads-library/batch',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      queries: { type: 'array', required: true, min: 1, max: 50 },
+      countries: { type: 'array', required: false },
+      limit_per_query: { type: 'number', required: false, min: 1, max: 100 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+  try {
+    const { queries, countries = ['US'], limit_per_query = 50 } = req.body;
+
+    console.log(`Batch scraping ${queries.length} queries`);
+
+    const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/batch`, {
+      queries,
+      countries,
+      limit_per_query
+    }, {
+      timeout: 120000 // 2 minute timeout for batch operations
+    });
+
+    res.json(response.data);
+
+  } catch (error: any) {
+    console.error('Batch scrape error:', error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.message,
+      details: error.response?.data || 'Batch scrape failed'
+    });
+  }
+});
+
 // Health check
-app.get('/health', async (req: Request, res: Response) => {
-  const health = {
+app.get('/health', (req: Request, res: Response) => {
+  res.json({
     status: 'healthy',
-    timestamp: new Date().toISOString(),
-    services: {
-      redis: false,
-      postgres: false
-    }
-  };
-
-  try {
-    // Check Redis
-    if (redisClient.isOpen) {
-      await redisClient.ping();
-      health.services.redis = true;
-    }
-  } catch (e) {
-    console.warn('Health check: Redis failed', e);
-  }
-
-  try {
-    // Check Postgres
-    const pgRes = await pgPool.query('SELECT 1');
-    if (pgRes.rowCount === 1) {
-      health.services.postgres = true;
-    }
-  } catch (e) {
-    console.warn('Health check: Postgres failed', e);
-  }
-
-  // If critical services fail, status could be 'degraded'
-  if (!health.services.redis || !health.services.postgres) {
-    // For now, we keep it 'healthy' but log the failure to avoid crashing load balancers
-    // In strict mode, we might set status to 'degraded'
-    console.warn('Service degraded:', health.services);
-  }
-
-  res.json(health);
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.listen(PORT, () => {

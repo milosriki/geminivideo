@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowDownTrayIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
 interface ExportSettings {
@@ -40,6 +40,16 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ duration = 25, onExpor
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [estimatedSize, setEstimatedSize] = useState(0);
+  const exportIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup interval on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (exportIntervalRef.current) {
+        clearInterval(exportIntervalRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     calculateEstimatedSize();
@@ -66,14 +76,22 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ duration = 25, onExpor
   };
 
   const handleExport = async () => {
+    // Clear any existing interval
+    if (exportIntervalRef.current) {
+      clearInterval(exportIntervalRef.current);
+    }
+
     setIsExporting(true);
     setExportProgress(0);
 
-    // Simulate export progress
-    const interval = setInterval(() => {
+    // Simulate export progress with stored ref for cleanup
+    exportIntervalRef.current = setInterval(() => {
       setExportProgress(prev => {
         if (prev >= 100) {
-          clearInterval(interval);
+          if (exportIntervalRef.current) {
+            clearInterval(exportIntervalRef.current);
+            exportIntervalRef.current = null;
+          }
           setTimeout(() => {
             setIsExporting(false);
             setExportProgress(0);
@@ -111,11 +129,10 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ duration = 25, onExpor
               <button
                 key={option.value}
                 onClick={() => setSettings(prev => ({ ...prev, resolution: option.value }))}
-                className={`w-full px-4 py-3 rounded-lg border-2 transition-all text-left ${
-                  settings.resolution === option.value
+                className={`w-full px-4 py-3 rounded-lg border-2 transition-all text-left ${settings.resolution === option.value
                     ? 'border-indigo-500 bg-indigo-500/10 text-white'
                     : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600'
-                }`}
+                  }`}
               >
                 <div className="font-medium text-sm">{option.label}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">
@@ -134,11 +151,10 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ duration = 25, onExpor
               <button
                 key={option.value}
                 onClick={() => setSettings(prev => ({ ...prev, format: option.value }))}
-                className={`w-full px-4 py-3 rounded-lg border-2 transition-all text-left ${
-                  settings.format === option.value
+                className={`w-full px-4 py-3 rounded-lg border-2 transition-all text-left ${settings.format === option.value
                     ? 'border-indigo-500 bg-indigo-500/10 text-white'
                     : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600'
-                }`}
+                  }`}
               >
                 <div className="font-medium text-sm">{option.label}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">{option.description}</div>
@@ -167,9 +183,8 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ duration = 25, onExpor
                 <button
                   key={level.value}
                   onClick={() => setSettings(prev => ({ ...prev, quality: level.value }))}
-                  className={`text-xs transition-colors ${
-                    settings.quality === level.value ? 'text-indigo-400 font-medium' : 'text-zinc-500'
-                  }`}
+                  className={`text-xs transition-colors ${settings.quality === level.value ? 'text-indigo-400 font-medium' : 'text-zinc-500'
+                    }`}
                 >
                   {level.label}
                 </button>

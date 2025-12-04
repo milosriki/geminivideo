@@ -465,7 +465,7 @@ export const calculateSilenceSegments = (transcription: TranscribedWord[], silen
 
 
 export const calculateKeywordSegments = (transcription: TranscribedWord[], startWord: string, endWord: string): { start: number; end: number }[] => {
-    const segments = [];
+    const segments: { start: number; end: number }[] = [];
     let startIndex = -1;
 
     transcription.forEach((word, i) => {

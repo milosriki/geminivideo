@@ -1,0 +1,25 @@
+# Celery Distributed Task Queue Requirements
+# Install with: pip install -r requirements_celery.txt
+
+# Core Celery
+celery[redis]==5.3.4
+kombu==5.3.4
+
+# Redis client
+redis==5.0.1
+
+# System monitoring
+psutil==5.9.6
+
+# Optional: Whisper for caption generation
+# Uncomment if using caption_task with Whisper
+# openai-whisper==20231117
+# torch>=2.0.0
+# torchaudio>=2.0.0
+
+# Optional: Flower for web monitoring
+# flower==2.0.1
+
+# Already in main requirements
+# fastapi==0.104.1
+# pydantic==2.5.0

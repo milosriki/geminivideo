@@ -1,0 +1,316 @@
+================================================================================
+ASSET LIBRARY MANAGER - QUICK REFERENCE CHEATSHEET
+================================================================================
+
+INITIALIZATION
+--------------
+from services.video_agent.pro import AssetLibrary, AssetType, AssetCategory
+
+library = AssetLibrary(storage_dir="/path/to/assets")
+
+IMPORT SINGLE ASSET
+-------------------
+asset = library.import_asset(
+    source_path="video.mp4",
+    asset_type=AssetType.VIDEO,
+    name="My Video",
+    category=AssetCategory.PRODUCT_SHOT,
+    tags={"product", "4k", "demo"},
+    description="Product demo video",
+    generate_thumbnail=True
+)
+
+BULK IMPORT
+-----------
+videos = library.bulk_import(
+    folder_path="/videos",
+    asset_type=AssetType.VIDEO,
+    category=AssetCategory.STOCK_FOOTAGE,
+    recursive=True,
+    file_extensions=['.mp4', '.mov', '.avi']
+)
+
+IMPORT FROM URL
+---------------
+asset = library.import_from_url(
+    url="https://example.com/video.mp4",
+    asset_type=AssetType.VIDEO,
+    tags={"downloaded", "stock"}
+)
+
+SEARCH ASSETS
+-------------
+# Simple text search
+results = library.search_assets(query="product")
+
+# Search by type
+videos = library.search_assets(asset_type=AssetType.VIDEO)
+
+# Search by category
+music = library.search_assets(category=AssetCategory.MUSIC)
+
+# Search by tags
+tagged = library.search_assets(tags={"4k", "product"})
+
+# Complex search
+results = library.search_assets(
+    query="ocean",
+    asset_type=AssetType.VIDEO,
+    category=AssetCategory.B_ROLL,
+    min_resolution=(1920, 1080),
+    max_duration=60.0,
+    has_audio=False,
+    sort_by="created_at",
+    reverse=True
+)
+
+FAVORITES
+---------
+# Mark favorite
+library.set_favorite(asset.id, True)
+
+# Get all favorites
+favorites = library.get_favorites()
+
+# Search favorites only
+fav_videos = library.search_assets(
+    asset_type=AssetType.VIDEO,
+    favorites_only=True
+)
+
+USAGE TRACKING
+--------------
+# Mark as used
+library.mark_used(asset.id)
+
+# Get recently used
+recent = library.get_recently_used(limit=10)
+
+TAGGING
+-------
+# Add tags
+library.add_tag(asset.id, "premium")
+library.add_tag(asset.id, "featured")
+
+# Remove tag
+library.remove_tag(asset.id, "old-tag")
+
+# Search by multiple tags
+premium_featured = library.search_assets(tags={"premium", "featured"})
+
+ORGANIZATION
+------------
+# By type
+by_type = library.organize_by_type()
+videos = by_type[AssetType.VIDEO]
+audio = by_type[AssetType.AUDIO]
+
+# By category
+by_category = library.organize_by_category()
+
+# Music by mood
+from services.video_agent.pro import MusicLibrary
+audio_assets = library.search_assets(asset_type=AssetType.AUDIO)
+by_mood = MusicLibrary.categorize_by_mood(audio_assets)
+upbeat = by_mood['upbeat']
+
+# Music by genre
+by_genre = MusicLibrary.categorize_by_genre(audio_assets)
+electronic = by_genre['electronic']
+
+THUMBNAILS
+----------
+# Generate thumbnail
+library.generate_asset_thumbnail(asset)
+
+# Thumbnail paths
+print(asset.thumbnail_path)  # Local
+print(asset.thumbnail_cloud_path)  # Cloud
+
+CLOUD STORAGE
+-------------
+from services.video_agent.pro import CloudStorageManager
+
+# Setup
+cloud = CloudStorageManager(
+    bucket_name="my-bucket",
+    credentials_path="/path/to/gcs-credentials.json"
+)
+
+library = AssetLibrary(
+    storage_dir="/local/assets",
+    cloud_storage=cloud
+)
+
+# Upload
+library.upload_to_cloud(asset.id, include_thumbnail=True)
+
+# Get URL
+url = cloud.get_public_url(asset.cloud_path)
+
+VERSIONING
+----------
+# Create new version
+new_version = library.create_version(
+    asset_id=original.id,
+    new_file_path="/path/to/v2.mp4"
+)
+
+# Get all versions
+versions = library.get_asset_versions(original.id)
+for v in versions:
+    print(f"v{v.version}: {v.name}")
+
+METADATA
+--------
+# Get metadata
+metadata = library.get_asset_metadata(asset.id)
+
+# Video metadata
+if isinstance(metadata, VideoMetadata):
+    print(f"Resolution: {metadata.resolution}")
+    print(f"Duration: {metadata.duration}s")
+    print(f"FPS: {metadata.fps}")
+    print(f"Codec: {metadata.codec.value}")
+    print(f"4K: {metadata.is_4k}")
+    print(f"HD: {metadata.is_hd}")
+
+# Audio metadata
+if isinstance(metadata, AudioMetadata):
+    print(f"Duration: {metadata.duration}s")
+    print(f"Sample Rate: {metadata.sample_rate} Hz")
+    print(f"Channels: {metadata.channels}")
+    print(f"Stereo: {metadata.is_stereo}")
+
+STATISTICS
+----------
+stats = library.get_library_stats()
+print(f"Total: {stats['total_assets']}")
+print(f"Size: {stats['total_size_bytes'] / (1024**3):.2f} GB")
+print(f"Favorites: {stats['favorites_count']}")
+print(f"With Thumbnails: {stats['with_thumbnails']}")
+print(f"By Type: {stats['by_type']}")
+print(f"By Category: {stats['by_category']}")
+
+DELETE ASSET
+------------
+# Delete from library only
+library.delete_asset(asset.id, delete_files=False)
+
+# Delete from library and disk
+library.delete_asset(asset.id, delete_files=True)
+
+ASSET TYPES
+-----------
+AssetType.VIDEO      # MP4, MOV, AVI, MKV
+AssetType.AUDIO      # MP3, WAV, FLAC, AAC
+AssetType.IMAGE      # JPG, PNG, TIFF, BMP
+AssetType.FONT       # TTF, OTF, WOFF
+AssetType.LUT        # .CUBE, .3DL
+AssetType.TEMPLATE   # Motion graphics templates
+
+CATEGORIES
+----------
+# Video
+AssetCategory.STOCK_FOOTAGE
+AssetCategory.B_ROLL
+AssetCategory.PRODUCT_SHOT
+
+# Audio
+AssetCategory.MUSIC
+AssetCategory.SOUND_EFFECT
+AssetCategory.VOICEOVER
+
+# Image
+AssetCategory.PHOTO
+AssetCategory.GRAPHIC
+AssetCategory.TEXTURE
+AssetCategory.BACKGROUND
+
+# Font
+AssetCategory.SERIF
+AssetCategory.SANS_SERIF
+AssetCategory.DISPLAY
+AssetCategory.HANDWRITTEN
+
+# LUT
+AssetCategory.CINEMATIC
+AssetCategory.VINTAGE
+AssetCategory.MODERN
+AssetCategory.CREATIVE
+
+# Template
+AssetCategory.LOWER_THIRD
+AssetCategory.TITLE
+AssetCategory.CTA
+AssetCategory.TRANSITION
+
+COMMON SEARCHES
+---------------
+# Find 4K videos under 60s
+results = library.search_assets(
+    asset_type=AssetType.VIDEO,
+    min_resolution=(3840, 2160),
+    max_duration=60.0
+)
+
+# Find HD B-roll without audio
+broll = library.search_assets(
+    asset_type=AssetType.VIDEO,
+    category=AssetCategory.B_ROLL,
+    min_resolution=(1920, 1080),
+    has_audio=False
+)
+
+# Find upbeat music 2-4 minutes
+music = library.search_assets(
+    asset_type=AssetType.AUDIO,
+    category=AssetCategory.MUSIC,
+    tags={"upbeat"},
+    min_duration=120.0,
+    max_duration=240.0
+)
+
+# Find cinematic LUTs
+luts = library.search_assets(
+    asset_type=AssetType.LUT,
+    category=AssetCategory.CINEMATIC
+)
+
+# Find lower third templates
+templates = library.search_assets(
+    asset_type=AssetType.TEMPLATE,
+    category=AssetCategory.LOWER_THIRD
+)
+
+PRO TIPS
+--------
+1. Always generate thumbnails for quick preview
+2. Use consistent tagging conventions
+3. Mark frequently used assets as favorites
+4. Upload important assets to cloud for backup
+5. Use specific categories rather than generic tags
+6. Version important assets rather than overwriting
+7. Use bulk import for initial library setup
+8. Track usage to identify popular assets
+
+FILES
+-----
+Main:     /home/user/geminivideo/services/video-agent/pro/asset_library.py
+Demo:     /home/user/geminivideo/services/video-agent/pro/asset_library_demo.py
+Docs:     /home/user/geminivideo/services/video-agent/pro/ASSET_LIBRARY_README.md
+Quick:    /home/user/geminivideo/services/video-agent/pro/ASSET_LIBRARY_QUICKSTART.md
+Features: /home/user/geminivideo/services/video-agent/pro/ASSET_LIBRARY_FEATURES.md
+Summary:  /home/user/geminivideo/services/video-agent/pro/ASSET_LIBRARY_SUMMARY.txt
+
+DEMO
+----
+cd services/video-agent/pro
+python3 asset_library_demo.py
+
+QUICK TEST
+----------
+cd services/video-agent/pro
+python3 -c "from asset_library import *; lib = AssetLibrary('/tmp/test'); print('✓ OK')"
+
+================================================================================

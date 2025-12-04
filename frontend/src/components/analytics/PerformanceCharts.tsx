@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   AreaChart,
   Area,
@@ -10,6 +10,8 @@ import {
   TooltipProps,
 } from 'recharts';
 import { motion } from 'framer-motion';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 type MetricKey = 'spend' | 'revenue' | 'roas' | 'conversions';
 
@@ -65,31 +67,6 @@ const metrics: MetricConfig[] = [
   },
 ];
 
-// Generate realistic mock data for the past 30 days
-const generateChartData = (): ChartDataPoint[] => {
-  const data: ChartDataPoint[] = [];
-  const today = new Date();
-
-  for (let i = 29; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-
-    const baseSpend = 800 + Math.random() * 400;
-    const baseRoas = 3.2 + Math.random() * 1.5;
-    const baseConversions = 30 + Math.random() * 40;
-
-    data.push({
-      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      spend: Math.round(baseSpend * 100) / 100,
-      revenue: Math.round(baseSpend * baseRoas * 100) / 100,
-      roas: Math.round(baseRoas * 100) / 100,
-      conversions: Math.round(baseConversions),
-    });
-  }
-
-  return data;
-};
-
 const CustomTooltip: React.FC<
   TooltipProps<number, string> & { selectedMetric: MetricConfig }
 > = ({ active, payload, selectedMetric }) => {
@@ -136,9 +113,70 @@ const CustomTooltip: React.FC<
 
 export const PerformanceCharts: React.FC = () => {
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>('revenue');
-  const chartData = useMemo(() => generateChartData(), []);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch chart data from API
+  useEffect(() => {
+    const fetchChartData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/api/analytics/performance`);
+        if (!response.ok) {
+          throw new Error(response.status.toString());
+        }
+        const data = await response.json();
+        // Backend returns { data: [...] } wrapper
+        setChartData(data.data || data || []);
+        setError(null);
+      } catch (err) {
+        setError('Data source not configured. Please configure analytics in the backend.');
+        setChartData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChartData();
+  }, []);
 
   const activeMetric = metrics.find((m) => m.key === selectedMetric) || metrics[0];
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg">
+        <div className="flex items-center justify-center h-80">
+          <div className="text-zinc-400">Loading performance data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg">
+        <div className="flex flex-col items-center justify-center h-80">
+          <div className="text-red-400 mb-2">Error loading performance data</div>
+          <div className="text-zinc-500 text-sm">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state
+  if (chartData.length === 0) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg">
+        <div className="flex flex-col items-center justify-center h-80">
+          <div className="text-zinc-400">No performance data available</div>
+          <div className="text-zinc-500 text-sm mt-1">Start running campaigns to see analytics</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg">

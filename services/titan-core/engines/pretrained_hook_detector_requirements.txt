@@ -1,0 +1,18 @@
+# PretrainedHookDetector Dependencies
+# Agent 17 of 30 - Real BERT/RoBERTa Hook Detection
+
+# Core ML frameworks
+torch>=2.0.0
+transformers>=4.30.0
+numpy>=1.24.0
+
+# Optional: For GPU support
+# Install with: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# Optional: Accelerated inference
+# accelerate>=0.20.0
+# optimum>=1.8.0
+
+# Models used:
+# - cardiffnlp/twitter-roberta-base-sentiment-latest (Sentiment Analysis)
+# - facebook/bart-large-mnli (Zero-shot Classification)

@@ -17,7 +17,7 @@ class Campaign(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    videos = relationship("Video", back_populates="campaign")
+    videos = relationship("Video", back_populates="campaign", lazy="selectin")
 
 class Video(Base):
     __tablename__ = "videos"
@@ -34,9 +34,9 @@ class Video(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     meta_platform_id = Column(String)
 
-    campaign = relationship("Campaign", back_populates="videos")
-    scenes = relationship("Scene", back_populates="video")
-    metrics = relationship("PerformanceMetric", back_populates="video")
+    campaign = relationship("Campaign", back_populates="videos", lazy="joined")
+    scenes = relationship("Scene", back_populates="video", lazy="selectin")
+    metrics = relationship("PerformanceMetric", back_populates="video", lazy="selectin")
 
 class Scene(Base):
     __tablename__ = "scenes"
@@ -50,7 +50,7 @@ class Scene(Base):
     emotion_score = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    video = relationship("Video", back_populates="scenes")
+    video = relationship("Video", back_populates="scenes", lazy="joined")
 
 class PerformanceMetric(Base):
     __tablename__ = "performance_metrics"
@@ -67,7 +67,7 @@ class PerformanceMetric(Base):
     raw_data = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    video = relationship("Video", back_populates="metrics")
+    video = relationship("Video", back_populates="metrics", lazy="joined")
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

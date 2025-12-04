@@ -65,9 +65,8 @@ function WizardProgress({ currentStep, steps }: { currentStep: number; steps: st
             </div>
             {index < steps.length - 1 && (
               <div
-                className={`w-20 h-0.5 mx-2 ${
-                  stepNum < currentStep ? 'bg-violet-600' : 'bg-zinc-800'
-                }`}
+                className={`w-20 h-0.5 mx-2 ${stepNum < currentStep ? 'bg-violet-600' : 'bg-zinc-800'
+                  }`}
               />
             )}
           </div>
@@ -79,7 +78,9 @@ function WizardProgress({ currentStep, steps }: { currentStep: number; steps: st
 
 // Step 1: Campaign Setup
 function SetupStep() {
-  const { wizard, updateWizard } = useCampaignStore()
+  const { wizardData, updateWizardData } = useCampaignStore()
+  const wizard = wizardData;
+  const updateWizard = updateWizardData;
 
   return (
     <motion.div
@@ -171,7 +172,9 @@ function SetupStep() {
 
 // Step 2: Creative Setup
 function CreativeStep() {
-  const { wizard, updateWizard } = useCampaignStore()
+  const { wizardData, updateWizardData } = useCampaignStore()
+  const wizard = wizardData;
+  const updateWizard = updateWizardData;
 
   const styleOptions = [
     { id: 'ugc', name: 'UGC Style', description: 'Authentic, phone-filmed look', icon: '📱' },
@@ -279,7 +282,8 @@ function CreativeStep() {
 
 // Step 3: Review & Launch
 function ReviewStep() {
-  const { wizard } = useCampaignStore()
+  const { wizardData } = useCampaignStore()
+  const wizard = wizardData;
 
   return (
     <motion.div
@@ -324,7 +328,7 @@ function ReviewStep() {
           <Badge color="yellow">Pending Generation</Badge>
         </div>
         <div className="grid grid-cols-3 gap-4">
-          {Array.from({ length: Math.min(wizard.variants, 3) }).map((_, i) => (
+          {Array.from({ length: Math.min(wizard.variants || 1, 3) }).map((_, i) => (
             <div
               key={i}
               className="aspect-[9/16] rounded-lg bg-zinc-800 flex items-center justify-center"
@@ -357,7 +361,10 @@ function ReviewStep() {
 // Main Wizard Component
 export function CreateCampaignPage() {
   const navigate = useNavigate()
-  const { wizard, nextStep, prevStep, resetWizard } = useCampaignStore()
+  const { wizardStep, wizardData, setWizardStep, resetWizard } = useCampaignStore()
+  const wizard = { step: wizardStep, ...wizardData };
+  const nextStep = () => setWizardStep(wizardStep + 1);
+  const prevStep = () => setWizardStep(wizardStep - 1);
   const steps = ['Setup', 'Creative', 'Review']
 
   const handleNext = () => {
@@ -365,7 +372,7 @@ export function CreateCampaignPage() {
       nextStep()
     } else {
       // Launch campaign
-      console.log('Launching campaign:', wizard)
+      // console.log('Launching campaign:', wizard)
       // TODO: API call to create campaign
       resetWizard()
       navigate('/campaigns')

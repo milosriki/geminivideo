@@ -8,7 +8,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 import os
-from typing import Optional
+from typing import Optional, Generator
+from contextlib import contextmanager
 
 # Database URL from environment or default to local PostgreSQL
 DATABASE_URL = os.getenv(
@@ -73,13 +74,23 @@ class Emotion(Base):
     detected_at = Column(DateTime, default=datetime.utcnow)
 
 
-def get_db() -> Session:
-    """Get database session"""
+def get_db() -> Generator[Session, None, None]:
+    """Dependency for FastAPI to get DB session"""
     db = SessionLocal()
     try:
-        return db
+        yield db
     finally:
-        pass  # Don't close here, let caller handle it
+        db.close()
+
+
+@contextmanager
+def get_db_context() -> Generator[Session, None, None]:
+    """Context manager for non-FastAPI usage"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def init_db():

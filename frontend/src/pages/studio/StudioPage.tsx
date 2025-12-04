@@ -143,7 +143,7 @@ export function StudioPage() {
   const handleGenerate = async () => {
     if (!selectedAvatar) return
 
-    console.log('Generating video with script:', script)
+    // console.log('Generating video with script:', script)
     try {
       // Mock brief and strategy for now as StudioPage doesn't have full campaign context yet
       const mockBrief = {

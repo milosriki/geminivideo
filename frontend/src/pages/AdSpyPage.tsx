@@ -1,7 +1,38 @@
 // ==========================================
 // AdSpyPage.tsx - Competitor Research
 // ==========================================
-import { useState } from 'react'
+//
+// ============================================================================
+// 🔴 CRITICAL ANALYSIS FINDINGS (December 2024)
+// ============================================================================
+//
+// STATUS: 100% FAKE UI - No real competitor tracking!
+//
+// WHAT'S FAKE:
+// - trendingAds array (line 19-24): HARDCODED mock data
+//   "Competitor A/B/C/D" - these are not real competitors
+//   Views (2.4M, 1.8M) - completely made up
+//   Engagement (8.2%, 6.5%) - fabricated percentages
+// - Search button: Does NOTHING (no backend route)
+// - "Add Competitor" button: Does NOTHING (no tracking system)
+// - "View All" button: Does NOTHING (no more data)
+//
+// WHAT IT SHOULD DO:
+// 1. Connect to Meta Ads Library API for real competitor ads
+// 2. Use Apify/PhantomBuster to scrape competitor ad creatives
+// 3. Store tracked competitors in database
+// 4. Show real engagement metrics from actual ads
+//
+// BACKEND REQUIREMENT:
+// - /api/competitors/track - Add competitor to watch list
+// - /api/competitors/ads - Fetch competitor's ads
+// - /api/ads/trending - Get trending ads by category
+//
+// FAST FIX: Use Apify's Meta Ads Library scraper actor
+// Or: Allow manual CSV upload of competitor ad data
+// ============================================================================
+
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   MagnifyingGlassIcon,
@@ -15,25 +46,19 @@ import { Input } from '@/components/catalyst/input'
 import { Badge } from '@/components/catalyst/badge'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
-import { Combobox, ComboboxOption, ComboboxLabel, ComboboxDescription } from '@/components/catalyst/combobox'
-import { Link } from '@/components/catalyst/link'
 
-const brands = [
-  { id: '1', name: 'Competitor A', industry: 'Fitness & Wellness', adsCount: 247 },
-  { id: '2', name: 'Competitor B', industry: 'Personal Training', adsCount: 189 },
-  { id: '3', name: 'Competitor C', industry: 'Health & Nutrition', adsCount: 342 },
-  { id: '4', name: 'Competitor D', industry: 'Fitness Equipment', adsCount: 156 },
-  { id: '5', name: 'Competitor E', industry: 'Weight Loss Programs', adsCount: 428 },
-]
+import { API_BASE_URL } from '../config/api';
 
-const trendingAds = [
-  { id: '1', brand: 'Competitor A', title: 'Weight Loss Success', views: '2.4M', engagement: '8.2%', platform: 'Meta' },
-  { id: '2', brand: 'Competitor B', title: 'Personal Training Ad', views: '1.8M', engagement: '6.5%', platform: 'TikTok' },
-  { id: '3', brand: 'Competitor C', title: 'Transformation Story', views: '3.1M', engagement: '9.1%', platform: 'Meta' },
-  { id: '4', brand: 'Competitor D', title: 'Fitness Challenge', views: '950K', engagement: '7.8%', platform: 'YouTube' },
-]
+interface TrendingAd {
+  id: string;
+  brand: string;
+  title: string;
+  views: string;
+  engagement: string;
+  platform: string;
+}
 
-function TrendingAdCard({ ad }: { ad: typeof trendingAds[0] }) {
+function TrendingAdCard({ ad }: { ad: TrendingAd }) {
   return (
     <motion.div
       whileHover={{ y: -4 }}
@@ -64,7 +89,32 @@ function TrendingAdCard({ ad }: { ad: typeof trendingAds[0] }) {
 }
 
 export function AdSpyPage() {
-  const [selectedBrand, setSelectedBrand] = useState<typeof brands[0] | null>(null)
+  const [search, setSearch] = useState('')
+  const [trendingAds, setTrendingAds] = useState<TrendingAd[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchTrendingAds = async () => {
+      try {
+        setError(null)
+        const response = await fetch(`${API_BASE_URL}/api/ads/trending`)
+        if (response.ok) {
+          const data = await response.json()
+          setTrendingAds(data.ads || [])
+        } else {
+          throw new Error(`API returned ${response.status}`)
+        }
+      } catch (err) {
+        console.error('Failed to fetch trending ads:', err)
+        setError('Unable to load trending ads')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTrendingAds()
+  }, [])
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -75,19 +125,14 @@ export function AdSpyPage() {
 
       {/* Search Bar */}
       <div className="flex gap-4">
-        <div className="flex-1">
-          <Combobox
-            value={selectedBrand}
-            onChange={setSelectedBrand}
-            placeholder="Search brands, keywords..."
-          >
-            {brands.map((brand) => (
-              <ComboboxOption key={brand.id} value={brand}>
-                <ComboboxLabel>{brand.name}</ComboboxLabel>
-                <ComboboxDescription>{brand.industry} - {brand.adsCount} ads</ComboboxDescription>
-              </ComboboxOption>
-            ))}
-          </Combobox>
+        <div className="relative flex-1">
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by brand, keyword, or URL..."
+            className="pl-10"
+          />
         </div>
         <Button color="violet">Search</Button>
       </div>
@@ -96,20 +141,52 @@ export function AdSpyPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <Heading level={2} className="text-white">Trending in Fitness</Heading>
-          <Link href="#" className="text-violet-400">View All</Link>
+          {trendingAds.length > 0 && (
+            <Button plain className="text-violet-400">View All</Button>
+          )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {trendingAds.map((ad, index) => (
-            <motion.div
-              key={ad.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <TrendingAdCard ad={ad} />
-            </motion.div>
-          ))}
-        </div>
+
+        {loading && (
+          <div className="flex items-center justify-center py-16 rounded-xl bg-zinc-900 border border-zinc-800">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-500"></div>
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <p className="text-white font-medium">{error}</p>
+            <p className="text-zinc-400 text-sm mt-2">Check your connection or try again later.</p>
+          </div>
+        )}
+
+        {!loading && !error && trendingAds.length === 0 && (
+          <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-8 text-center">
+            <GlobeAltIcon className="h-12 w-12 text-zinc-700 mx-auto" />
+            <p className="text-white mt-4 font-medium">No trending ads available</p>
+            <p className="text-zinc-400 text-sm mt-2">Connect a data source to start tracking competitor ads.</p>
+            <Button color="violet" className="mt-4">Connect Data Source</Button>
+          </div>
+        )}
+
+        {!loading && !error && trendingAds.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {trendingAds.map((ad, index) => (
+              <motion.div
+                key={ad.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <TrendingAdCard ad={ad} />
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tracked Competitors */}
