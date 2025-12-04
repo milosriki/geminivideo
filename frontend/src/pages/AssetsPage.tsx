@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getAssets } from '@/services/api'
+import { googleDriveService } from '@/services/googleDriveService'
 import { motion } from 'framer-motion'
 import {
   MagnifyingGlassIcon,
@@ -53,6 +54,34 @@ export function AssetsPage() {
     fetchAssets()
   }, [])
 
+  // Google Drive Integration
+  const handleDriveImport = async () => {
+    try {
+      setLoading(true)
+      await googleDriveService.signIn()
+      const files = await googleDriveService.listFiles()
+
+      // Transform Drive files to Asset format
+      const driveAssets = files.map(f => ({
+        asset_id: f.id,
+        filename: f.name,
+        url: f.downloadUrl || f.thumbnailLink,
+        format: f.mimeType.split('/')[1] || 'video',
+        size_bytes: 0,
+        duration_seconds: 0,
+        source: 'google_drive'
+      }))
+
+      setAssets(prev => [...driveAssets, ...prev])
+      alert(`Successfully imported ${files.length} videos from Google Drive!`)
+    } catch (error: any) {
+      console.error('Drive import failed:', error)
+      alert('Failed to import from Drive: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-6">
       {/* Header */}
@@ -61,10 +90,16 @@ export function AssetsPage() {
           <Heading level={1} className="text-white">Ad Library</Heading>
           <Text className="text-zinc-400 mt-1">Browse and manage your video assets.</Text>
         </div>
-        <Button color="violet" href="/studio" className="gap-2">
-          <PlayIcon className="h-4 w-4" />
-          Create Video
-        </Button>
+        <div className="flex gap-2">
+          <Button outline onClick={handleDriveImport} className="gap-2">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" className="h-4 w-4" alt="Drive" />
+            Import from Drive
+          </Button>
+          <Button color="violet" href="/studio" className="gap-2">
+            <PlayIcon className="h-4 w-4" />
+            Create Video
+          </Button>
+        </div>
       </div>
 
       {/* Filters Bar */}
@@ -97,22 +132,20 @@ export function AssetsPage() {
           <div className="flex gap-1">
             <button
               onClick={() => setView('grid')}
-              className={`p-2 rounded-lg transition-colors ${
-                view === 'grid'
-                  ? 'bg-violet-500 text-white'
-                  : 'bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-800'
-              }`}
+              className={`p-2 rounded-lg transition-colors ${view === 'grid'
+                ? 'bg-violet-500 text-white'
+                : 'bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
               aria-label="Grid view"
             >
               <Squares2X2Icon className="h-5 w-5" />
             </button>
             <button
               onClick={() => setView('list')}
-              className={`p-2 rounded-lg transition-colors ${
-                view === 'list'
-                  ? 'bg-violet-500 text-white'
-                  : 'bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-800'
-              }`}
+              className={`p-2 rounded-lg transition-colors ${view === 'list'
+                ? 'bg-violet-500 text-white'
+                : 'bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
               aria-label="List view"
             >
               <ListBulletIcon className="h-5 w-5" />
@@ -144,7 +177,7 @@ export function AssetsPage() {
                 url={`/assets/${asset.asset_id}`}
                 title={asset.filename || 'Untitled'}
                 subtitle={`${asset.format || 'Video'} • ${(asset.size_bytes / 1024 / 1024).toFixed(1)} MB`}
-                thumbnailUrl="https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80"
+                thumbnailUrl={asset.source === 'google_drive' ? asset.url : "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80"}
                 duration={asset.duration_seconds || 0}
               />
             </motion.div>
@@ -190,5 +223,6 @@ export function AssetsPage() {
     </div>
   )
 }
+
 
 export default AssetsPage
