@@ -206,6 +206,9 @@ steps:
       - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
+      - "--memory=2Gi"
+      - "--cpu=2"
+      - "--timeout=300"
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
@@ -222,6 +225,9 @@ steps:
       - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
+      - "--memory=4Gi"
+      - "--cpu=2"
+      - "--timeout=600"
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
@@ -238,6 +244,9 @@ steps:
       - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/ml-service:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
+      - "--memory=4Gi"
+      - "--cpu=2"
+      - "--timeout=300"
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
@@ -254,6 +263,9 @@ steps:
       - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/meta-publisher:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
+      - "--memory=1Gi"
+      - "--cpu=1"
+      - "--timeout=300"
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
@@ -270,6 +282,9 @@ steps:
       - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/titan-core:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
+      - "--memory=4Gi"
+      - "--cpu=2"
+      - "--timeout=900"
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
@@ -282,10 +297,12 @@ steps:
     args:
       - "run"
       - "deploy"
-      - "ptd-fitness-backend"
+      - "gateway-api"
       - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/gateway-api:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
+      - "--memory=2Gi"
+      - "--cpu=2"
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
@@ -307,11 +324,12 @@ steps:
       - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/frontend:${_SHORT_SHA}"
       - "--region=${_REGION}"
       - "--platform=managed"
+      - "--memory=512Mi"
+      - "--cpu=1"
       - "--service-account=${_SERVICE_ACCOUNT}"
       - "--allow-unauthenticated"
     waitFor:
       - push-frontend
-      - deploy-gateway-api
       - deploy-gateway-api
 
   # =============================================================================
@@ -326,20 +344,42 @@ steps:
       - |
         echo "Running health checks..."
 
-        GATEWAY_URL=$$(gcloud run services describe ptd-fitness-backend --region=${_REGION} --format='value(status.url)')
+        # Get service URLs
+        GATEWAY_URL=$$(gcloud run services describe gateway-api --region=${_REGION} --format='value(status.url)')
         FRONTEND_URL=$$(gcloud run services describe frontend --region=${_REGION} --format='value(status.url)')
+        DRIVE_INTEL_URL=$$(gcloud run services describe drive-intel --region=${_REGION} --format='value(status.url)')
+        VIDEO_AGENT_URL=$$(gcloud run services describe video-agent --region=${_REGION} --format='value(status.url)')
+        ML_SERVICE_URL=$$(gcloud run services describe ml-service --region=${_REGION} --format='value(status.url)')
+        META_PUBLISHER_URL=$$(gcloud run services describe meta-publisher --region=${_REGION} --format='value(status.url)')
+        TITAN_CORE_URL=$$(gcloud run services describe titan-core --region=${_REGION} --format='value(status.url)')
 
         echo "Gateway URL: $$GATEWAY_URL"
         echo "Frontend URL: $$FRONTEND_URL"
 
         # Wait for services to be ready
-        sleep 30
+        sleep 60
 
-        # Test Gateway
-        curl -f "$$GATEWAY_URL/health" || exit 1
+        # Test all backend services
+        echo "Testing Gateway API..."
+        curl -sf --max-time 30 "$$GATEWAY_URL/health" || exit 1
 
-        # Test Frontend
-        curl -f "$$FRONTEND_URL" || exit 1
+        echo "Testing Drive Intel..."
+        curl -sf --max-time 30 "$$DRIVE_INTEL_URL/health" || exit 1
+
+        echo "Testing Video Agent..."
+        curl -sf --max-time 30 "$$VIDEO_AGENT_URL/health" || exit 1
+
+        echo "Testing ML Service..."
+        curl -sf --max-time 30 "$$ML_SERVICE_URL/health" || exit 1
+
+        echo "Testing Meta Publisher..."
+        curl -sf --max-time 30 "$$META_PUBLISHER_URL/health" || exit 1
+
+        echo "Testing Titan Core..."
+        curl -sf --max-time 30 "$$TITAN_CORE_URL/health" || exit 1
+
+        echo "Testing Frontend..."
+        curl -sf --max-time 30 "$$FRONTEND_URL" || exit 1
 
         echo "All health checks passed!"
     waitFor:
