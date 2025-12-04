@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   ArrowTrendingUpIcon,
@@ -17,6 +16,10 @@ import { Badge } from '@/components/catalyst/badge'
 import { Button } from '@/components/catalyst/button'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
+import { Link } from '@/components/catalyst/link'
+import { Divider } from '@/components/catalyst/divider'
+import { GradientBackground } from '@/components/radiant/gradient'
+import { Container } from '@/components/salient/Container'
 
 // Animated number component (from Radiant pattern)
 function AnimatedNumber({ value, prefix = '', suffix = '' }: { value: number; prefix?: string; suffix?: string }) {
@@ -98,7 +101,7 @@ interface QuickActionProps {
 
 function QuickAction({ title, description, icon: Icon, href, color }: QuickActionProps) {
   return (
-    <Link to={href}>
+    <Link href={href}>
       <motion.div
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
@@ -205,7 +208,8 @@ export function HomePage() {
   ]
 
   return (
-    <div className="p-6 lg:p-8 space-y-8">
+    <Container className="py-6 lg:py-8">
+      <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -232,6 +236,8 @@ export function HomePage() {
         ))}
       </div>
 
+      <Divider />
+
       {/* Quick Actions */}
       <div>
         <Heading level={2} className="text-white mb-4">Quick Actions</Heading>
@@ -248,6 +254,8 @@ export function HomePage() {
           ))}
         </div>
       </div>
+
+      <Divider />
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -281,7 +289,7 @@ export function HomePage() {
         >
           <div className="flex items-center justify-between mb-4">
             <Heading level={3} className="text-white">Recent Activity</Heading>
-            <Link to="/activity" className="text-violet-400 text-sm hover:text-violet-300">
+            <Link href="/activity" className="text-violet-400 text-sm hover:text-violet-300">
               View All
             </Link>
           </div>
@@ -293,36 +301,45 @@ export function HomePage() {
         </motion.div>
       </div>
 
+      <Divider />
+
       {/* AI Insights Panel */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1 }}
-        className="rounded-xl bg-gradient-to-r from-violet-900/50 to-fuchsia-900/50 border border-violet-500/30 p-6"
       >
-        <div className="flex items-start gap-4">
-          <div className="rounded-lg bg-violet-500/20 p-3">
-            <SparklesIcon className="h-6 w-6 text-violet-400" />
+        <div className="relative overflow-hidden rounded-xl">
+          <div className="absolute inset-0 opacity-20">
+            <GradientBackground />
           </div>
-          <div className="flex-1">
-            <Heading level={3} className="text-white">AI Insights</Heading>
-            <Text className="text-zinc-300 mt-2">
-              Your "Transformation Stories" campaign is outperforming by 34%. Consider increasing budget 
-              and creating 3 more variants using the same hook style. Top-performing time: 6-9 PM Dubai time.
-            </Text>
-            <div className="flex gap-3 mt-4">
-              <Button color="violet" className="gap-2">
-                <SparklesIcon className="h-4 w-4" />
-                Generate Variants
-              </Button>
-              <Button plain className="text-zinc-300">
-                View Analysis
-              </Button>
+          <div className="relative rounded-xl border border-violet-500/30 p-6">
+            <div className="flex items-start gap-4">
+              <div className="rounded-lg bg-violet-500/20 p-3">
+                <SparklesIcon className="h-6 w-6 text-violet-400" />
+              </div>
+              <div className="flex-1">
+                <Heading level={3} className="text-white">AI Insights</Heading>
+                <Text className="text-zinc-300 mt-2">
+                  Your "Transformation Stories" campaign is outperforming by 34%. Consider increasing budget
+                  and creating 3 more variants using the same hook style. Top-performing time: 6-9 PM Dubai time.
+                </Text>
+                <div className="flex gap-3 mt-4">
+                  <Button color="violet" className="gap-2">
+                    <SparklesIcon className="h-4 w-4" />
+                    Generate Variants
+                  </Button>
+                  <Button plain className="text-zinc-300">
+                    View Analysis
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </motion.div>
-    </div>
+      </div>
+    </Container>
   )
 }
 

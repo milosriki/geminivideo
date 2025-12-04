@@ -36,6 +36,7 @@ export * from './dialog'
 export * from './dropdown'
 export * from './alert'
 export * from './link'
+export * from './empty-state'
 
 // Auth
 export * from './auth-layout'

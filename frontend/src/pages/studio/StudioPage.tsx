@@ -21,6 +21,10 @@ import { Input } from '@/components/catalyst/input'
 import { Badge } from '@/components/catalyst/badge'
 import { Heading } from '@/components/catalyst/heading'
 import { Text } from '@/components/catalyst/text'
+import { Field, Label } from '@/components/catalyst/fieldset'
+import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/catalyst/dialog'
+import { Listbox, ListboxOption, ListboxLabel, ListboxDescription } from '@/components/catalyst/listbox'
+import { Button as CompassButton } from '@/components/compass/button'
 import { Video as VideoPlayer } from '@/components/compass/video-player'
 import { Breadcrumbs } from '@/components/compass/breadcrumbs'
 import { apiClient } from '@/services/apiClient'
@@ -93,6 +97,16 @@ export function StudioPage() {
     'Transform your body in 90 days with Dubai\'s #1 personal training company. Our certified coaches have helped 12,000+ clients achieve their fitness goals...'
   )
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [isExportOpen, setIsExportOpen] = useState(false)
+  const [exportFormat, setExportFormat] = useState('1080p')
+  const [selectedVoice, setSelectedVoice] = useState('natural-female')
+
+  const voiceOptions = [
+    { value: 'natural-female', name: 'Natural Female', description: 'Sarah - Warm and engaging' },
+    { value: 'natural-male', name: 'Natural Male', description: 'James - Professional and clear' },
+    { value: 'professional', name: 'Professional', description: 'Corporate and authoritative' },
+    { value: 'energetic', name: 'Energetic', description: 'Dynamic and exciting' },
+  ]
 
   const clips = [
     { id: 'clip-1', name: 'Intro Hook', duration: 5, thumbnail: '' },
@@ -178,7 +192,7 @@ export function StudioPage() {
             <SparklesIcon className="h-4 w-4" />
             AI Enhance
           </Button>
-          <Button color="violet" className="gap-2">
+          <Button color="violet" className="gap-2" onClick={() => setIsExportOpen(true)}>
             <ArrowDownTrayIcon className="h-4 w-4" />
             Export
           </Button>
@@ -205,6 +219,30 @@ export function StudioPage() {
               <div className="flex items-center gap-2">
                 <ScissorsIcon className="h-4 w-4 text-zinc-400" />
                 <Text className="text-zinc-400 text-sm">Timeline</Text>
+                <div className="flex items-center gap-1 ml-4">
+                  <button
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    className="p-2 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
+                    aria-label={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isPlaying ? (
+                      <PauseIcon className="h-5 w-5" />
+                    ) : (
+                      <PlayIcon className="h-5 w-5" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    className="p-2 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
+                    aria-label={isMuted ? 'Unmute' : 'Mute'}
+                  >
+                    {isMuted ? (
+                      <SpeakerXMarkIcon className="h-5 w-5" />
+                    ) : (
+                      <SpeakerWaveIcon className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
               </div>
               <Button plain className="gap-1 text-sm">
                 <PlusIcon className="h-4 w-4" />
@@ -281,12 +319,14 @@ export function StudioPage() {
             {/* Voice Selection */}
             <div>
               <Text className="text-white font-medium mb-2">Voice</Text>
-              <Select>
-                <option value="natural-female">Natural Female (Sarah)</option>
-                <option value="natural-male">Natural Male (James)</option>
-                <option value="professional">Professional</option>
-                <option value="energetic">Energetic</option>
-              </Select>
+              <Listbox value={selectedVoice} onChange={setSelectedVoice}>
+                {voiceOptions.map((voice) => (
+                  <ListboxOption key={voice.value} value={voice.value}>
+                    <ListboxLabel>{voice.name}</ListboxLabel>
+                    <ListboxDescription>{voice.description}</ListboxDescription>
+                  </ListboxOption>
+                ))}
+              </Listbox>
             </div>
 
             {/* Avatar Selection */}
@@ -346,6 +386,26 @@ export function StudioPage() {
           </div>
         </div>
       </div>
+
+      {/* Export Dialog */}
+      <Dialog open={isExportOpen} onClose={() => setIsExportOpen(false)} size="md">
+        <DialogTitle>Export Video</DialogTitle>
+        <DialogDescription>Configure export settings.</DialogDescription>
+        <DialogBody>
+          <Field>
+            <Label>Resolution</Label>
+            <Select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)}>
+              <option value="720p">720p (HD)</option>
+              <option value="1080p">1080p (Full HD)</option>
+              <option value="4k">4K (Ultra HD)</option>
+            </Select>
+          </Field>
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setIsExportOpen(false)}>Cancel</Button>
+          <Button color="violet">Export Video</Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }

@@ -1,6 +1,19 @@
-// Compass Template Components - Vite/React Compatible
+// Compass Template Components - Full Suite
 export { Button } from './button'
 export { IconButton } from './icon-button'
 export { TextInput } from './input'
 export { Video, TimestampButton } from './video-player'
 export { VideoCard } from './video-card'
+export { Breadcrumbs } from './breadcrumbs'
+export { Book, Bookshelf } from './bookshelf'
+export { PageSection } from './page-section'
+export { TableOfContents } from './table-of-contents'
+// New additions from reference
+export * from './centered-layout'
+export * from './content-link'
+export * from './dropdown'
+export * from './logo'
+export * from './marker'
+export * from './navbar'
+export * from './next-page-link'
+export * from './sidebar-layout'

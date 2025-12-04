@@ -154,27 +154,34 @@ export const deleteCampaign = async (campaignId: string) => {
   return response.data;
 };
 
-// Prediction & ROI Analytics
-export const getPredictionAccuracy = async (predictionId?: string) => {
-  const url = predictionId
-    ? `/api/predictions/correlation/${predictionId}`
-    : '/api/analytics/prediction-accuracy';
-  const response = await api.get(url);
+// Predictions & ROI Analytics
+export const getPredictionAccuracy = async (timeRange = 'last_30d') => {
+  const response = await api.get('/analytics/predictions/accuracy', { params: { timeRange } });
   return response.data;
 };
 
 export const getValidationStatus = async () => {
-  const response = await api.get('/api/predictions/validation-status');
+  const response = await api.get('/analytics/predictions/validation');
   return response.data;
 };
 
-export const getROIPerformance = async () => {
-  const response = await api.get('/api/analytics/roi-performance');
+export const getROIPerformance = async (timeRange = 'last_30d') => {
+  const response = await api.get('/analytics/roi/performance', { params: { timeRange } });
   return response.data;
 };
 
 export const getCorrelationReport = async () => {
-  const response = await api.get('/api/analytics/correlation-report');
+  const response = await api.get('/analytics/correlation');
+  return response.data;
+};
+
+export const getROITrends = async (period = 'weekly') => {
+  const response = await api.get('/analytics/roi/trends', { params: { period } });
+  return response.data;
+};
+
+export const getPredictionHistory = async (limit = 50) => {
+  const response = await api.get('/analytics/predictions/history', { params: { limit } });
   return response.data;
 };
 

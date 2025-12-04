@@ -1,21 +1,29 @@
-import { clsx } from "clsx";
-import type React from "react";
+import { forwardRef } from 'react'
+import clsx from 'clsx'
 
-export function IconButton({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<"button">) {
-  return (
-    <button
-      type="button"
-      className={clsx(
-        className,
-        "flex size-10 items-center justify-center rounded-lg hover:bg-gray-950/5 dark:hover:bg-white/5",
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  );
+interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  children: React.ReactNode
+  className?: string
 }
+
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
+  function IconButton({ children, className, ...props }, ref) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        className={clsx(
+          'inline-flex items-center justify-center rounded-lg p-2',
+          'text-zinc-400 hover:text-white hover:bg-zinc-800',
+          'transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500',
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </button>
+    )
+  }
+)
+
+export default IconButton
