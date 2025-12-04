@@ -30,5 +30,9 @@ RUN mkdir -p models
 # Expose port (Cloud Run will set PORT env var, defaults to 8080)
 EXPOSE 8080
 
+# Health check (longer start period for ML model loading)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
+
 # Run the service - respect PORT environment variable from Cloud Run
 CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
