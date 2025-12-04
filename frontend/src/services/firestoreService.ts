@@ -1,12 +1,12 @@
 import { db } from '../firebaseConfig';
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  getDoc, 
-  getDocs, 
-  setDoc, 
-  updateDoc, 
+import {
+  collection,
+  doc,
+  addDoc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
   deleteDoc,
   query,
   where,
@@ -24,7 +24,7 @@ export const saveVideoProject = async (userId: string, projectData: any) => {
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     });
-    console.log('✅ Project saved with ID:', docRef.id);
+    // console.log('✅ Project saved with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('❌ Error saving project:', error);
@@ -59,7 +59,7 @@ export const updateProject = async (projectId: string, updates: any) => {
       ...updates,
       updatedAt: Timestamp.now()
     });
-    console.log('✅ Project updated');
+    // console.log('✅ Project updated');
   } catch (error) {
     console.error('❌ Error updating project:', error);
     throw error;
@@ -70,7 +70,7 @@ export const updateProject = async (projectId: string, updates: any) => {
 export const deleteProject = async (projectId: string) => {
   try {
     await deleteDoc(doc(db, 'projects', projectId));
-    console.log('✅ Project deleted');
+    // console.log('✅ Project deleted');
   } catch (error) {
     console.error('❌ Error deleting project:', error);
     throw error;
@@ -84,7 +84,7 @@ export const saveAnalytics = async (analyticsData: any) => {
       ...analyticsData,
       timestamp: Timestamp.now()
     });
-    console.log('✅ Analytics saved');
+    // console.log('✅ Analytics saved');
   } catch (error) {
     console.error('❌ Error saving analytics:', error);
     throw error;
@@ -98,7 +98,7 @@ export const createUserProfile = async (userId: string, profileData: any) => {
       ...profileData,
       createdAt: Timestamp.now()
     });
-    console.log('✅ User profile created');
+    // console.log('✅ User profile created');
   } catch (error) {
     console.error('❌ Error creating user profile:', error);
     throw error;

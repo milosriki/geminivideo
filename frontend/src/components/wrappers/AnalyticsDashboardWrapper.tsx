@@ -16,23 +16,10 @@ const LoadingFallback = () => (
 );
 
 export const AnalyticsDashboardWrapper: React.FC = () => {
-  const [dateRange, setDateRange] = useState({
-    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-    end: new Date(),
-  });
-
-  const handleDateRangeChange = (range: { start: Date; end: Date }) => {
-    setDateRange(range);
-    // TODO: Trigger data refetch with new date range
-  };
-
   return (
     <ErrorBoundary>
       <Suspense fallback={<LoadingFallback />}>
-        <AnalyticsDashboard
-          dateRange={dateRange}
-          onDateRangeChange={handleDateRangeChange}
-        />
+        <AnalyticsDashboard />
       </Suspense>
     </ErrorBoundary>
   );

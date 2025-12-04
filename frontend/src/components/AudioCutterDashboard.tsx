@@ -37,7 +37,7 @@ const AudioCutterDashboard: React.FC<AudioCutterDashboardProps> = ({ sourceVideo
     setError(null);
     setLoadingMessage('Extracting audio from video...');
     try {
-      const audioBlob = await extractAudio(sourceVideo, (log) => console.log(log));
+      const audioBlob = await extractAudio(sourceVideo, (log) => { /* console.log(log) */ });
       setLoadingMessage('Transcribing audio with AI...');
       const words = await transcribeAudio(audioBlob);
       setTranscription(words);
@@ -65,12 +65,12 @@ const AudioCutterDashboard: React.FC<AudioCutterDashboardProps> = ({ sourceVideo
     if (!transcription) return;
     setIsProcessing(true);
     setError(null);
-    if(outputUrl) URL.revokeObjectURL(outputUrl);
+    if (outputUrl) URL.revokeObjectURL(outputUrl);
     setOutputUrl(null);
     setProgress(0);
     setLoadingMessage('Calculating edit segments...');
     try {
-      let segments: {start: number, end: number}[];
+      let segments: { start: number, end: number }[];
       if (cutMode === 'silence') {
         const videoDuration = await getVideoDuration(sourceVideo);
         segments = calculateSilenceSegments(transcription, silenceThreshold, videoDuration);
@@ -88,10 +88,10 @@ const AudioCutterDashboard: React.FC<AudioCutterDashboardProps> = ({ sourceVideo
           setProgress(p.progress * 100);
           setLoadingMessage(p.message);
         },
-        (log) => console.log(log)
+        (log) => { /* console.log(log) */ }
       );
       setOutputUrl(URL.createObjectURL(outputBlob));
-    } catch(err) {
+    } catch (err) {
       setError(formatErrorMessage(err));
     } finally {
       setIsProcessing(false);
@@ -149,18 +149,18 @@ const AudioCutterDashboard: React.FC<AudioCutterDashboardProps> = ({ sourceVideo
             {cutMode === 'silence' && (
               <div>
                 <label htmlFor="silence-threshold" className="block text-sm font-medium text-gray-300">Silence Threshold (seconds)</label>
-                <input id="silence-threshold" type="number" step="0.1" min="0.1" value={silenceThreshold} onChange={e => setSilenceThreshold(parseFloat(e.target.value))} className="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white"/>
+                <input id="silence-threshold" type="number" step="0.1" min="0.1" value={silenceThreshold} onChange={e => setSilenceThreshold(parseFloat(e.target.value))} className="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white" />
               </div>
             )}
             {cutMode === 'keywords' && (
               <div className="space-y-2">
                 <div>
                   <label htmlFor="start-word" className="block text-sm font-medium text-gray-300">Start Word (contains)</label>
-                  <input id="start-word" type="text" value={startWord} onChange={e => setStartWord(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white" placeholder="e.g., 'Welcome'"/>
+                  <input id="start-word" type="text" value={startWord} onChange={e => setStartWord(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white" placeholder="e.g., 'Welcome'" />
                 </div>
                 <div>
                   <label htmlFor="end-word" className="block text-sm font-medium text-gray-300">End Word (contains)</label>
-                  <input id="end-word" type="text" value={endWord} onChange={e => setEndWord(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white" placeholder="e.g., 'Thanks'"/>
+                  <input id="end-word" type="text" value={endWord} onChange={e => setEndWord(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white" placeholder="e.g., 'Thanks'" />
                 </div>
               </div>
             )}
@@ -184,7 +184,7 @@ const AudioCutterDashboard: React.FC<AudioCutterDashboardProps> = ({ sourceVideo
             <div className="w-full">
               <video ref={videoRef} src={outputUrl} controls className="w-full rounded-md aspect-video mb-4"></video>
               <button onClick={handleDownload} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all">
-                <DownloadIcon className="w-5 h-5"/>
+                <DownloadIcon className="w-5 h-5" />
                 Download Edited Video
               </button>
             </div>
@@ -205,7 +205,7 @@ const AudioCutterDashboard: React.FC<AudioCutterDashboardProps> = ({ sourceVideo
       <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col border border-gray-700/50">
         <header className="p-4 border-b border-gray-700 flex justify-between items-center">
           <h2 className="text-xl font-bold text-indigo-400 flex items-center gap-2">
-            <ScissorsIcon className="w-6 h-6"/>
+            <ScissorsIcon className="w-6 h-6" />
             Smart Cutter Dashboard
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">&times;</button>

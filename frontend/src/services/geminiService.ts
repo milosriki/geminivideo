@@ -166,7 +166,18 @@ export const generateVideo = async (prompt: string, image: File | null, aspectRa
 export const generateImage = async (prompt: string, aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4'): Promise<string> => {
   const ai = getAI();
   const response = await ai.models.generateImages({ model: imageGenModel, prompt, config: { numberOfImages: 1, outputMimeType: 'image/jpeg', aspectRatio } });
-  const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+
+  const generatedImages = response.generatedImages;
+  if (!generatedImages || generatedImages.length === 0) {
+    throw new Error("No images generated");
+  }
+
+  const firstImage = generatedImages[0];
+  if (!firstImage || !firstImage.image || !firstImage.image.imageBytes) {
+    throw new Error("Image bytes missing");
+  }
+
+  const base64ImageBytes = firstImage.image.imageBytes;
   return `data:image/jpeg;base64,${base64ImageBytes}`;
 };
 
@@ -174,6 +185,11 @@ export const editImage = async (imageFile: File, prompt: string): Promise<string
   const ai = getAI();
   const base64Data = await fileToBase64(imageFile);
   const response = await ai.models.generateContent({ model: imageEditModel, contents: { parts: [{ inlineData: { data: base64Data, mimeType: imageFile.type } }, { text: prompt }] }, config: { responseModalities: [Modality.IMAGE] } });
+
+  if (!response.candidates || response.candidates.length === 0 || !response.candidates[0].content || !response.candidates[0].content.parts) {
+    throw new Error("AI did not return an edited image.");
+  }
+
   for (const part of response.candidates[0].content.parts) {
     if (part.inlineData) return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
   }

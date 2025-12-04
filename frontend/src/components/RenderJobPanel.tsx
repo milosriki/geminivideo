@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createRenderJob, getRenderJobStatus } from '../services/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function RenderJobPanel() {
   const [jobId, setJobId] = useState('');
@@ -53,7 +54,7 @@ export default function RenderJobPanel() {
 
     setCreatingStoryArc(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080'}/api/render/story_arc`, {
+      const response = await fetch(`${API_BASE_URL}/render/story_arc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

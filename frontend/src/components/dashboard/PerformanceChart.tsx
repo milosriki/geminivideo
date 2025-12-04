@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   LineChart,
@@ -28,15 +28,7 @@ interface PerformanceChartProps {
 
 type MetricType = 'roas' | 'revenue' | 'spend' | 'clicks';
 
-const mockPerformanceData: PerformanceDataPoint[] = [
-  { day: 'Mon', roas: 3.2, spend: 1200, revenue: 3840, clicks: 450 },
-  { day: 'Tue', roas: 3.8, spend: 1400, revenue: 5320, clicks: 520 },
-  { day: 'Wed', roas: 3.5, spend: 1100, revenue: 3850, clicks: 480 },
-  { day: 'Thu', roas: 4.1, spend: 1600, revenue: 6560, clicks: 680 },
-  { day: 'Fri', roas: 4.5, spend: 1800, revenue: 8100, clicks: 750 },
-  { day: 'Sat', roas: 4.8, spend: 2000, revenue: 9600, clicks: 820 },
-  { day: 'Sun', roas: 4.2, spend: 1500, revenue: 6300, clicks: 610 },
-];
+import { API_BASE_URL } from '../../config/api';
 
 const metricConfig = {
   roas: {
@@ -126,12 +118,31 @@ const CustomTooltip = ({ active, payload, label, selectedMetric }: any) => {
 };
 
 export const PerformanceChart: React.FC<PerformanceChartProps> = ({
-  data = mockPerformanceData,
+  data: propsData,
   title = 'Performance (7 Days)',
 }) => {
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('roas');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [fetchedData, setFetchedData] = useState<PerformanceDataPoint[]>([]);
 
+  useEffect(() => {
+    if (!propsData) {
+      const fetchPerformance = async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/analytics/performance?days=7`);
+          if (response.ok) {
+            const result = await response.json();
+            setFetchedData(result.data || []);
+          }
+        } catch (err) {
+          console.error('Failed to fetch performance data:', err);
+        }
+      };
+      fetchPerformance();
+    }
+  }, [propsData]);
+
+  const data = propsData || fetchedData;
   const config = metricConfig[selectedMetric];
 
   const calculateStats = () => {
@@ -200,8 +211,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
                         setIsDropdownOpen(false);
                       }}
                       className={`w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 transition-colors ${selectedMetric === metric
-                          ? 'bg-zinc-700 text-white'
-                          : 'text-zinc-300 hover:bg-zinc-700/50'
+                        ? 'bg-zinc-700 text-white'
+                        : 'text-zinc-300 hover:bg-zinc-700/50'
                         }`}
                     >
                       <div

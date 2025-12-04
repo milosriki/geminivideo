@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   LineChart,
@@ -29,24 +29,26 @@ import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@
 import { Pagination, PaginationPrevious, PaginationNext, PaginationList, PaginationPage } from '@/components/catalyst/pagination'
 import { Divider } from '@/components/catalyst/divider'
 
-// Mock data
-const chartData = [
-  { date: 'Nov 27', spend: 1200, revenue: 4800, roas: 4.0, impressions: 45000, clicks: 890 },
-  { date: 'Nov 28', spend: 1400, revenue: 5600, roas: 4.0, impressions: 52000, clicks: 1020 },
-  { date: 'Nov 29', spend: 1100, revenue: 4950, roas: 4.5, impressions: 48000, clicks: 940 },
-  { date: 'Nov 30', spend: 1600, revenue: 7200, roas: 4.5, impressions: 61000, clicks: 1180 },
-  { date: 'Dec 01', spend: 1500, revenue: 6750, roas: 4.5, impressions: 58000, clicks: 1140 },
-  { date: 'Dec 02', spend: 1800, revenue: 8100, roas: 4.5, impressions: 67000, clicks: 1320 },
-  { date: 'Dec 03', spend: 1700, revenue: 7650, roas: 4.5, impressions: 63000, clicks: 1250 },
-]
+import { API_BASE_URL } from '@/config/api'
 
-const campaignData = [
-  { id: '1', name: 'PTD Transformation Q4', status: 'active', spend: 8500, revenue: 38250, roas: 4.5, conversions: 127 },
-  { id: '2', name: 'Dubai Executives', status: 'active', spend: 5200, revenue: 20800, roas: 4.0, conversions: 69 },
-  { id: '3', name: 'Summer Body Promo', status: 'paused', spend: 3100, revenue: 12400, roas: 4.0, conversions: 41 },
-  { id: '4', name: 'Coach Testimonials', status: 'active', spend: 2400, revenue: 11520, roas: 4.8, conversions: 38 },
-  { id: '5', name: 'New Year Resolution', status: 'draft', spend: 0, revenue: 0, roas: 0, conversions: 0 },
-]
+interface ChartDataPoint {
+  date: string
+  spend: number
+  revenue: number
+  roas: number
+  impressions: number
+  clicks: number
+}
+
+interface CampaignData {
+  id: string
+  name: string
+  status: string
+  spend: number
+  revenue: number
+  roas: number
+  conversions: number
+}
 
 // KPI Card Component
 interface KPICardProps {
@@ -57,7 +59,10 @@ interface KPICardProps {
   sparklineData?: number[]
 }
 
-function KPICard({ title, value, change, trend }: KPICardProps) {
+function KPICard({ title, value, change, trend, sparklineData }: KPICardProps) {
+  // Use sparklineData if provided, otherwise show empty chart
+  const chartValues = sparklineData?.map((v, i) => ({ value: v, idx: i })) || []
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -76,20 +81,22 @@ function KPICard({ title, value, change, trend }: KPICardProps) {
         </Badge>
       </div>
       <p className="text-3xl font-bold text-white mt-2">{value}</p>
-      <div className="h-10 mt-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData.slice(-7)}>
-            <Area
-              type="monotone"
-              dataKey="roas"
-              stroke="#8b5cf6"
-              fill="#8b5cf6"
-              fillOpacity={0.2}
-              strokeWidth={2}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      {chartValues.length > 0 && (
+        <div className="h-10 mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartValues}>
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#8b5cf6"
+                fill="#8b5cf6"
+                fillOpacity={0.2}
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </motion.div>
   )
 }
@@ -116,15 +123,85 @@ function CustomTooltip({ active, payload, label }: any) {
 export function AnalyticsPage() {
   const [dateRange, setDateRange] = useState('7d')
   const [metric, setMetric] = useState('all')
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([])
+  const [campaignData, setCampaignData] = useState<CampaignData[]>([])
+  const [kpis, setKpis] = useState<KPICardProps[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const kpis = [
-    { title: 'Total Revenue', value: 'AED 38,250', change: 12, trend: 'up' as const },
-    { title: 'Total Spend', value: 'AED 8,500', change: 8, trend: 'up' as const },
-    { title: 'ROAS', value: '4.5x', change: 15, trend: 'up' as const },
-    { title: 'Conversions', value: '127', change: 22, trend: 'up' as const },
-    { title: 'CTR', value: '2.1%', change: -3, trend: 'down' as const },
-    { title: 'CPA', value: 'AED 67', change: -8, trend: 'up' as const },
-  ]
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true)
+        const [chartRes, campaignRes, kpiRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/analytics/chart?range=${dateRange}`),
+          fetch(`${API_BASE_URL}/api/campaigns`),
+          fetch(`${API_BASE_URL}/api/kpis?range=${dateRange}`)
+        ])
+
+        if (chartRes.ok) {
+          const data = await chartRes.json()
+          setChartData(data.chart || [])
+        }
+
+        if (campaignRes.ok) {
+          const data = await campaignRes.json()
+          setCampaignData(data.campaigns || [])
+        }
+
+        if (kpiRes.ok) {
+          const response = await kpiRes.json()
+          // Unwrap kpis object and map snake_case to camelCase
+          const data = response.kpis || response
+          // Transform API response to match KPICardProps format
+          const transformedKpis: KPICardProps[] = [
+            {
+              title: 'Total Revenue',
+              value: (data.total_revenue || data.revenue || 0) > 0 ? `AED ${(data.total_revenue || data.revenue).toLocaleString()}` : 'No data',
+              change: data.revenue_change || data.revenueChange || 0,
+              trend: (data.revenue_change || data.revenueChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'Total Spend',
+              value: (data.total_spend || data.spend || 0) > 0 ? `AED ${(data.total_spend || data.spend).toLocaleString()}` : 'No data',
+              change: data.spend_change || data.spendChange || 0,
+              trend: (data.spend_change || data.spendChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'ROAS',
+              value: (data.roas || 0) > 0 ? `${data.roas.toFixed(1)}x` : 'No data',
+              change: data.roas_change || data.roasChange || 0,
+              trend: (data.roas_change || data.roasChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'Conversions',
+              value: (data.conversions || 0) > 0 ? data.conversions.toString() : 'No data',
+              change: data.conversions_change || data.conversionsChange || 0,
+              trend: (data.conversions_change || data.conversionsChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'CTR',
+              value: (data.ctr || 0) > 0 ? `${data.ctr.toFixed(1)}%` : 'No data',
+              change: data.ctr_change || data.ctrChange || 0,
+              trend: (data.ctr_change || data.ctrChange || 0) >= 0 ? 'up' : 'down'
+            },
+            {
+              title: 'CPA',
+              value: (data.cpa || 0) > 0 ? `AED ${data.cpa.toFixed(0)}` : 'No data',
+              change: data.cpa_change || data.cpaChange || 0,
+              trend: (data.cpa_change || data.cpaChange || 0) >= 0 ? 'up' : 'down'
+            }
+          ]
+          setKpis(transformedKpis)
+        }
+      } catch (err) {
+        console.error('Failed to fetch analytics:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAnalytics()
+  }, [dateRange])
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -150,16 +227,36 @@ export function AnalyticsPage() {
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {kpis.map((kpi, index) => (
-          <motion.div
-            key={kpi.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-          >
-            <KPICard {...kpi} />
-          </motion.div>
-        ))}
+        {loading ? (
+          // Loading state
+          Array.from({ length: 6 }).map((_, index) => (
+            <div
+              key={index}
+              className="rounded-xl bg-zinc-900 border border-zinc-800 p-6 animate-pulse"
+            >
+              <div className="h-4 bg-zinc-800 rounded w-24 mb-4"></div>
+              <div className="h-8 bg-zinc-800 rounded w-32 mb-4"></div>
+              <div className="h-10 bg-zinc-800 rounded"></div>
+            </div>
+          ))
+        ) : kpis.length > 0 ? (
+          // KPIs loaded
+          kpis.map((kpi, index) => (
+            <motion.div
+              key={kpi.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+            >
+              <KPICard {...kpi} />
+            </motion.div>
+          ))
+        ) : (
+          // No data state
+          <div className="col-span-full text-center py-12">
+            <Text className="text-zinc-500">No KPI data available</Text>
+          </div>
+        )}
       </div>
 
       {/* Main Charts */}
@@ -286,8 +383,8 @@ export function AnalyticsPage() {
                       campaign.status === 'active'
                         ? 'green'
                         : campaign.status === 'paused'
-                        ? 'yellow'
-                        : 'zinc'
+                          ? 'yellow'
+                          : 'zinc'
                     }
                   >
                     {campaign.status}

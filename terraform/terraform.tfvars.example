@@ -1,0 +1,62 @@
+# =============================================================================
+# Gemini Video - Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your actual values
+# =============================================================================
+
+# Project Configuration
+project_id   = "your-gcp-project-id"
+project_name = "geminivideo"
+environment  = "production"
+region       = "us-central1"
+
+# Database Configuration
+database_name     = "geminivideo"
+database_user     = "geminivideo"
+database_password = "CHANGE_ME_SECURE_PASSWORD_MIN_32_CHARS"
+db_tier          = "db-custom-2-7680" # 2 vCPUs, 7.5 GB RAM
+db_disk_size     = 50                 # GB
+
+# Redis Configuration
+redis_memory_gb = 2
+
+# Cloud Run Scaling
+gateway_min_instances  = 1
+gateway_max_instances  = 10
+service_min_instances  = 0
+service_max_instances  = 5
+frontend_min_instances = 1
+frontend_max_instances = 20
+
+# Security
+blocked_ip_ranges = [
+  # Add blocked IP ranges here
+]
+
+allowed_cors_origins = [
+  "https://yourdomain.com",
+  "https://www.yourdomain.com"
+]
+
+# Domain (Optional)
+custom_domain         = "yourdomain.com"
+ssl_certificate_name  = ""
+
+# GitHub
+github_owner = "your-github-username"
+github_repo  = "geminivideo"
+
+# Feature Flags
+enable_cdn          = true
+enable_cloud_armor  = true
+enable_monitoring   = true
+enable_backup       = true
+enable_cost_alerts  = true
+monthly_budget_amount = 500
+
+# Labels
+labels = {
+  project     = "geminivideo"
+  managed_by  = "terraform"
+  environment = "production"
+  team        = "engineering"
+}

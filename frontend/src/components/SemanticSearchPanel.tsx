@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { searchClips } from '../services/api';
 
 export default function SemanticSearchPanel() {
@@ -6,22 +6,37 @@ export default function SemanticSearchPanel() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
+
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     setLoading(true);
     setSearched(true);
+    setError(null);
+
     try {
-      const data = await searchClips(query);
+      const data = await searchClips(query, 10, abortControllerRef.current.signal);
       setResults(data.results || []);
-    } catch (err) {
+    } catch (err: any) {
+      // Ignore abort errors
+      if (err.name === 'CanceledError' || err.message?.includes('canceled')) {
+        return;
+      }
       console.error(err);
+      setError(err.message || 'Search failed');
       setResults([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [query]);
 
   return (
     <div>
@@ -50,7 +65,13 @@ export default function SemanticSearchPanel() {
 
         {loading && <div className="loading">Searching clips...</div>}
 
-        {!loading && searched && results.length === 0 && (
+        {error && (
+          <div style={{ color: '#dc3545', textAlign: 'center', padding: '20px' }}>
+            Error: {error}
+          </div>
+        )}
+
+        {!loading && !error && searched && results.length === 0 && (
           <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
             No results found for "{query}"
           </p>

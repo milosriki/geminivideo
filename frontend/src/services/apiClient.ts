@@ -1,8 +1,6 @@
 import type { CampaignBrief, CampaignStrategy, AdCreative, Avatar, CreativeRanking } from '../types';
 import { titanClient } from '../api/titan_client';
-
-// PRO LEVEL CHANGE: Dynamic URL based on environment
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+import { API_BASE_URL } from '../config/api';
 
 async function handleResponse<T>(response: Response): Promise<T> {
     const contentType = response.headers.get('content-type') || '';
@@ -17,7 +15,13 @@ export const apiClient = {
     // 1. Fetch Avatars (Route to Python)
     async fetchAvatars(): Promise<Avatar[]> {
         // In Pro version, these should live in the DB, but for now we fetch from backend config
-        return fetch(`${API_BASE_URL}/avatars`).then(res => handleResponse<Avatar[]>(res));
+        try {
+            const response = await fetch(`${API_BASE_URL}/avatars`);
+            return handleResponse<Avatar[]>(response);
+        } catch (error) {
+            console.error('Error fetching avatars:', error);
+            throw error;
+        }
     },
 
     // 2. Deep Analysis (Route to Python Director Agent)
@@ -26,11 +30,17 @@ export const apiClient = {
         const videoUri = allVideoData[0]?.videoFile?.name || "unknown";
 
         // Call the Titan Backend
-        const response = await fetch(`${API_BASE_URL}/analyze`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ video_uri: videoUri }), // In real prod, upload file first and send URL
-        });
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_uri: videoUri }), // In real prod, upload file first and send URL
+            });
+        } catch (error) {
+            console.error('Error analyzing videos:', error);
+            throw error;
+        }
 
         const analysis = await handleResponse<any>(response);
 
@@ -54,14 +64,20 @@ export const apiClient = {
     // 3. Generate Creatives (Route to Veo/Titan)
     async generateCreatives(brief: CampaignBrief, avatarKey: string, strategy: CampaignStrategy): Promise<AdCreative[]> {
         // This calls the /generate endpoint on Python which triggers Veo
-        const response = await fetch(`${API_BASE_URL}/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                assets: [strategy.primaryVideoFileName],
-                target_audience: brief.targetMarket
-            }),
-        });
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    assets: [strategy.primaryVideoFileName],
+                    target_audience: brief.targetMarket
+                }),
+            });
+        } catch (error) {
+            console.error('Error generating creatives:', error);
+            throw error;
+        }
 
         const result = await handleResponse<any>(response);
 
@@ -90,5 +106,27 @@ export const apiClient = {
             hookScore: c.__hookScore || 0,
             ctaScore: c.__ctaScore || 0
         }));
+    },
+
+    // 5. Fetch AI Insights (Real-time Gemini analysis)
+    async fetchAIInsights(): Promise<any> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/insights/ai`);
+            return handleResponse<any>(response);
+        } catch (error) {
+            console.error('Error fetching AI insights:', error);
+            throw error;
+        }
+    },
+
+    // 6. Fetch Trending Ads (Competitor spy data)
+    async fetchTrendingAds(): Promise<any> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/ads/trending`);
+            return handleResponse<any>(response);
+        } catch (error) {
+            console.error('Error fetching trending ads:', error);
+            throw error;
+        }
     }
 };
