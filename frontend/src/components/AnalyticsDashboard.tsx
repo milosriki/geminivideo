@@ -18,6 +18,8 @@ import {
   AreaChart
 } from 'recharts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ROIDashboard } from './roi-dashboard/ROIDashboard';
+import { ValidationStatusPanel } from './predictions/ValidationStatusPanel';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -439,7 +441,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   });
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
-  const [activeTab, setActiveTab] = useState<'overview' | 'creatives' | 'attribution' | 'alerts' | 'reports'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'creatives' | 'attribution' | 'alerts' | 'reports' | 'roi'>('overview');
   const [sortColumn, setSortColumn] = useState<keyof CreativePerformance>('roas');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
@@ -1512,6 +1514,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             { id: 'attribution', label: 'Attribution', icon: '🔗' },
             { id: 'alerts', label: 'Alerts', icon: '🔔' },
             { id: 'reports', label: 'Reports', icon: '📅' },
+            { id: 'roi', label: 'ROI & Predictions', icon: '🔮' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1533,6 +1536,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         {activeTab === 'attribution' && renderAttributionTab()}
         {activeTab === 'alerts' && renderAlertsTab()}
         {activeTab === 'reports' && renderReportsTab()}
+        {activeTab === 'roi' && (
+          <div className="space-y-6">
+            <ValidationStatusPanel />
+            <ROIDashboard />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -154,4 +154,28 @@ export const deleteCampaign = async (campaignId: string) => {
   return response.data;
 };
 
+// Prediction & ROI Analytics
+export const getPredictionAccuracy = async (predictionId?: string) => {
+  const url = predictionId
+    ? `/api/predictions/correlation/${predictionId}`
+    : '/api/analytics/prediction-accuracy';
+  const response = await api.get(url);
+  return response.data;
+};
+
+export const getValidationStatus = async () => {
+  const response = await api.get('/api/predictions/validation-status');
+  return response.data;
+};
+
+export const getROIPerformance = async () => {
+  const response = await api.get('/api/analytics/roi-performance');
+  return response.data;
+};
+
+export const getCorrelationReport = async () => {
+  const response = await api.get('/api/analytics/correlation-report');
+  return response.data;
+};
+
 export default api;
