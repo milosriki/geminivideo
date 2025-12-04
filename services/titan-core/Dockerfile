@@ -5,7 +5,7 @@
 # Optimized for Cloud Run with proper health checks and security
 # =============================================================================
 
-FROM python:3.11-slim
+FROM --platform=linux/amd64 python:3.11-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
