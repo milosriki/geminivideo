@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { titanAPI } from '../services/api';
 
 interface JobProgress {
@@ -16,9 +16,17 @@ export function useJobProgress(jobId: string | null) {
   const [progress, setProgress] = useState<JobProgress | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const isPollingRef = useRef(false);
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const startPolling = useCallback(async () => {
-    if (!jobId) return;
+  useEffect(() => {
+    if (!jobId) {
+      return;
+    }
+
+    // Prevent starting multiple polling instances
+    if (isPollingRef.current) {
+      return;
+    }
 
     setIsPolling(true);
     isPollingRef.current = true;
@@ -28,6 +36,9 @@ export function useJobProgress(jobId: string | null) {
 
       try {
         const status = await titanAPI.getJobStatus(jobId);
+        
+        if (!isPollingRef.current) return;
+        
         setProgress({
           jobId,
           status: status.status,
@@ -48,30 +59,28 @@ export function useJobProgress(jobId: string | null) {
 
         // Continue polling
         if (isPollingRef.current) {
-          setTimeout(poll, 3000); // Poll every 3 seconds
+          timeoutIdRef.current = setTimeout(poll, 3000); // Poll every 3 seconds
         }
 
       } catch (error) {
         console.error('Failed to get job status:', error);
         if (isPollingRef.current) {
-          setTimeout(poll, 5000); // Retry after 5 seconds on error
+          timeoutIdRef.current = setTimeout(poll, 5000); // Retry after 5 seconds on error
         }
       }
     };
 
     poll();
-  }, [jobId]);
-
-  useEffect(() => {
-    if (jobId) {
-      startPolling();
-    }
 
     return () => {
       setIsPolling(false);
       isPollingRef.current = false;
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
     };
-  }, [jobId, startPolling]);
+  }, [jobId]);
 
   return { progress, isPolling };
 }
