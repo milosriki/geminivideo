@@ -1,0 +1,1253 @@
+{
+  "report_metadata": {
+    "generated_by": "AGENT 68: TEST COVERAGE GAP HUNTER",
+    "generated_at": "2025-12-05T16:20:00Z",
+    "total_test_files": 73,
+    "services_analyzed": 7,
+    "api_endpoints_found": 89,
+    "critical_gaps_found": 47
+  },
+
+  "executive_summary": {
+    "overall_risk_level": "HIGH",
+    "critical_blockers": 8,
+    "high_priority_gaps": 18,
+    "medium_priority_gaps": 21,
+    "test_coverage_estimate": "35%",
+    "recommendation": "IMMEDIATE ACTION REQUIRED - Critical payment, auth, and publishing paths lack tests"
+  },
+
+  "critical_gaps": [
+    {
+      "id": "GAP-001",
+      "priority": "CRITICAL",
+      "category": "Authentication",
+      "file": "/services/gateway-api/src/middleware/auth.ts",
+      "issue": "NO TESTS - Firebase authentication middleware",
+      "functions_untested": [
+        "authenticateUser",
+        "requireRole",
+        "optionalAuth",
+        "requireEmailVerification",
+        "extractToken",
+        "getUserRole"
+      ],
+      "why_critical": "Authentication is the gateway to all protected resources. Bugs here could allow unauthorized access, privilege escalation, or denial of service.",
+      "tests_needed": [
+        "Valid JWT token verification",
+        "Expired token rejection",
+        "Malformed token handling",
+        "Role-based access control (RBAC) enforcement",
+        "Email verification requirement",
+        "Token extraction from Authorization header",
+        "Custom claims parsing",
+        "Firebase service unavailability handling",
+        "Concurrent authentication requests",
+        "Token revocation scenarios"
+      ],
+      "edge_cases_not_tested": [
+        "Token with invalid signature",
+        "Token from different Firebase project",
+        "User deleted but token still valid",
+        "Role changed but token not refreshed",
+        "Network timeout during verification",
+        "Firebase Admin SDK initialization failure"
+      ],
+      "async_error_handling": "NOT TESTED - async verification failures, timeout handling, retry logic"
+    },
+
+    {
+      "id": "GAP-002",
+      "priority": "CRITICAL",
+      "category": "Authentication Service",
+      "file": "/services/gateway-api/src/services/firebase-auth.ts",
+      "issue": "NO TESTS - Core Firebase authentication service",
+      "functions_untested": [
+        "verifyIdToken",
+        "createCustomToken",
+        "getUserById",
+        "getUserByEmail",
+        "createUser",
+        "updateUser",
+        "deleteUser",
+        "setCustomClaims",
+        "getCustomClaims",
+        "setUserRole",
+        "revokeRefreshTokens",
+        "generateEmailVerificationLink",
+        "generatePasswordResetLink",
+        "listUsers",
+        "verifySessionCookie",
+        "createSessionCookie"
+      ],
+      "why_critical": "This is the core authentication layer. Security vulnerabilities here affect entire platform. User data integrity depends on these functions.",
+      "tests_needed": [
+        "Token verification with valid/invalid tokens",
+        "Custom token creation with claims",
+        "User CRUD operations",
+        "Custom claims management",
+        "Role assignment and validation",
+        "Session cookie creation and verification",
+        "Email verification link generation",
+        "Password reset flow",
+        "User listing and pagination",
+        "Token revocation scenarios"
+      ],
+      "edge_cases_not_tested": [
+        "Duplicate user creation",
+        "Invalid email format",
+        "Custom claims exceeding size limit",
+        "Concurrent user updates",
+        "Firebase quota exceeded",
+        "Invalid Firebase configuration"
+      ],
+      "async_error_handling": "NOT TESTED - Firebase API failures, network timeouts, rate limiting"
+    },
+
+    {
+      "id": "GAP-003",
+      "priority": "CRITICAL",
+      "category": "Payment/Billing",
+      "file": "/services/gateway-api/src/services/cost-tracker.ts",
+      "issue": "NO TESTS - Cost tracking and billing calculations",
+      "functions_untested": [
+        "recordCost",
+        "getDailyCosts",
+        "getModelCosts",
+        "getCostProjection",
+        "getTopExpensiveModels",
+        "getCacheHitRate"
+      ],
+      "why_critical": "FINANCIAL IMPACT - Incorrect cost tracking = lost revenue or overcharging customers. Bugs could result in financial losses or legal issues.",
+      "tests_needed": [
+        "Cost calculation accuracy for all model types",
+        "Database insertion of cost records",
+        "Daily cost aggregation",
+        "Model cost breakdown",
+        "Cost projection calculations",
+        "Cache hit rate calculations",
+        "Negative cost handling",
+        "Zero token handling",
+        "Currency conversion if applicable",
+        "Concurrent cost recording"
+      ],
+      "edge_cases_not_tested": [
+        "Unknown model pricing fallback",
+        "Token count overflow",
+        "Negative token counts",
+        "Database write failure (data loss?)",
+        "Concurrent writes to same user",
+        "Extremely large token counts",
+        "Missing model pricing data"
+      ],
+      "async_error_handling": "NOT TESTED - Database connection failures, transaction rollbacks, write conflicts"
+    },
+
+    {
+      "id": "GAP-004",
+      "priority": "CRITICAL",
+      "category": "Database Migrations",
+      "files": [
+        "/database_migrations/002_feedback_and_knowledge.sql",
+        "/database_migrations/003_add_indexes.sql",
+        "/database_migrations/003_ai_credits.sql",
+        "/database_migrations/004_missing_tables.sql",
+        "/database_migrations/005_prediction_logging.sql",
+        "/database_migrations/006_onboarding_progress.sql"
+      ],
+      "issue": "NO TESTS - 6 database migration files with zero test coverage",
+      "why_critical": "Schema changes without tests = production outages. Failed migrations can corrupt data or cause downtime. No rollback testing.",
+      "tests_needed": [
+        "Forward migration succeeds",
+        "Backward migration (rollback) succeeds",
+        "Idempotency (can run multiple times)",
+        "Data integrity after migration",
+        "Index creation performance impact",
+        "Foreign key constraints work",
+        "Default values are correct",
+        "Existing data migration",
+        "Migration on production-sized dataset",
+        "Concurrent access during migration"
+      ],
+      "edge_cases_not_tested": [
+        "Partial migration failure (rollback?)",
+        "Migration on populated tables",
+        "Duplicate migration runs",
+        "Constraints violation during migration",
+        "Table/column name conflicts",
+        "Insufficient database privileges"
+      ],
+      "async_error_handling": "NOT TESTED - Long-running migrations, deadlocks, timeout handling"
+    },
+
+    {
+      "id": "GAP-005",
+      "priority": "CRITICAL",
+      "category": "Meta Ads Publishing",
+      "file": "/services/meta-publisher/src/facebook/meta-ads-manager.ts",
+      "issue": "INSUFFICIENT TESTS - Only mocked tests exist, no real API integration tests",
+      "functions_untested": [
+        "createCampaign",
+        "createAdSet",
+        "uploadVideo",
+        "createAdCreative",
+        "createAd",
+        "getCampaignInsights",
+        "updateCampaign",
+        "pauseCampaign",
+        "deleteCampaign"
+      ],
+      "why_critical": "REVENUE GENERATION - Publishing failures = no ads = no revenue. Real money is spent when these APIs are called. Bugs could waste advertising budgets.",
+      "tests_needed": [
+        "Campaign creation with valid parameters",
+        "Ad set targeting validation",
+        "Video upload with various formats",
+        "Creative creation with all CTA types",
+        "Ad publishing flow end-to-end",
+        "Insights fetching with date ranges",
+        "Budget update operations",
+        "Campaign status changes",
+        "Error handling for API failures",
+        "Rate limiting behavior"
+      ],
+      "edge_cases_not_tested": [
+        "Invalid access token",
+        "Expired access token refresh",
+        "Ad account permissions issues",
+        "Video upload timeout",
+        "Video too large (size limits)",
+        "Invalid targeting parameters",
+        "Budget below minimum threshold",
+        "API rate limit exceeded",
+        "Network failures during upload",
+        "Partial ad creation (cleanup?)"
+      ],
+      "async_error_handling": "NOT TESTED - API timeouts, retry logic, partial failures, transaction consistency"
+    },
+
+    {
+      "id": "GAP-006",
+      "priority": "CRITICAL",
+      "category": "Google Ads Publishing",
+      "file": "/services/google-ads/src/google/google-ads-manager.ts",
+      "issue": "NO TESTS - Zero test coverage for Google Ads integration",
+      "functions_untested": [
+        "createCampaign",
+        "createAdGroup",
+        "createVideoAd",
+        "getPerformanceMetrics",
+        "updateCampaign",
+        "pauseAdGroup",
+        "getAdMetrics"
+      ],
+      "why_critical": "REVENUE GENERATION - Same criticality as Meta. Real advertising spend. No tests = high risk of production failures.",
+      "tests_needed": [
+        "Campaign creation with budget",
+        "Ad group creation",
+        "Video ad creation and upload",
+        "Performance metrics retrieval",
+        "Campaign status management",
+        "Budget updates",
+        "Targeting configuration",
+        "Error handling",
+        "API authentication",
+        "Rate limiting"
+      ],
+      "edge_cases_not_tested": [
+        "Invalid OAuth credentials",
+        "Refresh token expiration",
+        "Customer ID mismatch",
+        "Budget in micros conversion errors",
+        "Video upload to YouTube first",
+        "Invalid video ID",
+        "API quota exceeded",
+        "Network failures",
+        "Concurrent API calls"
+      ],
+      "async_error_handling": "NOT TESTED - Google API failures, timeout handling, partial creation cleanup"
+    },
+
+    {
+      "id": "GAP-007",
+      "priority": "CRITICAL",
+      "category": "ML Service Endpoints",
+      "file": "/services/ml-service/src/main.py",
+      "issue": "NO COMPREHENSIVE ENDPOINT TESTS - ML service has 20+ endpoints, no integration tests",
+      "endpoints_untested": [
+        "/api/ml/predict-ctr",
+        "/api/ml/predict-batch",
+        "/api/ml/train",
+        "/api/ml/feedback",
+        "/api/ml/accuracy",
+        "/api/ml/campaigns/track",
+        "/batch/*",
+        "/api/auto-scaler/*",
+        "/api/dna/*"
+      ],
+      "why_critical": "ML predictions drive business decisions. Incorrect predictions = bad ad targeting = wasted budget. No tests = blind production deployment.",
+      "tests_needed": [
+        "CTR prediction with valid inputs",
+        "Batch prediction handling",
+        "Model training completion",
+        "Feedback loop integration",
+        "Accuracy tracking",
+        "Campaign tracking",
+        "Confidence interval calculation",
+        "Fallback when model unavailable",
+        "Invalid input handling",
+        "Concurrent prediction requests"
+      ],
+      "edge_cases_not_tested": [
+        "Missing model file",
+        "Corrupted model file",
+        "Invalid feature values",
+        "NaN/Inf in predictions",
+        "Model version mismatch",
+        "Training data insufficient",
+        "Memory overflow with large batches",
+        "GPU unavailable fallback"
+      ],
+      "async_error_handling": "NOT TESTED - Model loading failures, prediction timeouts, training interruptions"
+    },
+
+    {
+      "id": "GAP-008",
+      "priority": "CRITICAL",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/predictions.ts",
+      "issue": "NO DEDICATED TESTS - 5 critical prediction endpoints untested",
+      "endpoints": [
+        "POST /api/predictions/ctr",
+        "POST /api/predictions/roas",
+        "POST /api/predictions/batch",
+        "GET /api/predictions/history",
+        "GET /api/predictions/accuracy"
+      ],
+      "why_critical": "Predictions affect ad spend decisions. Database writes could fail silently. Fallback values might be incorrect.",
+      "tests_needed": [
+        "Valid prediction request/response",
+        "Database prediction storage",
+        "ML service integration",
+        "Fallback when ML unavailable",
+        "Confidence interval calculations",
+        "Batch prediction handling",
+        "History retrieval",
+        "Accuracy metrics",
+        "Rate limiting",
+        "Input validation"
+      ],
+      "edge_cases_not_tested": [
+        "ML service down (fallback tested?)",
+        "Database write fails (prediction still returned?)",
+        "Invalid video_id format",
+        "Confidence calculation edge cases",
+        "Concurrent predictions same video",
+        "Extremely large batch sizes"
+      ],
+      "async_error_handling": "NOT TESTED - ML service timeout, database connection loss, partial batch failures"
+    }
+  ],
+
+  "high_priority_gaps": [
+    {
+      "id": "GAP-009",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/campaigns.ts",
+      "issue": "NO DEDICATED TESTS - 7 campaign management endpoints",
+      "endpoints": [
+        "POST /api/campaigns",
+        "GET /api/campaigns",
+        "GET /api/campaigns/:id",
+        "PUT /api/campaigns/:id",
+        "DELETE /api/campaigns/:id",
+        "POST /api/campaigns/:id/launch",
+        "POST /api/campaigns/:id/pause"
+      ],
+      "tests_needed": [
+        "Campaign CRUD operations",
+        "Validation of required fields",
+        "Budget constraints",
+        "Status transitions",
+        "ML service notifications",
+        "Database transactions",
+        "Concurrent updates",
+        "Soft delete vs hard delete"
+      ]
+    },
+
+    {
+      "id": "GAP-010",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/ads.ts",
+      "issue": "NO DEDICATED TESTS - 7 ad management endpoints",
+      "endpoints": [
+        "POST /api/ads",
+        "GET /api/ads",
+        "GET /api/ads/:id",
+        "PUT /api/ads/:id",
+        "DELETE /api/ads/:id",
+        "POST /api/ads/:id/approve",
+        "POST /api/ads/:id/publish"
+      ],
+      "tests_needed": [
+        "Ad creation with predictions",
+        "Approval workflow",
+        "Publishing flow",
+        "Status transitions",
+        "Video/asset linking",
+        "ML prediction integration",
+        "Database integrity"
+      ]
+    },
+
+    {
+      "id": "GAP-011",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/analytics.ts",
+      "issue": "NO DEDICATED TESTS - 5 analytics endpoints",
+      "endpoints": [
+        "GET /api/analytics/campaigns",
+        "GET /api/analytics/campaigns/:id",
+        "GET /api/analytics/ads/:id",
+        "GET /api/analytics/overview",
+        "GET /api/analytics/export"
+      ],
+      "tests_needed": [
+        "Analytics data aggregation",
+        "Date range filtering",
+        "Campaign performance metrics",
+        "Ad performance metrics",
+        "Export functionality",
+        "Large dataset handling"
+      ]
+    },
+
+    {
+      "id": "GAP-012",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/ab-tests.ts",
+      "issue": "NO DEDICATED TESTS - 8 A/B testing endpoints",
+      "endpoints": [
+        "POST /api/ab-tests",
+        "GET /api/ab-tests",
+        "GET /api/ab-tests/:id",
+        "PUT /api/ab-tests/:id",
+        "POST /api/ab-tests/:id/start",
+        "POST /api/ab-tests/:id/stop",
+        "GET /api/ab-tests/:id/results",
+        "POST /api/ab-tests/:id/winner"
+      ],
+      "tests_needed": [
+        "A/B test creation",
+        "Test lifecycle management",
+        "Statistical significance calculation",
+        "Winner selection logic",
+        "Results aggregation",
+        "Minimum sample size validation"
+      ]
+    },
+
+    {
+      "id": "GAP-013",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/alerts.ts",
+      "issue": "NO DEDICATED TESTS - 17 alert system endpoints (LARGEST UNTESTED SURFACE)",
+      "endpoints": [
+        "GET /api/alerts",
+        "GET /api/alerts/:id",
+        "POST /api/alerts/:id/acknowledge",
+        "POST /api/alerts/:id/resolve",
+        "GET /api/alerts/rules",
+        "POST /api/alerts/rules",
+        "PUT /api/alerts/rules/:id",
+        "DELETE /api/alerts/rules/:id",
+        "POST /api/alerts/test",
+        "GET /api/alerts/history",
+        "GET /api/alerts/unread",
+        "POST /api/alerts/mark-all-read",
+        "GET /api/alerts/settings",
+        "PUT /api/alerts/settings",
+        "POST /api/alerts/channels",
+        "DELETE /api/alerts/channels/:id",
+        "POST /api/alerts/test-channel"
+      ],
+      "tests_needed": [
+        "Alert creation and triggering",
+        "Alert rule management",
+        "Alert lifecycle (acknowledge, resolve)",
+        "Alert notification channels",
+        "Alert history and filtering",
+        "Unread alert tracking",
+        "Alert settings management",
+        "Channel testing",
+        "Rate limiting for alerts",
+        "Priority-based routing"
+      ]
+    },
+
+    {
+      "id": "GAP-014",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/reports.ts",
+      "issue": "NO DEDICATED TESTS - 5 reporting endpoints",
+      "endpoints": [
+        "GET /api/reports",
+        "POST /api/reports/generate",
+        "GET /api/reports/:id",
+        "GET /api/reports/:id/download",
+        "DELETE /api/reports/:id"
+      ],
+      "tests_needed": [
+        "Report generation",
+        "Report formats (PDF, Excel, CSV)",
+        "Report download",
+        "Async report generation",
+        "Report caching",
+        "Large report handling"
+      ]
+    },
+
+    {
+      "id": "GAP-015",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/streaming.ts",
+      "issue": "NO DEDICATED TESTS - 5 WebSocket streaming endpoints",
+      "endpoints": [
+        "WS /api/streaming/connect",
+        "POST /api/streaming/broadcast",
+        "GET /api/streaming/status",
+        "POST /api/streaming/subscribe",
+        "POST /api/streaming/unsubscribe"
+      ],
+      "tests_needed": [
+        "WebSocket connection",
+        "Message broadcasting",
+        "Channel subscription",
+        "Unsubscribe handling",
+        "Connection timeout",
+        "Reconnection logic",
+        "Message ordering",
+        "Concurrent connections"
+      ]
+    },
+
+    {
+      "id": "GAP-016",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/image-generation.ts",
+      "issue": "NO DEDICATED TESTS - 10 AI image generation endpoints",
+      "endpoints": [
+        "POST /api/images/generate",
+        "GET /api/images/:id",
+        "GET /api/images/:id/status",
+        "POST /api/images/:id/regenerate",
+        "POST /api/images/batch",
+        "GET /api/images/styles",
+        "POST /api/images/upscale",
+        "POST /api/images/variations",
+        "DELETE /api/images/:id",
+        "GET /api/images/history"
+      ],
+      "tests_needed": [
+        "Image generation request",
+        "Status polling",
+        "Batch generation",
+        "Image upscaling",
+        "Style application",
+        "Variation generation",
+        "Async job management",
+        "Error handling",
+        "Rate limiting",
+        "Storage integration"
+      ]
+    },
+
+    {
+      "id": "GAP-017",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/onboarding.ts",
+      "issue": "NO DEDICATED TESTS - 5 onboarding endpoints",
+      "endpoints": [
+        "GET /api/onboarding/progress",
+        "POST /api/onboarding/step",
+        "POST /api/onboarding/complete",
+        "GET /api/onboarding/requirements",
+        "POST /api/onboarding/skip"
+      ],
+      "tests_needed": [
+        "Progress tracking",
+        "Step completion",
+        "Requirement validation",
+        "Skip functionality",
+        "State persistence",
+        "Idempotency"
+      ]
+    },
+
+    {
+      "id": "GAP-018",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/demo.ts",
+      "issue": "NO DEDICATED TESTS - 12 demo mode endpoints",
+      "endpoints": [
+        "GET /api/demo/status",
+        "POST /api/demo/enable",
+        "POST /api/demo/disable",
+        "GET /api/demo/campaigns",
+        "GET /api/demo/analytics",
+        "POST /api/demo/reset",
+        "GET /api/demo/videos",
+        "POST /api/demo/simulate-publish",
+        "POST /api/demo/simulate-metrics",
+        "GET /api/demo/sample-data",
+        "POST /api/demo/load-scenario",
+        "DELETE /api/demo/clear"
+      ],
+      "tests_needed": [
+        "Demo mode activation",
+        "Mock data generation",
+        "Simulation accuracy",
+        "Reset functionality",
+        "Data isolation",
+        "Scenario loading"
+      ]
+    },
+
+    {
+      "id": "GAP-019",
+      "priority": "HIGH",
+      "category": "API Endpoints",
+      "file": "/services/gateway-api/src/routes/roas-dashboard.ts",
+      "issue": "NO DEDICATED TESTS - 3 ROAS dashboard endpoints",
+      "endpoints": [
+        "GET /api/roas/overview",
+        "GET /api/roas/predictions",
+        "GET /api/roas/actuals"
+      ],
+      "tests_needed": [
+        "ROAS calculation accuracy",
+        "Prediction vs actual comparison",
+        "Data aggregation",
+        "Date range filtering"
+      ]
+    },
+
+    {
+      "id": "GAP-020",
+      "priority": "HIGH",
+      "category": "Error Handling",
+      "files": [
+        "/services/gateway-api/src/middleware/error-handler.ts",
+        "/services/gateway-api/src/middleware/security.ts"
+      ],
+      "issue": "NO TESTS for error handling and security middleware",
+      "tests_needed": [
+        "Global error handler",
+        "Error response formatting",
+        "Stack trace sanitization",
+        "Rate limiting enforcement",
+        "Input sanitization",
+        "SQL injection prevention",
+        "XSS prevention",
+        "CORS configuration"
+      ]
+    },
+
+    {
+      "id": "GAP-021",
+      "priority": "HIGH",
+      "category": "Caching",
+      "file": "/services/gateway-api/src/middleware/cache.ts",
+      "issue": "NO TESTS for Redis caching middleware",
+      "tests_needed": [
+        "Cache hit/miss behavior",
+        "Cache key generation",
+        "Cache invalidation",
+        "TTL expiration",
+        "Redis connection failure fallback",
+        "Cache warming",
+        "Concurrent cache updates"
+      ]
+    },
+
+    {
+      "id": "GAP-022",
+      "priority": "HIGH",
+      "category": "Database",
+      "file": "/services/gateway-api/src/services/database.ts",
+      "issue": "INSUFFICIENT TESTS - Only 1 basic test file",
+      "tests_needed": [
+        "Connection pooling",
+        "Query timeout handling",
+        "Transaction management",
+        "Deadlock handling",
+        "Connection retry logic",
+        "Query parameterization",
+        "Bulk operations",
+        "Database failover"
+      ]
+    },
+
+    {
+      "id": "GAP-023",
+      "priority": "HIGH",
+      "category": "AI Model Integration",
+      "file": "/services/ml-service/src/enhanced_ctr_model.py",
+      "issue": "PARTIAL TESTS - Core prediction logic needs more coverage",
+      "tests_needed": [
+        "Feature engineering edge cases",
+        "Model versioning",
+        "Cold start scenarios",
+        "Feature value ranges",
+        "Missing feature handling",
+        "Model degradation detection",
+        "A/B test variant assignment"
+      ]
+    },
+
+    {
+      "id": "GAP-024",
+      "priority": "HIGH",
+      "category": "AI Features",
+      "files": [
+        "/services/ml-service/src/auto_promoter.py",
+        "/services/ml-service/src/auto_scaler.py"
+      ],
+      "issue": "NO TESTS for auto-promotion and auto-scaling",
+      "tests_needed": [
+        "Budget scaling logic",
+        "Performance threshold triggers",
+        "Promotion decision logic",
+        "Rollback scenarios",
+        "Concurrent scaling operations",
+        "Budget limits enforcement"
+      ]
+    },
+
+    {
+      "id": "GAP-025",
+      "priority": "HIGH",
+      "category": "AI Features",
+      "file": "/services/ml-service/src/creative_dna.py",
+      "issue": "PARTIAL TESTS - Creative DNA matching needs more coverage",
+      "tests_needed": [
+        "DNA fingerprint generation",
+        "Similarity calculation accuracy",
+        "Performance at scale",
+        "Edge case patterns",
+        "Invalid input handling"
+      ]
+    },
+
+    {
+      "id": "GAP-026",
+      "priority": "HIGH",
+      "category": "Real-time Features",
+      "files": [
+        "/services/gateway-api/src/realtime/websocket-manager.ts",
+        "/services/gateway-api/src/realtime/channels.ts",
+        "/services/gateway-api/src/realtime/events.ts"
+      ],
+      "issue": "NO TESTS for real-time WebSocket infrastructure",
+      "tests_needed": [
+        "WebSocket connection lifecycle",
+        "Channel subscription",
+        "Event broadcasting",
+        "Message ordering guarantees",
+        "Reconnection logic",
+        "Memory leak prevention",
+        "Concurrent user handling",
+        "Channel isolation"
+      ]
+    }
+  ],
+
+  "medium_priority_gaps": [
+    {
+      "id": "GAP-027",
+      "priority": "MEDIUM",
+      "category": "Video Processing",
+      "files": [
+        "/services/video-agent/pro/auto_captions.py",
+        "/services/video-agent/pro/voice_generator.py",
+        "/services/video-agent/pro/ai_video_generator.py",
+        "/services/video-agent/pro/smart_crop.py"
+      ],
+      "issue": "PARTIAL TESTS - Pro video features need comprehensive testing",
+      "tests_needed": [
+        "Caption generation accuracy",
+        "Voice synthesis quality",
+        "Video generation pipeline",
+        "Smart crop algorithm",
+        "Format conversion",
+        "Error recovery"
+      ]
+    },
+
+    {
+      "id": "GAP-028",
+      "priority": "MEDIUM",
+      "category": "Edge Computing",
+      "files": [
+        "/edge/workers/asset-delivery.ts",
+        "/edge/workers/trending-hooks.ts",
+        "/edge/workers/ab-router.ts",
+        "/edge/workers/creative-scorer.ts",
+        "/edge/workers/prediction-cache.ts"
+      ],
+      "issue": "NO TESTS for Cloudflare Workers",
+      "tests_needed": [
+        "Edge caching behavior",
+        "Geographic routing",
+        "Cache invalidation",
+        "Worker performance",
+        "Failover to origin"
+      ]
+    },
+
+    {
+      "id": "GAP-029",
+      "priority": "MEDIUM",
+      "category": "Multi-Platform Publishing",
+      "file": "/services/gateway-api/src/multi-platform/multi_publisher.ts",
+      "issue": "NO TESTS for multi-platform orchestration",
+      "tests_needed": [
+        "Sequential publishing",
+        "Parallel publishing",
+        "Partial failure handling",
+        "Rollback logic",
+        "Status tracking"
+      ]
+    },
+
+    {
+      "id": "GAP-030",
+      "priority": "MEDIUM",
+      "category": "TikTok Integration",
+      "file": "/services/tiktok-ads/src/index.ts",
+      "issue": "NO TESTS for TikTok Ads integration",
+      "tests_needed": [
+        "Campaign creation",
+        "Ad publishing",
+        "Performance metrics",
+        "Error handling"
+      ]
+    },
+
+    {
+      "id": "GAP-031",
+      "priority": "MEDIUM",
+      "category": "Knowledge Base",
+      "files": [
+        "/services/titan-core/knowledge/manager.py",
+        "/services/titan-core/knowledge/core.py"
+      ],
+      "issue": "PARTIAL TESTS - Knowledge injection and retrieval",
+      "tests_needed": [
+        "Document ingestion",
+        "Vector search accuracy",
+        "Context retrieval",
+        "GCS integration"
+      ]
+    },
+
+    {
+      "id": "GAP-032",
+      "priority": "MEDIUM",
+      "category": "AI Council",
+      "files": [
+        "/services/titan-core/ai_council/council_of_titans.py",
+        "/services/titan-core/ai_council/director_agent.py",
+        "/services/titan-core/ai_council/veo_director.py"
+      ],
+      "issue": "PARTIAL TESTS - Multi-model consensus needs more coverage",
+      "tests_needed": [
+        "Model disagreement scenarios",
+        "Timeout handling",
+        "Model unavailability",
+        "Score aggregation edge cases"
+      ]
+    },
+
+    {
+      "id": "GAP-033",
+      "priority": "MEDIUM",
+      "category": "Integrations",
+      "files": [
+        "/services/titan-core/integrations/hubspot.py",
+        "/services/titan-core/integrations/anytrack.py"
+      ],
+      "issue": "PARTIAL TESTS - Third-party integrations",
+      "tests_needed": [
+        "API authentication",
+        "Data sync",
+        "Webhook handling",
+        "Rate limiting",
+        "Error recovery"
+      ]
+    },
+
+    {
+      "id": "GAP-034",
+      "priority": "MEDIUM",
+      "category": "Meta Conversions API",
+      "file": "/services/titan-core/meta/conversions_api.py",
+      "issue": "PARTIAL TESTS - Conversion tracking",
+      "tests_needed": [
+        "Event sending",
+        "Deduplication",
+        "Batch sending",
+        "Error handling"
+      ]
+    },
+
+    {
+      "id": "GAP-035",
+      "priority": "MEDIUM",
+      "category": "Drive Intel",
+      "files": [
+        "/services/drive-intel/src/drive_client.py",
+        "/services/drive-intel/services/google_drive_service.py"
+      ],
+      "issue": "PARTIAL TESTS - Google Drive integration",
+      "tests_needed": [
+        "File listing",
+        "File download",
+        "OAuth flow",
+        "Permission handling",
+        "Large file handling"
+      ]
+    },
+
+    {
+      "id": "GAP-036",
+      "priority": "MEDIUM",
+      "category": "Batch Processing",
+      "files": [
+        "/services/ml-service/src/batch_processor.py",
+        "/services/ml-service/src/batch_scheduler.py",
+        "/services/ml-service/src/batch_monitoring.py"
+      ],
+      "issue": "PARTIAL TESTS - Batch job infrastructure",
+      "tests_needed": [
+        "Job scheduling",
+        "Parallel processing",
+        "Failure recovery",
+        "Progress tracking",
+        "Resource limits"
+      ]
+    },
+
+    {
+      "id": "GAP-037",
+      "priority": "MEDIUM",
+      "category": "Vector Store",
+      "files": [
+        "/services/ml-service/src/vector_store.py",
+        "/services/ml-service/src/embedding_pipeline.py"
+      ],
+      "issue": "PARTIAL TESTS - Vector embeddings",
+      "tests_needed": [
+        "Embedding generation",
+        "Similarity search",
+        "Index updates",
+        "Performance at scale"
+      ]
+    },
+
+    {
+      "id": "GAP-038",
+      "priority": "MEDIUM",
+      "category": "Semantic Cache",
+      "file": "/services/ml-service/src/semantic_cache.py",
+      "issue": "PARTIAL TESTS - Semantic caching logic",
+      "tests_needed": [
+        "Cache hit logic",
+        "Similarity threshold tuning",
+        "Cache eviction",
+        "Performance impact"
+      ]
+    },
+
+    {
+      "id": "GAP-039",
+      "priority": "MEDIUM",
+      "category": "Cross Learning",
+      "files": [
+        "/services/ml-service/src/cross_learner.py",
+        "/services/ml-service/src/compound_learner.py"
+      ],
+      "issue": "PARTIAL TESTS - Cross-campaign learning",
+      "tests_needed": [
+        "Pattern transfer",
+        "Model merging",
+        "Performance validation",
+        "Negative transfer prevention"
+      ]
+    },
+
+    {
+      "id": "GAP-040",
+      "priority": "MEDIUM",
+      "category": "Alerts and Monitoring",
+      "files": [
+        "/services/ml-service/src/alerts/alert_engine.py",
+        "/services/ml-service/src/alerts/alert_notifier.py",
+        "/services/ml-service/src/alerts/alert_rules.py"
+      ],
+      "issue": "PARTIAL TESTS - Alert system",
+      "tests_needed": [
+        "Alert triggering logic",
+        "Notification delivery",
+        "Alert aggregation",
+        "Silence periods",
+        "Escalation rules"
+      ]
+    },
+
+    {
+      "id": "GAP-041",
+      "priority": "MEDIUM",
+      "category": "Report Generation",
+      "files": [
+        "/services/ml-service/src/reports/report_generator.py",
+        "/services/ml-service/src/reports/pdf_builder.py",
+        "/services/ml-service/src/reports/excel_builder.py"
+      ],
+      "issue": "PARTIAL TESTS - Report generation",
+      "tests_needed": [
+        "PDF generation",
+        "Excel export",
+        "Large dataset handling",
+        "Chart generation",
+        "Template rendering"
+      ]
+    },
+
+    {
+      "id": "GAP-042",
+      "priority": "MEDIUM",
+      "category": "Accuracy Tracking",
+      "files": [
+        "/services/ml-service/src/accuracy_tracker.py",
+        "/services/ml-service/src/actuals_fetcher.py"
+      ],
+      "issue": "PARTIAL TESTS - Prediction accuracy tracking",
+      "tests_needed": [
+        "Accuracy calculation",
+        "Actuals fetching",
+        "Drift detection",
+        "Retraining triggers"
+      ]
+    },
+
+    {
+      "id": "GAP-043",
+      "priority": "MEDIUM",
+      "category": "Routing",
+      "files": [
+        "/services/titan-core/routing/model_router.py",
+        "/services/titan-core/routing/analytics.py"
+      ],
+      "issue": "PARTIAL TESTS - Intelligent routing",
+      "tests_needed": [
+        "Model selection logic",
+        "Load balancing",
+        "Failover behavior",
+        "Cost optimization"
+      ]
+    },
+
+    {
+      "id": "GAP-044",
+      "priority": "MEDIUM",
+      "category": "Vertex AI",
+      "file": "/services/titan-core/engines/vertex_ai.py",
+      "issue": "PARTIAL TESTS - Vertex AI integration",
+      "tests_needed": [
+        "Model invocation",
+        "Batch prediction",
+        "Error handling",
+        "Cost tracking"
+      ]
+    },
+
+    {
+      "id": "GAP-045",
+      "priority": "MEDIUM",
+      "category": "Pretrained Models",
+      "file": "/services/titan-core/engines/pretrained_hook_detector.py",
+      "issue": "PARTIAL TESTS - Hook detection model",
+      "tests_needed": [
+        "Hook classification accuracy",
+        "Confidence scores",
+        "Edge cases",
+        "Performance benchmarks"
+      ]
+    },
+
+    {
+      "id": "GAP-046",
+      "priority": "MEDIUM",
+      "category": "Frontend API",
+      "file": "/frontend/src/services/dashboardAPI.ts",
+      "issue": "NO TESTS - Frontend API service layer",
+      "tests_needed": [
+        "API call mocking",
+        "Error handling",
+        "Retry logic",
+        "Response parsing",
+        "Authentication headers"
+      ]
+    },
+
+    {
+      "id": "GAP-047",
+      "priority": "MEDIUM",
+      "category": "Frontend Services",
+      "files": [
+        "/frontend/src/services/googleDriveService.ts",
+        "/frontend/src/services/metaPixel.ts"
+      ],
+      "issue": "NO TESTS - Frontend service integrations",
+      "tests_needed": [
+        "Google Drive OAuth",
+        "Meta Pixel tracking",
+        "Event firing",
+        "Error scenarios"
+      ]
+    }
+  ],
+
+  "summary_by_category": {
+    "authentication": {
+      "total_functions": 22,
+      "tested": 0,
+      "coverage": "0%",
+      "risk": "CRITICAL"
+    },
+    "payment_billing": {
+      "total_functions": 6,
+      "tested": 0,
+      "coverage": "0%",
+      "risk": "CRITICAL"
+    },
+    "database_migrations": {
+      "total_files": 6,
+      "tested": 0,
+      "coverage": "0%",
+      "risk": "CRITICAL"
+    },
+    "api_endpoints": {
+      "total_endpoints": 89,
+      "tested_endpoints": 15,
+      "coverage": "17%",
+      "risk": "CRITICAL"
+    },
+    "publishing": {
+      "meta_functions": 9,
+      "google_functions": 7,
+      "tiktok_functions": 5,
+      "tested": 0,
+      "coverage": "0%",
+      "risk": "CRITICAL"
+    },
+    "ml_predictions": {
+      "total_endpoints": 20,
+      "tested": 3,
+      "coverage": "15%",
+      "risk": "HIGH"
+    },
+    "error_handling": {
+      "middleware_functions": 8,
+      "tested": 0,
+      "coverage": "0%",
+      "risk": "HIGH"
+    },
+    "caching": {
+      "cache_functions": 7,
+      "tested": 1,
+      "coverage": "14%",
+      "risk": "HIGH"
+    },
+    "real_time": {
+      "websocket_functions": 12,
+      "tested": 0,
+      "coverage": "0%",
+      "risk": "HIGH"
+    },
+    "video_processing": {
+      "pro_features": 8,
+      "tested": 2,
+      "coverage": "25%",
+      "risk": "MEDIUM"
+    }
+  },
+
+  "recommendations": {
+    "immediate_actions": [
+      "STOP production deployments until auth tests are added",
+      "Add integration tests for Meta/Google Ads publishing (financial risk)",
+      "Add unit tests for cost tracker (billing accuracy critical)",
+      "Test database migrations with rollback procedures",
+      "Add auth middleware comprehensive test suite"
+    ],
+    "next_sprint": [
+      "Add tests for all 89 API endpoints (priority: campaigns, ads, predictions)",
+      "Add ML prediction endpoint tests",
+      "Add error handling and security middleware tests",
+      "Add WebSocket/real-time feature tests",
+      "Add alert system tests (17 endpoints)"
+    ],
+    "ongoing": [
+      "Achieve 80%+ code coverage target",
+      "Add E2E tests for critical user journeys",
+      "Add performance/load tests for high-traffic endpoints",
+      "Add chaos testing for error scenarios",
+      "Add contract tests for external API integrations"
+    ]
+  },
+
+  "test_priorities_by_risk": {
+    "must_have_before_production": [
+      "GAP-001: Authentication middleware",
+      "GAP-002: Firebase auth service",
+      "GAP-003: Cost tracking/billing",
+      "GAP-004: Database migrations",
+      "GAP-005: Meta Ads publishing",
+      "GAP-006: Google Ads publishing",
+      "GAP-007: ML service endpoints",
+      "GAP-008: Prediction endpoints"
+    ],
+    "should_have_soon": [
+      "GAP-009 to GAP-026: API endpoint tests",
+      "Error handling and security tests",
+      "Cache middleware tests",
+      "Real-time WebSocket tests"
+    ],
+    "nice_to_have": [
+      "GAP-027 to GAP-047: Medium priority features",
+      "Video processing pro features",
+      "Edge computing workers",
+      "Third-party integrations"
+    ]
+  },
+
+  "estimated_test_effort": {
+    "critical_gaps": "4-6 weeks, 2-3 engineers",
+    "high_priority_gaps": "6-8 weeks, 2-3 engineers",
+    "medium_priority_gaps": "4-6 weeks, 1-2 engineers",
+    "total_estimated_effort": "14-20 weeks",
+    "recommended_approach": "Parallel development with 3 teams: (1) Auth+Billing, (2) API Endpoints, (3) ML+Publishing"
+  }
+}

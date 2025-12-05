@@ -1,0 +1,218 @@
+{
+  "report_metadata": {
+    "generated_at": "2025-12-05",
+    "agent_id": "AGENT_61_CODE_QUALITY_ERROR_HUNTER",
+    "purpose": "€5M investor validation - comprehensive code quality analysis",
+    "total_errors_found": 11,
+    "severity_breakdown": {
+      "CRITICAL": 3,
+      "HIGH": 5,
+      "MEDIUM": 2,
+      "LOW": 1
+    }
+  },
+  "errors": [
+    {
+      "id": "ERROR-001",
+      "severity": "CRITICAL",
+      "category": "syntax_error",
+      "file": "/home/user/geminivideo/services/titan-core/prompts/engine.py",
+      "line": 93,
+      "error_description": "Syntax error: Invalid character '🛑' (U+1F6D1) - emoji in string literal causing Python compilation failure",
+      "code_snippet": "🛑 STOP. The Council REJECTED your script.",
+      "impact": "File cannot be imported or executed. This breaks the entire prompt engine module and any dependent services.",
+      "suggested_fix": "Remove or escape the emoji character. Use ASCII representation or remove decorative emojis from strings. Replace with: 'STOP. The Council REJECTED your script.'",
+      "fix_priority": "IMMEDIATE - Blocks production deployment"
+    },
+    {
+      "id": "ERROR-002",
+      "severity": "CRITICAL",
+      "category": "missing_return_statement",
+      "file": "/home/user/geminivideo/services/titan-core/prompts/engine.py",
+      "line": 86,
+      "error_description": "Function get_critic_system_message() has no return statement. Function ends with incomplete string formatting.",
+      "code_snippet": "def get_critic_system_message(niche: str = \"fitness\") -> str:\n    # The Critic doesn't need the whole context, just the criteria\n    return f\"\"\"\n    ROLE: You are a ruthless Ad Performance Algorithm (modeled after DeepCTR).\n    ...\n    OUTPUT FORMAT:",
+      "impact": "Function returns None instead of expected string, causing TypeError when used. This breaks the AI council critic agent.",
+      "suggested_fix": "Complete the function with proper return statement including the entire prompt string. Add closing triple quotes and complete the OUTPUT FORMAT section.",
+      "fix_priority": "IMMEDIATE - Core functionality broken"
+    },
+    {
+      "id": "ERROR-003",
+      "severity": "CRITICAL",
+      "category": "jsx_syntax_error",
+      "file": "/home/user/geminivideo/frontend/src/components/ABTestingDashboard.tsx",
+      "line": 365,
+      "error_description": "Unclosed JSX div element. Opening <div> tag on line 365 but closed with </td> on line 367 instead of </div>",
+      "code_snippet": "<div className=\"flex items-center gap-2\">\n  <span className=\"font-semibold\">{variant.name}</span>\n  {isWinner && <Trophy className=\"text-yellow-400\" size={16} />}\n</td>",
+      "impact": "TypeScript compilation fails. Component cannot be rendered. Breaks AB Testing dashboard page.",
+      "suggested_fix": "Add closing </div> tag before the closing </td> tag on line 367.",
+      "fix_priority": "IMMEDIATE - Frontend build fails"
+    },
+    {
+      "id": "ERROR-004",
+      "severity": "HIGH",
+      "category": "import_error",
+      "file": "/home/user/geminivideo/services/titan-core/orchestrator.py",
+      "line": 5,
+      "error_description": "Import path inconsistency: Uses 'from engines.ensemble import council' but directory structure requires different path",
+      "code_snippet": "from engines.ensemble import council",
+      "impact": "Module import will fail at runtime if engines/ directory is not in Python path. Causes ImportError.",
+      "suggested_fix": "Use absolute import: 'from titan_core.engines.ensemble import council' or relative import: 'from .engines.ensemble import council'",
+      "fix_priority": "HIGH - Runtime import failure"
+    },
+    {
+      "id": "ERROR-005",
+      "severity": "HIGH",
+      "category": "import_error",
+      "file": "/home/user/geminivideo/services/titan-core/ai_council/orchestrator.py",
+      "line": 15,
+      "error_description": "Import uses non-existent path 'backend_core' which doesn't match actual directory structure 'services/titan-core'",
+      "code_snippet": "from backend_core.engines.ensemble import council",
+      "impact": "ImportError at runtime. Module cannot be loaded. Breaks AI council orchestrator.",
+      "suggested_fix": "Fix import path to match actual directory: 'from titan_core.engines.ensemble import council' or use relative import: 'from ..engines.ensemble import council'",
+      "fix_priority": "HIGH - Runtime import failure"
+    },
+    {
+      "id": "ERROR-006",
+      "severity": "HIGH",
+      "category": "incorrect_model_id",
+      "file": "/home/user/geminivideo/services/ml-service/src/cross_learner.py",
+      "line": 333,
+      "error_description": "Uses non-existent Claude model ID 'claude-sonnet-4-5-20250929'. The date format is incorrect (year 2025 in December 2025 context).",
+      "code_snippet": "model=\"claude-sonnet-4-5-20250929\",",
+      "impact": "API call will fail with invalid model error. Cross-account learning niche detection will not work.",
+      "suggested_fix": "Use valid Claude model ID such as 'claude-3-5-sonnet-20241022' or 'claude-sonnet-4-20250514' depending on availability.",
+      "fix_priority": "HIGH - API calls will fail"
+    },
+    {
+      "id": "ERROR-007",
+      "severity": "HIGH",
+      "category": "import_error",
+      "file": "/home/user/geminivideo/frontend/src/App.tsx",
+      "line": 7,
+      "error_description": "Import path mismatch: Imports ErrorBoundary from '@/components/ErrorBoundary' but actual file is at '@/components/layout/ErrorBoundary'",
+      "code_snippet": "import { ErrorBoundary } from '@/components/ErrorBoundary';",
+      "impact": "Module not found error at runtime. App will fail to load.",
+      "suggested_fix": "Update import to correct path: import { ErrorBoundary } from '@/components/layout/ErrorBoundary'",
+      "fix_priority": "HIGH - App fails to start"
+    },
+    {
+      "id": "ERROR-008",
+      "severity": "HIGH",
+      "category": "type_error",
+      "file": "/home/user/geminivideo/frontend/src/hooks/useKeyboardShortcuts.ts",
+      "line": 140,
+      "error_description": "TypeScript compilation errors: Multiple syntax issues including unclosed tags and unterminated regex literals reported by tsc",
+      "code_snippet": "Multiple lines 140-153 flagged by TypeScript compiler",
+      "impact": "TypeScript compilation fails. Hook cannot be used in components.",
+      "suggested_fix": "Review and fix TypeScript syntax errors in the KeyboardShortcutsHelp component. Ensure all JSX tags are properly closed and regex literals are complete.",
+      "fix_priority": "HIGH - Build failure"
+    },
+    {
+      "id": "ERROR-009",
+      "severity": "MEDIUM",
+      "category": "hardcoded_credentials",
+      "file": "/home/user/geminivideo/services/titan-core/api/start_api.sh",
+      "lines": "5-7",
+      "error_description": "Default API keys with placeholder values in shell script could be committed by mistake",
+      "code_snippet": "export GEMINI_API_KEY=\"${GEMINI_API_KEY:-your_gemini_key_here}\"\nexport OPENAI_API_KEY=\"${OPENAI_API_KEY:-your_openai_key_here}\"\nexport ANTHROPIC_API_KEY=\"${ANTHROPIC_API_KEY:-your_anthropic_key_here}\"",
+      "impact": "Low risk if only placeholders, but could lead to accidental credential exposure if real keys are added.",
+      "suggested_fix": "Remove default placeholders and require environment variables to be set externally. Add validation to check if keys are set before starting.",
+      "fix_priority": "MEDIUM - Security best practice"
+    },
+    {
+      "id": "ERROR-010",
+      "severity": "MEDIUM",
+      "category": "missing_module",
+      "file": "/home/user/geminivideo/services/titan-core/ai_council/orchestrator.py",
+      "line": 43,
+      "error_description": "Imports from 'backend_core.prompts.engine' which doesn't exist in directory structure",
+      "code_snippet": "from backend_core.prompts.engine import PromptEngine",
+      "impact": "ImportError when module is loaded. Breaks orchestrator initialization.",
+      "suggested_fix": "Fix import path to: 'from titan_core.prompts.engine import PromptEngine' or relative: 'from ..prompts.engine import PromptEngine'",
+      "fix_priority": "MEDIUM - Runtime failure"
+    },
+    {
+      "id": "ERROR-011",
+      "severity": "LOW",
+      "category": "documentation",
+      "file": "/home/user/geminivideo/services/ml-service/src/ctr_model.py",
+      "line": 437,
+      "error_description": "Deprecated function with warning comment but still in codebase. Function generate_synthetic_training_data() is marked as DEPRECATED.",
+      "code_snippet": "DEPRECATED: This function is deprecated and should only be used for testing.\nProduction systems should learn from real data via the /api/ml/feedback endpoint.",
+      "impact": "Potential misuse of deprecated function. Could lead to production systems using synthetic instead of real data.",
+      "suggested_fix": "Remove deprecated function entirely or add runtime warning when called. Add decorator @deprecated to prevent usage.",
+      "fix_priority": "LOW - Code cleanup recommended"
+    }
+  ],
+  "additional_findings": {
+    "code_smells": [
+      {
+        "category": "inconsistent_imports",
+        "description": "Multiple files use 'backend_core' as import prefix but directory is actually named 'titan-core'",
+        "affected_files": [
+          "services/titan-core/ai_council/orchestrator.py",
+          "services/titan-core/routing/quick_start.py",
+          "services/titan-core/routing/integration.py"
+        ],
+        "recommendation": "Standardize all imports to use consistent naming convention matching actual directory structure"
+      },
+      {
+        "category": "potential_secrets",
+        "description": "Multiple README and documentation files contain example API keys and tokens",
+        "affected_files": [
+          "services/ml-service/README_AGENT47.md",
+          "services/video-agent/pro/AUTO_CAPTIONS_README.md",
+          "services/ml-service/VECTOR_DATABASE_QUICKSTART.md"
+        ],
+        "recommendation": "Ensure all keys in documentation are clearly marked as examples. Use .env.example files instead of inline examples."
+      }
+    ],
+    "missing_tests": {
+      "description": "Critical modules lack error handling tests",
+      "recommendation": "Add unit tests for error scenarios in core modules like council_of_titans.py, intelligent-orchestrator.py"
+    }
+  },
+  "summary": {
+    "total_files_analyzed": "248+ Python files, 120+ TypeScript files",
+    "critical_blockers": 3,
+    "must_fix_before_deployment": 8,
+    "recommended_improvements": 3,
+    "estimated_fix_time": "4-6 hours for all CRITICAL and HIGH priority issues",
+    "investor_readiness": "NOT READY - Must fix 3 CRITICAL errors blocking compilation and 5 HIGH priority runtime errors before investor demonstration"
+  },
+  "recommendations": [
+    {
+      "priority": 1,
+      "action": "Fix all CRITICAL syntax errors in prompts/engine.py to enable Python compilation"
+    },
+    {
+      "priority": 2,
+      "action": "Fix JSX syntax error in ABTestingDashboard.tsx to enable frontend builds"
+    },
+    {
+      "priority": 3,
+      "action": "Standardize all import paths across titan-core service to use consistent module naming"
+    },
+    {
+      "priority": 4,
+      "action": "Update Claude model ID to valid version in cross_learner.py"
+    },
+    {
+      "priority": 5,
+      "action": "Fix ErrorBoundary import path in App.tsx"
+    },
+    {
+      "priority": 6,
+      "action": "Add pre-commit hooks to catch syntax errors before commits"
+    },
+    {
+      "priority": 7,
+      "action": "Run Python mypy type checking and fix type errors"
+    },
+    {
+      "priority": 8,
+      "action": "Enable stricter TypeScript checks and ESLint rules"
+    }
+  ]
+}

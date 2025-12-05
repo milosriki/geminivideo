@@ -1,0 +1,523 @@
+{
+  "report_metadata": {
+    "generated_at": "2025-12-05",
+    "agent": "AGENT 66: API CONTRACT MISMATCH HUNTER",
+    "analysis_scope": [
+      "Frontend hooks (frontend/src/hooks/)",
+      "Gateway API routes (services/gateway-api/src/)",
+      "TypeScript types vs actual responses",
+      "Request schemas vs backend handling"
+    ]
+  },
+  "summary": {
+    "total_mismatches": 11,
+    "critical_breaking": 9,
+    "schema_mismatches": 2,
+    "will_cause_404": 8,
+    "will_cause_400": 1
+  },
+  "critical_breaking_mismatches": [
+    {
+      "id": "MISMATCH-001",
+      "severity": "CRITICAL",
+      "category": "Missing Endpoint",
+      "frontend": {
+        "file": "/home/user/geminivideo/frontend/src/lib/api.ts",
+        "line": 418,
+        "method": "resumeCampaign(campaignId: string)",
+        "calls": "POST /api/campaigns/${campaignId}/resume",
+        "hook_usage": "useResumeCampaign() in useCampaigns.ts"
+      },
+      "backend": {
+        "file": "/home/user/geminivideo/services/gateway-api/src/routes/campaigns.ts",
+        "available_endpoints": [
+          "POST /api/campaigns/:id/launch (line 503)",
+          "POST /api/campaigns/:id/pause (line 603)"
+        ],
+        "missing": "/resume endpoint does not exist"
+      },
+      "impact": {
+        "breaks": true,
+        "error_type": "404 Not Found",
+        "affected_features": [
+          "Campaign resume functionality",
+          "Campaign status management",
+          "useCampaignActions hook"
+        ],
+        "user_impact": "Users cannot resume paused campaigns - button will fail silently"
+      },
+      "recommendation": "Backend needs to implement POST /api/campaigns/:id/resume endpoint OR frontend should call /launch instead"
+    },
+    {
+      "id": "MISMATCH-002",
+      "severity": "CRITICAL",
+      "category": "Missing Endpoints",
+      "frontend": {
+        "file": "/home/user/geminivideo/frontend/src/lib/api.ts",
+        "lines": [464, 471],
+        "methods": [
+          "getROIPerformance(timeRange: string)",
+          "getROITrends(period: string)"
+        ],
+        "calls": [
+          "GET /api/analytics/roi/performance",
+          "GET /api/analytics/roi/trends"
+        ],
+        "hook_usage": "useROIPerformance() and useROITrends() in useAnalytics.ts"
+      },
+      "backend": {
+        "file": "/home/user/geminivideo/services/gateway-api/src/routes/analytics.ts",
+        "available_endpoints": [
+          "GET /api/analytics/overview (line 32)",
+          "GET /api/analytics/campaigns/:id (line 191)",
+          "GET /api/analytics/trends (line 353)",
+          "GET /api/analytics/predictions-vs-actual (line 449)",
+          "GET /api/analytics/real-time (line 577)"
+        ],
+        "missing": "No /api/analytics/roi/* routes exist"
+      },
+      "impact": {
+        "breaks": true,
+        "error_type": "404 Not Found",
+        "affected_features": [
+          "ROI performance dashboard",
+          "ROI trends visualization",
+          "ROAS dashboard data"
+        ],
+        "user_impact": "ROI/ROAS dashboards will show loading state forever or error out"
+      },
+      "recommendation": "Backend needs to implement /api/analytics/roi/performance and /api/analytics/roi/trends endpoints"
+    },
+    {
+      "id": "MISMATCH-003",
+      "severity": "CRITICAL",
+      "category": "Missing Endpoints",
+      "frontend": {
+        "file": "/home/user/geminivideo/frontend/src/lib/api.ts",
+        "lines": [518, 524],
+        "methods": [
+          "startABTest(testId: string)",
+          "stopABTest(testId: string)"
+        ],
+        "calls": [
+          "POST /api/ab-tests/${testId}/start",
+          "POST /api/ab-tests/${testId}/stop"
+        ],
+        "hook_usage": "useStartABTest() and useStopABTest() in useABTests.ts"
+      },
+      "backend": {
+        "file": "/home/user/geminivideo/services/gateway-api/src/routes/ab-tests.ts",
+        "available_endpoints": [
+          "POST /api/ab-tests/:id/pause (line 485)"
+        ],
+        "missing": "No /start or /stop endpoints - only /pause"
+      },
+      "impact": {
+        "breaks": true,
+        "error_type": "404 Not Found",
+        "affected_features": [
+          "AB test start/stop controls",
+          "Test lifecycle management",
+          "useABTestActions hook"
+        ],
+        "user_impact": "Cannot start or stop A/B tests - only pause them"
+      },
+      "recommendation": "Backend needs /start and /stop endpoints OR rename frontend calls to use /pause and /launch"
+    },
+    {
+      "id": "MISMATCH-004",
+      "severity": "CRITICAL",
+      "category": "Schema Mismatch",
+      "frontend": {
+        "file": "/home/user/geminivideo/frontend/src/lib/api.ts",
+        "line": 531,
+        "method": "promoteWinner(testId: string, winner: 'A' | 'B')",
+        "request_schema": {
+          "winner": "'A' | 'B'"
+        },
+        "hook_usage": "usePromoteWinner() in useABTests.ts line 150-160"
+      },
+      "backend": {
+        "file": "/home/user/geminivideo/services/gateway-api/src/routes/ab-tests.ts",
+        "line": 432,
+        "expects": {
+          "variant_id": "uuid (required)",
+          "new_budget": "number (required, min: 1)"
+        },
+        "validation": "Line 440: validateInput enforces schema"
+      },
+      "impact": {
+        "breaks": true,
+        "error_type": "400 Bad Request - Validation Error",
+        "affected_features": [
+          "Promoting winning A/B test variants",
+          "Test completion workflow"
+        ],
+        "user_impact": "Cannot promote winning variants - validation error",
+        "example_error": "Missing required fields: variant_id, new_budget"
+      },
+      "recommendation": "Frontend needs to send { variant_id, new_budget } instead of { winner }"
+    },
+    {
+      "id": "MISMATCH-005",
+      "severity": "CRITICAL",
+      "category": "Missing Endpoints",
+      "frontend": {
+        "file": "/home/user/geminivideo/frontend/src/lib/api.ts",
+        "lines": [556, 563],
+        "methods": [
+          "publishToGoogle(request: PublishRequest)",
+          "publishToTikTok(request: PublishRequest)"
+        ],
+        "calls": [
+          "POST /api/publish/google",
+          "POST /api/publish/tiktok"
+        ],
+        "hook_usage": "usePublishToGoogle() and usePublishToTikTok() in usePublishing.ts"
+      },
+      "backend": {
+        "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+        "available_endpoints": [
+          "POST /api/publish/meta (line 502)",
+          "POST /api/publish/multi (line 1893) - multi-platform",
+          "POST /api/google-ads/publish (line 853) - different path!"
+        ],
+        "missing": [
+          "/api/publish/google - does not exist",
+          "/api/publish/tiktok - does not exist"
+        ]
+      },
+      "impact": {
+        "breaks": true,
+        "error_type": "404 Not Found",
+        "affected_features": [
+          "Publishing to Google Ads",
+          "Publishing to TikTok Ads",
+          "Multi-platform publishing hooks"
+        ],
+        "user_impact": "Cannot publish to Google or TikTok via expected endpoints"
+      },
+      "recommendation": "Add /api/publish/google and /api/publish/tiktok proxy endpoints OR update frontend to use /api/publish/multi"
+    },
+    {
+      "id": "MISMATCH-006",
+      "severity": "CRITICAL",
+      "category": "Missing Endpoint",
+      "frontend": {
+        "file": "/home/user/geminivideo/frontend/src/lib/api.ts",
+        "line": 578,
+        "method": "getCampaignPublishJobs(campaignId: string)",
+        "calls": "GET /api/publish/campaigns/${campaignId}",
+        "hook_usage": "useCampaignPublishJobs() in usePublishing.ts line 48-58"
+      },
+      "backend": {
+        "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+        "available_endpoints": [
+          "GET /api/publish/status/:job_id (line 1972)",
+          "GET /api/publish/jobs (line 2107) - all jobs",
+          "GET /api/publish/summary (line 2138)"
+        ],
+        "missing": "/api/publish/campaigns/:campaignId route does not exist"
+      },
+      "impact": {
+        "breaks": true,
+        "error_type": "404 Not Found",
+        "affected_features": [
+          "Viewing all publish jobs for a campaign",
+          "Campaign publishing history",
+          "usePublishingProgress hook"
+        ],
+        "user_impact": "Cannot see publishing status per campaign"
+      },
+      "recommendation": "Backend needs to implement GET /api/publish/campaigns/:campaignId endpoint"
+    },
+    {
+      "id": "MISMATCH-007",
+      "severity": "HIGH",
+      "category": "Path Mismatch",
+      "frontend": {
+        "file": "/home/user/geminivideo/frontend/src/lib/api.ts",
+        "line": 458,
+        "method": "getPredictionAccuracy(timeRange: string)",
+        "calls": "GET /api/analytics/predictions/accuracy",
+        "hook_usage": "usePredictionAccuracy() in useAnalytics.ts line 94-104"
+      },
+      "backend": {
+        "file": "/home/user/geminivideo/services/gateway-api/src/routes/predictions.ts",
+        "actual_endpoint": "GET /api/predictions/accuracy (line 250)",
+        "note": "Predictions router is mounted at /api/predictions, not /api/analytics/predictions"
+      },
+      "impact": {
+        "breaks": true,
+        "error_type": "404 Not Found",
+        "affected_features": [
+          "Prediction accuracy dashboard",
+          "ML model performance metrics"
+        ],
+        "user_impact": "Prediction accuracy metrics won't load"
+      },
+      "recommendation": "Frontend should call /api/predictions/accuracy instead OR backend should mount at /api/analytics/predictions"
+    },
+    {
+      "id": "MISMATCH-008",
+      "severity": "MEDIUM",
+      "category": "Inconsistent Route Naming",
+      "frontend": {
+        "file": "/home/user/geminivideo/frontend/src/hooks/useAnalytics.ts",
+        "line": 140,
+        "method": "useMetaInsights(adId: string, datePreset: string)",
+        "calls": "GET /api/insights",
+        "parameters": "adId, datePreset"
+      },
+      "backend": {
+        "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+        "line": 653,
+        "endpoint": "GET /api/insights",
+        "proxies_to": "META_PUBLISHER_URL/insights"
+      },
+      "impact": {
+        "breaks": false,
+        "warning": "Works but proxies to Meta Publisher - no validation or caching",
+        "affected_features": [
+          "Meta ad insights"
+        ],
+        "user_impact": "Works but direct proxy without gateway caching"
+      },
+      "recommendation": "Consider adding gateway-level caching or moving to /api/meta/insights for consistency"
+    }
+  ],
+  "schema_mismatches": [
+    {
+      "id": "SCHEMA-001",
+      "severity": "HIGH",
+      "category": "Response Type Mismatch",
+      "frontend": {
+        "file": "/home/user/geminivideo/frontend/src/lib/api.ts",
+        "lines": "32-117",
+        "type": "Campaign",
+        "expects_fields": [
+          "id?: string",
+          "name: string",
+          "objective: CampaignObjective",
+          "creatives: CampaignCreative[]",
+          "targeting: TargetingConfig",
+          "budget: BudgetConfig",
+          "schedule: ScheduleConfig",
+          "status: 'draft' | 'pending' | 'active' | 'paused' | 'completed'",
+          "predictions?: CampaignPredictions",
+          "abTestConfig?: ABTestConfig"
+        ]
+      },
+      "backend": {
+        "file": "/home/user/geminivideo/services/gateway-api/src/routes/campaigns.ts",
+        "lines": "86-98, 176-194",
+        "returns": {
+          "id": "uuid",
+          "name": "string",
+          "status": "string",
+          "budget_daily": "number (not budget object!)",
+          "target_audience": "json object (not targeting!)",
+          "created_at": "timestamp",
+          "updated_at": "timestamp",
+          "stats": {
+            "video_count": "number",
+            "total_spend": "number",
+            "total_impressions": "number",
+            "total_clicks": "number",
+            "total_conversions": "number",
+            "ctr": "number"
+          }
+        }
+      },
+      "mismatched_fields": [
+        {
+          "field": "budget",
+          "frontend_expects": "BudgetConfig { type, amount, bidStrategy, bidAmount?, spendingLimit? }",
+          "backend_returns": "budget_daily: number",
+          "impact": "Frontend BudgetConfig type won't match - will cause TypeScript errors"
+        },
+        {
+          "field": "targeting",
+          "frontend_expects": "TargetingConfig { locations[], ageMin, ageMax, genders[], interests[], behaviors[], customAudiences[], lookalikes[], detailedTargeting }",
+          "backend_returns": "target_audience: json object",
+          "impact": "Type mismatch - frontend expects specific structure"
+        },
+        {
+          "field": "creatives",
+          "frontend_expects": "CampaignCreative[]",
+          "backend_returns": "Not included in response",
+          "impact": "Frontend expects creatives array but backend doesn't return it"
+        },
+        {
+          "field": "schedule",
+          "frontend_expects": "ScheduleConfig { startDate, endDate?, timeZone, dayParting? }",
+          "backend_returns": "Not included in response",
+          "impact": "Frontend expects schedule but backend doesn't return it"
+        },
+        {
+          "field": "objective",
+          "frontend_expects": "CampaignObjective type",
+          "backend_returns": "Not included in response",
+          "impact": "Frontend expects objective field but backend doesn't return it"
+        }
+      ],
+      "impact": {
+        "breaks": false,
+        "warning": "TypeScript compilation may succeed but runtime data will be missing/misshapen",
+        "affected_features": [
+          "Campaign creation forms",
+          "Campaign editing",
+          "Budget display",
+          "Targeting configuration"
+        ],
+        "user_impact": "UI may show 'undefined' for budget/targeting/schedule fields"
+      },
+      "recommendation": "Backend needs to return complete Campaign schema matching TypeScript types"
+    },
+    {
+      "id": "SCHEMA-002",
+      "severity": "MEDIUM",
+      "category": "Field Naming Convention",
+      "issue": "Backend uses snake_case, Frontend expects camelCase",
+      "examples": [
+        {
+          "backend": "budget_daily",
+          "frontend_expects": "budgetDaily or budget.amount"
+        },
+        {
+          "backend": "target_audience",
+          "frontend_expects": "targeting"
+        },
+        {
+          "backend": "created_at",
+          "frontend_expects": "createdAt"
+        },
+        {
+          "backend": "updated_at",
+          "frontend_expects": "updatedAt"
+        }
+      ],
+      "impact": {
+        "breaks": false,
+        "warning": "Frontend may need to transform data manually",
+        "affected_features": [
+          "All API responses"
+        ],
+        "user_impact": "May work if frontend handles snake_case, but inconsistent with TypeScript types"
+      },
+      "recommendation": "Add camelCase transformation in API client OR update backend to return camelCase"
+    }
+  ],
+  "missing_endpoints_summary": {
+    "campaign_endpoints": [
+      "POST /api/campaigns/:id/resume - MISSING"
+    ],
+    "analytics_endpoints": [
+      "GET /api/analytics/roi/performance - MISSING",
+      "GET /api/analytics/roi/trends - MISSING",
+      "GET /api/analytics/predictions/accuracy - WRONG PATH (should be /api/predictions/accuracy)"
+    ],
+    "ab_test_endpoints": [
+      "POST /api/ab-tests/:id/start - MISSING",
+      "POST /api/ab-tests/:id/stop - MISSING (only /pause exists)"
+    ],
+    "publishing_endpoints": [
+      "POST /api/publish/google - MISSING (use /api/google-ads/publish or /api/publish/multi)",
+      "POST /api/publish/tiktok - MISSING (use /api/publish/multi)",
+      "GET /api/publish/campaigns/:campaignId - MISSING"
+    ]
+  },
+  "recommendations_by_priority": {
+    "immediate_fixes_required": [
+      {
+        "priority": 1,
+        "issue": "Add POST /api/campaigns/:id/resume endpoint",
+        "backend_file": "/home/user/geminivideo/services/gateway-api/src/routes/campaigns.ts",
+        "implementation": "Add resume route similar to pause (line 603), set status to 'active'"
+      },
+      {
+        "priority": 2,
+        "issue": "Add POST /api/publish/google and POST /api/publish/tiktok endpoints",
+        "backend_file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+        "implementation": "Create proxy endpoints similar to /api/publish/meta (line 502)"
+      },
+      {
+        "priority": 3,
+        "issue": "Add GET /api/analytics/roi/performance and GET /api/analytics/roi/trends",
+        "backend_file": "/home/user/geminivideo/services/gateway-api/src/routes/analytics.ts",
+        "implementation": "Query performance_metrics table and calculate ROI metrics"
+      },
+      {
+        "priority": 4,
+        "issue": "Fix promoteWinner API contract",
+        "options": [
+          "Frontend: Change to send { variant_id, new_budget } instead of { winner }",
+          "Backend: Accept { winner } and map to variant_id internally"
+        ]
+      },
+      {
+        "priority": 5,
+        "issue": "Add POST /api/ab-tests/:id/start and POST /api/ab-tests/:id/stop",
+        "backend_file": "/home/user/geminivideo/services/gateway-api/src/routes/ab-tests.ts",
+        "implementation": "Add start/stop endpoints or map them to existing lifecycle endpoints"
+      }
+    ],
+    "data_structure_alignment": [
+      {
+        "priority": 6,
+        "issue": "Align Campaign type structure",
+        "action": "Backend should return full Campaign object matching TypeScript definition",
+        "includes": "objective, creatives, targeting, budget (object not number), schedule"
+      },
+      {
+        "priority": 7,
+        "issue": "Add camelCase transformation",
+        "action": "Either backend returns camelCase or frontend transforms snake_case"
+      }
+    ],
+    "path_corrections": [
+      {
+        "priority": 8,
+        "issue": "Fix prediction accuracy endpoint path",
+        "options": [
+          "Frontend: Call /api/predictions/accuracy instead",
+          "Backend: Add route at /api/analytics/predictions/accuracy"
+        ]
+      },
+      {
+        "priority": 9,
+        "issue": "Add GET /api/publish/campaigns/:campaignId",
+        "backend_file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+        "implementation": "Query publishing jobs filtered by campaign_id"
+      }
+    ]
+  },
+  "testing_checklist": [
+    "✅ Test POST /api/campaigns/:id/resume - WILL FAIL 404",
+    "✅ Test GET /api/analytics/roi/performance - WILL FAIL 404",
+    "✅ Test GET /api/analytics/roi/trends - WILL FAIL 404",
+    "✅ Test POST /api/ab-tests/:id/start - WILL FAIL 404",
+    "✅ Test POST /api/ab-tests/:id/stop - WILL FAIL 404",
+    "✅ Test POST /api/ab-tests/:id/promote with { winner: 'A' } - WILL FAIL 400",
+    "✅ Test POST /api/publish/google - WILL FAIL 404",
+    "✅ Test POST /api/publish/tiktok - WILL FAIL 404",
+    "✅ Test GET /api/publish/campaigns/:id - WILL FAIL 404",
+    "✅ Test GET /api/analytics/predictions/accuracy - WILL FAIL 404",
+    "⚠️ Test Campaign type fields - WILL RETURN PARTIAL DATA",
+    "⚠️ Test snake_case vs camelCase handling - MAY CAUSE ISSUES"
+  ],
+  "impact_assessment": {
+    "total_frontend_hooks": 4,
+    "hooks_with_breaking_issues": 3,
+    "percentage_broken": "75%",
+    "affected_hooks": [
+      "useCampaigns.ts - resume, predictions schema",
+      "useAnalytics.ts - ROI endpoints, prediction accuracy path",
+      "useABTests.ts - start/stop endpoints, promote schema",
+      "usePublishing.ts - google/tiktok endpoints, campaign jobs"
+    ],
+    "will_break_in_production": true,
+    "estimated_bug_reports": "8-12 critical issues on launch",
+    "developer_hours_to_fix": "16-24 hours"
+  }
+}

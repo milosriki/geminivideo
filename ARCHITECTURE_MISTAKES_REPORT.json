@@ -1,0 +1,1027 @@
+{
+  "report_metadata": {
+    "agent": "AGENT 70: ARCHITECTURE MISTAKE HUNTER",
+    "generated_at": "2025-12-05T00:00:00Z",
+    "codebase": "/home/user/geminivideo",
+    "severity_levels": {
+      "critical": "System can fail catastrophically",
+      "high": "Major reliability/scalability issues",
+      "medium": "Operational challenges",
+      "low": "Best practice violations"
+    }
+  },
+  "executive_summary": {
+    "total_issues": 31,
+    "critical": 8,
+    "high": 12,
+    "medium": 8,
+    "low": 3,
+    "categories_affected": [
+      "Circular Dependencies",
+      "Single Points of Failure",
+      "Tight Coupling",
+      "Data Inconsistency Risks",
+      "Scalability Blockers",
+      "Observability Gaps"
+    ],
+    "system_risk_level": "HIGH - Multiple critical issues that could cause cascading failures"
+  },
+  "architecture_mistakes": [
+    {
+      "id": "CIRC-001",
+      "category": "Circular Dependencies",
+      "severity": "critical",
+      "title": "Potential Circular Dependency Between Gateway-API and Meta-Publisher",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml:182",
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:138",
+          "/home/user/geminivideo/services/meta-publisher/src/index.ts:676"
+        ],
+        "services": ["gateway-api", "meta-publisher"]
+      },
+      "description": "Meta-publisher has GATEWAY_URL configured (line 182 in docker-compose) but it's not currently used. However, the video-agent DCO endpoint at line 676 in meta-publisher calls VIDEO_AGENT_URL, which could create a dependency chain if video-agent needs to call back through gateway.",
+      "what_could_go_wrong": [
+        "Deadlock if services wait for each other during startup",
+        "Infinite loop if request bounces between services",
+        "Cascading failure if one service crashes during mutual calls",
+        "Impossible to test services in isolation"
+      ],
+      "how_to_fix": [
+        "Remove GATEWAY_URL from meta-publisher if not needed",
+        "Implement event-driven architecture using message queue (Redis pub/sub or RabbitMQ)",
+        "Use shared database for state instead of HTTP calls",
+        "Define clear service hierarchy - gateway calls downstream services, never reverse"
+      ],
+      "detection_evidence": "docker-compose.yml line 182 sets GATEWAY_URL for meta-publisher, gateway-api calls meta-publisher at multiple points"
+    },
+    {
+      "id": "CIRC-002",
+      "category": "Circular Dependencies",
+      "severity": "medium",
+      "title": "Shared Configuration Creates Hidden Dependencies",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:118-127",
+          "/home/user/geminivideo/shared/config/"
+        ],
+        "services": ["gateway-api", "multiple services"]
+      },
+      "description": "Services share configuration files via volume mounts (shared/config). Changes to shared config can break multiple services simultaneously.",
+      "what_could_go_wrong": [
+        "Breaking change in config.yaml crashes all services at once",
+        "Race conditions if multiple services write to shared config",
+        "Impossible to version services independently",
+        "Testing nightmare - can't isolate service behavior"
+      ],
+      "how_to_fix": [
+        "Use configuration service (e.g., Consul, etcd)",
+        "Version configuration files separately",
+        "Copy config during build, not at runtime",
+        "Use environment variables for service-specific config"
+      ],
+      "detection_evidence": "Multiple volume mounts to ./shared across services in docker-compose.yml"
+    },
+    {
+      "id": "SPOF-001",
+      "category": "Single Points of Failure",
+      "severity": "critical",
+      "title": "Single PostgreSQL Instance - No Replication",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml:8-27"
+        ],
+        "services": ["postgres"]
+      },
+      "description": "Single PostgreSQL instance with no replication, backup, or failover. All services depend on this one database.",
+      "what_could_go_wrong": [
+        "Database crash = entire system down",
+        "Data loss if container crashes before persistence",
+        "No read replicas = database becomes bottleneck",
+        "Maintenance requires full system downtime",
+        "Cannot scale reads horizontally"
+      ],
+      "how_to_fix": [
+        "Set up PostgreSQL replication (primary-replica)",
+        "Use managed database service (Cloud SQL, RDS)",
+        "Implement read replicas for analytics queries",
+        "Add connection pooling (PgBouncer)",
+        "Set up automated backups with point-in-time recovery",
+        "Implement health checks that trigger failover"
+      ],
+      "detection_evidence": "Single postgres service in docker-compose.yml with no replica configuration"
+    },
+    {
+      "id": "SPOF-002",
+      "category": "Single Points of Failure",
+      "severity": "critical",
+      "title": "Single Redis Instance - No Sentinel or Cluster",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml:29-42"
+        ],
+        "services": ["redis"]
+      },
+      "description": "Single Redis instance with no Redis Sentinel or Cluster configuration. Used for queues, caching, and pub/sub.",
+      "what_could_go_wrong": [
+        "Redis crash = queues lost, cache gone, pub/sub down",
+        "Lost jobs in analysis_queue and render_queue",
+        "Real-time features fail (WebSocket, SSE)",
+        "No automatic failover",
+        "Memory overflow crashes entire system"
+      ],
+      "how_to_fix": [
+        "Deploy Redis Sentinel for automatic failover (minimum 3 sentinel nodes)",
+        "Use Redis Cluster for horizontal scaling",
+        "Implement Redis persistence (AOF + RDB)",
+        "Add memory limits and eviction policies",
+        "Use managed Redis service (ElastiCache, Cloud Memorystore)",
+        "Implement queue durability with acknowledgments"
+      ],
+      "detection_evidence": "Single redis service with no sentinel/cluster config in docker-compose.yml"
+    },
+    {
+      "id": "SPOF-003",
+      "category": "Single Points of Failure",
+      "severity": "high",
+      "title": "Gateway-API is Single Point of Failure",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml:238-280",
+          "/home/user/geminivideo/services/gateway-api/src/index.ts"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "Gateway-API orchestrates all services but runs as single instance. All traffic flows through it. Frontend completely depends on it.",
+      "what_could_go_wrong": [
+        "Gateway crash = entire system unavailable to users",
+        "Memory leak in gateway = system degradation",
+        "No load balancing = cannot handle traffic spikes",
+        "Deployment requires downtime",
+        "CPU spike in scoring = entire system slows down"
+      ],
+      "how_to_fix": [
+        "Run multiple gateway instances behind load balancer",
+        "Use nginx or HAProxy for load balancing",
+        "Implement health checks for automatic failover",
+        "Move heavy operations (scoring, ML) to async workers",
+        "Add rate limiting per instance",
+        "Deploy with rolling updates (zero downtime)"
+      ],
+      "detection_evidence": "Single container_name for gateway-api, no replicas configured"
+    },
+    {
+      "id": "SPOF-004",
+      "category": "Single Points of Failure",
+      "severity": "high",
+      "title": "No Retry Logic on Service-to-Service HTTP Calls",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:174-183",
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:323-334"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "37+ direct axios calls without retry logic. Transient network failures cause permanent request failures.",
+      "what_could_go_wrong": [
+        "Transient network blip = user request fails permanently",
+        "Downstream service restart = all requests fail during restart",
+        "Spike in latency = cascade of timeouts",
+        "No exponential backoff = thundering herd problem"
+      ],
+      "how_to_fix": [
+        "Wrap all axios calls with retryWithBackoff() (already exists in error-handler.ts)",
+        "Use axios-retry library with exponential backoff",
+        "Implement circuit breakers for each downstream service",
+        "Add fallback responses for non-critical failures",
+        "Set appropriate timeouts (don't use same timeout for all calls)",
+        "Example: retryWithBackoff(() => axios.get(url), 3, 1000, 10000)"
+      ],
+      "detection_evidence": "37 axios calls found without retry wrapper, retryWithBackoff exists but unused"
+    },
+    {
+      "id": "COUP-001",
+      "category": "Tight Coupling",
+      "severity": "critical",
+      "title": "Hardcoded Service URLs Throughout Gateway",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:135-140",
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:1182"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "Service URLs hardcoded with fallback defaults. Services cannot be moved, scaled, or replaced without code changes.",
+      "what_could_go_wrong": [
+        "Cannot move services to different hosts",
+        "Cannot scale services independently",
+        "Cannot A/B test different service versions",
+        "Cannot implement service mesh",
+        "Deployment order matters (cascading startup failures)"
+      ],
+      "how_to_fix": [
+        "Use service discovery (Consul, etcd, Kubernetes Services)",
+        "Implement client-side load balancing",
+        "Use DNS-based service discovery",
+        "Environment variables only - no defaults",
+        "Validate all URLs on startup, fail fast if missing",
+        "Use service mesh (Istio, Linkerd) for production"
+      ],
+      "detection_evidence": "Lines 135-140 define service URLs with hardcoded localhost defaults"
+    },
+    {
+      "id": "COUP-002",
+      "category": "Tight Coupling",
+      "severity": "high",
+      "title": "Direct Database Access from Multiple Services",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml:252",
+          "/home/user/geminivideo/shared/db/connection.py"
+        ],
+        "services": ["gateway-api", "ml-service", "video-agent", "drive-intel", "meta-publisher"]
+      },
+      "description": "Multiple services have direct DATABASE_URL access. Schema changes require coordinated deployments across all services.",
+      "what_could_go_wrong": [
+        "Schema migration requires updating all services simultaneously",
+        "Cannot version API separately from database",
+        "Race conditions on shared tables",
+        "Difficult to trace which service caused data corruption",
+        "Cannot isolate service for testing without full database"
+      ],
+      "how_to_fix": [
+        "Implement database-per-service pattern",
+        "Use API gateway as only database accessor",
+        "Implement event sourcing for cross-service data needs",
+        "Use database views to isolate service schemas",
+        "Add database connection pooling per service",
+        "Use migration tools with versioning (Alembic, Flyway)"
+      ],
+      "detection_evidence": "5+ services have DATABASE_URL in docker-compose.yml environment"
+    },
+    {
+      "id": "COUP-003",
+      "category": "Tight Coupling",
+      "severity": "medium",
+      "title": "Services Cannot Run Independently",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml:255-269"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "Gateway depends on 6 upstream services via depends_on with health checks. Cannot start gateway without all services running.",
+      "what_could_go_wrong": [
+        "Development requires running entire stack",
+        "Cannot test gateway in isolation",
+        "One service health check failure blocks entire startup",
+        "Slow startup (waits for all dependencies)",
+        "Cannot deploy services independently"
+      ],
+      "how_to_fix": [
+        "Remove hard depends_on, implement graceful degradation",
+        "Health checks should warn, not block",
+        "Implement feature flags for optional services",
+        "Mock downstream services for testing",
+        "Use circuit breakers to handle unavailable services",
+        "Return cached/default data when services unavailable"
+      ],
+      "detection_evidence": "Gateway-api depends_on 6 services with condition: service_healthy"
+    },
+    {
+      "id": "DATA-001",
+      "category": "Data Inconsistency Risks",
+      "severity": "critical",
+      "title": "No Database Transactions for Multi-Table Operations",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:1147-1160",
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:585-594"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "Ad approval flow updates ads table and inserts into audit_log without transaction. Approval can succeed but audit log insertion can fail.",
+      "what_could_go_wrong": [
+        "Ad marked as approved but audit log missing (regulatory problem)",
+        "Partial updates if service crashes mid-operation",
+        "Race condition: two users approve same ad simultaneously",
+        "Cannot rollback on error",
+        "Data integrity violations not caught"
+      ],
+      "how_to_fix": [
+        "Use Prisma transactions: await prisma.$transaction([...])",
+        "Already have db.transaction() method - USE IT (line 717 in database.ts)",
+        "Example: await db.transaction(async (tx) => { await tx.query(updateAd); await tx.query(insertAudit); })",
+        "Add optimistic locking (version column)",
+        "Implement idempotency keys for critical operations"
+      ],
+      "detection_evidence": "Two separate pgPool.query() calls without transaction wrapper at lines 1159 and 602"
+    },
+    {
+      "id": "DATA-002",
+      "category": "Data Inconsistency Risks",
+      "severity": "critical",
+      "title": "No Idempotency Keys for Publishing Operations",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:502-651",
+          "/home/user/geminivideo/services/meta-publisher/src/index.ts:414-500"
+        ],
+        "services": ["gateway-api", "meta-publisher"]
+      },
+      "description": "Publishing to Meta creates ads but has no idempotency protection. Retry = duplicate ads.",
+      "what_could_go_wrong": [
+        "Network timeout after ad created = user retries = duplicate ads",
+        "Wasted ad spend on duplicates",
+        "Cannot safely retry failed requests",
+        "Load balancer retry = double publishing",
+        "No way to detect if operation already completed"
+      ],
+      "how_to_fix": [
+        "Add idempotency_key to request body",
+        "Store idempotency_key + response in database/cache",
+        "Check idempotency_key before processing",
+        "Return cached response if key exists",
+        "Set TTL on idempotency keys (24 hours)",
+        "Use UUID v4 for idempotency keys"
+      ],
+      "detection_evidence": "No 'idempotency' or 'idempotent' strings found in codebase"
+    },
+    {
+      "id": "DATA-003",
+      "category": "Data Inconsistency Risks",
+      "severity": "high",
+      "title": "Race Conditions in Multi-Platform Publishing",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/multi-platform/status_aggregator.ts:66-133"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "StatusAggregator uses in-memory Map with no locking. Concurrent updates can corrupt job state.",
+      "what_could_go_wrong": [
+        "Two platform updates race = lost update",
+        "Job status calculated incorrectly",
+        "Success/failure counts wrong",
+        "Platform metrics corrupted",
+        "Cannot safely handle concurrent requests"
+      ],
+      "how_to_fix": [
+        "Use Redis for distributed locking (SETNX or Redlock)",
+        "Store job state in database with optimistic locking",
+        "Use atomic operations (Redis HINCRBY for counters)",
+        "Add mutex/semaphore for critical sections",
+        "Use message queue for sequential job updates"
+      ],
+      "detection_evidence": "In-memory Map at line 66, concurrent access in updatePlatformStatus() without locks"
+    },
+    {
+      "id": "DATA-004",
+      "category": "Data Inconsistency Risks",
+      "severity": "high",
+      "title": "Redis Queue Without Acknowledgments",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:239-244",
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:466-469"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "Jobs pushed to Redis with rPush but no acknowledgment mechanism. Worker crashes = lost jobs.",
+      "what_could_go_wrong": [
+        "Worker crashes before processing = job lost forever",
+        "No way to track failed jobs",
+        "Cannot retry failed jobs",
+        "No visibility into queue health",
+        "Memory leak if jobs accumulate"
+      ],
+      "how_to_fix": [
+        "Use Redis Streams instead of lists (XADD, XREADGROUP)",
+        "Implement consumer groups with acknowledgments",
+        "Use BullMQ or Bee-Queue for robust job queues",
+        "Add job status table in database",
+        "Implement dead letter queue for failed jobs",
+        "Add job expiration (timeout) mechanism"
+      ],
+      "detection_evidence": "rPush to 'analysis_queue' and 'render_queue' without XACK or job tracking"
+    },
+    {
+      "id": "SCALE-001",
+      "category": "Scalability Blockers",
+      "severity": "critical",
+      "title": "In-Memory State in StatusAggregator Singleton",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/multi-platform/status_aggregator.ts:66",
+          "/home/user/geminivideo/services/gateway-api/src/multi-platform/status_aggregator.ts:368"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "StatusAggregator singleton stores all job state in memory Map. Cannot scale horizontally.",
+      "what_could_go_wrong": [
+        "Cannot run multiple gateway instances (state not shared)",
+        "Instance restart = all job status lost",
+        "Memory grows unbounded (no cleanup)",
+        "Load balancer sends requests to wrong instance = missing jobs",
+        "Cannot implement auto-scaling"
+      ],
+      "how_to_fix": [
+        "Store job state in Redis (HSET for job, SADD for job lists)",
+        "Use database for persistent job tracking",
+        "Implement cleanup cron (already exists but not effective for memory)",
+        "Add TTL to job records",
+        "Use distributed cache (Redis Cluster, Memcached)",
+        "Limit in-memory cache size (LRU eviction)"
+      ],
+      "detection_evidence": "Singleton at line 368: export const statusAggregator = new StatusAggregator()"
+    },
+    {
+      "id": "SCALE-002",
+      "category": "Scalability Blockers",
+      "severity": "critical",
+      "title": "Session Affinity Required But Not Configured",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/realtime/websocket-manager.ts:29",
+          "/home/user/geminivideo/services/gateway-api/src/realtime/sse-manager.ts:18"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "WebSocket and SSE connections stored in memory. Load balancer must route same client to same instance.",
+      "what_could_go_wrong": [
+        "Load balancer without sticky sessions = connections lost",
+        "Instance restart = all active connections dropped",
+        "Cannot scale WebSocket servers horizontally",
+        "Connection count limited by single instance memory",
+        "Uneven load distribution (some instances overloaded)"
+      ],
+      "how_to_fix": [
+        "Use Redis pub/sub for broadcasting (already initialized but not used)",
+        "Implement WebSocket cluster adapter (Socket.io Redis adapter)",
+        "Store connection metadata in Redis",
+        "Use sticky sessions on load balancer (IP hash or cookie)",
+        "Consider WebSocket-specific load balancer (HAProxy with balance source)",
+        "Implement graceful shutdown with connection draining"
+      ],
+      "detection_evidence": "In-memory connection storage, initializeChannelManager called but connections still local"
+    },
+    {
+      "id": "SCALE-003",
+      "category": "Scalability Blockers",
+      "severity": "high",
+      "title": "Sequential Processing in DCO Variant Generation",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/meta-publisher/src/index.ts:822-864"
+        ],
+        "services": ["meta-publisher"]
+      },
+      "description": "DCO variants uploaded sequentially in for loop. 10 variants = 10x slower than parallel.",
+      "what_could_go_wrong": [
+        "Slow upload times (10 variants = 50+ seconds)",
+        "User waits unnecessarily",
+        "Poor resource utilization",
+        "Timeouts on large batches",
+        "Cannot utilize multi-core CPU"
+      ],
+      "how_to_fix": [
+        "Use Promise.all() for parallel uploads",
+        "Example: await Promise.all(variants.map(v => uploadVariant(v)))",
+        "Add concurrency limit (Promise.map with concurrency: 5)",
+        "Use worker threads for CPU-intensive operations",
+        "Implement batch upload API if platform supports it"
+      ],
+      "detection_evidence": "for (const variant of variants) { await metaAdsManager.uploadVideo() } at line 823"
+    },
+    {
+      "id": "SCALE-004",
+      "category": "Scalability Blockers",
+      "severity": "high",
+      "title": "File System Dependencies in Video Processing",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml:119-120",
+          "/home/user/geminivideo/services/meta-publisher/src/index.ts:673"
+        ],
+        "services": ["video-agent"]
+      },
+      "description": "Video files stored in /tmp/assets, /tmp/voiceovers, /tmp/outputs. Container restart = files lost.",
+      "what_could_go_wrong": [
+        "Container restart = work-in-progress lost",
+        "Cannot scale video-agent horizontally (files on local disk)",
+        "/tmp fills up = out of disk space crashes",
+        "No cleanup = disk leak",
+        "Cannot implement auto-scaling"
+      ],
+      "how_to_fix": [
+        "Use object storage (S3, GCS) for video files",
+        "Mount persistent volumes for temp storage",
+        "Implement cleanup cron for old files",
+        "Add disk space monitoring and alerts",
+        "Use tmpfs with size limits",
+        "Stream videos directly to/from object storage"
+      ],
+      "detection_evidence": "/tmp paths in environment variables, no volume mount for persistence"
+    },
+    {
+      "id": "SCALE-005",
+      "category": "Scalability Blockers",
+      "severity": "medium",
+      "title": "No Connection Pooling for PostgreSQL",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:106",
+          "/home/user/geminivideo/shared/db/connection.py:12"
+        ],
+        "services": ["gateway-api", "python services"]
+      },
+      "description": "PostgreSQL Pool created but no max connections configured. Default pool exhaustion under load.",
+      "what_could_go_wrong": [
+        "Connection exhaustion under load",
+        "New requests fail with 'too many connections'",
+        "Slow connection creation",
+        "Database CPU spikes",
+        "Cannot handle traffic bursts"
+      ],
+      "how_to_fix": [
+        "Configure Pool with max: 20, idleTimeoutMillis: 30000",
+        "Use PgBouncer for connection pooling",
+        "Set connection limits per service",
+        "Monitor connection usage",
+        "Implement connection retry with backoff",
+        "Use read replicas for read-heavy queries"
+      ],
+      "detection_evidence": "new Pool({ connectionString }) with no options at line 106"
+    },
+    {
+      "id": "OBS-001",
+      "category": "Observability Gaps",
+      "severity": "high",
+      "title": "No Distributed Tracing",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/services/monitoring.ts"
+        ],
+        "services": ["all services"]
+      },
+      "description": "Only 3 files with OpenTelemetry imports, but no actual tracing implementation. Cannot trace requests across services.",
+      "what_could_go_wrong": [
+        "Cannot debug slow requests across services",
+        "Cannot identify bottleneck service",
+        "Cannot measure service dependencies",
+        "No visibility into request flow",
+        "Cannot calculate service-level SLAs"
+      ],
+      "how_to_fix": [
+        "Implement OpenTelemetry tracing in all services",
+        "Add trace context propagation (W3C Trace Context)",
+        "Send traces to Jaeger or Zipkin",
+        "Instrument all HTTP calls with spans",
+        "Add trace IDs to all log messages",
+        "Create service dependency map from traces"
+      ],
+      "detection_evidence": "Only utils/logger.ts, monitoring.ts, error-handler.ts mention tracing"
+    },
+    {
+      "id": "OBS-002",
+      "category": "Observability Gaps",
+      "severity": "high",
+      "title": "Console.log Instead of Structured Logging",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "598 console.log/error/warn calls across 44 files. No structured logging, no log aggregation.",
+      "what_could_go_wrong": [
+        "Cannot search logs effectively",
+        "No correlation between related log messages",
+        "Cannot alert on log patterns",
+        "No log retention policy",
+        "Cannot track requests across services",
+        "Logs lost when container restarts"
+      ],
+      "how_to_fix": [
+        "Use Winston or Pino for structured logging",
+        "Add requestId to all log messages",
+        "Send logs to centralized system (Loki, CloudWatch, Datadog)",
+        "Define log levels consistently",
+        "Add metadata (userId, service, timestamp) to logs",
+        "Use monitoring.log() method that already exists but is unused"
+      ],
+      "detection_evidence": "598 console.log occurrences, monitoring service is stub with console fallback"
+    },
+    {
+      "id": "OBS-003",
+      "category": "Observability Gaps",
+      "severity": "high",
+      "title": "Circuit Breakers Defined But Not Used",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/middleware/error-handler.ts:173-296"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "CircuitBreaker class fully implemented but never instantiated. No protection against cascading failures.",
+      "what_could_go_wrong": [
+        "Slow downstream service = entire system slow",
+        "Failing service = wasted retry attempts",
+        "No automatic failover to fallback",
+        "Cascading failures across all services",
+        "Cannot implement degraded mode"
+      ],
+      "how_to_fix": [
+        "Create circuit breaker instances for each downstream service",
+        "Example: const mlServiceBreaker = new CircuitBreaker({ name: 'ml-service' })",
+        "Wrap all axios calls: await mlServiceBreaker.call(() => axios.get(...))",
+        "Add health check endpoints that check circuit breaker state",
+        "Implement fallback responses when circuit is open",
+        "Monitor circuit breaker state transitions"
+      ],
+      "detection_evidence": "CircuitBreaker class defined but grep finds no 'new CircuitBreaker(' calls"
+    },
+    {
+      "id": "OBS-004",
+      "category": "Observability Gaps",
+      "severity": "medium",
+      "title": "No Prometheus Metrics",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/services/monitoring.ts:114-116"
+        ],
+        "services": ["all services"]
+      },
+      "description": "Monitoring service returns '# Metrics not available in stub mode'. No application metrics.",
+      "what_could_go_wrong": [
+        "Cannot track request rate, latency, errors",
+        "No visibility into service health",
+        "Cannot set up alerts on metrics",
+        "Cannot create performance dashboards",
+        "Cannot track business metrics (ad spend, CTR)",
+        "Cannot capacity plan"
+      ],
+      "how_to_fix": [
+        "Install prom-client and export metrics at /metrics",
+        "Track: request_duration_seconds, requests_total, errors_total",
+        "Add business metrics: ads_published_total, campaigns_active",
+        "Add custom metrics: ml_prediction_score, cache_hit_rate",
+        "Set up Prometheus to scrape /metrics endpoints",
+        "Create Grafana dashboards (templates exist in deploy/monitoring/)"
+      ],
+      "detection_evidence": "getMetrics() returns stub message at line 114-116"
+    },
+    {
+      "id": "OBS-005",
+      "category": "Observability Gaps",
+      "severity": "medium",
+      "title": "Health Checks Don't Check Dependencies",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:2246-2251"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "Health endpoint returns static 'healthy' without checking database, redis, or downstream services.",
+      "what_could_go_wrong": [
+        "Load balancer thinks service is healthy but it's broken",
+        "Database down but health check passes",
+        "Redis unavailable but service reports healthy",
+        "False positive health = traffic routed to broken instance",
+        "Cannot implement readiness probes correctly"
+      ],
+      "how_to_fix": [
+        "Check database connection (await pgPool.query('SELECT 1'))",
+        "Check Redis connection (await redisClient.ping())",
+        "Check downstream service health (with timeout)",
+        "Return 503 if any critical dependency is down",
+        "Implement separate /health/liveness and /health/readiness",
+        "Use monitoring.checkDependencies() that exists but is unused"
+      ],
+      "detection_evidence": "Health endpoint returns static JSON, no dependency checks"
+    },
+    {
+      "id": "FAIL-001",
+      "category": "Single Points of Failure",
+      "severity": "high",
+      "title": "No Graceful Degradation for Optional Services",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:323-334",
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:1494-1546"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "Some services have fallback (ML service, Titan Core) but most fail hard. Gateway should degrade gracefully when optional services are down.",
+      "what_could_go_wrong": [
+        "Meta Ads Library down = entire /api/ads/trending fails",
+        "Titan Core down = /api/council/evaluate fails (should return basic scoring)",
+        "ML service down in some places = partial failure",
+        "One service down shouldn't break entire feature"
+      ],
+      "how_to_fix": [
+        "Identify optional vs critical services",
+        "Implement fallback responses for optional services",
+        "Cache last good response for degraded mode",
+        "Return 'feature unavailable' message instead of 500 error",
+        "Add feature flags to disable features when services are down",
+        "Example already exists: /api/ab-tests falls back to database at line 1507"
+      ],
+      "detection_evidence": "ML service fallback at line 332, but most other services don't have fallbacks"
+    },
+    {
+      "id": "FAIL-002",
+      "category": "Single Points of Failure",
+      "severity": "medium",
+      "title": "Frontend Has No Offline Capability",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml:282-304"
+        ],
+        "services": ["frontend"]
+      },
+      "description": "Frontend completely depends on gateway-api. Gateway down = blank page.",
+      "what_could_go_wrong": [
+        "Gateway down = users see nothing",
+        "Network hiccup = entire app broken",
+        "Cannot show cached data",
+        "Poor user experience during deployments",
+        "No progressive web app capabilities"
+      ],
+      "how_to_fix": [
+        "Implement service worker for offline caching",
+        "Cache static assets and API responses",
+        "Show last known data when API unavailable",
+        "Add 'offline mode' banner",
+        "Use optimistic UI updates",
+        "Implement retry with exponential backoff in frontend"
+      ],
+      "detection_evidence": "Frontend depends_on gateway-api, no service worker visible"
+    },
+    {
+      "id": "SEC-001",
+      "category": "Tight Coupling",
+      "severity": "medium",
+      "title": "Shared Secret Management",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml:85-92",
+          "/home/user/geminivideo/docker-compose.yml:183-188"
+        ],
+        "services": ["titan-core", "meta-publisher"]
+      },
+      "description": "All services access same environment variables for secrets. No secret rotation, no per-service secrets.",
+      "what_could_go_wrong": [
+        "One compromised service = all secrets leaked",
+        "Cannot rotate secrets without restarting all services",
+        "Secrets in environment variables (visible in docker inspect)",
+        "No audit trail of secret access",
+        "Cannot implement least-privilege access"
+      ],
+      "how_to_fix": [
+        "Use secrets management system (Vault, AWS Secrets Manager)",
+        "Per-service API keys where possible",
+        "Mount secrets as files, not environment variables",
+        "Implement secret rotation",
+        "Use service accounts with limited permissions",
+        "Add secret access logging"
+      ],
+      "detection_evidence": "Same META_ACCESS_TOKEN used by multiple services"
+    },
+    {
+      "id": "PERF-001",
+      "category": "Scalability Blockers",
+      "severity": "medium",
+      "title": "No Request/Response Compression",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts:37-65"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "No compression middleware. Large JSON responses (experiments, ads) waste bandwidth.",
+      "what_could_go_wrong": [
+        "Slow response times on slow networks",
+        "High bandwidth costs",
+        "Poor mobile user experience",
+        "Cannot handle large response payloads efficiently"
+      ],
+      "how_to_fix": [
+        "Add compression middleware: app.use(compression())",
+        "Configure threshold: compression({ threshold: 1024 })",
+        "Use gzip or brotli compression",
+        "Compress static assets",
+        "Set appropriate Content-Encoding headers"
+      ],
+      "detection_evidence": "No compression import or middleware in index.ts"
+    },
+    {
+      "id": "TEST-001",
+      "category": "Observability Gaps",
+      "severity": "low",
+      "title": "Cannot Test Services in Isolation",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/docker-compose.yml"
+        ],
+        "services": ["all services"]
+      },
+      "description": "Hard dependencies make testing difficult. Need full stack to test one service.",
+      "what_could_go_wrong": [
+        "Slow test cycles",
+        "Flaky tests (depend on other services)",
+        "Cannot do TDD effectively",
+        "Integration tests are all-or-nothing"
+      ],
+      "how_to_fix": [
+        "Implement dependency injection",
+        "Create mock services for testing",
+        "Use test containers for isolation",
+        "Add contract tests between services",
+        "Make external dependencies injectable"
+      ],
+      "detection_evidence": "Hard depends_on throughout docker-compose.yml"
+    },
+    {
+      "id": "DATA-005",
+      "category": "Data Inconsistency Risks",
+      "severity": "medium",
+      "title": "No Database Migration Strategy",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/database_migrations/",
+          "/home/user/geminivideo/services/gateway-api/prisma/"
+        ],
+        "services": ["all database-connected services"]
+      },
+      "description": "Multiple migration directories, unclear which is source of truth. No coordinated migration process.",
+      "what_could_go_wrong": [
+        "Schema drift between environments",
+        "Failed deployments due to schema mismatch",
+        "Data loss from incompatible migrations",
+        "Cannot rollback migrations safely"
+      ],
+      "how_to_fix": [
+        "Choose one migration tool (Prisma or Alembic)",
+        "Single source of truth for schema",
+        "Version all migrations",
+        "Test migrations in staging",
+        "Implement migration rollback scripts",
+        "Add migration status endpoint"
+      ],
+      "detection_evidence": "Both /database_migrations/ and /services/gateway-api/prisma/ exist"
+    },
+    {
+      "id": "ARCH-001",
+      "category": "Tight Coupling",
+      "severity": "low",
+      "title": "God Object: Gateway-API Does Too Much",
+      "location": {
+        "files": [
+          "/home/user/geminivideo/services/gateway-api/src/index.ts"
+        ],
+        "services": ["gateway-api"]
+      },
+      "description": "Gateway-API: 2333 lines, handles routing, scoring, publishing approval, queue management, health checks, monitoring. Violates Single Responsibility Principle.",
+      "what_could_go_wrong": [
+        "Changes in one feature affect others",
+        "Difficult to understand and maintain",
+        "Cannot scale features independently",
+        "Deployment risk (all eggs in one basket)",
+        "Large codebase = slow builds"
+      ],
+      "how_to_fix": [
+        "Extract scoring logic to separate service",
+        "Extract approval workflow to separate service",
+        "Use microservices architecture properly",
+        "Keep gateway thin (routing + aggregation only)",
+        "Move business logic to domain services"
+      ],
+      "detection_evidence": "2333-line index.ts with mixed concerns"
+    }
+  ],
+  "recommendations": {
+    "immediate_actions": [
+      {
+        "priority": 1,
+        "action": "Implement retry logic with exponential backoff on all service-to-service calls",
+        "impact": "Prevents cascading failures from transient errors",
+        "effort": "Medium (1-2 days)",
+        "code": "Wrap all axios calls with retryWithBackoff() that already exists"
+      },
+      {
+        "priority": 2,
+        "action": "Add idempotency keys to all publishing and financial operations",
+        "impact": "Prevents duplicate ads and wasted spend",
+        "effort": "Medium (2-3 days)",
+        "code": "Add idempotency_key field, store in Redis with 24h TTL"
+      },
+      {
+        "priority": 3,
+        "action": "Move StatusAggregator state from memory to Redis",
+        "impact": "Enables horizontal scaling of gateway-api",
+        "effort": "Medium (2-3 days)",
+        "code": "Replace Map with Redis HSET operations"
+      },
+      {
+        "priority": 4,
+        "action": "Instantiate and use CircuitBreaker for all downstream services",
+        "impact": "Protects against cascading failures",
+        "effort": "Low (1 day)",
+        "code": "Create CircuitBreaker instances, wrap all axios calls"
+      },
+      {
+        "priority": 5,
+        "action": "Wrap multi-table database operations in transactions",
+        "impact": "Prevents data inconsistency",
+        "effort": "Low (1 day)",
+        "code": "Use db.transaction() that already exists"
+      }
+    ],
+    "short_term": [
+      {
+        "timeframe": "1-2 weeks",
+        "actions": [
+          "Set up PostgreSQL replication (primary + read replica)",
+          "Set up Redis Sentinel for automatic failover",
+          "Implement structured logging (Winston or Pino)",
+          "Add Prometheus metrics to all services",
+          "Move video files from /tmp to object storage (S3/GCS)",
+          "Add health checks that verify dependencies",
+          "Remove hardcoded service URLs, use service discovery"
+        ]
+      }
+    ],
+    "long_term": [
+      {
+        "timeframe": "1-3 months",
+        "actions": [
+          "Implement OpenTelemetry distributed tracing",
+          "Set up service mesh (Istio or Linkerd)",
+          "Implement database-per-service pattern",
+          "Add comprehensive monitoring dashboards",
+          "Implement event-driven architecture (Kafka/RabbitMQ)",
+          "Break up gateway-api into smaller services",
+          "Add automated chaos testing (Chaos Monkey)",
+          "Implement canary deployments"
+        ]
+      }
+    ]
+  },
+  "architectural_patterns_to_adopt": [
+    {
+      "pattern": "Circuit Breaker",
+      "status": "Implemented but not used",
+      "action": "Instantiate and use everywhere"
+    },
+    {
+      "pattern": "Retry with Exponential Backoff",
+      "status": "Implemented but not used",
+      "action": "Wrap all HTTP calls"
+    },
+    {
+      "pattern": "Bulkhead",
+      "status": "Not implemented",
+      "action": "Isolate thread pools per service"
+    },
+    {
+      "pattern": "CQRS",
+      "status": "Not implemented",
+      "action": "Separate read/write models for analytics"
+    },
+    {
+      "pattern": "Event Sourcing",
+      "status": "Not implemented",
+      "action": "Track ad publishing events for audit"
+    },
+    {
+      "pattern": "Saga",
+      "status": "Not implemented",
+      "action": "Multi-platform publishing needs distributed transaction"
+    }
+  ],
+  "testing_gaps": [
+    "No chaos engineering tests",
+    "No load testing for scalability verification",
+    "No failover testing",
+    "No integration tests for retry/circuit breaker logic",
+    "No tests for graceful degradation scenarios"
+  ],
+  "compliance_risks": [
+    {
+      "risk": "Missing audit logs for financial operations",
+      "regulation": "PCI DSS, SOX",
+      "issue_id": "DATA-001"
+    },
+    {
+      "risk": "No data backup strategy for PostgreSQL",
+      "regulation": "GDPR (data retention)",
+      "issue_id": "SPOF-001"
+    },
+    {
+      "risk": "Secrets in environment variables (visible in logs)",
+      "regulation": "PCI DSS (secret management)",
+      "issue_id": "SEC-001"
+    }
+  ]
+}
