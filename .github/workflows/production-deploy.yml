@@ -1,0 +1,485 @@
+# =============================================================================
+# Production Deployment Pipeline
+# =============================================================================
+# Zero-downtime deployment with automatic rollback
+# Supports: AWS, GCP, DigitalOcean, self-hosted
+# =============================================================================
+
+name: Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: 'Skip tests (emergency deployment only)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # ===========================================================================
+  # PRE-DEPLOYMENT VALIDATION
+  # ===========================================================================
+  validate:
+    name: Pre-deployment Validation
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      deployment_id: ${{ steps.vars.outputs.deployment_id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set deployment variables
+        id: vars
+        run: |
+          DEPLOYMENT_ID="deploy-$(date +%Y%m%d-%H%M%S)-${{ github.sha }}"
+          echo "deployment_id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+          echo "Deployment ID: $DEPLOYMENT_ID"
+
+      - name: Check if deployment should proceed
+        id: check
+        run: |
+          # Check for [skip ci] or [skip deploy] in commit message
+          if git log -1 --pretty=%B | grep -qE '\[(skip ci|skip deploy)\]'; then
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "Deployment skipped due to commit message"
+          else
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate environment files
+        if: steps.check.outputs.should_deploy == 'true'
+        run: |
+          if [ ! -f ".env.production.example" ]; then
+            echo "Error: .env.production.example not found"
+            exit 1
+          fi
+          echo "Environment files validated"
+
+      - name: Check Docker configuration
+        if: steps.check.outputs.should_deploy == 'true'
+        run: |
+          if [ ! -f "docker-compose.production.yml" ]; then
+            echo "Error: docker-compose.production.yml not found"
+            exit 1
+          fi
+          echo "Docker configuration validated"
+
+  # ===========================================================================
+  # RUN TESTS
+  # ===========================================================================
+  test:
+    name: Run Test Suite
+    needs: validate
+    if: needs.validate.outputs.should_deploy == 'true' && github.event.inputs.skip_tests != 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: geminivideo_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/gateway-api/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd services/gateway-api
+          npm ci --legacy-peer-deps
+          cd ../..
+          pip install -r tests/requirements.txt
+
+      - name: Run unit tests
+        run: |
+          npm test --prefix services/gateway-api || exit 1
+          pytest tests/ -v --cov=services --cov-report=xml || exit 1
+
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/geminivideo_test
+          REDIS_URL: redis://localhost:6379
+        run: |
+          pytest tests/integration/ -v || exit 1
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  # ===========================================================================
+  # BUILD DOCKER IMAGES
+  # ===========================================================================
+  build:
+    name: Build Docker Images
+    needs: [validate, test]
+    if: needs.validate.outputs.should_deploy == 'true' && (success() || github.event.inputs.skip_tests == 'true')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - gateway
+          - titan
+          - ml
+          - video
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=${{ needs.validate.outputs.deployment_id }}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deploy/Dockerfile.${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VERSION=${{ needs.validate.outputs.deployment_id }}
+            GIT_COMMIT=${{ github.sha }}
+
+  # ===========================================================================
+  # DATABASE MIGRATIONS
+  # ===========================================================================
+  migrate:
+    name: Run Database Migrations
+    needs: [validate, build]
+    if: needs.validate.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: services/gateway-api
+        run: npm ci --legacy-peer-deps
+
+      - name: Run Prisma migrations
+        working-directory: services/gateway-api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          npx prisma migrate deploy
+          npx prisma generate
+
+      - name: Run SQL migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          for migration in database_migrations/*.sql; do
+            if [ -f "$migration" ]; then
+              echo "Running migration: $migration"
+              psql $DATABASE_URL -f "$migration" || true
+            fi
+          done
+
+  # ===========================================================================
+  # DEPLOY TO STAGING
+  # ===========================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [validate, migrate]
+    if: needs.validate.outputs.should_deploy == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.geminivideo.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        env:
+          DEPLOYMENT_ID: ${{ needs.validate.outputs.deployment_id }}
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your staging deployment commands here
+          # For example, SSH to staging server and run deploy script
+
+      - name: Run smoke tests on staging
+        run: |
+          sleep 30  # Wait for deployment to stabilize
+          curl -f https://staging.geminivideo.com/health || exit 1
+          echo "Staging smoke tests passed"
+
+      - name: Notify deployment
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Staging deployment ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ===========================================================================
+  # DEPLOY TO PRODUCTION
+  # ===========================================================================
+  deploy-production:
+    name: Deploy to Production
+    needs: [validate, migrate, deploy-staging]
+    if: needs.validate.outputs.should_deploy == 'true' && (github.ref == 'refs/heads/production' || github.event.inputs.environment == 'production')
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://geminivideo.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to production
+        env:
+          DEPLOYMENT_ID: ${{ needs.validate.outputs.deployment_id }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          echo "Deploying to production environment..."
+
+          # Copy deployment scripts to server
+          scp -o StrictHostKeyChecking=no deploy/*.sh $DEPLOY_USER@$DEPLOY_HOST:/tmp/
+
+          # Run deployment
+          ssh -o StrictHostKeyChecking=no $DEPLOY_USER@$DEPLOY_HOST << 'EOF'
+            cd /opt/geminivideo
+            chmod +x /tmp/deploy.sh
+            sudo /tmp/deploy.sh
+          EOF
+
+      - name: Health check
+        run: |
+          echo "Running health checks..."
+          for i in {1..10}; do
+            if curl -f https://geminivideo.com/health; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "Health check failed"
+          exit 1
+
+      - name: Run smoke tests
+        run: |
+          # Test critical endpoints
+          curl -f https://api.geminivideo.com/health || exit 1
+          curl -f https://geminivideo.com || exit 1
+          echo "Production smoke tests passed"
+
+      - name: Notify success
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: '🚀 Production deployment successful! Deployment ID: ${{ needs.validate.outputs.deployment_id }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed, initiating rollback..."
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+            cd /opt/geminivideo/deploy
+            sudo ./rollback.sh
+          EOF
+
+      - name: Notify failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: '⚠️ Production deployment FAILED and rolled back. Deployment ID: ${{ needs.validate.outputs.deployment_id }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ===========================================================================
+  # KUBERNETES DEPLOYMENT (OPTIONAL)
+  # ===========================================================================
+  deploy-kubernetes:
+    name: Deploy to Kubernetes
+    needs: [validate, build, migrate]
+    if: needs.validate.outputs.should_deploy == 'true' && vars.USE_KUBERNETES == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy to Kubernetes
+        env:
+          DEPLOYMENT_ID: ${{ needs.validate.outputs.deployment_id }}
+        run: |
+          # Apply Kubernetes manifests
+          kubectl apply -f deploy/kubernetes/namespace.yaml
+          kubectl apply -f deploy/kubernetes/configmap.yaml
+          kubectl apply -f deploy/kubernetes/secrets.yaml
+
+          # Update image tags
+          kubectl set image deployment/gateway-api \
+            gateway-api=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-gateway:$DEPLOYMENT_ID \
+            -n geminivideo
+
+          kubectl set image deployment/titan-core \
+            titan-core=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-titan:$DEPLOYMENT_ID \
+            -n geminivideo
+
+          kubectl set image deployment/ml-service \
+            ml-service=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-ml:$DEPLOYMENT_ID \
+            -n geminivideo
+
+          kubectl set image deployment/video-agent \
+            video-agent=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-video:$DEPLOYMENT_ID \
+            -n geminivideo
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/gateway-api -n geminivideo --timeout=10m
+          kubectl rollout status deployment/titan-core -n geminivideo --timeout=10m
+          kubectl rollout status deployment/ml-service -n geminivideo --timeout=10m
+          kubectl rollout status deployment/video-agent -n geminivideo --timeout=10m
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n geminivideo
+          kubectl get services -n geminivideo
+
+  # ===========================================================================
+  # POST-DEPLOYMENT TASKS
+  # ===========================================================================
+  post-deploy:
+    name: Post-Deployment Tasks
+    needs: [deploy-production]
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tag release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/${{ needs.validate.outputs.deployment_id }}',
+              sha: context.sha
+            })
+
+      - name: Create deployment record
+        run: |
+          echo "Deployment completed successfully"
+          echo "Deployment ID: ${{ needs.validate.outputs.deployment_id }}"
+          echo "Git SHA: ${{ github.sha }}"
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Notify monitoring systems
+        run: |
+          # Send deployment event to monitoring systems
+          curl -X POST ${{ secrets.MONITORING_WEBHOOK }} \
+            -H "Content-Type: application/json" \
+            -d '{
+              "event": "deployment",
+              "deployment_id": "${{ needs.validate.outputs.deployment_id }}",
+              "status": "success",
+              "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+            }' || true

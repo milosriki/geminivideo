@@ -11,8 +11,12 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import os
 import json
+import time
 from datetime import datetime
 import uuid
+
+# Track startup time for uptime calculation
+_start_time = time.time()
 
 from services.renderer import VideoRenderer
 from services.overlay_generator import OverlayGenerator
@@ -400,8 +404,11 @@ async def generate_batch(request: dict, background_tasks: BackgroundTasks):
 
 @app.get("/health")
 async def health_check():
+    uptime = int(time.time() - _start_time)
     return {
         "status": "healthy",
+        "service": "video-agent",
+        "uptime": uptime,
         "timestamp": datetime.utcnow().isoformat(),
         "jobs_count": len(render_jobs)
     }

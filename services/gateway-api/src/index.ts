@@ -2157,6 +2157,35 @@ app.get('/api/publish/summary',
   });
 
 // ============================================================================
+// API ROUTE MODULES (Agent 58 - Full API Wiring)
+// ============================================================================
+
+// Campaign Management Routes
+import { createCampaignsRouter } from './routes/campaigns';
+const campaignsRouter = createCampaignsRouter(pgPool);
+app.use('/api/campaigns', campaignsRouter);
+
+// Analytics Routes
+import { createAnalyticsRouter } from './routes/analytics';
+const analyticsRouter = createAnalyticsRouter(pgPool);
+app.use('/api/analytics', analyticsRouter);
+
+// A/B Testing Routes
+import { createABTestsRouter } from './routes/ab-tests';
+const abTestsRouter = createABTestsRouter(pgPool);
+app.use('/api/ab-tests', abTestsRouter);
+
+// Ads Management Routes
+import { createAdsRouter } from './routes/ads';
+const adsRouter = createAdsRouter(pgPool);
+app.use('/api/ads', adsRouter);
+
+// Predictions Routes
+import { createPredictionsRouter } from './routes/predictions';
+const predictionsRouter = createPredictionsRouter(pgPool);
+app.use('/api/predictions', predictionsRouter);
+
+// ============================================================================
 // ONBOARDING ENDPOINTS
 // ============================================================================
 

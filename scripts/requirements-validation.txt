@@ -1,0 +1,19 @@
+# Python requirements for environment validation script
+# Install with: pip install -r scripts/requirements-validation.txt
+
+# Database connectivity
+psycopg2-binary>=2.9.0
+
+# Redis connectivity
+redis>=4.0.0
+
+# AWS/S3/R2 storage
+boto3>=1.26.0
+
+# AI APIs
+google-generativeai>=0.3.0
+openai>=1.0.0
+anthropic>=0.7.0
+
+# Optional: For enhanced validation
+requests>=2.28.0
