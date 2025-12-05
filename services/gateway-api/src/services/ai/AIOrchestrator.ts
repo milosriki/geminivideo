@@ -13,6 +13,7 @@
  * This is your "unfair advantage" - a fully automated creative intelligence system
  */
 
+import axios from 'axios';
 import EmotionRecognitionService from './emotionRecognition';
 
 // Types for orchestration
@@ -256,13 +257,13 @@ Return as JSON.`;
       const emotionAnalysis = video.frames.length > 0
         ? await this.emotionService.analyzeVideo(video.frames)
         : {
-            summary: {
-              averageMarketingScore: 75,
-              emotionalPeaks: [],
-              recommendedHookMoments: [0],
-              emotionalArc: 'rising' as const,
-            },
-          };
+          summary: {
+            averageMarketingScore: 75,
+            emotionalPeaks: [],
+            recommendedHookMoments: [0],
+            emotionalArc: 'rising' as const,
+          },
+        };
 
       // Oracle prediction (calls existing 8-model ensemble)
       const oraclePrediction = await this.predictWithOracle(video, emotionAnalysis);
@@ -339,7 +340,7 @@ Return as JSON.`;
   /**
    * SELF-LEARNING: Ingest performance feedback
    */
-  async ingestPerformanceData(signal: LearningSignal): void {
+  async ingestPerformanceData(signal: LearningSignal): Promise<void> {
     this.learningBuffer.push(signal);
 
     // Check for drift
@@ -384,21 +385,43 @@ Return as JSON.`;
   }
 
   /**
-   * Stub: Fetch Meta Ads history
+   * Fetch Meta Ads history from meta-publisher service
    */
   private async fetchMetaAdsHistory(clientId: string): Promise<any> {
-    // Calls existing metaAdsService.getAdInsights()
-    return {
-      topAds: [],
-      audienceInsights: {},
-    };
+    try {
+      // Use the internal service URL or fallback
+      const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
+
+      // Fetch insights for the account (mocking account ID lookup for now)
+      // In production, clientId would map to a specific ad account ID
+      console.log(`[Orchestrator] Calling Meta Publisher at ${META_PUBLISHER_URL}/api/account/info`);
+
+      const response = await axios.get(`${META_PUBLISHER_URL}/api/account/info`);
+
+      // Also fetch some recent campaign insights if available
+      // This is a simplified implementation - in reality we'd fetch specific campaigns
+
+      return {
+        topAds: [], // Would be populated from insights
+        audienceInsights: {},
+        accountInfo: response.data
+      };
+    } catch (error: any) {
+      console.warn('[Orchestrator] Failed to fetch Meta Ads history:', error.message);
+      return {
+        topAds: [],
+        audienceInsights: {},
+        error: error.message
+      };
+    }
   }
 
   /**
    * Stub: Fetch HubSpot data
    */
   private async fetchHubSpotData(clientId: string): Promise<any> {
-    // Calls existing hubspotService.getDeals()
+    // Placeholder for HubSpot integration
+    console.log('[Orchestrator] Fetching HubSpot data for client:', clientId);
     return {
       deals: [],
       contacts: [],

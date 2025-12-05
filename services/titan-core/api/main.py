@@ -90,6 +90,20 @@ except ImportError as e:
         COMPLETED = "completed"
         FAILED = "failed"
 
+# ============================================================================
+# IMPORT NEW INTEGRATIONS
+# ============================================================================
+try:
+    from services.titan_core.api.market_intel_router import router as market_intel_router
+    from services.titan_core.api.rag_router import router as rag_router
+    INTEGRATIONS_AVAILABLE = True
+    logger.info("✅ Market Intel and RAG routers loaded successfully")
+except ImportError as e:
+    INTEGRATIONS_AVAILABLE = False
+    logger.warning(f"⚠️ Integrations not available: {e}")
+    market_intel_router = None
+    rag_router = None
+
 
 # ============================================================================
 # CONFIGURATION
@@ -341,6 +355,16 @@ class RenderWinningResponse(BaseModel):
     total_jobs: int
     status: str
     message: str
+
+
+# ============================================================================
+# MOUNT INTEGRATION ROUTERS
+# ============================================================================
+if INTEGRATIONS_AVAILABLE:
+    if market_intel_router:
+        app.include_router(market_intel_router)
+    if rag_router:
+        app.include_router(rag_router)
 
 
 # ============================================================================

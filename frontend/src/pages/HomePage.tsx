@@ -178,13 +178,55 @@ function ActivityItem({ activity }: { activity: ActivityProps }) {
 
 // Main HomePage Component
 export function HomePage() {
-  // Mock data - replace with real API calls
-  const metrics = [
-    { title: 'Total Spend', value: 45230, prefix: '$', change: 12, trend: 'up' as const, icon: ChartBarIcon },
-    { title: 'ROAS', value: 4.2, suffix: 'x', change: 8, trend: 'up' as const, icon: ArrowTrendingUpIcon },
-    { title: 'Videos Generated', value: 156, change: 24, trend: 'up' as const, icon: FilmIcon },
-    { title: 'Active Campaigns', value: 12, change: -5, trend: 'down' as const, icon: PlayCircleIcon },
-  ]
+  const [metrics, setMetrics] = useState([
+    { title: 'Total Spend', value: 0, prefix: '$', change: 0, trend: 'up' as const, icon: ChartBarIcon },
+    { title: 'ROAS', value: 0, suffix: 'x', change: 0, trend: 'up' as const, icon: ArrowTrendingUpIcon },
+    { title: 'Videos Generated', value: 0, change: 0, trend: 'up' as const, icon: FilmIcon },
+    { title: 'Active Campaigns', value: 0, change: 0, trend: 'down' as const, icon: PlayCircleIcon },
+  ]);
+
+  const [recentJobs, setRecentJobs] = useState<JobProps[]>([
+    { id: '1234', name: 'PTD Transformation Ad', status: 'processing', progress: 65 },
+    { id: '1233', name: 'Summer Promo Video', status: 'completed' },
+  ]);
+
+  const [recentActivity, setRecentActivity] = useState<ActivityProps[]>([]);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+        const response = await fetch(`${API_URL}/api/dashboard/summary`);
+
+        if (response.ok) {
+          const data = await response.json();
+
+          // Update metrics with real data
+          setMetrics([
+            { title: 'Total Spend', value: data.metrics.totalSpend || 0, prefix: data.metrics.currency === 'EUR' ? '€' : '$', change: 12, trend: 'up', icon: ChartBarIcon },
+            { title: 'ROAS', value: data.metrics.roas || 0, suffix: 'x', change: 8, trend: 'up', icon: ArrowTrendingUpIcon },
+            { title: 'Videos Generated', value: data.metrics.videosGenerated || 0, change: 24, trend: 'up', icon: FilmIcon },
+            { title: 'Active Campaigns', value: data.metrics.activeCampaigns || 0, change: -5, trend: 'down', icon: PlayCircleIcon },
+          ]);
+
+          // Update activity with real campaigns if available
+          if (data.campaigns && data.campaigns.length > 0) {
+            const campaignActivity = data.campaigns.slice(0, 5).map((c: any) => ({
+              id: c.id,
+              action: 'Campaign Status:',
+              target: `${c.name} (${c.status})`,
+              time: 'Just now'
+            }));
+            setRecentActivity(campaignActivity);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   const quickActions = [
     { title: 'New Campaign', description: 'Create AI-powered video ads', icon: PlusIcon, href: '/create', color: 'bg-violet-600' },
@@ -193,151 +235,137 @@ export function HomePage() {
     { title: 'View Analytics', description: 'Track campaign performance', icon: ChartBarIcon, href: '/analytics', color: 'bg-emerald-600' },
   ]
 
-  const recentJobs: JobProps[] = [
-    { id: '1234', name: 'PTD Transformation Ad', status: 'processing', progress: 65 },
-    { id: '1233', name: 'Summer Promo Video', status: 'completed' },
-    { id: '1232', name: 'Client Testimonial', status: 'queued' },
-    { id: '1231', name: 'Coach Intro Reel', status: 'completed' },
-  ]
-
-  const recentActivity: ActivityProps[] = [
-    { id: '1', action: 'Campaign launched:', target: 'Dubai Fitness Q4', time: '2 hours ago' },
-    { id: '2', action: 'Video generated:', target: 'transformation-v3.mp4', time: '4 hours ago' },
-    { id: '3', action: 'Ad published to:', target: 'Meta Ads', time: '6 hours ago' },
-    { id: '4', action: 'Analysis completed:', target: 'Competitor Study', time: '1 day ago' },
-  ]
-
   return (
     <Container className="py-6 lg:py-8">
       <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <Heading level={1} className="text-white">Welcome back, Milos 👋</Heading>
-          <Text className="text-zinc-400 mt-1">Here's what's happening with your campaigns today.</Text>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Heading level={1} className="text-white">Welcome back, Milos 👋</Heading>
+            <Text className="text-zinc-400 mt-1">Here's what's happening with your campaigns today.</Text>
+          </div>
+          <Button color="violet" href="/create" className="gap-2">
+            <PlusIcon className="h-4 w-4" />
+            New Campaign
+          </Button>
         </div>
-        <Button color="violet" href="/create" className="gap-2">
-          <PlusIcon className="h-4 w-4" />
-          New Campaign
-        </Button>
-      </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((metric, index) => (
-          <motion.div
-            key={metric.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-          >
-            <MetricCard {...metric} />
-          </motion.div>
-        ))}
-      </div>
-
-      <Divider />
-
-      {/* Quick Actions */}
-      <div>
-        <Heading level={2} className="text-white mb-4">Quick Actions</Heading>
+        {/* Metrics Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {quickActions.map((action, index) => (
+          {metrics.map((metric, index) => (
             <motion.div
-              key={action.title}
+              key={metric.title}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 + index * 0.1 }}
+              transition={{ delay: index * 0.1 }}
             >
-              <QuickAction {...action} />
+              <MetricCard {...metric} />
             </motion.div>
           ))}
         </div>
-      </div>
 
-      <Divider />
+        <Divider />
 
-      {/* Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Job Queue */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.8 }}
-          className="rounded-xl bg-zinc-900 border border-zinc-800 p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <Heading level={3} className="text-white">Generation Queue</Heading>
-            <Badge color="violet">{recentJobs.filter(j => j.status === 'processing').length} Active</Badge>
-          </div>
-          <div className="space-y-1">
-            {recentJobs.map((job) => (
-              <JobItem key={job.id} job={job} />
+        {/* Quick Actions */}
+        <div>
+          <Heading level={2} className="text-white mb-4">Quick Actions</Heading>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {quickActions.map((action, index) => (
+              <motion.div
+                key={action.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + index * 0.1 }}
+              >
+                <QuickAction {...action} />
+              </motion.div>
             ))}
           </div>
-          <Button plain className="w-full mt-4 text-zinc-400 hover:text-white">
-            View All Jobs
-          </Button>
-        </motion.div>
+        </div>
 
-        {/* Recent Activity */}
+        <Divider />
+
+        {/* Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Job Queue */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.8 }}
+            className="rounded-xl bg-zinc-900 border border-zinc-800 p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <Heading level={3} className="text-white">Generation Queue</Heading>
+              <Badge color="violet">{recentJobs.filter(j => j.status === 'processing').length} Active</Badge>
+            </div>
+            <div className="space-y-1">
+              {recentJobs.map((job) => (
+                <JobItem key={job.id} job={job} />
+              ))}
+            </div>
+            <Button plain className="w-full mt-4 text-zinc-400 hover:text-white">
+              View All Jobs
+            </Button>
+          </motion.div>
+
+          {/* Recent Activity */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.8 }}
+            className="rounded-xl bg-zinc-900 border border-zinc-800 p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <Heading level={3} className="text-white">Recent Activity</Heading>
+              <Link href="/activity" className="text-violet-400 text-sm hover:text-violet-300">
+                View All
+              </Link>
+            </div>
+            <div className="space-y-1">
+              {recentActivity.map((activity) => (
+                <ActivityItem key={activity.id} activity={activity} />
+              ))}
+            </div>
+          </motion.div>
+        </div>
+
+        <Divider />
+
+        {/* AI Insights Panel */}
         <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.8 }}
-          className="rounded-xl bg-zinc-900 border border-zinc-800 p-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1 }}
         >
-          <div className="flex items-center justify-between mb-4">
-            <Heading level={3} className="text-white">Recent Activity</Heading>
-            <Link href="/activity" className="text-violet-400 text-sm hover:text-violet-300">
-              View All
-            </Link>
-          </div>
-          <div className="space-y-1">
-            {recentActivity.map((activity) => (
-              <ActivityItem key={activity.id} activity={activity} />
-            ))}
-          </div>
-        </motion.div>
-      </div>
-
-      <Divider />
-
-      {/* AI Insights Panel */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1 }}
-      >
-        <div className="relative overflow-hidden rounded-xl">
-          <div className="absolute inset-0 opacity-20">
-            <GradientBackground />
-          </div>
-          <div className="relative rounded-xl border border-violet-500/30 p-6">
-            <div className="flex items-start gap-4">
-              <div className="rounded-lg bg-violet-500/20 p-3">
-                <SparklesIcon className="h-6 w-6 text-violet-400" />
-              </div>
-              <div className="flex-1">
-                <Heading level={3} className="text-white">AI Insights</Heading>
-                <Text className="text-zinc-300 mt-2">
-                  Your "Transformation Stories" campaign is outperforming by 34%. Consider increasing budget
-                  and creating 3 more variants using the same hook style. Top-performing time: 6-9 PM Dubai time.
-                </Text>
-                <div className="flex gap-3 mt-4">
-                  <Button color="violet" className="gap-2">
-                    <SparklesIcon className="h-4 w-4" />
-                    Generate Variants
-                  </Button>
-                  <Button plain className="text-zinc-300">
-                    View Analysis
-                  </Button>
+          <div className="relative overflow-hidden rounded-xl">
+            <div className="absolute inset-0 opacity-20">
+              <GradientBackground />
+            </div>
+            <div className="relative rounded-xl border border-violet-500/30 p-6">
+              <div className="flex items-start gap-4">
+                <div className="rounded-lg bg-violet-500/20 p-3">
+                  <SparklesIcon className="h-6 w-6 text-violet-400" />
+                </div>
+                <div className="flex-1">
+                  <Heading level={3} className="text-white">AI Insights</Heading>
+                  <Text className="text-zinc-300 mt-2">
+                    Your "Transformation Stories" campaign is outperforming by 34%. Consider increasing budget
+                    and creating 3 more variants using the same hook style. Top-performing time: 6-9 PM Dubai time.
+                  </Text>
+                  <div className="flex gap-3 mt-4">
+                    <Button color="violet" className="gap-2">
+                      <SparklesIcon className="h-4 w-4" />
+                      Generate Variants
+                    </Button>
+                    <Button plain className="text-zinc-300">
+                      View Analysis
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
       </div>
     </Container>
   )

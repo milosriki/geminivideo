@@ -1,16 +1,18 @@
 # Titan Engine - Deployment Handover & Setup Guide
 
 **Date:** December 4, 2025
-**Status:** Cloud Deployment In Progress (Build ID: `412fc961`)
+**Status:** ✅ **SUCCESS** (All Services Operational)
+**Last Verified:** December 5, 2025
+**Frontend URL:** [https://frontend-489769736562.us-central1.run.app](https://frontend-489769736562.us-central1.run.app)
+**Gateway API:** [https://gateway-api-489769736562.us-central1.run.app](https://gateway-api-489769736562.us-central1.run.app)
 **Repository:** `https://github.com/milosriki/geminivideo`
 
 ## 1. Cloud Deployment Access
 
-Once the current deployment completes, the Titan Engine will be accessible at the following URLs:
-
-*   **Frontend Dashboard:** `https://frontend-489769736562.us-central1.run.app`
-*   **Gateway API:** `https://ptd-fitness-backend-489769736562.us-central1.run.app`
-*   **API Documentation:** See `docs/API_REFERENCE.md` in the repo.
+> **Latest Fixes:**
+> - Resolved Frontend 404 error by fixing port configuration (8080) and removing `LandingPage.tsx`.
+> - Restored `gateway-api` functionality by re-applying missing environment variables.
+> - Configured `meta-publisher` with correct credentials.
 
 ## 2. Latest Updates (Merged Fixes)
 

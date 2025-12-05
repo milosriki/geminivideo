@@ -433,6 +433,19 @@ export class MetaAdsManager {
       throw new Error(`Failed to fetch account insights: ${error.message}`);
     }
   }
+  /**
+   * Get all campaigns for the account
+   */
+  async getCampaigns(limit: number = 20): Promise<any[]> {
+    try {
+      const fields = ['id', 'name', 'status', 'objective', 'start_time', 'stop_time'];
+      const campaigns = await this.adAccount.getCampaigns(fields, { limit });
+      return campaigns;
+    } catch (error: any) {
+      console.error('Error getting campaigns:', error);
+      throw new Error(`Failed to get campaigns: ${error.message}`);
+    }
+  }
 }
 
 export default MetaAdsManager;

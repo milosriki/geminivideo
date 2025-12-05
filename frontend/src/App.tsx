@@ -7,6 +7,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Lazy load all pages for code splitting
 const HomePage = lazy(() => import('@/pages/HomePage'))
+// import HomePage from '@/pages/HomePage'
 const CreateCampaignPage = lazy(() => import('@/pages/campaigns/CreateCampaignPage'))
 const CampaignsPage = lazy(() => import('@/pages/campaigns/CampaignsPage'))
 const ProjectsPage = lazy(() => import('@/pages/ProjectsPage'))

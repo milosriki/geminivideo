@@ -15,12 +15,12 @@ const PORT = process.env.PORT || 8083;
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
   : [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'https://geminivideo.vercel.app',
-      'https://geminivideo.netlify.app'
-    ];
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://geminivideo.vercel.app',
+    'https://geminivideo.netlify.app'
+  ];
 
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -133,6 +133,27 @@ app.post('/api/campaigns', async (req: Request, res: Response) => {
       status: 'success',
       campaign_id: campaignId,
       message: 'Campaign created successfully'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Agent 12: Get Campaigns
+app.get('/api/campaigns', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const { limit = '20' } = req.query;
+    const campaigns = await metaAdsManager.getCampaigns(parseInt(limit as string));
+
+    res.json({
+      status: 'success',
+      campaigns
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
