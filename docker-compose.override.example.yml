@@ -1,0 +1,602 @@
+# =============================================================================
+# Docker Compose Override Example
+# =============================================================================
+# This file demonstrates how to override the base docker-compose.yml with
+# production environment variables, secrets, and configurations.
+#
+# USAGE:
+#   1. Copy this file: cp docker-compose.override.example.yml docker-compose.override.yml
+#   2. Fill in your actual values in .env.production
+#   3. Run: docker-compose up -d
+#
+# Docker Compose automatically merges docker-compose.yml and
+# docker-compose.override.yml (if it exists)
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # DATABASE - PostgreSQL with Production Configuration
+  # ===========================================================================
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-geminivideo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-geminivideo}
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
+      # Performance tuning
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-256MB}
+      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
+    volumes:
+      # Persistent data
+      - postgres_data:/var/lib/postgresql/data
+      # Custom configuration (optional)
+      # - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+      # Initialization scripts (optional)
+      # - ./postgres/init:/docker-entrypoint-initdb.d
+      # Backups
+      - ./backups/postgres:/backups
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-geminivideo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - backend
+    # Resource limits (adjust based on your server)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # ===========================================================================
+  # CACHE - Redis with Production Configuration
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    volumes:
+      - redis_data:/data
+      # Custom configuration (optional)
+      # - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "${REDIS_PASSWORD:+--pass ${REDIS_PASSWORD}}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ===========================================================================
+  # GATEWAY API - Main Entry Point
+  # ===========================================================================
+  gateway-api:
+    build:
+      context: ./services/gateway-api
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: ${NODE_ENV:-production}
+    restart: always
+    environment:
+      # Core Configuration
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${GATEWAY_PORT:-8080}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DEBUG: ${DEBUG:-false}
+
+      # Database & Cache
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+
+      # AI APIs
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+
+      # Internal Services
+      DRIVE_INTEL_URL: ${DRIVE_INTEL_URL:-http://drive-intel:8081}
+      VIDEO_AGENT_URL: ${VIDEO_AGENT_URL:-http://video-agent:8082}
+      ML_SERVICE_URL: ${ML_SERVICE_URL:-http://ml-service:8003}
+      TITAN_CORE_URL: ${TITAN_CORE_URL:-http://titan-core:8084}
+      META_PUBLISHER_URL: ${META_PUBLISHER_URL:-http://meta-publisher:8083}
+      TIKTOK_ADS_URL: ${TIKTOK_ADS_URL:-http://tiktok-ads:8085}
+
+      # Security
+      JWT_SECRET: ${JWT_SECRET}
+      API_SECRET: ${API_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+
+      # Storage
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+
+      # Monitoring
+      SENTRY_DSN: ${SENTRY_DSN}
+      DATADOG_API_KEY: ${DATADOG_API_KEY}
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./data/uploads:/app/uploads
+      - ./logs/gateway-api:/app/logs
+      # Mount secrets (better than env vars for production)
+      - ./secrets:/secrets:ro
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - frontend
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # ===========================================================================
+  # TITAN-CORE - AI Video Generation Service
+  # ===========================================================================
+  titan-core:
+    build:
+      context: ./services/titan-core
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      # Core
+      PORT: ${TITAN_CORE_PORT:-8084}
+      NODE_ENV: ${NODE_ENV:-production}
+
+      # Cache
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+
+      # AI APIs - ALL models
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+
+      # Video Generation APIs
+      RUNWAY_API_KEY: ${RUNWAY_API_KEY}
+      KLING_API_KEY: ${KLING_API_KEY}
+      PIKA_API_KEY: ${PIKA_API_KEY}
+
+      # Voice APIs
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+
+      # Ad Platforms (for Titan-Core API access)
+      META_APP_ID: ${META_APP_ID}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID}
+      META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
+
+      # Storage
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+
+      # Configuration
+      OUTPUT_DIR: /app/data/outputs
+      CACHE_DIR: /app/data/cache
+      MAX_CONCURRENT_RENDERS: ${MAX_CONCURRENT_RENDERS:-5}
+      APPROVAL_THRESHOLD: ${APPROVAL_THRESHOLD:-85.0}
+    volumes:
+      - ./services/titan-core:/app
+      - ./data/titan-outputs:/app/data/outputs
+      - ./data/titan-cache:/app/data/cache
+      - ./shared:/app/shared:ro
+      - ./secrets:/secrets:ro
+    ports:
+      - "${TITAN_CORE_PORT:-8084}:8084"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+  # ===========================================================================
+  # META PUBLISHER - Meta Ads Integration
+  # ===========================================================================
+  meta-publisher:
+    build:
+      context: ./services/meta-publisher
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PORT: ${META_PUBLISHER_PORT:-8083}
+      NODE_ENV: ${NODE_ENV:-production}
+
+      # Database
+      DATABASE_URL: ${DATABASE_URL}
+
+      # Meta Credentials - ALL required fields
+      META_APP_ID: ${META_APP_ID}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID}
+      META_PAGE_ID: ${META_PAGE_ID}
+      META_PIXEL_ID: ${META_PIXEL_ID}
+      META_CONVERSION_API_TOKEN: ${META_CONVERSION_API_TOKEN}
+
+      # Meta Configuration
+      META_API_VERSION: ${META_API_VERSION:-v18.0}
+      META_SANDBOX_MODE: ${META_SANDBOX_MODE:-false}
+
+      # Gateway URL
+      GATEWAY_URL: ${GATEWAY_API_URL:-http://gateway-api:8080}
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./logs/meta-publisher:/app/logs
+      - ./secrets:/secrets:ro
+    ports:
+      - "${META_PUBLISHER_PORT:-8083}:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # ===========================================================================
+  # GOOGLE ADS SERVICE
+  # ===========================================================================
+  google-ads:
+    build:
+      context: ./services/google-ads
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PORT: ${GOOGLE_ADS_PORT:-8086}
+      NODE_ENV: ${NODE_ENV:-production}
+
+      # Google Ads Credentials - ALL required fields
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_DEVELOPER_TOKEN: ${GOOGLE_DEVELOPER_TOKEN}
+      GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN}
+      GOOGLE_ADS_CUSTOMER_ID: ${GOOGLE_ADS_CUSTOMER_ID}
+      GOOGLE_ADS_MANAGER_CUSTOMER_ID: ${GOOGLE_ADS_MANAGER_CUSTOMER_ID}
+
+      # Configuration
+      GOOGLE_ADS_API_VERSION: ${GOOGLE_ADS_API_VERSION:-v16}
+      ALLOWED_ORIGINS: ${CORS_ORIGINS}
+    volumes:
+      - ./logs/google-ads:/app/logs
+      - ./secrets:/secrets:ro
+    ports:
+      - "${GOOGLE_ADS_PORT:-8086}:8086"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # ===========================================================================
+  # TIKTOK ADS SERVICE
+  # ===========================================================================
+  tiktok-ads:
+    build:
+      context: ./services/tiktok-ads
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PORT: ${TIKTOK_ADS_PORT:-8085}
+      NODE_ENV: ${NODE_ENV:-production}
+
+      # TikTok Credentials
+      TIKTOK_APP_ID: ${TIKTOK_APP_ID}
+      TIKTOK_APP_SECRET: ${TIKTOK_APP_SECRET}
+      TIKTOK_ACCESS_TOKEN: ${TIKTOK_ACCESS_TOKEN}
+      TIKTOK_ADVERTISER_ID: ${TIKTOK_ADVERTISER_ID}
+      TIKTOK_BUSINESS_CENTER_ID: ${TIKTOK_BUSINESS_CENTER_ID}
+
+      # Configuration
+      TIKTOK_API_VERSION: ${TIKTOK_API_VERSION:-v1.3}
+      TIKTOK_SANDBOX_MODE: ${TIKTOK_SANDBOX_MODE:-false}
+    volumes:
+      - ./logs/tiktok-ads:/app/logs
+      - ./secrets:/secrets:ro
+    ports:
+      - "${TIKTOK_ADS_PORT:-8085}:8085"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # ===========================================================================
+  # ML SERVICE - DeepCTR & Analytics
+  # ===========================================================================
+  ml-service:
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PORT: ${ML_SERVICE_PORT:-8003}
+      NODE_ENV: ${NODE_ENV:-production}
+
+      # Database
+      DATABASE_URL: ${DATABASE_URL}
+
+      # ML Configuration
+      ML_MODEL_PATH: /app/models
+      MIN_SAMPLES_FOR_UPDATE: ${MIN_SAMPLES_FOR_UPDATE:-50}
+      LEARNING_RATE: ${LEARNING_RATE:-0.01}
+      MAX_WEIGHT_DELTA: ${MAX_WEIGHT_DELTA:-0.1}
+
+      # GPU (if available)
+      ML_WORKER_GPU_ENABLED: ${ML_WORKER_GPU_ENABLED:-false}
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./services/ml-service/models:/app/models
+      - ./data/ml-training:/app/training-data
+    ports:
+      - "${ML_SERVICE_PORT:-8003}:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+    # Uncomment if using GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # ===========================================================================
+  # DRIVE INTEL - Ad Intelligence Service
+  # ===========================================================================
+  drive-intel:
+    build:
+      context: ./services/drive-intel
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PORT: ${DRIVE_INTEL_PORT:-8081}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+
+      # AI APIs for analysis
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+      # Worker Configuration
+      DRIVE_INTEL_MAX_WORKERS: ${DRIVE_INTEL_MAX_WORKERS:-4}
+      DRIVE_INTEL_BATCH_SIZE: ${DRIVE_INTEL_BATCH_SIZE:-10}
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./logs/drive-intel:/app/logs
+    ports:
+      - "${DRIVE_INTEL_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+    deploy:
+      replicas: ${DRIVE_WORKER_REPLICAS:-2}
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  # ===========================================================================
+  # VIDEO AGENT - Video Processing Service
+  # ===========================================================================
+  video-agent:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PORT: ${VIDEO_AGENT_PORT:-8082}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+
+      # AI APIs
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+      # Video Configuration
+      MAX_VIDEO_SIZE_MB: ${MAX_VIDEO_SIZE_MB:-500}
+      VIDEO_QUALITY: ${VIDEO_QUALITY:-high}
+      FFMPEG_THREADS: ${FFMPEG_THREADS:-4}
+
+      # Worker Configuration
+      VIDEO_WORKER_CONCURRENCY: ${VIDEO_WORKER_CONCURRENCY:-2}
+      VIDEO_WORKER_TIMEOUT: ${VIDEO_WORKER_TIMEOUT:-600}
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./data/video-processing:/app/processing
+      - ./logs/video-agent:/app/logs
+    ports:
+      - "${VIDEO_AGENT_PORT:-8082}:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+    deploy:
+      replicas: ${VIDEO_WORKER_REPLICAS:-2}
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+
+  # ===========================================================================
+  # FRONTEND - React Application
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Build-time environment variables
+        NODE_ENV: ${NODE_ENV:-production}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_GATEWAY_URL: ${VITE_GATEWAY_URL}
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+    restart: always
+    environment:
+      # Runtime environment variables (for nginx config if needed)
+      NGINX_HOST: ${FRONTEND_DOMAIN:-localhost}
+      NGINX_PORT: 80
+    volumes:
+      # SSL certificates (if using HTTPS)
+      - ./ssl:/etc/nginx/ssl:ro
+      # Custom nginx config
+      # - ./frontend/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+      # HTTPS
+      # - "443:443"
+    depends_on:
+      - gateway-api
+    networks:
+      - frontend
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH:-./data}/postgres
+
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH:-./data}/redis
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true  # Backend network isolated from internet
+
+# =============================================================================
+# USAGE NOTES
+# =============================================================================
+#
+# 1. SECRETS MANAGEMENT:
+#    - Never commit .env.production to git
+#    - Use docker secrets or external secret managers in production
+#    - Example with Docker secrets:
+#      secrets:
+#        db_password:
+#          file: ./secrets/db_password.txt
+#      services:
+#        postgres:
+#          secrets:
+#            - db_password
+#
+# 2. HEALTH CHECKS:
+#    - All services have health checks configured
+#    - Use 'docker-compose ps' to check service health
+#
+# 3. RESOURCE LIMITS:
+#    - Adjust CPU/memory limits based on your server capacity
+#    - Monitor with 'docker stats'
+#
+# 4. SCALING:
+#    - Scale services: docker-compose up -d --scale gateway-api=4
+#    - Or use deploy.replicas in this file
+#
+# 5. LOGS:
+#    - View logs: docker-compose logs -f [service-name]
+#    - Logs are persisted to ./logs/[service-name]
+#
+# 6. BACKUPS:
+#    - Database backups stored in ./backups/postgres
+#    - Create backup: docker-compose exec postgres pg_dump -U geminivideo > backup.sql
+#
+# 7. SSL/TLS:
+#    - Mount certificates to ./ssl directory
+#    - Update nginx config in frontend service
+#
+# 8. VALIDATION:
+#    - Before deployment: bash scripts/validate-env.sh .env.production
+#
+# =============================================================================

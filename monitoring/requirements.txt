@@ -1,0 +1,21 @@
+# Monitoring Dependencies
+# Install with: pip install -r requirements.txt
+
+# Prometheus client
+prometheus-client==0.19.0
+
+# Structured logging
+python-json-logger==2.0.7
+
+# Alert channels
+requests==2.31.0
+
+# Optional: Celery instrumentation
+celery>=5.3.0
+
+# Optional: FastAPI (if using FastAPI middleware)
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Optional: Sentry integration
+sentry-sdk>=1.40.0

@@ -1,0 +1,95 @@
+# =============================================================================
+# Gateway API - Production-Grade Multi-Stage Dockerfile
+# =============================================================================
+# Optimized for: Performance, Security, Zero-Downtime Deployment
+# Target: AWS/GCP/DigitalOcean/Cloud Run
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder - Install dependencies and build
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    git
+
+WORKDIR /app
+
+# Copy package files
+COPY services/gateway-api/package*.json ./
+COPY services/gateway-api/tsconfig.json ./
+
+# Install all dependencies (including dev)
+RUN npm ci --legacy-peer-deps --no-audit --no-fund
+
+# Copy source code
+COPY services/gateway-api/src ./src
+COPY services/gateway-api/prisma ./prisma
+COPY shared /shared
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Build TypeScript
+RUN npm run build
+
+# -----------------------------------------------------------------------------
+# Stage 2: Production - Minimal runtime image
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS production
+
+# Install production dependencies and security tools
+RUN apk add --no-cache \
+    curl \
+    wget \
+    ca-certificates \
+    dumb-init \
+    && rm -rf /var/cache/apk/*
+
+# Create non-root user
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser
+
+WORKDIR /app
+
+# Copy package files and install production dependencies only
+COPY services/gateway-api/package*.json ./
+RUN npm ci --only=production --legacy-peer-deps --no-audit --no-fund && \
+    npm cache clean --force
+
+# Copy built application from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/prisma ./prisma
+COPY services/gateway-api/prisma ./prisma
+COPY shared /shared
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/tmp && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port (Cloud Run will set PORT env var)
+EXPOSE 8080
+
+# Health check - aggressive for production
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8080}/health || exit 1
+
+# Labels for metadata
+LABEL maintainer="GeminiVideo DevOps" \
+      version="1.0.0" \
+      description="Gateway API Service" \
+      service="gateway-api"
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Graceful shutdown support with signal handling
+CMD ["sh", "-c", "trap 'echo Received SIGTERM, shutting down gracefully...; kill -TERM $PID; wait $PID' TERM; node dist/index.js & PID=$!; wait $PID"]

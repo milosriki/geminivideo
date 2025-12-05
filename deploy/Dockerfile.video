@@ -1,0 +1,121 @@
+# =============================================================================
+# Video Agent - Production-Grade Multi-Stage Dockerfile
+# =============================================================================
+# FFmpeg + OpenCV + MediaPipe + Audio Processing
+# Optimized for video processing workloads
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder - Install Python dependencies
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    make \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy requirements and install
+COPY services/video-agent/requirements.txt .
+RUN pip install --user --no-cache-dir --default-timeout=1000 -r requirements.txt
+
+# -----------------------------------------------------------------------------
+# Stage 2: Production - Video processing runtime
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim AS production
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app \
+    # FFmpeg optimization
+    FFMPEG_THREADS=4 \
+    # Memory optimization
+    MALLOC_ARENA_MAX=2
+
+# Install FFmpeg and video processing dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # FFmpeg with all codecs
+    ffmpeg \
+    # OpenCV dependencies
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libglib2.0-0 \
+    libgomp1 \
+    libfontconfig1 \
+    # Audio processing
+    libass-dev \
+    libfdk-aac2 \
+    libmp3lame0 \
+    libopus0 \
+    libvorbis0a \
+    libvpx7 \
+    libx264-163 \
+    libx265-199 \
+    # Image processing
+    libjpeg62-turbo \
+    libpng16-16 \
+    libtiff6 \
+    libwebp7 \
+    # Utilities
+    curl \
+    wget \
+    ca-certificates \
+    dumb-init \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash videouser
+
+WORKDIR /app
+
+# Copy Python packages from builder
+COPY --from=builder /root/.local /home/videouser/.local
+
+# Copy application code
+COPY services/video-agent/ .
+
+# Create directories for video processing
+RUN mkdir -p \
+    /app/uploads \
+    /app/outputs \
+    /app/cache \
+    /app/logs \
+    /tmp/video-agent/temp \
+    /tmp/video-agent/uploads \
+    /tmp/video-agent/outputs \
+    && chown -R videouser:videouser /app /tmp/video-agent
+
+# Switch to non-root user
+USER videouser
+
+# Add local packages to PATH
+ENV PATH=/home/videouser/.local/bin:$PATH
+
+# Expose port
+EXPOSE 8080
+
+# Health check - video service has longer startup
+HEALTHCHECK --interval=20s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
+
+# Labels for metadata
+LABEL maintainer="GeminiVideo DevOps" \
+      version="1.0.0" \
+      description="Video Agent Service with FFmpeg" \
+      service="video-agent"
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Graceful shutdown with signal handling
+CMD ["sh", "-c", "trap 'echo Received SIGTERM, shutting down gracefully...; kill -TERM $PID; wait $PID' TERM; uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 2 --log-level info & PID=$!; wait $PID"]

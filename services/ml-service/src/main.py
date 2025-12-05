@@ -8,8 +8,12 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
 import os
 import logging
+import time
 import numpy as np
 from datetime import datetime
+
+# Track startup time for uptime calculation
+_start_time = time.time()
 
 # Import ML components
 from src.feature_engineering import feature_extractor
@@ -129,9 +133,11 @@ class TrainingRequest(BaseModel):
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    uptime = int(time.time() - _start_time)
     return {
         "status": "healthy",
         "service": "ml-service",
+        "uptime": uptime,
         "xgboost_loaded": ctr_predictor.is_trained,
         "enhanced_xgboost_loaded": enhanced_ctr_predictor.is_trained,
         "vowpal_wabbit_loaded": True,
