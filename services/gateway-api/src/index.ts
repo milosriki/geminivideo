@@ -1887,6 +1887,119 @@ app.post('/api/pipeline/generate-campaign',
     }
   });
 
+// GET /api/pipeline/job/:job_id/status - Get job status for polling
+app.get('/api/pipeline/job/:job_id/status',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const { job_id } = req.params;
+
+      console.log(`Fetching job status: ${job_id}`);
+
+      // Try titan-core first (for pipeline/render jobs)
+      try {
+        const response = await internalServiceClient.get(
+          `${TITAN_CORE_URL}/render/${job_id}/status`,
+          { timeout: 10000 }
+        );
+
+        return res.json({
+          job_id,
+          status: response.data.status,
+          progress: response.data.progress || 0,
+          stage: response.data.stage || 'processing',
+          output_url: response.data.output_path || response.data.output_url,
+          video_url: response.data.video_url,
+          error: response.data.error,
+          metadata: response.data.metadata,
+          created_at: response.data.created_at,
+          completed_at: response.data.completed_at
+        });
+      } catch (titanError: any) {
+        // If titan-core doesn't have it, try video-agent
+        if (titanError.response?.status === 404) {
+          console.log('Job not in titan-core, trying video-agent...');
+        }
+      }
+
+      // Try video-agent
+      try {
+        const response = await internalServiceClient.get(
+          `${VIDEO_AGENT_URL}/api/videos/${job_id}/info`,
+          { timeout: 10000 }
+        );
+
+        return res.json({
+          job_id,
+          status: response.data.status,
+          progress: response.data.progress || 0,
+          stage: response.data.stage || 'processing',
+          output_url: response.data.output_path,
+          video_url: response.data.video_url,
+          gcs_path: response.data.gcs_path,
+          error: response.data.error,
+          metadata: response.data.metadata
+        });
+      } catch (videoError: any) {
+        if (videoError.response?.status === 404) {
+          console.log('Job not in video-agent either');
+        }
+      }
+
+      // Job not found in any service
+      return res.status(404).json({
+        error: 'Job not found',
+        message: `Job ${job_id} not found in any service`
+      });
+
+    } catch (error: any) {
+      console.error('Job status check error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Failed to get job status',
+        message: error.message
+      });
+    }
+  });
+
+// GET /api/videos/:video_id/download - Download video with signed URL
+app.get('/api/videos/:video_id/download',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const { video_id } = req.params;
+
+      console.log(`Fetching video download URL: ${video_id}`);
+
+      // Forward to video-agent
+      const response = await internalServiceClient.get(
+        `${VIDEO_AGENT_URL}/api/videos/${video_id}/download`,
+        { 
+          timeout: 10000,
+          maxRedirects: 0,  // Don't follow redirects
+          validateStatus: (status) => status < 400 || status === 302
+        }
+      );
+
+      // If redirect, return the URL
+      if (response.status === 302 || response.headers.location) {
+        return res.json({
+          url: response.headers.location || response.data.url,
+          expires_in: '7 days'
+        });
+      }
+
+      // Otherwise return whatever video-agent returned
+      return res.json(response.data);
+
+    } catch (error: any) {
+      console.error('Video download error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Failed to get video download URL',
+        message: error.message
+      });
+    }
+  });
+
 // ============================================================================
 // MULTI-PLATFORM PUBLISHING ENDPOINTS (Agent 19)
 // ============================================================================

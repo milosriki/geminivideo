@@ -37,6 +37,16 @@ from enum import Enum
 from pathlib import Path
 import math
 import random
+from datetime import datetime, timedelta
+
+# GCS imports (optional - graceful fallback if not available)
+try:
+    from google.cloud import storage
+    from google.cloud.storage import Blob
+    GCS_AVAILABLE = True
+except ImportError:
+    GCS_AVAILABLE = False
+    storage = None
 
 # Import from our pro modules
 try:
@@ -252,12 +262,120 @@ class AdConfig:
 
 @dataclass
 class AdOutput:
-    """Generated ad output"""
-    video_path: str
-    thumbnail_path: Optional[str] = None
+    """Generated ad output with optional cloud storage"""
+    video_path: str  # Local path or GCS path (gs://bucket/path)
+    video_url: Optional[str] = None  # Signed URL for direct access
+    thumbnail_path: Optional[str] = None  # Local path
+    thumbnail_url: Optional[str] = None  # Signed URL for thumbnail
+    gcs_path: Optional[str] = None  # Full GCS path if uploaded
+    gcs_bucket: Optional[str] = None  # GCS bucket name
+    duration_seconds: float = 0.0  # Video duration
+    resolution: str = "1080x1920"  # Video resolution
+    file_size_bytes: int = 0  # File size
     metadata: Dict[str, Any] = field(default_factory=dict)
     metrics: Dict[str, Any] = field(default_factory=dict)  # Predicted engagement metrics
     ffmpeg_commands: List[str] = field(default_factory=list)
+
+
+# ============================================================================
+# GCS UPLOADER FOR VIDEO OUTPUTS
+# ============================================================================
+class GCSUploader:
+    """Upload generated videos to Google Cloud Storage with signed URL generation"""
+    
+    def __init__(self, bucket_name: Optional[str] = None, project_id: Optional[str] = None):
+        """
+        Initialize GCS uploader
+        
+        Args:
+            bucket_name: GCS bucket name (or use GCS_BUCKET env var)
+            project_id: GCP project ID (or use GOOGLE_CLOUD_PROJECT env var)
+        """
+        self.bucket_name = bucket_name or os.getenv("GCS_BUCKET", "geminivideo-outputs")
+        self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT", "")
+        self.client = None
+        self.bucket = None
+        self._initialized = False
+        
+        if GCS_AVAILABLE and self.project_id:
+            try:
+                self.client = storage.Client(project=self.project_id)
+                self.bucket = self.client.bucket(self.bucket_name)
+                self._initialized = True
+                logger.info(f"✅ GCS uploader initialized: bucket={self.bucket_name}")
+            except Exception as e:
+                logger.warning(f"⚠️ GCS initialization failed: {e}")
+    
+    @property
+    def is_available(self) -> bool:
+        """Check if GCS is properly configured"""
+        return self._initialized and self.bucket is not None
+    
+    def upload_video(self, local_path: Path, gcs_path: str) -> Tuple[str, Optional[str]]:
+        """
+        Upload video to GCS and return signed URL
+        
+        Args:
+            local_path: Local file path
+            gcs_path: Destination path in GCS (without bucket prefix)
+            
+        Returns:
+            Tuple of (gcs_uri, signed_url) or (local_path, None) if GCS unavailable
+        """
+        if not self.is_available:
+            logger.warning("GCS not available, returning local path")
+            return str(local_path), None
+        
+        try:
+            blob = self.bucket.blob(gcs_path)
+            blob.upload_from_filename(str(local_path))
+            
+            # Generate signed URL valid for 7 days
+            signed_url = blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(days=7),
+                method="GET"
+            )
+            
+            gcs_uri = f"gs://{self.bucket_name}/{gcs_path}"
+            logger.info(f"✅ Uploaded to GCS: {gcs_uri}")
+            
+            return gcs_uri, signed_url
+            
+        except Exception as e:
+            logger.error(f"❌ GCS upload failed: {e}")
+            return str(local_path), None
+    
+    def get_public_url(self, gcs_path: str) -> str:
+        """Get public URL (if bucket is public)"""
+        return f"https://storage.googleapis.com/{self.bucket_name}/{gcs_path}"
+    
+    def generate_signed_url(self, gcs_path: str, expiration_days: int = 7) -> Optional[str]:
+        """Generate a new signed URL for an existing GCS object"""
+        if not self.is_available:
+            return None
+        
+        try:
+            blob = self.bucket.blob(gcs_path)
+            return blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(days=expiration_days),
+                method="GET"
+            )
+        except Exception as e:
+            logger.error(f"Failed to generate signed URL: {e}")
+            return None
+
+
+# Global GCS uploader instance (lazy initialization)
+_gcs_uploader: Optional[GCSUploader] = None
+
+def get_gcs_uploader() -> GCSUploader:
+    """Get or create GCS uploader instance"""
+    global _gcs_uploader
+    if _gcs_uploader is None:
+        _gcs_uploader = GCSUploader()
+    return _gcs_uploader
 
 
 class WinningAdsGenerator:
@@ -287,7 +405,8 @@ class WinningAdsGenerator:
         self,
         assets: AdAssets,
         config: AdConfig,
-        output_filename: str = "winning_ad.mp4"
+        output_filename: str = "winning_ad.mp4",
+        upload_to_gcs: bool = True
     ) -> AdOutput:
         """
         Generate a complete winning ad from template
@@ -296,6 +415,7 @@ class WinningAdsGenerator:
             assets: Ad assets (videos, images, audio)
             config: Ad configuration
             output_filename: Output file name
+            upload_to_gcs: Whether to upload to GCS (default: True)
 
         Returns:
             AdOutput with video path and metadata
@@ -345,15 +465,47 @@ class WinningAdsGenerator:
         # Generate thumbnail
         thumbnail_path = self._generate_thumbnail(output_path)
 
+        # Get file info
+        file_size = 0
+        if output_path.exists():
+            file_size = output_path.stat().st_size
+
+        # Upload to GCS if enabled
+        video_url = None
+        gcs_path = None
+        gcs_bucket = None
+        
+        if upload_to_gcs:
+            uploader = get_gcs_uploader()
+            if uploader.is_available:
+                # Create GCS path with date organization
+                date_path = datetime.now().strftime('%Y/%m/%d')
+                gcs_path = f"winning-ads/{date_path}/{output_filename}"
+                
+                gcs_uri, video_url = uploader.upload_video(output_path, gcs_path)
+                gcs_bucket = uploader.bucket_name
+                
+                if video_url:
+                    logger.info(f"✅ Video uploaded to GCS: {gcs_uri}")
+                    # Optionally clean up local file after successful upload
+                    # output_path.unlink()  # Uncomment to remove local file
+
         # Create output metadata
         output = AdOutput(
             video_path=str(output_path),
+            video_url=video_url,
             thumbnail_path=thumbnail_path,
+            gcs_path=gcs_path,
+            gcs_bucket=gcs_bucket,
+            duration_seconds=config.duration,
+            resolution=f"{config.aspect_ratio.value}",
+            file_size_bytes=file_size,
             metadata={
                 "template": config.template.value,
                 "platform": config.platform.value,
                 "duration": config.duration,
                 "aspect_ratio": config.aspect_ratio.value,
+                "gcs_uploaded": video_url is not None,
             },
             metrics=self._calculate_predicted_metrics(config),
             ffmpeg_commands=ffmpeg_commands
