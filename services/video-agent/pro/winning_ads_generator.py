@@ -409,18 +409,20 @@ class WinningAdsGenerator:
         if local_video_path.exists():
             file_size = os.path.getsize(local_video_path)
 
-        # Upload to GCS
-        gcs_path = f"winning-ads/{datetime.now().strftime('%Y/%m/%d')}/{output_filename}"
+        # Upload to GCS - use consistent timestamp for paths
+        upload_timestamp = datetime.now()
+        date_path = upload_timestamp.strftime('%Y/%m/%d')
+        gcs_path = f"winning-ads/{date_path}/{output_filename}"
         gcs_uploader = get_gcs_uploader()
 
         if gcs_uploader is not None:
             try:
                 signed_url = gcs_uploader.upload_video(local_video_path, gcs_path)
 
-                # Upload thumbnail to GCS if exists
+                # Upload thumbnail to GCS if exists (use same date path for consistency)
                 thumbnail_url = None
                 if thumbnail_path and os.path.exists(thumbnail_path):
-                    thumb_gcs_path = f"winning-ads/{datetime.now().strftime('%Y/%m/%d')}/thumbnails/{Path(thumbnail_path).name}"
+                    thumb_gcs_path = f"winning-ads/{date_path}/thumbnails/{Path(thumbnail_path).name}"
                     try:
                         thumbnail_url = gcs_uploader.upload_video(Path(thumbnail_path), thumb_gcs_path)
                     except Exception as thumb_e:

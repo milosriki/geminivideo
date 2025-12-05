@@ -1575,7 +1575,7 @@ async def _process_render_job(job_id: str, request: RenderStartRequest):
 
         logger.info(f"Processing render job {job_id} via video-agent")
 
-        # Convert request to job config (Pydantic v2 API)
+        # Convert Pydantic model to dictionary for video-agent API call
         job_config = request.model_dump()
         job_config["blueprint"] = job_config.get("blueprint", {})
 

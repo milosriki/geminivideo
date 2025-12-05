@@ -462,13 +462,15 @@ async def download_video(video_id: str):
         # Parse datetime if it's a string
         if isinstance(expires_at, str):
             try:
-                # Handle ISO format with or without timezone
+                # Handle ISO format with timezone indicators
                 if expires_at.endswith('Z'):
+                    # UTC indicated by 'Z' suffix
                     expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
-                elif '+' in expires_at or expires_at.endswith('00'):
+                elif '+' in expires_at or (len(expires_at) > 5 and expires_at[-6] == '-' and ':' in expires_at[-5:]):
+                    # Has timezone offset (e.g., +00:00 or -05:00)
                     expires_at = datetime.fromisoformat(expires_at)
                 else:
-                    # Assume UTC if no timezone specified
+                    # No timezone specified - assume UTC
                     expires_at = datetime.fromisoformat(expires_at).replace(tzinfo=timezone.utc)
             except (ValueError, AttributeError):
                 expires_at = None
