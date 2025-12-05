@@ -31,10 +31,11 @@ import uvicorn
 # Database imports
 try:
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-    from sqlalchemy import select, update, insert
+    from sqlalchemy import select, update, insert, text
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
+    text = None  # Define as None for type hints
     logger = logging.getLogger(__name__)
     logger.warning("SQLAlchemy not available - database features disabled")
 
@@ -292,7 +293,6 @@ class AppState:
         if async_session is not None:
             try:
                 async with get_db_session() as session:
-                    from sqlalchemy import text
                     await session.execute(
                         text("""
                             INSERT INTO render_jobs (id, status, progress, job_type, input_config, created_at)
@@ -322,7 +322,6 @@ class AppState:
         if async_session is not None:
             try:
                 async with get_db_session() as session:
-                    from sqlalchemy import text
                     result = await session.execute(
                         text("SELECT * FROM render_jobs WHERE id = :id"),
                         {'id': job_id}
@@ -356,7 +355,6 @@ class AppState:
         if async_session is not None:
             try:
                 async with get_db_session() as session:
-                    from sqlalchemy import text
                     set_parts = []
                     params = {'id': job_id}
                     for key, value in updates.items():
@@ -378,7 +376,6 @@ class AppState:
         
         try:
             async with get_db_session() as session:
-                from sqlalchemy import text
                 await session.execute(
                     text("""
                         INSERT INTO audit_log (action, entity_type, entity_id, details, user_id, created_at)

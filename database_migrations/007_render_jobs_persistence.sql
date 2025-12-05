@@ -15,8 +15,22 @@ CREATE TABLE IF NOT EXISTS render_jobs (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ,
     user_id VARCHAR(255),
-    campaign_id VARCHAR(64) REFERENCES campaigns(id)
+    campaign_id VARCHAR(64)
 );
+
+-- Add foreign key constraint only if campaigns table exists
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'campaigns') THEN
+        ALTER TABLE render_jobs
+            ADD CONSTRAINT fk_render_jobs_campaign
+            FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
+            ON DELETE SET NULL;
+    END IF;
+EXCEPTION WHEN others THEN
+    -- Constraint may already exist or campaigns table missing, ignore
+    NULL;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_render_jobs_status ON render_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_render_jobs_user ON render_jobs(user_id);
@@ -60,7 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
 CREATE TABLE IF NOT EXISTS generated_videos (
     id VARCHAR(64) PRIMARY KEY,
     render_job_id VARCHAR(64) REFERENCES render_jobs(id),
-    campaign_id VARCHAR(64) REFERENCES campaigns(id),
+    campaign_id VARCHAR(64),
     video_type VARCHAR(50),
     gcs_path TEXT NOT NULL,
     signed_url TEXT,
@@ -74,6 +88,19 @@ CREATE TABLE IF NOT EXISTS generated_videos (
 
 CREATE INDEX IF NOT EXISTS idx_generated_videos_campaign ON generated_videos(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_generated_videos_job ON generated_videos(render_job_id);
+
+-- Add foreign key constraint for generated_videos if campaigns table exists
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'campaigns') THEN
+        ALTER TABLE generated_videos
+            ADD CONSTRAINT fk_generated_videos_campaign
+            FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
+            ON DELETE SET NULL;
+    END IF;
+EXCEPTION WHEN others THEN
+    NULL;
+END $$;
 
 -- Comments for documentation
 COMMENT ON TABLE render_jobs IS 'Persistent render job tracking for async video processing';
