@@ -138,6 +138,18 @@ const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
 const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
 const GOOGLE_ADS_URL = process.env.GOOGLE_ADS_URL || 'http://localhost:8084';
 
+// Internal API Key for service-to-service authentication
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
+
+// Create a reusable internal service client with auth header
+const internalServiceClient = axios.create({
+  timeout: 120000,
+  headers: {
+    'X-Internal-API-Key': INTERNAL_API_KEY,
+    'Content-Type': 'application/json'
+  }
+});
+
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
   res.json({
@@ -171,7 +183,7 @@ app.get('/api/assets', async (req: Request, res: Response) => {
     if (!validateServiceUrl(DRIVE_INTEL_URL)) {
       throw new Error('Invalid service URL');
     }
-    const response = await axios.get(`${DRIVE_INTEL_URL}/assets`, {
+    const response = await internalServiceClient.get(`${DRIVE_INTEL_URL}/assets`, {
       params: req.query
     });
     res.json(response.data);
@@ -184,7 +196,7 @@ app.get('/api/assets', async (req: Request, res: Response) => {
 
 app.get('/api/assets/:assetId/clips', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(
+    const response = await internalServiceClient.get(
       `${DRIVE_INTEL_URL}/assets/${req.params.assetId}/clips`,
       { params: req.query }
     );
@@ -320,7 +332,7 @@ app.post('/api/score/storyboard',
       // Get XGBoost CTR prediction
       let xgboostPrediction = null;
       try {
-        const mlResponse = await axios.post(`${ML_SERVICE_URL}/api/ml/predict-ctr`, {
+        const mlResponse = await internalServiceClient.post(`${ML_SERVICE_URL}/api/ml/predict-ctr`, {
           clip_data: {
             ...scores,
             ...metadata,
@@ -1017,7 +1029,7 @@ app.post('/api/trigger/analyze-drive-folder',
       console.log(`Triggering Drive folder analysis: folder_id=${folder_id}, max_videos=${max_videos || 'all'}`);
 
       // Call drive-intel service bulk-analyze endpoint
-      const response = await axios.post(`${DRIVE_INTEL_URL}/api/bulk-analyze`, {
+      const response = await internalServiceClient.post(`${DRIVE_INTEL_URL}/api/bulk-analyze`, {
         folder_id,
         max_videos: max_videos || 10
       });
@@ -1056,7 +1068,7 @@ app.post('/api/trigger/refresh-meta-metrics',
       console.log(`Triggering Meta learning cycle: days_back=${days_back || 7}`);
 
       // Call ML service meta learning agent
-      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/learning-cycle`, {
+      const response = await internalServiceClient.post(`${ML_SERVICE_URL}/api/ml/learning-cycle`, {
         days_back: days_back || 7
       });
 
@@ -1209,15 +1221,13 @@ app.post('/api/meta/ads-library/search',
       console.log(`Searching Meta Ads Library: "${search_terms}", countries: ${countries}, limit: ${limit}`);
 
       // Forward to Titan Core Meta Ads Library scraper
-      const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/search`, {
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/meta/ads-library/search`, {
         search_terms,
         countries,
         platforms,
         media_type,
         active_status,
         limit
-      }, {
-        timeout: 60000 // 60 second timeout for API calls
       });
 
       res.json(response.data);
@@ -1251,9 +1261,8 @@ app.get('/api/meta/ads-library/page/:page_id',
 
       console.log(`Fetching ads for page: ${page_id}`);
 
-      const response = await axios.get(`${TITAN_CORE_URL}/meta/ads-library/page/${page_id}`, {
-        params: { limit, active_only },
-        timeout: 60000
+      const response = await internalServiceClient.get(`${TITAN_CORE_URL}/meta/ads-library/page/${page_id}`, {
+        params: { limit, active_only }
       });
 
       res.json(response.data);
@@ -1282,10 +1291,8 @@ app.post('/api/meta/ads-library/analyze',
 
       console.log(`Analyzing patterns for ${ads.length} ads`);
 
-      const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/analyze`, {
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/meta/ads-library/analyze`, {
         ads
-      }, {
-        timeout: 30000
       });
 
       res.json(response.data);
@@ -1314,9 +1321,7 @@ app.get('/api/meta/ads-library/ad/:ad_archive_id',
 
       console.log(`Fetching details for ad: ${ad_archive_id}`);
 
-      const response = await axios.get(`${TITAN_CORE_URL}/meta/ads-library/ad/${ad_archive_id}`, {
-        timeout: 30000
-      });
+      const response = await internalServiceClient.get(`${TITAN_CORE_URL}/meta/ads-library/ad/${ad_archive_id}`);
 
       res.json(response.data);
 
@@ -1346,12 +1351,10 @@ app.post('/api/meta/ads-library/batch',
 
       console.log(`Batch scraping ${queries.length} queries`);
 
-      const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/batch`, {
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/meta/ads-library/batch`, {
         queries,
         countries,
         limit_per_query
-      }, {
-        timeout: 120000 // 2 minute timeout for batch operations
       });
 
       res.json(response.data);
@@ -1393,12 +1396,10 @@ app.post('/api/generate',
       console.log(`Generating creatives for ${assets.length} asset(s), audience: ${target_audience || 'general'}`);
 
       // Forward to titan-core for Gemini generation
-      const response = await axios.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
         video_files: assets,
         audience: target_audience || 'general',
         platform: 'reels'
-      }, {
-        timeout: 120000 // 2 min timeout for video generation
       });
 
       res.json({
@@ -1494,9 +1495,7 @@ app.get('/api/ab-tests', async (req: Request, res: Response) => {
   try {
     console.log('Fetching AB tests from ML service');
 
-    const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/experiments`, {
-      timeout: 30000
-    });
+    const response = await internalServiceClient.get(`${ML_SERVICE_URL}/api/ml/ab/experiments`);
 
     res.json(response.data);
 
@@ -1552,9 +1551,7 @@ app.get('/api/ab-tests/:id/results', async (req: Request, res: Response) => {
     const { id } = req.params;
     console.log(`Fetching AB test results for experiment: ${id}`);
 
-    const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/results`, {
-      timeout: 30000
-    });
+    const response = await internalServiceClient.get(`${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/results`);
 
     res.json(response.data);
 
@@ -1573,9 +1570,7 @@ app.get('/api/ab-tests/:id/variants', async (req: Request, res: Response) => {
     const { id } = req.params;
     console.log(`Fetching variant performance for experiment: ${id}`);
 
-    const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/variants`, {
-      timeout: 30000
-    });
+    const response = await internalServiceClient.get(`${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/variants`);
 
     res.json(response.data);
 
@@ -1594,9 +1589,8 @@ app.get('/api/insights/ai', async (req: Request, res: Response) => {
     console.log('Fetching AI insights from Titan Core');
 
     // Forward to titan-core for Gemini analysis
-    const response = await axios.get(`${TITAN_CORE_URL}/insights/generate`, {
-      params: { context: 'dashboard' },
-      timeout: 30000
+    const response = await internalServiceClient.get(`${TITAN_CORE_URL}/insights/generate`, {
+      params: { context: 'dashboard' }
     });
 
     res.json(response.data);
@@ -1634,15 +1628,13 @@ app.get('/api/ads/trending', async (req: Request, res: Response) => {
     console.log(`Fetching trending ads: category=${category}, limit=${limit}`);
 
     // Use existing Meta Ads Library endpoint
-    const response = await axios.post(`${TITAN_CORE_URL}/meta/ads-library/search`, {
+    const response = await internalServiceClient.post(`${TITAN_CORE_URL}/meta/ads-library/search`, {
       search_terms: category,
       countries: ['US'],
       platforms: ['facebook', 'instagram'],
       media_type: 'VIDEO',
       active_status: 'ACTIVE',
       limit: parseInt(limit as string) || 10
-    }, {
-      timeout: 60000
     });
 
     res.json(response.data.ads || []);
@@ -1662,9 +1654,7 @@ app.get('/avatars', async (req: Request, res: Response) => {
     console.log('Fetching avatars list');
 
     // Forward to titan-core which has avatar config
-    const response = await axios.get(`${TITAN_CORE_URL}/avatars/list`, {
-      timeout: 10000
-    });
+    const response = await internalServiceClient.get(`${TITAN_CORE_URL}/avatars/list`);
 
     res.json(response.data);
 
@@ -1708,12 +1698,10 @@ app.post('/api/council/evaluate',
       console.log(`AI Council evaluation: creative_id=${creative_id || 'N/A'}, video_uri=${video_uri || 'N/A'}`);
 
       // Forward to Titan Core AI Council
-      const response = await axios.post(`${TITAN_CORE_URL}/council/evaluate`, {
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/council/evaluate`, {
         creative_id,
         video_uri,
         metadata
-      }, {
-        timeout: 60000 // 60 second timeout for AI evaluation
       });
 
       res.json(response.data);
@@ -1750,11 +1738,9 @@ app.post('/api/oracle/predict',
       console.log(`Oracle prediction: type=${prediction_type}, data_keys=${Object.keys(campaign_data).length}`);
 
       // Forward to Titan Core Oracle
-      const response = await axios.post(`${TITAN_CORE_URL}/oracle/predict`, {
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/oracle/predict`, {
         campaign_data,
         prediction_type
-      }, {
-        timeout: 45000 // 45 second timeout for predictions
       });
 
       res.json(response.data);
@@ -1793,13 +1779,11 @@ app.post('/api/director/generate',
       console.log(`Director generation: brief_length=${brief.length}, assets=${assets?.length || 0}, style=${style || 'auto'}`);
 
       // Forward to Titan Core Director
-      const response = await axios.post(`${TITAN_CORE_URL}/director/generate`, {
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/director/generate`, {
         brief,
         assets: assets || [],
         style: style || 'auto',
         duration: duration || 30
-      }, {
-        timeout: 180000 // 3 minute timeout for creative generation
       });
 
       res.status(202).json({
@@ -1844,13 +1828,11 @@ app.post('/api/pipeline/generate-campaign',
       console.log(`Pipeline campaign generation: videos=${video_files.length}, audience=${audience || 'general'}, platform=${platform}`);
 
       // Forward to Titan Core Pipeline
-      const response = await axios.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
         video_files,
         audience: audience || 'general',
         platform,
         campaign_objective
-      }, {
-        timeout: 180000 // 3 minute timeout for full pipeline
       });
 
       res.status(202).json({

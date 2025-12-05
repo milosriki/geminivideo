@@ -19,10 +19,11 @@ from typing import Dict, Any, List, Optional, Union
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, status, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field, validator
 import uvicorn
 
@@ -130,11 +131,29 @@ class Config:
     # CORS
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
 
+    # Internal API Key for service-to-service authentication
+    INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key")
+
     @classmethod
     def ensure_directories(cls):
         """Create required directories"""
         Path(cls.OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
         Path(cls.CACHE_DIR).mkdir(parents=True, exist_ok=True)
+
+
+# ============================================================================
+# INTERNAL API KEY MIDDLEWARE
+# ============================================================================
+api_key_header = APIKeyHeader(name="X-Internal-API-Key", auto_error=False)
+
+async def verify_internal_api_key(api_key: str = Depends(api_key_header)):
+    """Verify internal service-to-service API key"""
+    # Allow health checks without auth
+    if api_key is None:
+        raise HTTPException(status_code=401, detail="Missing internal API key")
+    if api_key != Config.INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid internal API key")
+    return api_key
 
 
 # ============================================================================
@@ -657,7 +676,7 @@ async def system_status():
 # AI COUNCIL ENDPOINTS
 # ============================================================================
 @app.post("/council/evaluate", response_model=ScriptEvaluationResponse, tags=["AI Council"])
-async def evaluate_script(request: ScriptEvaluationRequest):
+async def evaluate_script(request: ScriptEvaluationRequest, api_key: str = Depends(verify_internal_api_key)):
     """
     Evaluate a script with Council of Titans
 
@@ -693,7 +712,7 @@ async def evaluate_script(request: ScriptEvaluationRequest):
 
 
 @app.post("/oracle/predict", response_model=Dict[str, Any], tags=["AI Council"])
-async def predict_roas(request: ROASPredictionRequest):
+async def predict_roas(request: ROASPredictionRequest, api_key: str = Depends(verify_internal_api_key)):
     """
     Get ROAS prediction from Oracle Agent
 
@@ -723,7 +742,7 @@ async def predict_roas(request: ROASPredictionRequest):
 
 
 @app.post("/director/generate", response_model=BlueprintResponse, tags=["AI Council"])
-async def generate_blueprints(request: BlueprintRequest):
+async def generate_blueprints(request: BlueprintRequest, api_key: str = Depends(verify_internal_api_key)):
     """
     Generate ad blueprints with Director Agent
 
@@ -776,7 +795,7 @@ async def generate_blueprints(request: BlueprintRequest):
 # VIDEO PROCESSING ENDPOINTS
 # ============================================================================
 @app.post("/render/start", response_model=RenderStartResponse, tags=["Video Processing"])
-async def start_render(request: RenderStartRequest, background_tasks: BackgroundTasks):
+async def start_render(request: RenderStartRequest, background_tasks: BackgroundTasks, api_key: str = Depends(verify_internal_api_key)):
     """
     Start a render job
 
@@ -884,7 +903,7 @@ async def download_render(job_id: str):
 # PIPELINE ENDPOINTS - THE MAIN ONES
 # ============================================================================
 @app.post("/pipeline/generate-campaign", response_model=CampaignGenerationResponse, tags=["Pipeline"])
-async def generate_campaign(request: CampaignGenerationRequest):
+async def generate_campaign(request: CampaignGenerationRequest, api_key: str = Depends(verify_internal_api_key)):
     """
     🎯 THE MAIN ENDPOINT - Full end-to-end campaign generation
 
@@ -954,7 +973,7 @@ async def generate_campaign(request: CampaignGenerationRequest):
 
 
 @app.post("/pipeline/render-winning", response_model=RenderWinningResponse, tags=["Pipeline"])
-async def render_winning_blueprints(request: RenderWinningRequest, background_tasks: BackgroundTasks):
+async def render_winning_blueprints(request: RenderWinningRequest, background_tasks: BackgroundTasks, api_key: str = Depends(verify_internal_api_key)):
     """
     Render the top blueprints from generate-campaign
 
@@ -1030,7 +1049,7 @@ class MetaAdsSearchRequest(BaseModel):
     limit: int = 10
 
 @app.post("/meta/ads-library/search", tags=["Meta Ads"])
-async def search_meta_ads(request: MetaAdsSearchRequest):
+async def search_meta_ads(request: MetaAdsSearchRequest, api_key: str = Depends(verify_internal_api_key)):
     """
     Search Meta Ads Library (Mock/Proxy)
     """

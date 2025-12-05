@@ -2,8 +2,9 @@
 ML Service - XGBoost CTR Prediction & Vowpal Wabbit A/B Testing
 Agent 1-3 - Main FastAPI Service with XGBoost
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
 import os
@@ -36,6 +37,10 @@ from src.reports.excel_builder import generate_excel_report
 # Import Precomputer (Agent 45)
 from src.precomputer import get_precomputer, PrecomputeEvent, PrecomputeTaskType
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Import Batch API (Agent 42)
 try:
     from src.batch_api import router as batch_router
@@ -60,10 +65,6 @@ except ImportError:
     logger.warning("Creative DNA API not available - check dependencies")
     DNA_API_AVAILABLE = False
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 # Feedback store for retraining (in-memory, but could be persisted)
 feedback_store: List[Dict[str, Any]] = []
 
@@ -76,6 +77,18 @@ app = FastAPI(
 # Production safety check - prevent debug mode in production
 if app.debug and os.environ.get('ENVIRONMENT') == 'production':
     raise RuntimeError("Debug mode detected in production!")
+
+# Internal API Key Configuration for service-to-service authentication
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key")
+api_key_header = APIKeyHeader(name="X-Internal-API-Key", auto_error=False)
+
+async def verify_internal_api_key(api_key: str = Depends(api_key_header)):
+    """Verify internal service-to-service API key"""
+    if api_key is None:
+        raise HTTPException(status_code=401, detail="Missing internal API key")
+    if api_key != INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid internal API key")
+    return api_key
 
 # CORS
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080").split(",")
@@ -203,7 +216,7 @@ async def root():
 # XGBoost CTR Prediction Endpoints (Agent 3)
 
 @app.post("/api/ml/predict-ctr", response_model=CTRPredictionResponse)
-async def predict_ctr(request: CTRPredictionRequest):
+async def predict_ctr(request: CTRPredictionRequest, api_key: str = Depends(verify_internal_api_key)):
     """
     Predict CTR for a single clip/storyboard
 
