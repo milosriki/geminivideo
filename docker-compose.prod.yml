@@ -1,0 +1,293 @@
+version: '3.8'
+
+# ============================================================================
+# PRODUCTION DOCKER COMPOSE CONFIGURATION
+# €5M Investment-Grade Ad Platform
+# ============================================================================
+# This file contains production-specific overrides:
+# - Resource limits
+# - Logging configuration
+# - Restart policies
+# - Security settings
+# - Performance optimizations
+
+services:
+  # ========================================================================
+  # INFRASTRUCTURE SERVICES
+  # ========================================================================
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    restart: always
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    restart: always
+    command: redis-server --maxmemory 1gb --maxmemory-policy allkeys-lru
+
+  # ========================================================================
+  # CORE BACKEND SERVICES
+  # ========================================================================
+
+  ml-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: info
+      PRECOMPUTE_WORKERS: 5
+
+  titan-core:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
+        reservations:
+          cpus: '1.0'
+          memory: 1.5G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: info
+
+  video-agent:
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'
+          memory: 6G
+        reservations:
+          cpus: '1.5'
+          memory: 3G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "5"
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: info
+
+  drive-intel:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 3G
+        reservations:
+          cpus: '0.75'
+          memory: 1.5G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: info
+
+  # ========================================================================
+  # PUBLISHING SERVICES
+  # ========================================================================
+
+  meta-publisher:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    restart: always
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+
+  tiktok-ads:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: info
+
+  # ========================================================================
+  # GATEWAY & FRONTEND
+  # ========================================================================
+
+  gateway-api:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "10"
+    restart: always
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      # Security settings
+      REDIS_ENABLED: "true"
+      RATE_LIMIT_ENABLED: "true"
+      # Performance settings
+      NODE_OPTIONS: "--max-old-space-size=3072"
+
+  frontend:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    restart: always
+
+  # ========================================================================
+  # BACKGROUND WORKERS
+  # ========================================================================
+
+  drive-worker:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 3G
+        reservations:
+          cpus: '0.75'
+          memory: 1.5G
+      replicas: 2
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: info
+
+  video-worker:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+      replicas: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "5"
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: info
+
+# ============================================================================
+# PRODUCTION NOTES
+# ============================================================================
+#
+# Resource Allocation (Total):
+# - CPUs: ~20 cores (limits)
+# - Memory: ~40GB (limits)
+#
+# Recommended Hardware:
+# - 32 CPU cores
+# - 64GB RAM
+# - 500GB SSD storage
+#
+# Deployment Commands:
+# - Start: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# - Stop: docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+# - Logs: docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f [service]
+#
+# Monitoring:
+# - Use `docker stats` to monitor resource usage
+# - Check logs regularly: `docker compose logs -f --tail=100`
+# - Set up external monitoring (Prometheus, Grafana, etc.)
+#
+# Backups:
+# - Database: docker compose exec postgres pg_dump -U geminivideo > backup.sql
+# - Redis: docker compose exec redis redis-cli SAVE
+#
+# Scaling:
+# - Workers can be scaled: docker compose up -d --scale video-worker=5
+# - Adjust replicas in deploy.replicas above
+# ============================================================================

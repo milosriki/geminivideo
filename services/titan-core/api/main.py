@@ -90,6 +90,18 @@ except ImportError as e:
         COMPLETED = "completed"
         FAILED = "failed"
 
+# ============================================================================
+# IMPORT VERTEX AI ENGINE (€5M INVESTMENT GRADE)
+# ============================================================================
+try:
+    from engines.vertex_ai import VertexAIService
+    VERTEX_AI_AVAILABLE = True
+    logger.info("✅ Vertex AI Engine loaded successfully")
+except ImportError as e:
+    VERTEX_AI_AVAILABLE = False
+    logger.warning(f"⚠️ Vertex AI Engine not available: {e}")
+    VertexAIService = None
+
 
 # ============================================================================
 # CONFIGURATION
@@ -137,6 +149,7 @@ class AppState:
         self.pipeline: Optional[UltimatePipeline] = None
         self.video_renderer: Optional[VideoRenderer] = None
         self.winning_ads_generator: Optional[WinningAdsGenerator] = None
+        self.vertex_ai: Optional[VertexAIService] = None
         self.render_jobs: Dict[str, Dict[str, Any]] = {}
         self.initialized = False
 
@@ -167,6 +180,15 @@ class AppState:
                 logger.info("✅ PRO Video Processing initialized")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize PRO Video: {e}")
+
+        # Initialize Vertex AI Engine (€5M Investment Grade)
+        if VERTEX_AI_AVAILABLE:
+            try:
+                self.vertex_ai = VertexAIService()
+                logger.info("✅ Vertex AI Engine initialized (Gemini 2.0 + Imagen 3.0)")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize Vertex AI: {e}")
+                logger.info("💡 Tip: Set GOOGLE_CLOUD_PROJECT environment variable")
 
         self.initialized = True
         logger.info("🎯 Titan-Core ready!")
@@ -342,6 +364,145 @@ class RenderWinningResponse(BaseModel):
     status: str
     message: str
 
+# ============================================================================
+# VERTEX AI REQUEST/RESPONSE MODELS (€5M INVESTMENT GRADE)
+# ============================================================================
+
+class VideoAnalysisRequest(BaseModel):
+    """Request for comprehensive video analysis with Gemini 2.0"""
+    video_uri: str = Field(..., description="GCS URI (gs://bucket/video.mp4) or local file path")
+    custom_prompt: Optional[str] = Field(None, description="Custom analysis prompt (optional)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "video_uri": "gs://my-bucket/competitor-ad.mp4",
+                "custom_prompt": "Focus on the hook and first 5 seconds"
+            }
+        }
+
+class VideoAnalysisResponse(BaseModel):
+    """Comprehensive video analysis results"""
+    summary: str
+    scenes: List[Dict[str, Any]]
+    objects_detected: List[str]
+    text_detected: List[str]
+    audio_transcript: str
+    sentiment: str
+    hook_quality: Optional[float] = Field(None, ge=0, le=100)
+    engagement_score: Optional[float] = Field(None, ge=0, le=100)
+    marketing_insights: Dict[str, Any]
+    recommendations: List[str]
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class AdCopyRequest(BaseModel):
+    """Request for AI-generated ad copy variants"""
+    product_info: str = Field(..., description="Product description and key features")
+    style: str = Field(..., description="Ad style: casual, professional, humorous, urgent")
+    num_variants: int = Field(default=3, ge=1, le=10, description="Number of variants to generate")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "product_info": "Elite fitness coaching program with personalized meal plans and 1-on-1 training",
+                "style": "urgent",
+                "num_variants": 5
+            }
+        }
+
+class AdCopyResponse(BaseModel):
+    """AI-generated ad copy variants"""
+    variants: List[str]
+    count: int
+    style: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class CompetitorAnalysisRequest(BaseModel):
+    """Request for competitive intelligence analysis"""
+    video_uri: str = Field(..., description="Competitor video GCS URI or local path")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "video_uri": "gs://my-bucket/competitor-winning-ad.mp4"
+            }
+        }
+
+class CompetitorAnalysisResponse(BaseModel):
+    """Competitive intelligence insights"""
+    summary: str
+    insights: Dict[str, Any]
+    recommendations: List[str]
+    hook_quality: Optional[float]
+    engagement_score: Optional[float]
+    strengths: List[str] = Field(default_factory=list)
+    weaknesses: List[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class StoryboardRequest(BaseModel):
+    """Request for AI-generated video ad storyboard"""
+    product_description: str = Field(..., description="Product info and key benefits")
+    style: str = Field(..., description="Visual style: modern, minimalist, energetic, luxury")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "product_description": "Premium skincare serum with retinol and hyaluronic acid",
+                "style": "luxury"
+            }
+        }
+
+class StoryboardResponse(BaseModel):
+    """AI-generated storyboard with 6 scenes"""
+    scenes: List[Dict[str, Any]]
+    total_scenes: int
+    total_duration: str = "30s"
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class HookImprovementRequest(BaseModel):
+    """Request for AI-powered hook improvement"""
+    current_hook: str = Field(..., description="Current video/ad hook")
+    target_emotion: str = Field(..., description="Target emotion: curiosity, urgency, FOMO, excitement")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "current_hook": "Want to lose weight fast?",
+                "target_emotion": "FOMO"
+            }
+        }
+
+class HookImprovementResponse(BaseModel):
+    """Improved hook variations"""
+    original_hook: str
+    improved_hooks: List[str]
+    target_emotion: str
+    count: int
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class EmbeddingsRequest(BaseModel):
+    """Request for text embeddings"""
+    texts: List[str] = Field(..., description="List of texts to embed", min_length=1, max_length=100)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "texts": [
+                    "Transform your body in 90 days",
+                    "Get fit and feel amazing",
+                    "Lose weight with our proven system"
+                ]
+            }
+        }
+
+class EmbeddingsResponse(BaseModel):
+    """Text embedding vectors for similarity search"""
+    embeddings: List[List[float]]
+    dimension: int
+    model: str = "text-embedding-004"
+    count: int
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
 
 # ============================================================================
 # LIFESPAN MANAGEMENT
@@ -474,6 +635,12 @@ async def system_status():
             name="Ultimate Pipeline",
             available=app_state.pipeline is not None,
             status="operational" if app_state.initialized else "initializing"
+        ),
+        ComponentStatus(
+            name="Vertex AI Engine",
+            available=VERTEX_AI_AVAILABLE and app_state.vertex_ai is not None,
+            status="operational" if (VERTEX_AI_AVAILABLE and app_state.vertex_ai) else "unavailable",
+            details={"models": ["Gemini 2.0 Flash", "Imagen 3.0", "Text Embedding 004"]} if (VERTEX_AI_AVAILABLE and app_state.vertex_ai) else None
         )
     ]
 
@@ -934,6 +1101,345 @@ async def list_avatars():
     ]
 
 
+# ============================================================================
+# VERTEX AI ENDPOINTS (€5M INVESTMENT GRADE)
+# ============================================================================
+
+@app.post("/api/vertex/analyze-video", response_model=VideoAnalysisResponse, tags=["Vertex AI"])
+async def analyze_video_endpoint(request: VideoAnalysisRequest):
+    """
+    🎬 Comprehensive Video Analysis with Gemini 2.0 Flash
+
+    Analyzes videos using Google's latest Gemini 2.0 multimodal model.
+
+    **Capabilities:**
+    - Scene-by-scene breakdown with timestamps
+    - Object and text detection
+    - Audio transcription
+    - Sentiment analysis
+    - Hook quality scoring (0-100)
+    - Engagement prediction (0-100)
+    - Marketing insights and recommendations
+
+    **Use Cases:**
+    - Analyze competitor ads
+    - Evaluate your own video performance
+    - Extract insights for A/B testing
+    - Understand winning patterns
+
+    **Investment Value:** This endpoint powers data-driven creative decisions
+    by extracting actionable intelligence from any video ad.
+    """
+    if not app_state.vertex_ai:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vertex AI Engine not available. Set GOOGLE_CLOUD_PROJECT env variable."
+        )
+
+    try:
+        logger.info(f"🎬 Analyzing video: {request.video_uri}")
+
+        # Run video analysis
+        analysis = app_state.vertex_ai.analyze_video(
+            video_gcs_uri=request.video_uri,
+            prompt=request.custom_prompt
+        )
+
+        # Convert to response model
+        return VideoAnalysisResponse(
+            summary=analysis.summary,
+            scenes=analysis.scenes,
+            objects_detected=analysis.objects_detected,
+            text_detected=analysis.text_detected,
+            audio_transcript=analysis.audio_transcript,
+            sentiment=analysis.sentiment,
+            hook_quality=analysis.hook_quality,
+            engagement_score=analysis.engagement_score,
+            marketing_insights=analysis.marketing_insights,
+            recommendations=analysis.recommendations
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Video analysis failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Video analysis failed: {str(e)}"
+        )
+
+
+@app.post("/api/vertex/generate-ad-copy", response_model=AdCopyResponse, tags=["Vertex AI"])
+async def generate_ad_copy_endpoint(request: AdCopyRequest):
+    """
+    ✍️ Generate High-Converting Ad Copy with Gemini 2.0
+
+    Creates multiple ad copy variants optimized for social media.
+
+    **Features:**
+    - Multiple variants (1-10)
+    - Style control (casual, professional, humorous, urgent)
+    - Optimized for Facebook/Instagram
+    - Strong hooks and CTAs
+    - Direct response language
+
+    **Styles:**
+    - `casual`: Conversational, friendly tone
+    - `professional`: Authoritative, expert positioning
+    - `humorous`: Witty, attention-grabbing
+    - `urgent`: FOMO, scarcity-driven
+
+    **Investment Value:** Generates dozens of copy variations in seconds,
+    replacing hours of copywriting work.
+    """
+    if not app_state.vertex_ai:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vertex AI Engine not available"
+        )
+
+    try:
+        logger.info(f"✍️ Generating {request.num_variants} ad copy variants ({request.style} style)")
+
+        # Generate ad copy
+        variants = app_state.vertex_ai.generate_ad_copy(
+            product_info=request.product_info,
+            style=request.style,
+            num_variants=request.num_variants
+        )
+
+        return AdCopyResponse(
+            variants=variants,
+            count=len(variants),
+            style=request.style
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Ad copy generation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ad copy generation failed: {str(e)}"
+        )
+
+
+@app.post("/api/vertex/competitor-analysis", response_model=CompetitorAnalysisResponse, tags=["Vertex AI"])
+async def competitor_analysis_endpoint(request: CompetitorAnalysisRequest):
+    """
+    🔍 Competitive Intelligence Analysis
+
+    Deep analysis of competitor ads to extract winning patterns.
+
+    **Insights Provided:**
+    - Hook strategy and pattern interrupts
+    - Story arc and narrative structure
+    - Psychological triggers deployed
+    - Production quality estimation
+    - Target audience identification
+    - Unique selling points
+    - Weaknesses and opportunities
+    - Actionable insights to replicate success
+
+    **Investment Value:** Turns competitor research into a systematic,
+    AI-powered competitive advantage. Learn from winners, avoid losers.
+    """
+    if not app_state.vertex_ai:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vertex AI Engine not available"
+        )
+
+    try:
+        logger.info(f"🔍 Analyzing competitor ad: {request.video_uri}")
+
+        # Run competitor analysis
+        analysis = app_state.vertex_ai.analyze_competitor_ad(request.video_uri)
+
+        # Extract strengths and weaknesses from insights
+        strengths = []
+        weaknesses = []
+        if isinstance(analysis.get("insights"), dict):
+            strengths = analysis["insights"].get("strengths", [])
+            weaknesses = analysis["insights"].get("weaknesses", [])
+
+        return CompetitorAnalysisResponse(
+            summary=analysis["summary"],
+            insights=analysis["insights"],
+            recommendations=analysis["recommendations"],
+            hook_quality=analysis.get("hook_quality"),
+            engagement_score=analysis.get("engagement_score"),
+            strengths=strengths if isinstance(strengths, list) else [],
+            weaknesses=weaknesses if isinstance(weaknesses, list) else []
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Competitor analysis failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Competitor analysis failed: {str(e)}"
+        )
+
+
+@app.post("/api/vertex/storyboard", response_model=StoryboardResponse, tags=["Vertex AI"])
+async def generate_storyboard_endpoint(request: StoryboardRequest):
+    """
+    🎨 Generate Video Ad Storyboard
+
+    Creates a complete 6-scene storyboard for 30-second video ads.
+
+    **Each Scene Includes:**
+    - Timestamp (0-5s, 5-10s, etc.)
+    - Scene description
+    - Visual details (composition, colors, objects)
+    - Text overlay suggestions
+    - Image generation prompt (ready for Imagen)
+    - Purpose (hook, build, climax, CTA)
+
+    **Styles:**
+    - `modern`: Clean, contemporary aesthetic
+    - `minimalist`: Simple, focused visuals
+    - `energetic`: Dynamic, high-energy
+    - `luxury`: Premium, sophisticated
+
+    **Investment Value:** Generates complete video concepts instantly,
+    ready for production or further refinement. Includes Imagen prompts
+    for immediate visual generation.
+    """
+    if not app_state.vertex_ai:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vertex AI Engine not available"
+        )
+
+    try:
+        logger.info(f"🎨 Generating storyboard ({request.style} style)")
+
+        # Generate storyboard
+        scenes = app_state.vertex_ai.generate_storyboard(
+            product_description=request.product_description,
+            style=request.style
+        )
+
+        return StoryboardResponse(
+            scenes=scenes,
+            total_scenes=len(scenes)
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Storyboard generation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Storyboard generation failed: {str(e)}"
+        )
+
+
+@app.post("/api/vertex/improve-hook", response_model=HookImprovementResponse, tags=["Vertex AI"])
+async def improve_hook_endpoint(request: HookImprovementRequest):
+    """
+    ⚡ AI-Powered Hook Improvement
+
+    Generates 5 improved hook variations targeting specific emotions.
+
+    **Target Emotions:**
+    - `curiosity`: "Wait, what?" pattern interrupts
+    - `urgency`: Time-sensitive, FOMO-driven
+    - `excitement`: High-energy, aspirational
+    - `fear`: Loss aversion, pain point triggers
+    - `desire`: Want-based, transformation-focused
+
+    **Optimization Criteria:**
+    - Works in first 3 seconds
+    - Mobile-optimized (short, punchy)
+    - Uses pattern interrupts
+    - Follows 2025 viral trends
+    - Platform-specific best practices
+
+    **Investment Value:** The hook makes or breaks your ad. This endpoint
+    generates battle-tested hook variations that stop the scroll.
+    """
+    if not app_state.vertex_ai:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vertex AI Engine not available"
+        )
+
+    try:
+        logger.info(f"⚡ Improving hook (target: {request.target_emotion})")
+
+        # Generate improved hooks
+        improved_hooks = app_state.vertex_ai.improve_hook(
+            current_hook=request.current_hook,
+            target_emotion=request.target_emotion
+        )
+
+        return HookImprovementResponse(
+            original_hook=request.current_hook,
+            improved_hooks=improved_hooks,
+            target_emotion=request.target_emotion,
+            count=len(improved_hooks)
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Hook improvement failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Hook improvement failed: {str(e)}"
+        )
+
+
+@app.post("/api/vertex/embeddings", response_model=EmbeddingsResponse, tags=["Vertex AI"])
+async def generate_embeddings_endpoint(request: EmbeddingsRequest):
+    """
+    📊 Text Embeddings for Semantic Search
+
+    Generates high-quality vector embeddings using Text Embedding 004.
+
+    **Use Cases:**
+    - Semantic similarity search
+    - Ad copy clustering
+    - Content recommendation
+    - Duplicate detection
+    - Automated tagging
+
+    **Model:** text-embedding-004
+    - Dimension: 768
+    - Max input tokens: 2048
+    - Best-in-class semantic understanding
+
+    **Example Workflow:**
+    1. Embed all your ad copy
+    2. Embed competitor ads
+    3. Find similar patterns
+    4. Identify winning themes
+    5. Generate more like your winners
+
+    **Investment Value:** Powers intelligent content systems that understand
+    meaning, not just keywords. Essential for scaling content operations.
+    """
+    if not app_state.vertex_ai:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vertex AI Engine not available"
+        )
+
+    try:
+        logger.info(f"📊 Generating embeddings for {len(request.texts)} texts")
+
+        # Generate embeddings
+        embeddings_array = app_state.vertex_ai.embed_texts(request.texts)
+
+        # Convert numpy array to list of lists
+        embeddings_list = embeddings_array.tolist()
+
+        return EmbeddingsResponse(
+            embeddings=embeddings_list,
+            dimension=len(embeddings_list[0]) if embeddings_list else 0,
+            count=len(embeddings_list)
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Embeddings generation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Embeddings generation failed: {str(e)}"
+        )
 
 
 # ============================================================================
@@ -988,7 +1494,7 @@ async def _process_render_job(job_id: str, request: RenderStartRequest):
 @app.get("/", tags=["Root"])
 async def root():
     """
-    API Root
+    API Root - €5M Investment Grade
     """
     return {
         "name": "Titan-Core Master API",
@@ -1003,8 +1509,18 @@ async def root():
             "oracle": "/oracle/*",
             "director": "/director/*",
             "render": "/render/*",
-            "pipeline": "/pipeline/*"
-        }
+            "pipeline": "/pipeline/*",
+            "vertex_ai": "/api/vertex/*"
+        },
+        "vertex_ai_capabilities": {
+            "video_analysis": "POST /api/vertex/analyze-video - Gemini 2.0 Flash multimodal analysis",
+            "ad_copy": "POST /api/vertex/generate-ad-copy - AI copywriting with style control",
+            "competitor_intel": "POST /api/vertex/competitor-analysis - Deep competitive analysis",
+            "storyboard": "POST /api/vertex/storyboard - 6-scene video ad storyboards",
+            "hook_improvement": "POST /api/vertex/improve-hook - AI-powered hook optimization",
+            "embeddings": "POST /api/vertex/embeddings - Text Embedding 004 semantic vectors"
+        },
+        "investment_value": "Production-ready AI infrastructure connecting Gemini 2.0, Imagen 3.0, and Text Embedding 004"
     }
 
 

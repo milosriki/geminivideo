@@ -1,0 +1,146 @@
+# AUTO-CAPTION SYSTEM REQUIREMENTS (2025 Edition - November)
+# Whisper Large V3 Turbo Support
+
+# Core dependencies
+torch>=2.0.0
+numpy>=1.24.0
+
+# === WHISPER BACKENDS ===
+
+# 1. Original OpenAI Whisper (baseline support)
+openai-whisper>=20231117
+
+# 2. Faster-Whisper (CTranslate2 optimization - 2x faster)
+faster-whisper>=0.10.0
+
+# 3. HuggingFace Transformers (for V3 Turbo & Distil-Whisper)
+transformers>=4.35.0
+accelerate>=0.25.0  # For optimized model loading
+datasets>=2.14.0
+soundfile>=0.12.1
+
+# 4. OpenAI API (cloud fallback)
+openai>=1.3.0
+
+# === AUDIO PROCESSING ===
+librosa>=0.10.1
+soundfile>=0.12.1
+scipy>=1.11.0
+audioread>=3.0.0
+
+# === SPEAKER DIARIZATION ===
+# Latest pyannote.audio (speaker-diarization-3.1)
+pyannote.audio>=3.1.0
+pyannote.core>=5.0.0
+pyannote.database>=5.0.0
+pyannote.metrics>=3.2.0
+
+# === VIDEO PROCESSING ===
+moviepy>=1.0.3
+opencv-python-headless>=4.9.0.80
+Pillow>=10.0.0
+
+# === TRANSLATION ===
+deep-translator>=1.11.4
+langdetect>=1.0.9
+
+# === TEXT PROCESSING ===
+better-profanity>=0.7.0
+
+# === SUBTITLE GENERATION ===
+pysrt>=1.1.2
+webvtt-py>=0.5.0
+
+# === UTILITIES ===
+tqdm>=4.66.0  # Progress bars
+python-dotenv>=1.0.0  # Environment variables
+
+# === OPTIONAL: GPU Acceleration ===
+# If using CUDA, install these:
+# torch with CUDA:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+#
+# For optimal performance:
+# - NVIDIA GPU with 8GB+ VRAM for V3 Turbo
+# - 16GB+ VRAM for Large V3
+# - 4GB+ VRAM for Distil-Whisper
+
+# === INSTALLATION NOTES ===
+#
+# Quick install:
+#   pip install -r requirements_auto_captions.txt
+#
+# For pyannote.audio, you need to accept their terms:
+#   1. Visit: https://huggingface.co/pyannote/speaker-diarization-3.1
+#   2. Accept license
+#   3. Get HF token from: https://huggingface.co/settings/tokens
+#   4. Set: export HF_TOKEN="your_token_here"
+#
+# For OpenAI API fallback:
+#   export OPENAI_API_KEY="your_api_key_here"
+#
+# === MODEL DOWNLOADS ===
+# Models are downloaded automatically on first use:
+#
+# Whisper V3 Turbo:
+#   - Model: openai/whisper-large-v3-turbo
+#   - Size: ~1.5GB
+#   - Speed: 8x faster than Large V3
+#
+# Distil-Whisper:
+#   - Model: distil-whisper/distil-large-v2
+#   - Size: ~756MB
+#   - Speed: 6x faster than Large V3
+#
+# Speaker Diarization:
+#   - Model: pyannote/speaker-diarization-3.1
+#   - Size: ~100MB
+#   - Requires HF token
+
+# === SYSTEM REQUIREMENTS ===
+# Minimum:
+#   - Python 3.9+
+#   - 8GB RAM
+#   - CPU with AVX2 support
+#
+# Recommended:
+#   - Python 3.10+
+#   - 16GB RAM
+#   - NVIDIA GPU with 8GB+ VRAM
+#   - CUDA 11.8+
+#
+# For production:
+#   - 32GB RAM
+#   - NVIDIA GPU with 16GB+ VRAM
+#   - NVMe SSD for model caching
+#   - Multi-core CPU (8+ cores)
+
+# === PERFORMANCE COMPARISON ===
+# 60-second video transcription time (with GPU):
+#
+# Model                      Time    Memory
+# ----------------------------------------
+# Large V3                   48s     10GB
+# Large V3 Turbo (NEW!)      6s      6GB   ⚡
+# Distil-Large-V2 (NEW!)     8s      4GB   ⚡
+# Distil-Medium-EN (NEW!)    5s      2GB   ⚡⚡
+# OpenAI API                 10s     0GB   ☁️
+
+# === TROUBLESHOOTING ===
+#
+# If you get "No module named 'transformers'":
+#   pip install transformers accelerate
+#
+# If you get CUDA out of memory:
+#   - Use smaller model (distil-whisper)
+#   - Reduce batch size
+#   - Enable gradient checkpointing
+#
+# If pyannote.audio fails:
+#   - Check HF token is valid
+#   - Accept model license on HuggingFace
+#   - Install with: pip install pyannote.audio
+#
+# If faster-whisper fails on Windows:
+#   pip install faster-whisper --no-deps
+#   pip install ctranslate2 tokenizers huggingface_hub

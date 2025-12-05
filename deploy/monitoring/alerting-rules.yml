@@ -1,0 +1,301 @@
+# =============================================================================
+# Prometheus Alerting Rules for GeminiVideo Production
+# =============================================================================
+# Critical alerts for €5M investment-grade platform
+# =============================================================================
+
+groups:
+  # ===========================================================================
+  # SERVICE AVAILABILITY ALERTS (P1 - CRITICAL)
+  # ===========================================================================
+  - name: service_availability
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up{job=~"gateway-api|titan-core|ml-service|video-agent"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been down for more than 2 minutes."
+          runbook_url: "https://docs.geminivideo.com/runbooks/service-down"
+
+      - alert: ServiceHighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: errors
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} has error rate of {{ $value | humanizePercentage }} (>5%)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/high-error-rate"
+
+      - alert: APILatencyHigh
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High API latency on {{ $labels.job }}"
+          description: "95th percentile latency is {{ $value }}s (threshold: 2s)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/high-latency"
+
+  # ===========================================================================
+  # DATABASE ALERTS (P1 - CRITICAL)
+  # ===========================================================================
+  - name: database_alerts
+    interval: 30s
+    rules:
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL instance {{ $labels.instance }} is unreachable"
+          runbook_url: "https://docs.geminivideo.com/runbooks/postgres-down"
+
+      - alert: PostgreSQLHighConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "PostgreSQL connection usage high"
+          description: "Connection usage is {{ $value | humanizePercentage }} (threshold: 80%)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/high-connections"
+
+      - alert: PostgreSQLSlowQueries
+        expr: rate(pg_stat_activity_max_tx_duration{datname!~"template.*"}[5m]) > 60
+        for: 10m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Slow queries detected in PostgreSQL"
+          description: "Long-running queries detected on {{ $labels.datname }}"
+          runbook_url: "https://docs.geminivideo.com/runbooks/slow-queries"
+
+      - alert: PostgreSQLDeadlocks
+        expr: rate(pg_stat_database_deadlocks[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Deadlocks detected in PostgreSQL"
+          description: "Database {{ $labels.datname }} has {{ $value }} deadlocks/s"
+          runbook_url: "https://docs.geminivideo.com/runbooks/deadlocks"
+
+  # ===========================================================================
+  # REDIS CACHE ALERTS (P2 - HIGH)
+  # ===========================================================================
+  - name: redis_alerts
+    interval: 30s
+    rules:
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance {{ $labels.instance }} is unreachable"
+          runbook_url: "https://docs.geminivideo.com/runbooks/redis-down"
+
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: cache
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis memory usage is {{ $value | humanizePercentage }} (threshold: 90%)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/redis-memory"
+
+      - alert: RedisEvictingKeys
+        expr: rate(redis_evicted_keys_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          category: cache
+        annotations:
+          summary: "Redis is evicting keys"
+          description: "Redis is evicting {{ $value }} keys/s (memory pressure)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/redis-eviction"
+
+  # ===========================================================================
+  # RESOURCE ALERTS (P2 - HIGH)
+  # ===========================================================================
+  - name: resource_alerts
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% (threshold: 80%)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/high-cpu"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% (threshold: 85%)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/high-memory"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Available disk space is {{ $value }}% (threshold: 15%)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/low-disk"
+
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 5
+        for: 1m
+        labels:
+          severity: critical
+          category: resources
+        annotations:
+          summary: "Critical disk space on {{ $labels.instance }}"
+          description: "Available disk space is {{ $value }}% (threshold: 5%)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/critical-disk"
+
+  # ===========================================================================
+  # KUBERNETES ALERTS (P2 - HIGH)
+  # ===========================================================================
+  - name: kubernetes_alerts
+    interval: 30s
+    rules:
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          category: kubernetes
+        annotations:
+          summary: "Pod {{ $labels.pod }} is crash looping"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is restarting frequently"
+          runbook_url: "https://docs.geminivideo.com/runbooks/pod-crash"
+
+      - alert: PodNotReady
+        expr: kube_pod_status_phase{phase!~"Running|Succeeded"} > 0
+        for: 10m
+        labels:
+          severity: warning
+          category: kubernetes
+        annotations:
+          summary: "Pod {{ $labels.pod }} is not ready"
+          description: "Pod {{ $labels.pod }} has been in {{ $labels.phase }} state for over 10 minutes"
+          runbook_url: "https://docs.geminivideo.com/runbooks/pod-not-ready"
+
+      - alert: DeploymentReplicasMismatch
+        expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+        for: 10m
+        labels:
+          severity: warning
+          category: kubernetes
+        annotations:
+          summary: "Deployment {{ $labels.deployment }} has replica mismatch"
+          description: "Deployment {{ $labels.deployment }} has {{ $value }} replicas mismatch"
+          runbook_url: "https://docs.geminivideo.com/runbooks/replica-mismatch"
+
+  # ===========================================================================
+  # BUSINESS METRICS ALERTS (P2 - HIGH)
+  # ===========================================================================
+  - name: business_metrics
+    interval: 60s
+    rules:
+      - alert: VideoProcessingFailureRateHigh
+        expr: rate(video_processing_failures_total[15m]) / rate(video_processing_requests_total[15m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "High video processing failure rate"
+          description: "Video processing failure rate is {{ $value | humanizePercentage }} (threshold: 10%)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/video-failures"
+
+      - alert: AIRequestCostHigh
+        expr: sum(rate(ai_api_cost_total[1h])) > 100
+        for: 30m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "AI API costs are high"
+          description: "AI API costs are ${{ $value }}/hour (threshold: $100/hour)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/high-ai-cost"
+
+      - alert: LowVideoGenerationRate
+        expr: rate(videos_generated_total[30m]) < 5
+        for: 30m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Low video generation rate"
+          description: "Only {{ $value }} videos generated in last 30 minutes (expected: >5)"
+          runbook_url: "https://docs.geminivideo.com/runbooks/low-generation"
+
+  # ===========================================================================
+  # SECURITY ALERTS (P1 - CRITICAL)
+  # ===========================================================================
+  - name: security_alerts
+    interval: 60s
+    rules:
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(http_requests_total{status="401"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "High rate of unauthorized access attempts"
+          description: "{{ $value }} unauthorized requests/s detected on {{ $labels.job }}"
+          runbook_url: "https://docs.geminivideo.com/runbooks/unauthorized-access"
+
+      - alert: RateLimitExceeded
+        expr: rate(http_requests_total{status="429"}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "High rate of rate-limited requests"
+          description: "{{ $value }} rate-limited requests/s on {{ $labels.job }}"
+          runbook_url: "https://docs.geminivideo.com/runbooks/rate-limit"
+
+      - alert: SSLCertificateExpiringSoon
+        expr: (ssl_certificate_expiry_seconds - time()) / 86400 < 7
+        for: 1h
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "SSL certificate for {{ $labels.domain }} expires in {{ $value }} days"
+          runbook_url: "https://docs.geminivideo.com/runbooks/ssl-expiry"

@@ -1,9 +1,24 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { useToastStore } from '@/stores/toastStore'
 import { CheckCircleIcon, ExclamationCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 30000, // 30 seconds
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 // Lazy load all pages for code splitting
 const HomePage = lazy(() => import('@/pages/HomePage'))
@@ -23,10 +38,21 @@ const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'))
 const OTPPage = lazy(() => import('@/pages/auth/OTPPage'))
 
+// Onboarding Pages (standalone, no dashboard layout)
+const WelcomePage = lazy(() => import('@/pages/onboarding/WelcomePage'))
+const ConnectMetaPage = lazy(() => import('@/pages/onboarding/ConnectMetaPage'))
+const ConnectGooglePage = lazy(() => import('@/pages/onboarding/ConnectGooglePage'))
+const ConfigurePage = lazy(() => import('@/pages/onboarding/ConfigurePage'))
+const FirstCampaignPage = lazy(() => import('@/pages/onboarding/FirstCampaignPage'))
+const CompletePage = lazy(() => import('@/pages/onboarding/CompletePage'))
+
 // Marketing Pages (standalone with Radiant layout)
 const BlogPage = lazy(() => import('@/pages/BlogPage'))
 const CompanyPage = lazy(() => import('@/pages/CompanyPage'))
 const PricingPage = lazy(() => import('@/pages/PricingPage'))
+
+// Demo Pages (standalone for investor presentations)
+const InvestorPresentationPage = lazy(() => import('@/pages/demo/InvestorPresentationPage'))
 
 // Loading fallback component
 function PageLoader() {
@@ -93,10 +119,11 @@ function ToastContainer() {
 
 function App() {
   return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <div className="min-h-screen bg-zinc-950 text-white font-sans antialiased selection:bg-violet-500/30">
-          <Routes>
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <div className="min-h-screen bg-zinc-950 text-white font-sans antialiased selection:bg-violet-500/30">
+            <Routes>
             {/* Auth Routes (standalone - no dashboard) */}
             <Route
               path="/login"
@@ -123,6 +150,56 @@ function App() {
               }
             />
 
+            {/* Onboarding Routes (standalone - no dashboard) */}
+            <Route
+              path="/onboarding/welcome"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <WelcomePage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/onboarding/connect-meta"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ConnectMetaPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/onboarding/connect-google"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ConnectGooglePage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/onboarding/configure"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ConfigurePage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/onboarding/first-campaign"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <FirstCampaignPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/onboarding/complete"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CompletePage />
+                </Suspense>
+              }
+            />
+
             {/* Marketing Pages (standalone with Radiant layout) */}
             <Route
               path="/blog"
@@ -145,6 +222,16 @@ function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <PricingPage />
+                </Suspense>
+              }
+            />
+
+            {/* Demo Pages (standalone for investor presentations) */}
+            <Route
+              path="/demo/presentation"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <InvestorPresentationPage />
                 </Suspense>
               }
             />
@@ -281,6 +368,7 @@ function App() {
         </div>
       </BrowserRouter>
     </ErrorBoundary>
+    </QueryClientProvider>
   )
 }
 

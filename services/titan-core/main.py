@@ -1,4 +1,5 @@
 import os
+import time
 print("🚀 TITAN CORE: Starting up...", flush=True)
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -10,6 +11,9 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     run_titan_flow = None
+
+# Track startup time for uptime calculation
+_start_time = time.time()
 
 app = FastAPI(title="Titan Core Service")
 
@@ -33,7 +37,12 @@ async def generate_script(request: GenerateRequest):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    uptime = int(time.time() - _start_time)
+    return {
+        "status": "healthy",
+        "service": "titan-core",
+        "uptime": uptime
+    }
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))

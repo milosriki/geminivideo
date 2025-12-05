@@ -1,0 +1,45 @@
+{
+  "name": "@geminivideo/edge",
+  "version": "1.0.0",
+  "description": "Edge deployment infrastructure for GeminiVideo - Cloudflare Workers & Vercel Edge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "wrangler dev",
+    "deploy": "bash deploy-edge.sh production",
+    "deploy:staging": "bash deploy-edge.sh staging",
+    "deploy:prediction-cache": "wrangler deploy workers/prediction-cache.ts",
+    "deploy:creative-scorer": "wrangler deploy workers/creative-scorer.ts",
+    "deploy:ab-router": "wrangler deploy workers/ab-router.ts",
+    "deploy:trending-hooks": "wrangler deploy workers/trending-hooks.ts",
+    "deploy:asset-delivery": "wrangler deploy workers/asset-delivery.ts",
+    "deploy:edge-analytics": "wrangler deploy workers/edge-analytics.ts",
+    "tail:prediction": "wrangler tail prediction-cache",
+    "tail:scorer": "wrangler tail creative-scorer",
+    "tail:ab": "wrangler tail ab-router",
+    "tail:analytics": "wrangler tail edge-analytics",
+    "kv:create": "wrangler kv:namespace create PREDICTIONS && wrangler kv:namespace create CREATIVE_SCORES && wrangler kv:namespace create AB_TESTS && wrangler kv:namespace create ANALYTICS",
+    "r2:create": "wrangler r2 bucket create geminivideo-assets && wrangler r2 bucket create geminivideo-videos && wrangler r2 bucket create geminivideo-uploads",
+    "d1:create": "wrangler d1 create geminivideo-edge",
+    "d1:migrate": "wrangler d1 migrations apply geminivideo-edge",
+    "test": "vitest",
+    "lint": "eslint . --ext .ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20241205.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.92.0",
+    "vitest": "^1.0.4",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.16.0",
+    "@typescript-eslint/parser": "^6.16.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

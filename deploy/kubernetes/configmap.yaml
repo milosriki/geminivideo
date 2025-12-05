@@ -1,0 +1,49 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: geminivideo-config
+  namespace: geminivideo
+  labels:
+    app: geminivideo
+data:
+  # Service URLs (internal Kubernetes DNS)
+  GATEWAY_API_URL: "http://gateway-api:8080"
+  DRIVE_INTEL_URL: "http://drive-intel:8081"
+  VIDEO_AGENT_URL: "http://video-agent:8082"
+  ML_SERVICE_URL: "http://ml-service:8003"
+  TITAN_CORE_URL: "http://titan-core:8084"
+  META_PUBLISHER_URL: "http://meta-publisher:8083"
+
+  # Database configuration
+  DATABASE_HOST: "postgres"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "geminivideo"
+
+  # Redis configuration
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+
+  # Application configuration
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  ENABLE_ANALYTICS: "true"
+  ENABLE_PERFORMANCE_MONITORING: "true"
+
+  # Worker configuration
+  WEB_CONCURRENCY: "2"
+  MAX_WORKERS: "4"
+
+  # Video processing
+  MAX_VIDEO_SIZE_MB: "500"
+  TEMP_STORAGE_PATH: "/tmp/geminivideo"
+  OUTPUT_STORAGE_PATH: "/tmp/geminivideo/output"
+
+  # ML configuration
+  MIN_SAMPLES_FOR_UPDATE: "50"
+  LEARNING_RATE: "0.01"
+  MAX_WEIGHT_DELTA: "0.1"
+
+  # Thompson Sampling
+  ENABLE_THOMPSON_SAMPLING: "true"
+  MIN_CONVERSIONS_FOR_WINNER: "30"
