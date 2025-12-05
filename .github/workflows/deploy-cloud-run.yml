@@ -239,97 +239,187 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      # Deploy Drive Intel
-      - run: |
+      # Setup Secrets in Secret Manager (create if not exist, update if exist)
+      - name: Setup Secret Manager Secrets
+        run: |
+          echo "Setting up secrets in Secret Manager..."
+
+          # Function to create or update secret
+          setup_secret() {
+            local name=$1
+            local value=$2
+
+            if [ -z "$value" ] || [ "$value" == "" ]; then
+              echo "Skipping $name (not set)"
+              return
+            fi
+
+            # Check if secret exists
+            if gcloud secrets describe "$name" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              echo "Updating secret: $name"
+              echo -n "$value" | gcloud secrets versions add "$name" --data-file=- --project=${{ env.PROJECT_ID }}
+            else
+              echo "Creating secret: $name"
+              echo -n "$value" | gcloud secrets create "$name" --data-file=- --replication-policy=automatic --project=${{ env.PROJECT_ID }}
+            fi
+          }
+
+          # Setup all required secrets
+          setup_secret "gemini-api-key" "${{ secrets.GEMINI_API_KEY }}"
+          setup_secret "openai-api-key" "${{ secrets.OPENAI_API_KEY }}"
+          setup_secret "anthropic-api-key" "${{ secrets.ANTHROPIC_API_KEY }}"
+          setup_secret "database-url" "${{ secrets.DATABASE_URL }}"
+          setup_secret "redis-url" "${{ secrets.REDIS_URL }}"
+          setup_secret "supabase-url" "${{ secrets.SUPABASE_URL }}"
+          setup_secret "supabase-key" "${{ secrets.SUPABASE_KEY }}"
+          setup_secret "meta-access-token" "${{ secrets.META_ACCESS_TOKEN }}"
+
+          echo "Secrets setup complete!"
+
+      # Grant Cloud Run service account access to secrets
+      - name: Grant Secret Access
+        run: |
+          SA="${{ env.PROJECT_ID }}@appspot.gserviceaccount.com"
+          SECRETS=(gemini-api-key openai-api-key anthropic-api-key database-url redis-url supabase-url supabase-key meta-access-token)
+
+          for secret in "${SECRETS[@]}"; do
+            if gcloud secrets describe "$secret" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              echo "Granting access to $secret..."
+              gcloud secrets add-iam-policy-binding "$secret" \
+                --member="serviceAccount:$SA" \
+                --role="roles/secretmanager.secretAccessor" \
+                --project=${{ env.PROJECT_ID }} --quiet 2>/dev/null || true
+            fi
+          done
+
+      # Deploy all backend services (can run in parallel as they don't depend on each other)
+      - name: Deploy Drive Intel
+        run: |
+          SECRETS=""
+          for s in "GEMINI_API_KEY=gemini-api-key" "OPENAI_API_KEY=openai-api-key" "SUPABASE_URL=supabase-url" "SUPABASE_KEY=supabase-key"; do
+            secret_name="${s#*=}"
+            if gcloud secrets describe "$secret_name" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              SECRETS="${SECRETS:+$SECRETS,}${s}:latest"
+            fi
+          done
+
           gcloud run deploy drive-intel \
             --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/drive-intel:${{ github.sha }} \
             --region=${{ env.GCP_REGION }} \
             --platform=managed \
-            --ingress=internal \
-            --allow-unauthenticated \
             --memory=2Gi \
             --cpu=2 \
             --timeout=300 \
             --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
-            --set-secrets="OPENAI_API_KEY=openai-api-key:latest,SUPABASE_URL=supabase-url:latest,SUPABASE_KEY=supabase-key:latest,GEMINI_API_KEY=gemini-api-key:latest"
+            ${SECRETS:+--set-secrets="$SECRETS"}
 
-      # Deploy Video Agent
-      - run: |
+      - name: Deploy Video Agent
+        run: |
+          SECRETS=""
+          for s in "GEMINI_API_KEY=gemini-api-key" "OPENAI_API_KEY=openai-api-key"; do
+            secret_name="${s#*=}"
+            if gcloud secrets describe "$secret_name" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              SECRETS="${SECRETS:+$SECRETS,}${s}:latest"
+            fi
+          done
+
           gcloud run deploy video-agent \
             --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/video-agent:${{ github.sha }} \
             --region=${{ env.GCP_REGION }} \
             --platform=managed \
-            --ingress=internal \
-            --allow-unauthenticated \
             --memory=4Gi \
             --cpu=2 \
             --timeout=600 \
             --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
-            --set-secrets="OPENAI_API_KEY=openai-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest"
+            ${SECRETS:+--set-secrets="$SECRETS"}
 
-      # Deploy ML Service
-      - run: |
+      - name: Deploy ML Service
+        run: |
+          SECRETS=""
+          for s in "DATABASE_URL=database-url" "REDIS_URL=redis-url"; do
+            secret_name="${s#*=}"
+            if gcloud secrets describe "$secret_name" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              SECRETS="${SECRETS:+$SECRETS,}${s}:latest"
+            fi
+          done
+
           gcloud run deploy ml-service \
             --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/ml-service:${{ github.sha }} \
             --region=${{ env.GCP_REGION }} \
             --platform=managed \
-            --ingress=internal \
-            --allow-unauthenticated \
             --memory=4Gi \
             --cpu=2 \
             --timeout=300 \
             --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
-            --set-secrets="DATABASE_URL=database-url:latest,REDIS_URL=redis-url:latest"
+            ${SECRETS:+--set-secrets="$SECRETS"}
 
-      # Deploy Meta Publisher
-      - run: |
+      - name: Deploy Meta Publisher
+        run: |
+          SECRETS=""
+          for s in "META_ACCESS_TOKEN=meta-access-token" "SUPABASE_URL=supabase-url" "SUPABASE_KEY=supabase-key"; do
+            secret_name="${s#*=}"
+            if gcloud secrets describe "$secret_name" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              SECRETS="${SECRETS:+$SECRETS,}${s}:latest"
+            fi
+          done
+
           gcloud run deploy meta-publisher \
             --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/meta-publisher:${{ github.sha }} \
             --region=${{ env.GCP_REGION }} \
             --platform=managed \
-            --ingress=internal \
-            --allow-unauthenticated \
             --memory=1Gi \
             --cpu=1 \
             --timeout=300 \
             --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
-            --set-secrets="META_ACCESS_TOKEN=meta-access-token:latest,SUPABASE_URL=supabase-url:latest,SUPABASE_KEY=supabase-key:latest"
+            ${SECRETS:+--set-secrets="$SECRETS"}
 
-      # Deploy Titan Core
-      - run: |
+      - name: Deploy Titan Core
+        run: |
+          SECRETS=""
+          for s in "GEMINI_API_KEY=gemini-api-key" "ANTHROPIC_API_KEY=anthropic-api-key" "OPENAI_API_KEY=openai-api-key"; do
+            secret_name="${s#*=}"
+            if gcloud secrets describe "$secret_name" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              SECRETS="${SECRETS:+$SECRETS,}${s}:latest"
+            fi
+          done
+
           gcloud run deploy titan-core \
             --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/titan-core:${{ github.sha }} \
             --region=${{ env.GCP_REGION }} \
             --platform=managed \
-            --ingress=internal \
-            --allow-unauthenticated \
             --memory=4Gi \
             --cpu=2 \
             --timeout=900 \
             --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.GCP_REGION }}" \
-            --set-secrets="GEMINI_API_KEY=gemini-api-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,OPENAI_API_KEY=openai-api-key:latest"
+            ${SECRETS:+--set-secrets="$SECRETS"}
 
-      # Deploy Gateway API
-      - run: |
+      - name: Deploy Gateway API
+        run: |
+          SECRETS=""
+          for s in "GEMINI_API_KEY=gemini-api-key" "OPENAI_API_KEY=openai-api-key" "ANTHROPIC_API_KEY=anthropic-api-key" "DATABASE_URL=database-url" "REDIS_URL=redis-url" "SUPABASE_URL=supabase-url" "SUPABASE_KEY=supabase-key"; do
+            secret_name="${s#*=}"
+            if gcloud secrets describe "$secret_name" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              SECRETS="${SECRETS:+$SECRETS,}${s}:latest"
+            fi
+          done
+
           gcloud run deploy gateway-api \
             --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/gateway-api:${{ github.sha }} \
             --region=${{ env.GCP_REGION }} \
             --platform=managed \
             --ingress=all \
-            --allow-unauthenticated \
             --memory=2Gi \
             --cpu=2 \
             --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},GCS_BUCKET=${{ env.GCS_BUCKET }},GCP_REGION=${{ env.GCP_REGION }}" \
-            --set-secrets="GEMINI_API_KEY=gemini-api-key:latest,OPENAI_API_KEY=openai-api-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,DATABASE_URL=database-url:latest,REDIS_URL=redis-url:latest,SUPABASE_URL=supabase-url:latest,SUPABASE_KEY=supabase-key:latest"
+            ${SECRETS:+--set-secrets="$SECRETS"}
 
-      # Deploy Frontend
-      - run: |
+      - name: Deploy Frontend
+        run: |
           gcloud run deploy frontend \
             --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/frontend:${{ github.sha }} \
             --region=${{ env.GCP_REGION }} \
             --platform=managed \
             --ingress=all \
-            --allow-unauthenticated \
             --memory=512Mi \
             --cpu=1
 

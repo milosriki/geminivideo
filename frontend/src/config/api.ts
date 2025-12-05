@@ -4,7 +4,8 @@
  */
 
 // Gateway API (port 8000) - Main API gateway
-export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// Production Cloud Run URL as fallback
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://gateway-api-489769736562.us-central1.run.app';
 
 // Individual service URLs (for direct access if needed)
 export const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || API_BASE_URL;

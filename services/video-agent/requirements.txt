@@ -16,6 +16,9 @@ sqlalchemy>=2.0.23
 psycopg2-binary>=2.9.9
 opencv-python-headless>=4.9.0.80
 
+# OpenCV for video processing/compliance checking
+opencv-python-headless>=4.8.0
+
 # Redis for async queues
 redis==5.0.1
 google-cloud-storage>=2.10.0

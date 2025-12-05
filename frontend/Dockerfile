@@ -1,15 +1,18 @@
-FROM node:18-slim as build
+FROM --platform=linux/amd64 node:18-slim as build
 
 WORKDIR /app
 
-# Copy source code
-COPY . .
+# Copy package files first for better caching
+COPY package*.json ./
 
 # Remove any existing node_modules copied from host
 RUN rm -rf node_modules package-lock.json
 
 # Install dependencies
 RUN npm install
+
+# Copy source code
+COPY . .
 
 # Build arguments
 ARG VITE_API_BASE_URL
@@ -18,8 +21,8 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 # Build
 RUN npm run build
 
-# Production stage
-FROM nginx:alpine
+# Production stage - explicitly use amd64
+FROM --platform=linux/amd64 nginx:alpine
 
 # Copy built assets from build stage
 COPY --from=build /app/dist /usr/share/nginx/html

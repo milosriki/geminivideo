@@ -17,6 +17,13 @@ import { ScoringEngine } from './services/scoring-engine';
 import { ReliabilityLogger } from './services/reliability-logger';
 import { LearningService } from './services/learning-service';
 
+// New routes (8-agent parallel creation)
+import councilRouter from './routes/council';
+import analyticsRouter from './routes/analytics';
+import campaignsRouter from './routes/campaigns';
+import contentRouter from './routes/content';
+import downloadsRouter from './routes/downloads';
+
 // Security middleware imports (Agent 5)
 import {
   initializeSecurityRedis,
@@ -136,6 +143,26 @@ const DRIVE_INTEL_URL = process.env.DRIVE_INTEL_URL || 'http://localhost:8001';
 const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || 'http://localhost:8002';
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
 const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
+
+// ============================================================================
+// MOUNT ROUTERS
+// ============================================================================
+
+// Council of Titans & Analysis routes
+app.use('/api/council', councilRouter);
+app.use('/api/analysis', councilRouter);
+
+// Analytics routes
+app.use(analyticsRouter);
+
+// Campaign management routes
+app.use(campaignsRouter);
+
+// Content routes (avatars, trending, top-performers, AI insights)
+app.use(contentRouter);
+
+// Download routes (video downloads)
+app.use(downloadsRouter);
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
