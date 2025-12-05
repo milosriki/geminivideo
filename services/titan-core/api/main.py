@@ -1813,9 +1813,10 @@ async def _process_render_job(job_id: str, request: RenderStartRequest):
                 # If video-agent is not available, simulate with placeholder
                 logger.warning("Video-agent unavailable, using placeholder render")
                 
-                # Simulate progress
+                # Simulate progress with configurable delay
+                placeholder_delay = float(os.getenv("PLACEHOLDER_RENDER_DELAY", "2"))
                 for progress in [25, 50, 75, 100]:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(placeholder_delay)
                     await app_state.update_render_job(job_id, progress=progress)
                     app_state.render_jobs[job_id]["progress"] = progress
                 
@@ -1849,7 +1850,10 @@ async def _process_render_job(job_id: str, request: RenderStartRequest):
             await app_state.update_render_job(job_id, progress=25)
             app_state.render_jobs[job_id]["progress"] = 25
             
-            max_polls = 180  # 30 minutes max
+            # Configurable polling parameters
+            max_polls = int(os.getenv("RENDER_MAX_POLLS", "180"))  # Default 30 min (180 * 10s)
+            poll_interval = int(os.getenv("RENDER_POLL_INTERVAL", "10"))
+            
             for i in range(max_polls):
                 try:
                     status_response = await client.get(
@@ -1901,14 +1905,15 @@ async def _process_render_job(job_id: str, request: RenderStartRequest):
                         error_msg = status_data.get("error", "Unknown error")
                         raise Exception(error_msg)
                     
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(poll_interval)
                     
                 except httpx.TimeoutException:
                     logger.warning(f"Poll timeout for job {job_id}, retrying...")
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(poll_interval)
             
             # Timeout
-            raise Exception("Render job timed out after 30 minutes")
+            timeout_mins = (max_polls * poll_interval) // 60
+            raise Exception(f"Render job timed out after {timeout_mins} minutes")
 
     except Exception as e:
         logger.error(f"Render job {job_id} failed: {e}")

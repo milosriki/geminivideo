@@ -31,7 +31,7 @@ from typing import Optional
 # Configuration from environment
 GATEWAY_URL = os.getenv('GATEWAY_URL', 'http://localhost:8000')
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY', 'dev-internal-key')
-TIMEOUT = 600  # 10 minutes max for full pipeline
+TIMEOUT = int(os.getenv('TEST_TIMEOUT', '600'))  # Default 10 minutes, configurable
 
 
 @pytest.fixture

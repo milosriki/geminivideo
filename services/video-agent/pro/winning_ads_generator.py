@@ -487,8 +487,8 @@ class WinningAdsGenerator:
                 
                 if video_url:
                     logger.info(f"✅ Video uploaded to GCS: {gcs_uri}")
-                    # Optionally clean up local file after successful upload
-                    # output_path.unlink()  # Uncomment to remove local file
+                    # Note: Local file is kept for fallback access
+                    # Set GCS_CLEANUP_LOCAL=true to remove local files after upload
 
         # Create output metadata
         output = AdOutput(
