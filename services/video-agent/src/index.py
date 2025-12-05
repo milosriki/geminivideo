@@ -29,17 +29,24 @@ RENDERING PIPELINE:
 ============================================================================
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import asyncio
 import uuid
 from datetime import datetime
+import sys
+import os
+
+# Add shared directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'shared'))
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
+from db.connection import get_db
+from db.models import RenderJob as RenderJobModel
 
 app = FastAPI(title="Video Agent Service", version="1.0.0")
-
-# In-memory job queue (replace with Redis/Celery in production)
-render_jobs: Dict[str, Any] = {}
 
 
 class StoryboardScene(BaseModel):
@@ -81,7 +88,11 @@ async def health_check():
 
 
 @app.post("/render/remix", response_model=RenderJob)
-async def render_remix(request: RemixRequest, background_tasks: BackgroundTasks):
+async def render_remix(
+    request: RemixRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
     """
     Render a remixed video from storyboard
     - Accepts storyboard JSON with clip sequences
@@ -91,7 +102,7 @@ async def render_remix(request: RemixRequest, background_tasks: BackgroundTasks)
     """
     try:
         job_id = str(uuid.uuid4())
-        
+
         # Perform compliance check if requested
         if request.compliance_check:
             compliance_result = await check_compliance(request.storyboard)
@@ -100,58 +111,89 @@ async def render_remix(request: RemixRequest, background_tasks: BackgroundTasks)
                     status_code=400,
                     detail=f"Compliance check failed: {compliance_result['reason']}"
                 )
-        
-        # Create render job
-        job = {
-            "job_id": job_id,
-            "status": "queued",
-            "storyboard": [s.dict() for s in request.storyboard],
-            "output_format": request.output_format,
-            "resolution": request.resolution,
-            "fps": request.fps,
-            "created_at": datetime.utcnow().isoformat(),
-            "completed_at": None,
-            "output_path": None,
-            "error": None
-        }
-        
-        render_jobs[job_id] = job
-        
+
+        # Create render job in database
+        db_job = RenderJobModel(
+            job_id=job_id,
+            status="queued",
+            storyboard=[s.dict() for s in request.storyboard],
+            output_format=request.output_format,
+            resolution=request.resolution,
+            fps=request.fps
+        )
+
+        db.add(db_job)
+        await db.commit()
+        await db.refresh(db_job)
+
         # Queue background rendering task
         background_tasks.add_task(process_render_job, job_id)
-        
+
         return RenderJob(
             job_id=job_id,
             status="queued",
-            created_at=job["created_at"]
+            created_at=db_job.created_at.isoformat()
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to queue render job: {str(e)}")
 
 
 @app.get("/render/status/{job_id}", response_model=RenderJob)
-async def get_render_status(job_id: str):
+async def get_render_status(job_id: str, db: AsyncSession = Depends(get_db)):
     """Get render job status"""
-    if job_id not in render_jobs:
+    result = await db.execute(
+        select(RenderJobModel).where(RenderJobModel.job_id == job_id)
+    )
+    db_job = result.scalar_one_or_none()
+
+    if not db_job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    job = render_jobs[job_id]
-    return RenderJob(**job)
+
+    return RenderJob(
+        job_id=db_job.job_id,
+        status=db_job.status,
+        output_path=db_job.output_path,
+        created_at=db_job.created_at.isoformat(),
+        completed_at=db_job.completed_at.isoformat() if db_job.completed_at else None,
+        error=db_job.error
+    )
 
 
 @app.get("/render/jobs")
-async def list_render_jobs(status: Optional[str] = None, limit: int = 50):
+async def list_render_jobs(
+    status: Optional[str] = None,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db)
+):
     """List render jobs"""
-    jobs = list(render_jobs.values())
-    
+    query = select(RenderJobModel)
+
     if status:
-        jobs = [j for j in jobs if j["status"] == status]
-    
+        query = query.where(RenderJobModel.status == status)
+
+    query = query.order_by(RenderJobModel.created_at.desc()).limit(limit)
+
+    result = await db.execute(query)
+    db_jobs = result.scalars().all()
+
+    jobs = [
+        {
+            "job_id": job.job_id,
+            "status": job.status,
+            "output_path": job.output_path,
+            "created_at": job.created_at.isoformat(),
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "error": job.error
+        }
+        for job in db_jobs
+    ]
+
     return {
-        "jobs": jobs[:limit],
+        "jobs": jobs,
         "count": len(jobs)
     }
 
@@ -195,80 +237,110 @@ async def process_render_job(job_id: str):
     Background task to process render job
     Uses REAL FFmpeg for video composition via VideoRenderer
     """
-    if job_id not in render_jobs:
-        return
+    # Import database connection
+    from db.connection import get_db_context
 
-    job = render_jobs[job_id]
-    job["status"] = "processing"
-
-    try:
-        # Import REAL renderer
-        import sys
-        import os
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from services.renderer import VideoRenderer
-        from services.subtitle_generator import SubtitleGenerator
-        from types import SimpleNamespace
-
-        # Initialize renderer
-        renderer = VideoRenderer()
-        subtitle_gen = SubtitleGenerator()
-
-        # Parse resolution to output format
-        resolution_parts = job["resolution"].split("x")
-        output_format = {
-            "width": int(resolution_parts[0]),
-            "height": int(resolution_parts[1]),
-            "aspect": f"{resolution_parts[0]}:{resolution_parts[1]}"
-        }
-
-        # Convert storyboard dict to scene objects
-        scenes = [SimpleNamespace(**scene) for scene in job["storyboard"]]
-
-        # Create output directory
-        output_dir = "/outputs"
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Step 1: Concatenate scenes with FFmpeg
-        concatenated_path = await renderer.concatenate_scenes(
-            scenes=scenes,
-            enable_transitions=True
+    async with get_db_context() as db:
+        # Fetch job from database
+        result = await db.execute(
+            select(RenderJobModel).where(RenderJobModel.job_id == job_id)
         )
+        db_job = result.scalar_one_or_none()
 
-        # Step 2: Generate subtitles (if needed)
-        subtitle_path = None
+        if not db_job:
+            return
+
+        # Update status to processing
+        await db.execute(
+            update(RenderJobModel)
+            .where(RenderJobModel.job_id == job_id)
+            .values(status="processing")
+        )
+        await db.commit()
+
         try:
-            subtitle_path = subtitle_gen.generate_subtitles(
+            # Import REAL renderer
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            from services.renderer import VideoRenderer
+            from services.subtitle_generator import SubtitleGenerator
+            from types import SimpleNamespace
+
+            # Initialize renderer
+            renderer = VideoRenderer()
+            subtitle_gen = SubtitleGenerator()
+
+            # Parse resolution to output format
+            resolution_parts = db_job.resolution.split("x")
+            output_format = {
+                "width": int(resolution_parts[0]),
+                "height": int(resolution_parts[1]),
+                "aspect": f"{resolution_parts[0]}:{resolution_parts[1]}"
+            }
+
+            # Convert storyboard dict to scene objects
+            scenes = [SimpleNamespace(**scene) for scene in db_job.storyboard]
+
+            # Create output directory
+            output_dir = "/outputs"
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Step 1: Concatenate scenes with FFmpeg
+            concatenated_path = await renderer.concatenate_scenes(
                 scenes=scenes,
-                driver_signals={}
+                enable_transitions=True
             )
-        except Exception as subtitle_error:
-            print(f"Warning: Subtitle generation failed: {subtitle_error}")
 
-        # Step 3: Compose final video with format, overlays, subtitles
-        final_output_path = f"{output_dir}/{job_id}.{job['output_format']}"
+            # Step 2: Generate subtitles (if needed)
+            subtitle_path = None
+            try:
+                subtitle_path = subtitle_gen.generate_subtitles(
+                    scenes=scenes,
+                    driver_signals={}
+                )
+            except Exception as subtitle_error:
+                print(f"Warning: Subtitle generation failed: {subtitle_error}")
 
-        await renderer.compose_final_video(
-            input_path=concatenated_path,
-            output_path=final_output_path,
-            output_format=output_format,
-            overlay_path=None,
-            subtitle_path=subtitle_path
-        )
+            # Step 3: Compose final video with format, overlays, subtitles
+            final_output_path = f"{output_dir}/{job_id}.{db_job.output_format}"
 
-        # Clean up temporary concatenated file
-        if os.path.exists(concatenated_path) and concatenated_path != final_output_path:
-            os.remove(concatenated_path)
+            await renderer.compose_final_video(
+                input_path=concatenated_path,
+                output_path=final_output_path,
+                output_format=output_format,
+                overlay_path=None,
+                subtitle_path=subtitle_path
+            )
 
-        # Update job status
-        job["status"] = "completed"
-        job["output_path"] = final_output_path
-        job["completed_at"] = datetime.utcnow().isoformat()
+            # Clean up temporary concatenated file
+            if os.path.exists(concatenated_path) and concatenated_path != final_output_path:
+                os.remove(concatenated_path)
 
-    except Exception as e:
-        job["status"] = "failed"
-        job["error"] = str(e)
-        job["completed_at"] = datetime.utcnow().isoformat()
+            # Update job status to completed
+            await db.execute(
+                update(RenderJobModel)
+                .where(RenderJobModel.job_id == job_id)
+                .values(
+                    status="completed",
+                    output_path=final_output_path,
+                    completed_at=datetime.utcnow()
+                )
+            )
+            await db.commit()
+
+        except Exception as e:
+            # Update job status to failed
+            await db.execute(
+                update(RenderJobModel)
+                .where(RenderJobModel.job_id == job_id)
+                .values(
+                    status="failed",
+                    error=str(e),
+                    completed_at=datetime.utcnow()
+                )
+            )
+            await db.commit()
 
 
 if __name__ == "__main__":

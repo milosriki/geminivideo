@@ -136,6 +136,7 @@ const DRIVE_INTEL_URL = process.env.DRIVE_INTEL_URL || 'http://localhost:8001';
 const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || 'http://localhost:8002';
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
 const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
+const GOOGLE_ADS_URL = process.env.GOOGLE_ADS_URL || 'http://localhost:8084';
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
@@ -157,6 +158,7 @@ function validateServiceUrl(url: string): boolean {
         parsed.hostname.includes('video-agent') ||
         parsed.hostname.includes('ml-service') ||
         parsed.hostname.includes('meta-publisher') ||
+        parsed.hostname.includes('google-ads') ||
         parsed.hostname.includes('.run.app')); // Cloud Run domains
   } catch {
     return false;
@@ -496,10 +498,12 @@ app.get('/api/render/status/:jobId', async (req: Request, res: Response) => {
 });
 
 // Proxy to meta-publisher service
+// CRITICAL SECURITY: Approval gate for €5M investment protection
 app.post('/api/publish/meta',
   uploadRateLimiter,
   validateInput({
     body: {
+      ad_id: { type: 'uuid', required: true },
       video_path: { type: 'string', required: true, min: 1, max: 1000 },
       caption: { type: 'string', required: false, max: 2200, sanitize: true },
       scheduled_time: { type: 'string', required: false }
@@ -507,12 +511,139 @@ app.post('/api/publish/meta',
   }),
   async (req: Request, res: Response) => {
     try {
+      const { ad_id, video_path, caption, scheduled_time } = req.body;
+
+      // ====================================================================
+      // SECURITY GATE: Check if ad is approved before publishing to Meta
+      // ====================================================================
+      console.log(`[SECURITY] Checking approval status for ad_id=${ad_id}`);
+
+      const approvalQuery = `
+        SELECT ad_id, approved, status, asset_id, arc_name, predicted_ctr, predicted_roas
+        FROM ads
+        WHERE ad_id = $1
+      `;
+
+      const approvalResult = await pgPool.query(approvalQuery, [ad_id]);
+
+      if (approvalResult.rows.length === 0) {
+        console.error(`[SECURITY] Ad not found: ad_id=${ad_id}`);
+        return res.status(404).json({
+          error: 'Ad not found',
+          message: 'The specified ad does not exist in the system'
+        });
+      }
+
+      const ad = approvalResult.rows[0];
+
+      // CRITICAL CHECK: Must be approved AND status must be 'approved'
+      if (!ad.approved || ad.status !== 'approved') {
+        console.error(`[SECURITY] UNAUTHORIZED PUBLISH ATTEMPT BLOCKED: ad_id=${ad_id}, approved=${ad.approved}, status=${ad.status}`);
+
+        // Log the unauthorized attempt
+        const auditQuery = `
+          INSERT INTO audit_log (event_type, ad_id, details, timestamp)
+          VALUES ($1, $2, $3, NOW())
+        `;
+
+        await pgPool.query(auditQuery, [
+          'UNAUTHORIZED_PUBLISH_ATTEMPT',
+          ad_id,
+          JSON.stringify({
+            approved: ad.approved,
+            status: ad.status,
+            video_path,
+            ip_address: req.ip,
+            user_agent: req.get('user-agent')
+          })
+        ]).catch(err => {
+          console.warn('[AUDIT] Failed to log unauthorized attempt:', err.message);
+        });
+
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'This ad has not been approved for publishing',
+          details: {
+            ad_id,
+            approved: ad.approved,
+            status: ad.status,
+            required_status: 'approved'
+          }
+        });
+      }
+
+      console.log(`[SECURITY] Ad approved for publishing: ad_id=${ad_id}, predicted_ctr=${ad.predicted_ctr}, predicted_roas=${ad.predicted_roas}`);
+
+      // ====================================================================
+      // AUDIT TRAIL: Log successful publish attempt
+      // ====================================================================
+
+      // Extract user ID from request context (if available from auth middleware)
+      const userId = (req as any).user?.id || 'system';
+
+      // Update approved_by field
+      const updateQuery = `
+        UPDATE ads
+        SET
+          approved_by = $1,
+          published_at = NOW(),
+          status = 'published'
+        WHERE ad_id = $2
+      `;
+
+      await pgPool.query(updateQuery, [userId, ad_id]);
+
+      // Log the publish event
+      const publishAuditQuery = `
+        INSERT INTO audit_log (event_type, ad_id, user_id, details, timestamp)
+        VALUES ($1, $2, $3, $4, NOW())
+      `;
+
+      await pgPool.query(publishAuditQuery, [
+        'AD_PUBLISHED',
+        ad_id,
+        userId,
+        JSON.stringify({
+          video_path,
+          caption: caption?.substring(0, 100), // Truncate for log
+          scheduled_time,
+          predicted_ctr: ad.predicted_ctr,
+          predicted_roas: ad.predicted_roas,
+          ip_address: req.ip
+        })
+      ]).catch(err => {
+        console.warn('[AUDIT] Failed to log publish event:', err.message);
+      });
+
+      console.log(`[AUDIT] Publish logged: ad_id=${ad_id}, user_id=${userId}, timestamp=${new Date().toISOString()}`);
+
+      // ====================================================================
+      // APPROVED: Proxy to Meta Publisher
+      // ====================================================================
+
       const response = await axios.post(
         `${META_PUBLISHER_URL}/publish/meta`,
-        req.body
+        {
+          ad_id,
+          video_path,
+          caption,
+          scheduled_time
+        }
       );
-      res.json(response.data);
+
+      console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
+
+      res.json({
+        ...response.data,
+        security_check: {
+          approved: true,
+          approved_by: userId,
+          published_at: new Date().toISOString()
+        }
+      });
+
     } catch (error: any) {
+      console.error('[ERROR] Publish failed:', error.message);
       res.status(error.response?.status || 500).json({
         error: error.message
       });
@@ -532,6 +663,304 @@ app.get('/api/insights', async (req: Request, res: Response) => {
     });
   }
 });
+
+// ============================================================================
+// GOOGLE ADS INTEGRATION ENDPOINTS (Agent 13)
+// ============================================================================
+
+// Create Google Ads Campaign
+app.post('/api/google-ads/campaigns',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      name: { type: 'string', required: true, min: 1, max: 255 },
+      budget: { type: 'number', required: true, min: 1 },
+      biddingStrategy: { type: 'string', required: false },
+      startDate: { type: 'string', required: false },
+      endDate: { type: 'string', required: false },
+      status: { type: 'string', required: false, enum: ['ACTIVE', 'PAUSED'] }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const response = await axios.post(
+        `${GOOGLE_ADS_URL}/api/campaigns`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// Create Google Ads Ad Group
+app.post('/api/google-ads/ad-groups',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      name: { type: 'string', required: true, min: 1, max: 255 },
+      campaignId: { type: 'string', required: true },
+      cpcBidMicros: { type: 'number', required: true, min: 1 },
+      status: { type: 'string', required: false, enum: ['ACTIVE', 'PAUSED'] }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const response = await axios.post(
+        `${GOOGLE_ADS_URL}/api/ad-groups`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// Upload Creative to Google Ads (YouTube)
+app.post('/api/google-ads/upload-creative',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      videoPath: { type: 'string', required: true, min: 1, max: 1000 },
+      title: { type: 'string', required: false, max: 100, sanitize: true },
+      description: { type: 'string', required: false, max: 5000, sanitize: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const response = await axios.post(
+        `${GOOGLE_ADS_URL}/api/upload-creative`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// Create Google Ads Video Ad
+app.post('/api/google-ads/video-ads',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      videoPath: { type: 'string', required: true, min: 1, max: 1000 },
+      campaignId: { type: 'string', required: true },
+      adGroupId: { type: 'string', required: true },
+      headline: { type: 'string', required: true, min: 1, max: 100, sanitize: true },
+      description: { type: 'string', required: false, max: 1000, sanitize: true },
+      finalUrl: { type: 'string', required: true, min: 1, max: 1000 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const response = await axios.post(
+        `${GOOGLE_ADS_URL}/api/video-ads`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// Get Google Ads Campaign Performance
+app.get('/api/google-ads/performance/campaign/:campaignId',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      campaignId: { type: 'string', required: true }
+    },
+    query: {
+      startDate: { type: 'string', required: false },
+      endDate: { type: 'string', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const { campaignId } = req.params;
+      const response = await axios.get(
+        `${GOOGLE_ADS_URL}/api/performance/campaign/${campaignId}`,
+        { params: req.query }
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// Get Google Ads Ad Performance
+app.get('/api/google-ads/performance/ad/:adId',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      adId: { type: 'string', required: true }
+    },
+    query: {
+      startDate: { type: 'string', required: false },
+      endDate: { type: 'string', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const { adId } = req.params;
+      const response = await axios.get(
+        `${GOOGLE_ADS_URL}/api/performance/ad/${adId}`,
+        { params: req.query }
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// Publish to Google Ads (Complete Workflow)
+app.post('/api/google-ads/publish',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      videoPath: { type: 'string', required: true, min: 1, max: 1000 },
+      campaignName: { type: 'string', required: true, min: 1, max: 255 },
+      budget: { type: 'number', required: true, min: 1 },
+      adGroupName: { type: 'string', required: true, min: 1, max: 255 },
+      cpcBidMicros: { type: 'number', required: true, min: 1 },
+      headline: { type: 'string', required: true, min: 1, max: 100, sanitize: true },
+      description: { type: 'string', required: false, max: 1000, sanitize: true },
+      finalUrl: { type: 'string', required: true, min: 1, max: 1000 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const response = await axios.post(
+        `${GOOGLE_ADS_URL}/api/publish`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// Update Google Ads Ad Status
+app.patch('/api/google-ads/ads/:adId/status',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      adId: { type: 'string', required: true }
+    },
+    body: {
+      status: { type: 'string', required: true, enum: ['ENABLED', 'PAUSED'] }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const { adId } = req.params;
+      const response = await axios.patch(
+        `${GOOGLE_ADS_URL}/api/ads/${adId}/status`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// Update Google Ads Campaign Budget
+app.patch('/api/google-ads/campaigns/:campaignId/budget',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      campaignId: { type: 'string', required: true }
+    },
+    body: {
+      budget: { type: 'number', required: true, min: 1 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const { campaignId } = req.params;
+      const response = await axios.patch(
+        `${GOOGLE_ADS_URL}/api/campaigns/${campaignId}/budget`,
+        req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// Get Google Ads Account Info
+app.get('/api/google-ads/account/info',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      if (!validateServiceUrl(GOOGLE_ADS_URL)) {
+        throw new Error('Invalid service URL');
+      }
+      const response = await axios.get(
+        `${GOOGLE_ADS_URL}/api/account/info`
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  });
 
 // Learning loop endpoint
 app.post('/api/internal/learning/update', async (req: Request, res: Response) => {
@@ -587,8 +1016,8 @@ app.post('/api/trigger/analyze-drive-folder',
 
       console.log(`Triggering Drive folder analysis: folder_id=${folder_id}, max_videos=${max_videos || 'all'}`);
 
-      // Call drive-intel service bulk_analyzer
-      const response = await axios.post(`${DRIVE_INTEL_URL}/bulk_analyzer`, {
+      // Call drive-intel service bulk-analyze endpoint
+      const response = await axios.post(`${DRIVE_INTEL_URL}/api/bulk-analyze`, {
         folder_id,
         max_videos: max_videos || 10
       });
@@ -964,7 +1393,7 @@ app.post('/api/generate',
       console.log(`Generating creatives for ${assets.length} asset(s), audience: ${target_audience || 'general'}`);
 
       // Forward to titan-core for Gemini generation
-      const response = await axios.post(`${TITAN_CORE_URL}/generate-creatives`, {
+      const response = await axios.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
         video_files: assets,
         audience: target_audience || 'general',
         platform: 'reels'
@@ -997,7 +1426,7 @@ app.get('/api/experiments', async (req: Request, res: Response) => {
     // Query campaign_outcomes table for real experiment data
     const query = `
       WITH numbered_variants AS (
-        SELECT 
+        SELECT
           co.id,
           co.campaign_id,
           co.impressions,
@@ -1009,7 +1438,7 @@ app.get('/api/experiments', async (req: Request, res: Response) => {
           ROW_NUMBER() OVER (PARTITION BY co.campaign_id ORDER BY co.created_at) as variant_num
         FROM campaign_outcomes co
       )
-      SELECT 
+      SELECT
         c.id as id,
         c.name,
         c.status,
@@ -1056,6 +1485,105 @@ app.get('/api/experiments', async (req: Request, res: Response) => {
     res.status(500).json({
       error: error.message,
       experiments: [] // Return empty array on error
+    });
+  }
+});
+
+// GET /api/ab-tests - Alternative endpoint for AB tests (proxies to ML service)
+app.get('/api/ab-tests', async (req: Request, res: Response) => {
+  try {
+    console.log('Fetching AB tests from ML service');
+
+    const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/experiments`, {
+      timeout: 30000
+    });
+
+    res.json(response.data);
+
+  } catch (error: any) {
+    console.warn('ML service unavailable, falling back to database:', error.message);
+
+    // Fallback to database query
+    try {
+      const dbQuery = `
+        SELECT
+          c.id,
+          c.name,
+          c.status,
+          c.created_at,
+          c.budget_daily as total_budget,
+          COUNT(DISTINCT co.id) as variant_count
+        FROM campaigns c
+        LEFT JOIN campaign_outcomes co ON c.id = co.campaign_id
+        WHERE c.status IN ('active', 'running', 'paused')
+        GROUP BY c.id, c.name, c.status, c.created_at, c.budget_daily
+        ORDER BY c.created_at DESC
+        LIMIT 20
+      `;
+
+      const result = await pgPool.query(dbQuery);
+
+      res.json({
+        experiments: result.rows.map(row => ({
+          experiment_id: row.id,
+          experiment_name: row.name,
+          status: row.status,
+          created_at: row.created_at,
+          total_budget: parseFloat(row.total_budget) || 5000,
+          variant_count: parseInt(row.variant_count) || 0
+        })),
+        count: result.rows.length
+      });
+
+    } catch (dbError: any) {
+      console.error('Database fallback failed:', dbError);
+      res.status(500).json({
+        error: 'Failed to fetch AB tests',
+        experiments: [],
+        count: 0
+      });
+    }
+  }
+});
+
+// GET /api/ab-tests/:id/results - Get detailed AB test results
+app.get('/api/ab-tests/:id/results', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    console.log(`Fetching AB test results for experiment: ${id}`);
+
+    const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/results`, {
+      timeout: 30000
+    });
+
+    res.json(response.data);
+
+  } catch (error: any) {
+    console.error('Error fetching AB test results:', error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.message,
+      details: error.response?.data || 'Failed to fetch AB test results'
+    });
+  }
+});
+
+// GET /api/ab-tests/:id/variants - Get variant performance data
+app.get('/api/ab-tests/:id/variants', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    console.log(`Fetching variant performance for experiment: ${id}`);
+
+    const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/variants`, {
+      timeout: 30000
+    });
+
+    res.json(response.data);
+
+  } catch (error: any) {
+    console.error('Error fetching variant data:', error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.message,
+      details: error.response?.data || 'Failed to fetch variant data'
     });
   }
 });
@@ -1154,6 +1682,510 @@ app.get('/avatars', async (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// AI COUNCIL ENDPOINTS (Titan Core Integration)
+// ============================================================================
+
+// POST /api/council/evaluate - AI Council creative evaluation
+app.post('/api/council/evaluate',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      creative_id: { type: 'string', required: false, min: 1, max: 100 },
+      video_uri: { type: 'string', required: false, min: 1, max: 1000 },
+      metadata: { type: 'object', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { creative_id, video_uri, metadata } = req.body;
+
+      if (!creative_id && !video_uri) {
+        return res.status(400).json({
+          error: 'Either creative_id or video_uri is required'
+        });
+      }
+
+      console.log(`AI Council evaluation: creative_id=${creative_id || 'N/A'}, video_uri=${video_uri || 'N/A'}`);
+
+      // Forward to Titan Core AI Council
+      const response = await axios.post(`${TITAN_CORE_URL}/council/evaluate`, {
+        creative_id,
+        video_uri,
+        metadata
+      }, {
+        timeout: 60000 // 60 second timeout for AI evaluation
+      });
+
+      res.json(response.data);
+
+    } catch (error: any) {
+      console.error('AI Council evaluation error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Evaluation failed',
+        message: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// POST /api/oracle/predict - Oracle predictive analytics
+app.post('/api/oracle/predict',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      campaign_data: { type: 'object', required: true },
+      prediction_type: { type: 'string', required: false, enum: ['ctr', 'roas', 'conversions', 'all'] }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { campaign_data, prediction_type = 'all' } = req.body;
+
+      if (!campaign_data || Object.keys(campaign_data).length === 0) {
+        return res.status(400).json({
+          error: 'campaign_data is required and cannot be empty'
+        });
+      }
+
+      console.log(`Oracle prediction: type=${prediction_type}, data_keys=${Object.keys(campaign_data).length}`);
+
+      // Forward to Titan Core Oracle
+      const response = await axios.post(`${TITAN_CORE_URL}/oracle/predict`, {
+        campaign_data,
+        prediction_type
+      }, {
+        timeout: 45000 // 45 second timeout for predictions
+      });
+
+      res.json(response.data);
+
+    } catch (error: any) {
+      console.error('Oracle prediction error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Prediction failed',
+        message: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// POST /api/director/generate - Director creative generation
+app.post('/api/director/generate',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      brief: { type: 'string', required: true, min: 10, max: 5000, sanitize: true },
+      assets: { type: 'array', required: false },
+      style: { type: 'string', required: false, max: 100 },
+      duration: { type: 'number', required: false, min: 5, max: 300 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { brief, assets, style, duration } = req.body;
+
+      if (!brief || brief.trim().length < 10) {
+        return res.status(400).json({
+          error: 'Brief is required and must be at least 10 characters'
+        });
+      }
+
+      console.log(`Director generation: brief_length=${brief.length}, assets=${assets?.length || 0}, style=${style || 'auto'}`);
+
+      // Forward to Titan Core Director
+      const response = await axios.post(`${TITAN_CORE_URL}/director/generate`, {
+        brief,
+        assets: assets || [],
+        style: style || 'auto',
+        duration: duration || 30
+      }, {
+        timeout: 180000 // 3 minute timeout for creative generation
+      });
+
+      res.status(202).json({
+        status: 'accepted',
+        message: 'Creative generation started',
+        job_id: response.data.job_id,
+        estimated_time: response.data.estimated_time || '2-5 minutes',
+        data: response.data
+      });
+
+    } catch (error: any) {
+      console.error('Director generation error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Generation failed',
+        message: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// POST /api/pipeline/generate-campaign - Full campaign generation pipeline
+app.post('/api/pipeline/generate-campaign',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      video_files: { type: 'array', required: true, min: 1 },
+      audience: { type: 'string', required: false, max: 500 },
+      platform: { type: 'string', required: false, enum: ['reels', 'stories', 'feed', 'tiktok', 'youtube'] },
+      campaign_objective: { type: 'string', required: false, enum: ['conversions', 'traffic', 'awareness', 'engagement'] }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { video_files, audience, platform = 'reels', campaign_objective = 'conversions' } = req.body;
+
+      if (!video_files || video_files.length === 0) {
+        return res.status(400).json({
+          error: 'At least one video file is required'
+        });
+      }
+
+      console.log(`Pipeline campaign generation: videos=${video_files.length}, audience=${audience || 'general'}, platform=${platform}`);
+
+      // Forward to Titan Core Pipeline
+      const response = await axios.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
+        video_files,
+        audience: audience || 'general',
+        platform,
+        campaign_objective
+      }, {
+        timeout: 180000 // 3 minute timeout for full pipeline
+      });
+
+      res.status(202).json({
+        status: 'accepted',
+        message: 'Campaign generation pipeline started',
+        job_id: response.data.job_id,
+        campaign_id: response.data.campaign_id,
+        estimated_time: response.data.estimated_time || '3-7 minutes',
+        data: response.data
+      });
+
+    } catch (error: any) {
+      console.error('Pipeline generation error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Pipeline failed',
+        message: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// ============================================================================
+// MULTI-PLATFORM PUBLISHING ENDPOINTS (Agent 19)
+// ============================================================================
+
+import { MultiPlatformPublisher } from './multi-platform/multi_publisher';
+import { statusAggregator } from './multi-platform/status_aggregator';
+
+const TIKTOK_ADS_URL = process.env.TIKTOK_ADS_URL || 'http://localhost:8085';
+
+// Initialize multi-platform publisher
+const multiPlatformPublisher = new MultiPlatformPublisher({
+  videoAgentUrl: VIDEO_AGENT_URL,
+  metaPublisherUrl: META_PUBLISHER_URL,
+  googleAdsUrl: GOOGLE_ADS_URL,
+  tiktokAdsUrl: TIKTOK_ADS_URL
+});
+
+// POST /api/publish/multi - Unified multi-platform publishing
+app.post('/api/publish/multi',
+  uploadRateLimiter,
+  validateInput({
+    body: {
+      creative_id: { type: 'string', required: true, min: 1, max: 100 },
+      video_path: { type: 'string', required: true, min: 1, max: 1000 },
+      platforms: { type: 'array', required: true, min: 1, max: 3 },
+      budget_allocation: { type: 'object', required: true },
+      campaign_name: { type: 'string', required: true, min: 1, max: 255, sanitize: true },
+      campaign_config: { type: 'object', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        creative_id,
+        video_path,
+        platforms,
+        budget_allocation,
+        campaign_name,
+        campaign_config,
+        creative_config
+      } = req.body;
+
+      console.log(`[Multi-Platform] Publishing to: ${platforms.join(', ')}`);
+
+      // Validate platforms
+      const validPlatforms = ['meta', 'google', 'tiktok'];
+      const invalidPlatforms = platforms.filter((p: string) => !validPlatforms.includes(p));
+
+      if (invalidPlatforms.length > 0) {
+        return res.status(400).json({
+          error: 'Invalid platforms',
+          message: `Invalid platforms: ${invalidPlatforms.join(', ')}. Valid: ${validPlatforms.join(', ')}`
+        });
+      }
+
+      // Validate budget allocation
+      for (const platform of platforms) {
+        if (!budget_allocation[platform] || budget_allocation[platform] <= 0) {
+          return res.status(400).json({
+            error: 'Invalid budget allocation',
+            message: `Budget allocation for ${platform} must be > 0`
+          });
+        }
+      }
+
+      // Publish to all platforms
+      const result = await multiPlatformPublisher.publishMultiPlatform({
+        creative_id,
+        video_path,
+        platforms,
+        budget_allocation,
+        campaign_name,
+        campaign_config: campaign_config || {},
+        creative_config
+      });
+
+      res.status(202).json({
+        status: 'accepted',
+        ...result,
+        message: result.message,
+        next_steps: {
+          check_status: `/api/publish/status/${result.job_id}`,
+          monitor_progress: `/api/publish/status/${result.job_id}`
+        }
+      });
+
+    } catch (error: any) {
+      console.error('[Multi-Platform] Publishing error:', error.message);
+      res.status(500).json({
+        error: 'Multi-platform publishing failed',
+        message: error.message,
+        details: error.response?.data
+      });
+    }
+  });
+
+// GET /api/publish/status/:job_id - Check multi-platform publishing status
+app.get('/api/publish/status/:job_id',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      job_id: { type: 'string', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { job_id } = req.params;
+
+      const job = statusAggregator.getJobStatus(job_id);
+
+      if (!job) {
+        return res.status(404).json({
+          error: 'Job not found',
+          message: `Publishing job ${job_id} not found`
+        });
+      }
+
+      // Get aggregated metrics if available
+      const metrics = statusAggregator.aggregateMetrics(job_id);
+      const comparison = statusAggregator.getPlatformComparison(job_id);
+
+      res.json({
+        status: 'success',
+        job: {
+          jobId: job.jobId,
+          creativeId: job.creativeId,
+          campaignName: job.campaignName,
+          platforms: job.platforms,
+          overallStatus: job.overallStatus,
+          successCount: job.successCount,
+          failureCount: job.failureCount,
+          totalPlatforms: job.totalPlatforms,
+          createdAt: job.createdAt,
+          completedAt: job.completedAt
+        },
+        platformStatuses: job.platformStatuses,
+        metrics,
+        platformComparison: comparison,
+        budgetAllocation: job.budgetAllocation
+      });
+
+    } catch (error: any) {
+      console.error('[Multi-Platform] Status check error:', error.message);
+      res.status(500).json({
+        error: 'Failed to get job status',
+        message: error.message
+      });
+    }
+  });
+
+// GET /api/platforms/specs - Get platform creative specifications
+app.get('/api/platforms/specs',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      platforms: { type: 'string', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const platformsQuery = req.query.platforms as string;
+      const platforms = platformsQuery
+        ? (platformsQuery.split(',') as ('meta' | 'google' | 'tiktok')[])
+        : ['meta', 'google', 'tiktok'];
+
+      const specs = multiPlatformPublisher.getPlatformSpecs(platforms);
+
+      res.json({
+        status: 'success',
+        platforms,
+        specs,
+        total_specs: specs.length,
+        usage: {
+          meta: 'Facebook/Instagram Ads - Various placements (Feed, Reels, Stories)',
+          google: 'Google Ads - YouTube and Display Network',
+          tiktok: 'TikTok Ads - Vertical video only (9:16)'
+        }
+      });
+
+    } catch (error: any) {
+      console.error('[Multi-Platform] Specs error:', error.message);
+      res.status(500).json({
+        error: 'Failed to get platform specs',
+        message: error.message
+      });
+    }
+  });
+
+// POST /api/platforms/budget-allocation - Calculate recommended budget allocation
+app.post('/api/platforms/budget-allocation',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      platforms: { type: 'array', required: true, min: 1, max: 3 },
+      total_budget: { type: 'number', required: true, min: 1 },
+      custom_weights: { type: 'object', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { platforms, total_budget, custom_weights } = req.body;
+
+      const allocation = multiPlatformPublisher.calculateBudgetAllocation(
+        platforms,
+        total_budget,
+        custom_weights
+      );
+
+      res.json({
+        status: 'success',
+        total_budget,
+        platforms,
+        allocation,
+        percentages: Object.keys(allocation).reduce((acc, platform) => {
+          acc[platform] = ((allocation[platform] / total_budget) * 100).toFixed(1) + '%';
+          return acc;
+        }, {} as Record<string, string>),
+        note: custom_weights
+          ? 'Budget allocated using custom weights'
+          : 'Budget allocated using default platform weights (Meta: 50%, Google: 30%, TikTok: 20%)'
+      });
+
+    } catch (error: any) {
+      console.error('[Multi-Platform] Budget allocation error:', error.message);
+      res.status(500).json({
+        error: 'Failed to calculate budget allocation',
+        message: error.message
+      });
+    }
+  });
+
+// GET /api/publish/jobs - Get all publishing jobs
+app.get('/api/publish/jobs',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      limit: { type: 'number', required: false, min: 1, max: 100 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+
+      const jobs = statusAggregator.getRecentJobs(limit);
+      const summary = statusAggregator.getSummary();
+
+      res.json({
+        status: 'success',
+        jobs,
+        summary,
+        count: jobs.length
+      });
+
+    } catch (error: any) {
+      console.error('[Multi-Platform] Jobs list error:', error.message);
+      res.status(500).json({
+        error: 'Failed to get publishing jobs',
+        message: error.message
+      });
+    }
+  });
+
+// GET /api/publish/summary - Get publishing summary statistics
+app.get('/api/publish/summary',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const summary = statusAggregator.getSummary();
+
+      res.json({
+        status: 'success',
+        summary,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error: any) {
+      console.error('[Multi-Platform] Summary error:', error.message);
+      res.status(500).json({
+        error: 'Failed to get publishing summary',
+        message: error.message
+      });
+    }
+  });
+
+// ============================================================================
+// ONBOARDING ENDPOINTS
+// ============================================================================
+
+import { createOnboardingRouter } from './routes/onboarding';
+const onboardingRouter = createOnboardingRouter(pgPool);
+app.use('/api/onboarding', onboardingRouter);
+
+// ============================================================================
+// DEMO MODE ENDPOINTS (Agent 20 - Investor Demo Mode)
+// ============================================================================
+
+import demoRouter from './routes/demo';
+app.use('/api/demo', demoRouter);
+
+// ============================================================================
+// ALERT SYSTEM ENDPOINTS (Agent 16 - Real-Time Performance Alerts)
+// ============================================================================
+
+import alertsRouter, { initializeAlertWebSocket } from './routes/alerts';
+app.use('/api/alerts', alertsRouter);
+
+// ============================================================================
+// REPORT GENERATION ENDPOINTS (Agent 18 - Campaign Performance Reports)
+// ============================================================================
+
+import reportRoutes from './routes/reports';
+app.use('/api/reports', reportRoutes);
+
+// ============================================================================
 // HEALTH CHECK
 // ============================================================================
 
@@ -1164,8 +2196,12 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Gateway API listening on port ${PORT}`);
+
+  // Initialize WebSocket for real-time alerts
+  initializeAlertWebSocket(server);
+  console.log('Alert WebSocket server initialized on /ws/alerts');
 });
 
 export default app;

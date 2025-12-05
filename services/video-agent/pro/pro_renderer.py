@@ -1137,6 +1137,208 @@ class ProRenderer:
         }
         return extensions.get(output_format, 'mp4')
 
+    def render_with_beat_sync(
+        self,
+        video_clips: List[str],
+        audio_path: str,
+        output_path: str,
+        platform: Platform = Platform.INSTAGRAM,
+        quality: QualityPreset = QualityPreset.HIGH,
+        aspect_ratio: Optional[AspectRatio] = None,
+        transition_duration: float = 0.5,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> bool:
+        """
+        Render video with cuts synchronized to music beats
+
+        Args:
+            video_clips: List of video clip paths to use
+            audio_path: Path to audio file for beat detection
+            output_path: Output video path
+            platform: Target platform
+            quality: Quality preset
+            aspect_ratio: Target aspect ratio
+            transition_duration: Duration of transitions between cuts (seconds)
+            progress_callback: Progress callback function
+
+        Returns:
+            True if successful
+        """
+        try:
+            import librosa
+            import numpy as np
+
+            logger.info("🎵 Starting beat-sync render pipeline")
+
+            # Step 1: Detect beats in audio
+            logger.info("Detecting beats in audio...")
+            y, sr = librosa.load(audio_path)
+            tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+            beat_times = librosa.frames_to_time(beat_frames, sr=sr)
+
+            logger.info(f"Detected {len(beat_times)} beats at {tempo:.1f} BPM")
+
+            if len(beat_times) == 0:
+                logger.warning("No beats detected, falling back to equal spacing")
+                # Create evenly spaced cuts every 2 seconds
+                audio_duration = len(y) / sr
+                beat_times = np.arange(0, audio_duration, 2.0)
+
+            # Step 2: Get audio duration
+            audio_duration = len(y) / sr
+
+            # Step 3: Create cut plan - distribute video clips across beats
+            num_beats = len(beat_times)
+            num_clips = len(video_clips)
+
+            if num_clips == 0:
+                raise ValueError("No video clips provided")
+
+            # Calculate clip durations based on beat intervals
+            clip_segments = []
+            for i in range(num_beats - 1):
+                clip_idx = i % num_clips  # Cycle through clips
+                start_time = beat_times[i]
+                end_time = beat_times[i + 1]
+                duration = end_time - start_time
+
+                # Get metadata of source clip
+                try:
+                    source_metadata = self.get_video_metadata(video_clips[clip_idx])
+                    # Use a random segment from the source clip
+                    max_start = max(0, source_metadata.duration - duration)
+                    source_start = min(max_start, i * 2.0) % source_metadata.duration
+
+                    clip_segments.append({
+                        'source': video_clips[clip_idx],
+                        'source_start': source_start,
+                        'source_duration': min(duration, source_metadata.duration),
+                        'output_start': start_time,
+                        'output_duration': duration,
+                        'beat_index': i
+                    })
+                except Exception as e:
+                    logger.warning(f"Failed to process clip {clip_idx}: {e}")
+                    continue
+
+            logger.info(f"Created {len(clip_segments)} beat-synced segments")
+
+            # Step 4: Get optimal render settings
+            settings = self.get_optimal_settings(platform, quality, aspect_ratio)
+
+            # Step 5: Create temporary directory for segments
+            temp_dir = os.path.join(self.temp_dir, f'beat_sync_{int(time.time())}')
+            os.makedirs(temp_dir, exist_ok=True)
+
+            try:
+                # Step 6: Extract and process each segment
+                processed_segments = []
+
+                for i, segment in enumerate(clip_segments):
+                    segment_output = os.path.join(temp_dir, f'segment_{i:04d}.mp4')
+
+                    # Build trim and scale operation
+                    operations = [
+                        {
+                            'type': 'trim',
+                            'start': segment['source_start'],
+                            'end': segment['source_start'] + segment['source_duration']
+                        }
+                    ]
+
+                    # Get source metadata for filtergraph
+                    source_metadata = self.get_video_metadata(segment['source'])
+                    filtergraph = self.build_filtergraph(operations, settings, source_metadata)
+
+                    # Encode segment
+                    success = self.encode_video(
+                        input_path=segment['source'],
+                        output_path=segment_output,
+                        settings=settings,
+                        output_format=OutputFormat.MP4_H264,
+                        filtergraph=filtergraph,
+                        progress_callback=None,
+                        metadata=source_metadata
+                    )
+
+                    if success and os.path.exists(segment_output):
+                        processed_segments.append(segment_output)
+                        logger.info(f"Processed segment {i+1}/{len(clip_segments)}")
+
+                    # Update progress
+                    if progress_callback:
+                        progress = (i + 1) / len(clip_segments) * 70  # 70% for segmenting
+                        progress_callback(progress)
+
+                if not processed_segments:
+                    raise RuntimeError("No segments were processed successfully")
+
+                logger.info(f"Successfully processed {len(processed_segments)} segments")
+
+                # Step 7: Concatenate segments with transitions
+                concat_output = os.path.join(temp_dir, 'concatenated.mp4')
+
+                # Create concat file for FFmpeg
+                concat_file = os.path.join(temp_dir, 'concat_list.txt')
+                with open(concat_file, 'w') as f:
+                    for seg in processed_segments:
+                        f.write(f"file '{os.path.basename(seg)}'\n")
+
+                # Concatenate using FFmpeg concat demuxer (fast, no re-encoding)
+                cmd = [
+                    'ffmpeg', '-y',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', concat_file,
+                    '-c', 'copy',
+                    concat_output
+                ]
+
+                logger.info("Concatenating segments...")
+                result = subprocess.run(cmd, capture_output=True, timeout=300, cwd=temp_dir)
+
+                if result.returncode != 0:
+                    logger.error(f"Concatenation stderr: {result.stderr.decode()}")
+                    raise RuntimeError(f"Concatenation failed: {result.stderr.decode()}")
+
+                if progress_callback:
+                    progress_callback(85)
+
+                # Step 8: Add audio track
+                logger.info("Adding audio track...")
+
+                cmd = [
+                    'ffmpeg', '-y',
+                    '-i', concat_output,
+                    '-i', audio_path,
+                    '-c:v', 'copy',
+                    '-c:a', 'aac',
+                    '-b:a', settings.audio_bitrate,
+                    '-shortest',  # Match shortest stream (video or audio)
+                    '-movflags', '+faststart',
+                    output_path
+                ]
+
+                result = subprocess.run(cmd, capture_output=True, timeout=300)
+
+                if result.returncode != 0:
+                    raise RuntimeError(f"Audio mixing failed: {result.stderr.decode()}")
+
+                if progress_callback:
+                    progress_callback(100)
+
+                logger.info(f"✅ Beat-sync render completed: {output_path}")
+                return True
+
+            finally:
+                # Cleanup temp directory
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
+
+        except Exception as e:
+            logger.error(f"Beat-sync render failed: {e}")
+            return False
+
     def render_video(
         self,
         input_path: str,

@@ -205,5 +205,19 @@ services:
       - ./shared:/app/shared
       - ./services/video-agent/src:/app/src
 
+  tiktok-ads:
+    build:
+      context: ./services/tiktok-ads
+      dockerfile: Dockerfile
+    container_name: geminivideo-tiktok-ads
+    environment:
+      PORT: 8085
+      TIKTOK_ACCESS_TOKEN: ${TIKTOK_ACCESS_TOKEN:-}
+      TIKTOK_ADVERTISER_ID: ${TIKTOK_ADVERTISER_ID:-}
+    ports:
+      - "8085:8085"
+    volumes:
+      - ./services/tiktok-ads/src:/app/src
+
 volumes:
   postgres_data:

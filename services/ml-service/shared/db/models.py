@@ -78,3 +78,42 @@ class AuditLog(Base):
     action = Column(String)
     details = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Prediction(Base):
+    """
+    ML Prediction tracking for model validation and ROI verification.
+
+    Stores all predictions made by the ML models and later updates with
+    actual performance data for accuracy measurement and continuous improvement.
+    """
+    __tablename__ = "predictions"
+
+    id = Column(String, primary_key=True)  # UUID as string
+    video_id = Column(String, nullable=False, index=True)
+    ad_id = Column(String, nullable=False)
+    platform = Column(String, nullable=False, index=True)
+
+    # Predicted metrics
+    predicted_ctr = Column(Float, nullable=False)
+    predicted_roas = Column(Float, nullable=False)
+    predicted_conversion = Column(Float, nullable=False)
+
+    # Actual metrics (populated later)
+    actual_ctr = Column(Float, nullable=True)
+    actual_roas = Column(Float, nullable=True)
+    actual_conversion = Column(Float, nullable=True)
+
+    # Additional performance data
+    impressions = Column(Integer, nullable=True)
+    clicks = Column(Integer, nullable=True)
+    spend = Column(Numeric(10, 2), nullable=True)
+
+    # Model metadata
+    council_score = Column(Float, nullable=False)  # AI council confidence
+    hook_type = Column(String, nullable=False, index=True)
+    template_type = Column(String, nullable=False)
+    metadata = Column(JSON, default={})  # Additional context and calculated metrics
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    actuals_fetched_at = Column(DateTime(timezone=True), nullable=True)
