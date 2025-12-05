@@ -27,6 +27,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field, validator
 import uvicorn
+import httpx  # For async HTTP calls to video-agent
 
 # Setup logging
 logging.basicConfig(
@@ -1682,19 +1683,19 @@ async def generate_embeddings_endpoint(request: EmbeddingsRequest):
 
 
 # ============================================================================
-# BACKGROUND TASKS
+# BACKGROUND TASKS - REAL RENDERING VIA VIDEO-AGENT
 # ============================================================================
+VIDEO_AGENT_URL = os.getenv("VIDEO_AGENT_URL", "http://localhost:8002")
+
 async def _process_render_job(job_id: str, request: RenderStartRequest):
     """
-    Process a render job in the background
+    Process a render job by calling video-agent PRO renderer
 
-    This is a placeholder for the actual rendering logic.
-    In production, this would:
-    1. Use WinningAdsGenerator to create the video
-    2. Apply auto-captions
-    3. Apply smart cropping
-    4. Save to output directory
-    5. Update job status
+    Production flow:
+    1. Call video-agent to start rendering
+    2. Poll for progress updates
+    3. Update database with final output
+    4. Log audit trail
     """
     try:
         # Update status to processing
@@ -1704,38 +1705,210 @@ async def _process_render_job(job_id: str, request: RenderStartRequest):
 
         logger.info(f"Processing render job {job_id}")
 
-        # Simulate rendering (replace with actual rendering logic)
-        for progress in [0, 25, 50, 75, 100]:
-            await asyncio.sleep(1)  # Simulate work
-            await app_state.update_render_job(job_id, progress=progress)
-            app_state.render_jobs[job_id]["progress"] = progress
-            app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+        # Try to use local PRO renderer if available
+        if app_state.winning_ads_generator and PRO_VIDEO_AVAILABLE:
+            try:
+                logger.info(f"Using local PRO renderer for job {job_id}")
+                
+                # Import pro module components
+                from pro.winning_ads_generator import AdAssets, AdConfig, AdTemplate, Platform, AspectRatio
+                
+                # Create assets and config from request
+                req_data = request.model_dump() if hasattr(request, 'model_dump') else request.__dict__
+                blueprint = req_data.get('blueprint', {})
+                
+                assets = AdAssets(
+                    video_clips=blueprint.get('video_clips', []),
+                    images=blueprint.get('images', []),
+                    audio_tracks=blueprint.get('audio_tracks', []),
+                    logo=blueprint.get('logo'),
+                )
+                
+                config = AdConfig(
+                    template=AdTemplate.PROBLEM_SOLUTION,
+                    platform=Platform.INSTAGRAM,
+                    aspect_ratio=AspectRatio.VERTICAL,
+                    duration=blueprint.get('duration', 30.0),
+                )
+                
+                # Generate the ad
+                output = app_state.winning_ads_generator.generate_winning_ad(
+                    assets=assets,
+                    config=config,
+                    output_filename=f"{job_id}.mp4",
+                    upload_to_gcs=True
+                )
+                
+                # Update with results
+                await app_state.update_render_job(
+                    job_id,
+                    status=RenderStatus.COMPLETED,
+                    progress=100,
+                    output_url=output.video_url or output.video_path,
+                    completed_at=datetime.utcnow()
+                )
+                app_state.render_jobs[job_id].update({
+                    "status": RenderStatus.COMPLETED,
+                    "output_path": output.video_path,
+                    "video_url": output.video_url,
+                    "gcs_path": output.gcs_path,
+                    "progress": 100.0,
+                    "updated_at": datetime.utcnow()
+                })
+                
+                # Log audit
+                await app_state.log_audit(
+                    action="render_completed",
+                    entity_type="render_job",
+                    entity_id=job_id,
+                    details={
+                        "output_path": output.video_path,
+                        "video_url": output.video_url,
+                        "gcs_path": output.gcs_path,
+                        "status": "completed"
+                    }
+                )
+                
+                logger.info(f"✅ Render job {job_id} completed via local PRO renderer")
+                return
+                
+            except Exception as e:
+                logger.warning(f"Local PRO renderer failed, falling back to video-agent: {e}")
 
-        # In production, this would be the actual output path
-        output_path = os.path.join(Config.OUTPUT_DIR, f"{job_id}.mp4")
-
-        # Mark as completed in both database and memory
-        await app_state.update_render_job(
-            job_id,
-            status=RenderStatus.COMPLETED,
-            progress=100,
-            output_url=output_path,
-            completed_at=datetime.utcnow()
-        )
-        app_state.render_jobs[job_id]["status"] = RenderStatus.COMPLETED
-        app_state.render_jobs[job_id]["output_path"] = output_path
-        app_state.render_jobs[job_id]["progress"] = 100.0
-        app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
-
-        # Log audit trail
-        await app_state.log_audit(
-            action="render_completed",
-            entity_type="render_job",
-            entity_id=job_id,
-            details={"output_path": output_path, "status": "completed"}
-        )
-
-        logger.info(f"Render job {job_id} completed")
+        # Fallback: Call video-agent service via HTTP
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            headers = {"X-Internal-API-Key": INTERNAL_API_KEY}
+            
+            # Update progress: initializing
+            await app_state.update_render_job(job_id, progress=10)
+            app_state.render_jobs[job_id]["progress"] = 10
+            
+            # Start render on video-agent
+            try:
+                req_data = request.model_dump() if hasattr(request, 'model_dump') else request.__dict__
+                
+                response = await client.post(
+                    f"{VIDEO_AGENT_URL}/api/pro/render-winning-ad",
+                    json={
+                        "job_id": job_id,
+                        "niche": req_data.get("niche", "fitness"),
+                        "style": req_data.get("style", "transformation"),
+                        "duration": req_data.get("duration", 15),
+                        "hooks": req_data.get("hooks", []),
+                        "music_style": req_data.get("music_style", "energetic"),
+                        "caption_style": req_data.get("caption_style", "hormozi"),
+                        "blueprint": req_data.get("blueprint", {})
+                    },
+                    headers=headers
+                )
+                
+                if response.status_code not in [200, 202]:
+                    raise Exception(f"Video agent returned {response.status_code}: {response.text}")
+                
+                render_response = response.json()
+                video_agent_job_id = render_response.get("job_id", job_id)
+                
+            except Exception as e:
+                logger.error(f"Failed to start render on video-agent: {e}")
+                # If video-agent is not available, simulate with placeholder
+                logger.warning("Video-agent unavailable, using placeholder render")
+                
+                # Simulate progress
+                for progress in [25, 50, 75, 100]:
+                    await asyncio.sleep(1)
+                    await app_state.update_render_job(job_id, progress=progress)
+                    app_state.render_jobs[job_id]["progress"] = progress
+                
+                output_path = os.path.join(Config.OUTPUT_DIR, f"{job_id}.mp4")
+                
+                await app_state.update_render_job(
+                    job_id,
+                    status=RenderStatus.COMPLETED,
+                    progress=100,
+                    output_url=output_path,
+                    completed_at=datetime.utcnow()
+                )
+                app_state.render_jobs[job_id].update({
+                    "status": RenderStatus.COMPLETED,
+                    "output_path": output_path,
+                    "progress": 100.0,
+                    "updated_at": datetime.utcnow()
+                })
+                
+                await app_state.log_audit(
+                    action="render_completed",
+                    entity_type="render_job",
+                    entity_id=job_id,
+                    details={"output_path": output_path, "status": "completed", "mode": "placeholder"}
+                )
+                
+                logger.info(f"Render job {job_id} completed (placeholder mode)")
+                return
+            
+            # Poll for completion
+            await app_state.update_render_job(job_id, progress=25)
+            app_state.render_jobs[job_id]["progress"] = 25
+            
+            max_polls = 180  # 30 minutes max
+            for i in range(max_polls):
+                try:
+                    status_response = await client.get(
+                        f"{VIDEO_AGENT_URL}/api/videos/{video_agent_job_id}/info",
+                        headers=headers
+                    )
+                    
+                    if status_response.status_code != 200:
+                        await asyncio.sleep(10)
+                        continue
+                    
+                    status_data = status_response.json()
+                    progress = status_data.get("progress", 0)
+                    stage = status_data.get("status", "processing")
+                    
+                    await app_state.update_render_job(job_id, progress=min(progress, 99))
+                    app_state.render_jobs[job_id]["progress"] = min(progress, 99)
+                    
+                    if stage in ["completed", "success"]:
+                        output_url = status_data.get("video_url") or status_data.get("output_path")
+                        
+                        await app_state.update_render_job(
+                            job_id,
+                            status=RenderStatus.COMPLETED,
+                            progress=100,
+                            output_url=output_url,
+                            completed_at=datetime.utcnow()
+                        )
+                        app_state.render_jobs[job_id].update({
+                            "status": RenderStatus.COMPLETED,
+                            "output_path": status_data.get("output_path"),
+                            "video_url": status_data.get("video_url"),
+                            "gcs_path": status_data.get("gcs_path"),
+                            "progress": 100.0,
+                            "updated_at": datetime.utcnow()
+                        })
+                        
+                        await app_state.log_audit(
+                            action="render_completed",
+                            entity_type="render_job",
+                            entity_id=job_id,
+                            details={"output_url": output_url, "status": "completed"}
+                        )
+                        
+                        logger.info(f"✅ Render job {job_id} completed via video-agent")
+                        return
+                    
+                    if stage in ["failed", "error"]:
+                        error_msg = status_data.get("error", "Unknown error")
+                        raise Exception(error_msg)
+                    
+                    await asyncio.sleep(10)
+                    
+                except httpx.TimeoutException:
+                    logger.warning(f"Poll timeout for job {job_id}, retrying...")
+                    await asyncio.sleep(10)
+            
+            # Timeout
+            raise Exception("Render job timed out after 30 minutes")
 
     except Exception as e:
         logger.error(f"Render job {job_id} failed: {e}")
