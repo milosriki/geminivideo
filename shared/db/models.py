@@ -1,7 +1,8 @@
-from sqlalchemy import Column, String, Float, Integer, DateTime, JSON, Boolean, Text, ForeignKey, Date, Numeric
+from sqlalchemy import Column, String, Float, Integer, DateTime, JSON, Boolean, Text, ForeignKey, Date, Numeric, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
+from pgvector.sqlalchemy import Vector
 import uuid
 
 Base = declarative_base()
@@ -209,7 +210,7 @@ class LearningAlert(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
-# Drive Intel - FAISS Search Models
+# Drive Intel - FAISS Search Models (Legacy - migrating to pgvector)
 class EmbeddingMetadata(Base):
     __tablename__ = "embedding_metadata"
 
@@ -220,3 +221,218 @@ class EmbeddingMetadata(Base):
     index_type = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+# Vector Database Models (Agent 39 - pgvector)
+class CreativeEmbedding(Base):
+    """Store creative/blueprint embeddings for similarity search."""
+    __tablename__ = "creative_embeddings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    creative_id = Column(String, nullable=False, unique=True, index=True)
+    creative_type = Column(String, nullable=False)  # blueprint, video, hook
+
+    # Text embedding (text-embedding-3-large = 3072 dimensions)
+    text_embedding = Column(Vector(3072))
+
+    # Visual embedding (CLIP = 512 dimensions)
+    visual_embedding = Column(Vector(512))
+
+    # Metadata
+    campaign_id = Column(String, index=True)
+    hook_text = Column(Text)
+    hook_type = Column(String)
+
+    # Performance metrics (for learning from winners)
+    council_score = Column(Float)
+    predicted_roas = Column(Float)
+    actual_roas = Column(Float)
+    impressions = Column(Integer)
+    conversions = Column(Integer)
+
+    # Additional metadata
+    metadata = Column(JSON, default={})
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Create indexes for vector similarity search
+    __table_args__ = (
+        Index('idx_creative_text_embedding', 'text_embedding', postgresql_using='ivfflat', postgresql_ops={'text_embedding': 'vector_cosine_ops'}),
+        Index('idx_creative_visual_embedding', 'visual_embedding', postgresql_using='ivfflat', postgresql_ops={'visual_embedding': 'vector_cosine_ops'}),
+    )
+
+
+class HookEmbedding(Base):
+    """Store hook embeddings for finding similar performing hooks."""
+    __tablename__ = "hook_embeddings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    hook_id = Column(String, nullable=False, unique=True, index=True)
+    hook_text = Column(Text, nullable=False)
+    hook_type = Column(String)  # pain_agitation, curiosity, social_proof, etc.
+
+    # Embedding vector (text-embedding-3-large)
+    embedding = Column(Vector(3072), nullable=False)
+
+    # Product/vertical context
+    product_category = Column(String)
+    target_avatar = Column(String)
+    pain_points = Column(JSON, default=[])
+
+    # Performance data
+    avg_ctr = Column(Float)
+    avg_roas = Column(Float)
+    total_impressions = Column(Integer, default=0)
+    total_conversions = Column(Integer, default=0)
+    success_rate = Column(Float)  # % of campaigns where this hook worked
+
+    # Metadata
+    metadata = Column(JSON, default={})
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_hook_embedding', 'embedding', postgresql_using='ivfflat', postgresql_ops={'embedding': 'vector_cosine_ops'}),
+    )
+
+
+class KnowledgeBaseVector(Base):
+    """Store marketing knowledge vectors for RAG-powered generation."""
+    __tablename__ = "knowledge_base_vectors"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    content_id = Column(String, nullable=False, unique=True, index=True)
+    content_type = Column(String, nullable=False)  # best_practice, case_study, pattern, technique
+
+    # Content
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    summary = Column(Text)
+
+    # Embedding (text-embedding-3-large)
+    embedding = Column(Vector(3072), nullable=False)
+
+    # Categorization
+    category = Column(String)  # hook_writing, script_structure, visual_design, etc.
+    tags = Column(JSON, default=[])
+
+    # Quality/relevance signals
+    confidence_score = Column(Float)  # How confident we are in this knowledge
+    usage_count = Column(Integer, default=0)  # How many times used in generation
+    success_rate = Column(Float)  # Success rate when applied
+
+    # Source tracking
+    source = Column(String)  # manual, learned, competitor_analysis
+    source_url = Column(String)
+
+    # Metadata
+    metadata = Column(JSON, default={})
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_knowledge_embedding', 'embedding', postgresql_using='ivfflat', postgresql_ops={'embedding': 'vector_cosine_ops'}),
+        Index('idx_knowledge_category', 'category'),
+    )
+
+
+class ProductEmbedding(Base):
+    """Store product/offer embeddings for finding similar winning patterns."""
+    __tablename__ = "product_embeddings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    product_id = Column(String, nullable=False, unique=True, index=True)
+
+    # Product info
+    product_name = Column(String, nullable=False)
+    product_description = Column(Text)
+    offer = Column(String)
+
+    # Embedding (text-embedding-3-large)
+    embedding = Column(Vector(3072), nullable=False)
+
+    # Target audience
+    target_avatar = Column(String)
+    pain_points = Column(JSON, default=[])
+    desires = Column(JSON, default=[])
+
+    # Historical performance
+    total_campaigns = Column(Integer, default=0)
+    avg_roas = Column(Float)
+    best_hook_types = Column(JSON, default=[])  # List of hook types that worked
+    best_creative_patterns = Column(JSON, default=[])  # List of successful patterns
+
+    # Similar products (for cold start)
+    similar_products = Column(JSON, default=[])  # List of {product_id, similarity_score}
+
+    # Metadata
+    metadata = Column(JSON, default={})
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_product_embedding', 'embedding', postgresql_using='ivfflat', postgresql_ops={'embedding': 'vector_cosine_ops'}),
+    )
+
+
+class SemanticCacheEntry(Base):
+    """
+    Semantic cache for AI operations with embedding-based similarity matching.
+
+    AGENT 46: 10x LEVERAGE - Semantic Caching
+
+    Instead of exact match caching, use embedding similarity to reuse results:
+    - "Score this fitness ad" ≈ "Rate this gym advertisement" → Cache hit!
+    - 80%+ cache hit rate possible
+    - Massive cost savings on AI operations
+
+    Use cases:
+    - Creative scoring (hook scores, council votes)
+    - Hook analysis and classification
+    - CTR prediction
+    - Script generation
+    """
+    __tablename__ = "semantic_cache_entries"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cache_id = Column(String, nullable=False, unique=True, index=True)
+
+    # Query information
+    query_type = Column(String, nullable=False, index=True)  # creative_score, hook_analysis, ctr_prediction, etc.
+    query_text = Column(Text, nullable=False)
+    query_hash = Column(String, index=True)  # Hash for exact match optimization
+
+    # Embedding for semantic similarity search (text-embedding-3-large)
+    query_embedding = Column(Vector(3072), nullable=False)
+
+    # Cached result
+    result = Column(JSON, nullable=False)  # The cached computation result
+    result_type = Column(String)  # Type of result (score, analysis, prediction, etc.)
+
+    # Cache metadata
+    ttl_seconds = Column(Integer)  # Time-to-live (null = no expiration)
+    expires_at = Column(DateTime(timezone=True))  # Computed expiration time
+
+    # Usage tracking
+    access_count = Column(Integer, default=0)
+    last_accessed_at = Column(DateTime(timezone=True))
+
+    # Performance metrics
+    compute_time_ms = Column(Float)  # How long original computation took
+    avg_similarity_on_hit = Column(Float)  # Average similarity score when cache hit
+
+    # Metadata
+    metadata = Column(JSON, default={})  # Additional context (model version, etc.)
+    is_warmed = Column(Boolean, default=False)  # Pre-populated during cache warming
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Indexes for fast semantic search
+    __table_args__ = (
+        Index('idx_semantic_cache_embedding', 'query_embedding', postgresql_using='ivfflat', postgresql_ops={'query_embedding': 'vector_cosine_ops'}),
+        Index('idx_semantic_cache_type_hash', 'query_type', 'query_hash'),
+        Index('idx_semantic_cache_expires', 'expires_at'),
+        Index('idx_semantic_cache_access', 'access_count'),
+    )

@@ -1,0 +1,88 @@
+{
+  "version": 2,
+  "name": "geminivideo-frontend",
+  "framework": "nextjs",
+  "regions": ["iad1", "sfo1", "cdg1", "hnd1", "syd1"],
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "edge",
+      "regions": ["iad1", "sfo1", "cdg1", "hnd1", "syd1"],
+      "memory": 128,
+      "maxDuration": 10
+    }
+  },
+
+  "routes": [
+    {
+      "src": "/api/edge/predict",
+      "dest": "/api/edge/predict.ts"
+    },
+    {
+      "src": "/api/edge/score",
+      "dest": "/api/edge/score.ts"
+    },
+    {
+      "src": "/api/edge/ab-test",
+      "dest": "/api/edge/ab-test.ts"
+    }
+  ],
+
+  "headers": [
+    {
+      "source": "/api/edge/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, s-maxage=300, stale-while-revalidate=600"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, OPTIONS"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-DNS-Prefetch-Control",
+          "value": "on"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    }
+  ],
+
+  "crons": [
+    {
+      "path": "/api/cron/sync-analytics",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/update-cache",
+      "schedule": "*/10 * * * *"
+    }
+  ],
+
+  "env": {
+    "GATEWAY_API_URL": "@gateway-api-url",
+    "ML_SERVICE_URL": "@ml-service-url",
+    "EDGE_ANALYTICS_ENABLED": "true"
+  }
+}

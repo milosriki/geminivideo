@@ -33,6 +33,7 @@ from pro.transitions_library import TransitionLibrary, TransitionCategory, Easin
 from pro.keyframe_engine import KeyframeAnimator, PropertyType, InterpolationType, Keyframe
 from pro.preview_generator import PreviewGenerator, ProxyQuality
 from pro.asset_library import AssetLibrary, AssetType, AssetCategory
+from pro.voice_generator import VoiceGenerator, VoiceProvider, OpenAIVoice, VoiceSettings, VoiceCloneConfig
 
 app = FastAPI(title="Video Agent Service", version="1.0.0")
 
@@ -147,6 +148,7 @@ transition_lib = TransitionLibrary()
 keyframe_animator = KeyframeAnimator()
 preview_gen = PreviewGenerator()
 asset_lib = AssetLibrary(base_dir=os.getenv("ASSET_DIR", "/tmp/assets"))
+voice_generator = VoiceGenerator(output_dir=os.getenv("VOICEOVER_DIR", "/tmp/voiceovers"))
 
 # Redis Client (Lazy initialization)
 import redis
@@ -1809,6 +1811,446 @@ async def beat_sync_render(request: Dict[str, Any], background_tasks: Background
         raise
     except Exception as e:
         logger.error(f"Beat-sync endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# VOICE GENERATION ENDPOINTS - ElevenLabs + OpenAI TTS
+# ============================================================================
+
+@app.post("/api/voice/generate")
+async def generate_voiceover(request: Dict[str, Any], background_tasks: BackgroundTasks):
+    """
+    Generate voiceover from script using AI TTS.
+
+    Body:
+    - script: str (required) - Text to convert to speech
+    - voice_id: str (required) - Voice ID (OpenAI: alloy/echo/fable/onyx/nova/shimmer, ElevenLabs: voice_id)
+    - provider: str (optional) - "openai" or "elevenlabs" (default: "openai")
+    - model: str (optional) - OpenAI: "tts-1" or "tts-1-hd" (default: "tts-1-hd")
+    - language: str (optional) - Language code (default: "en")
+    - speed: float (optional) - Speed multiplier 0.25-4.0 (default: 1.0)
+    - output_format: str (optional) - "mp3", "wav", "opus" (default: "mp3")
+    - async: bool (optional) - Process asynchronously (default: false)
+
+    Returns:
+    - Immediate: {status: "success", output_path: str, duration: float}
+    - Async: {status: "queued", job_id: str}
+    """
+    try:
+        script = request.get("script")
+        if not script:
+            raise HTTPException(status_code=400, detail="script required")
+
+        voice_id = request.get("voice_id")
+        if not voice_id:
+            raise HTTPException(status_code=400, detail="voice_id required")
+
+        # Parse provider
+        provider_str = request.get("provider", "openai").lower()
+        provider = VoiceProvider.OPENAI if provider_str == "openai" else VoiceProvider.ELEVENLABS
+
+        # Settings
+        settings = VoiceSettings(
+            speed=float(request.get("speed", 1.0)),
+            stability=float(request.get("stability", 0.5)),
+            similarity_boost=float(request.get("similarity_boost", 0.75))
+        )
+
+        model = request.get("model", "tts-1-hd")
+        language = request.get("language", "en")
+        output_format = request.get("output_format", "mp3")
+        is_async = request.get("async", False)
+
+        if is_async:
+            # Asynchronous processing
+            job_id = str(uuid.uuid4())
+
+            async def process_voiceover():
+                try:
+                    output_path = await voice_generator.generate_voiceover(
+                        script=script,
+                        voice_id=voice_id,
+                        provider=provider,
+                        model=model,
+                        settings=settings,
+                        output_format=output_format,
+                        language=language
+                    )
+
+                    # Get duration
+                    duration = await voice_generator._get_audio_duration(output_path)
+
+                    pro_jobs[job_id] = {
+                        "status": "completed",
+                        "type": "voiceover",
+                        "output_path": output_path,
+                        "duration": duration,
+                        "provider": provider.value,
+                        "voice_id": voice_id
+                    }
+                except Exception as e:
+                    logger.error(f"Voiceover generation failed: {e}", exc_info=True)
+                    pro_jobs[job_id] = {
+                        "status": "failed",
+                        "type": "voiceover",
+                        "error": str(e)
+                    }
+
+            background_tasks.add_task(process_voiceover)
+            pro_jobs[job_id] = {"status": "processing", "type": "voiceover"}
+
+            return {
+                "status": "queued",
+                "job_id": job_id,
+                "message": "Voiceover generation started"
+            }
+        else:
+            # Synchronous processing
+            output_path = await voice_generator.generate_voiceover(
+                script=script,
+                voice_id=voice_id,
+                provider=provider,
+                model=model,
+                settings=settings,
+                output_format=output_format,
+                language=language
+            )
+
+            # Get duration
+            duration = await voice_generator._get_audio_duration(output_path)
+
+            return {
+                "status": "success",
+                "output_path": output_path,
+                "duration": duration,
+                "provider": provider.value,
+                "voice_id": voice_id,
+                "language": language
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Generate voiceover error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/voice/clone")
+async def clone_voice(request: Dict[str, Any], background_tasks: BackgroundTasks):
+    """
+    Clone a voice from audio samples (ElevenLabs only).
+
+    Body:
+    - name: str (required) - Voice name
+    - description: str (optional) - Voice description
+    - audio_samples: List[str] (required) - Paths to audio sample files
+    - labels: Dict[str, str] (optional) - Voice metadata (gender, age, accent, etc.)
+    - async: bool (optional) - Process asynchronously (default: false)
+
+    Returns:
+    - Immediate: {status: "success", voice_id: str, name: str}
+    - Async: {status: "queued", job_id: str}
+    """
+    try:
+        name = request.get("name")
+        if not name:
+            raise HTTPException(status_code=400, detail="name required")
+
+        audio_samples = request.get("audio_samples", [])
+        if not audio_samples:
+            raise HTTPException(status_code=400, detail="audio_samples required (at least 1)")
+
+        # Validate audio files exist
+        for sample in audio_samples:
+            if not os.path.exists(sample):
+                raise HTTPException(status_code=400, detail=f"Audio sample not found: {sample}")
+
+        config = VoiceCloneConfig(
+            name=name,
+            description=request.get("description", ""),
+            audio_samples=audio_samples,
+            labels=request.get("labels", {})
+        )
+
+        is_async = request.get("async", False)
+
+        if is_async:
+            # Asynchronous processing
+            job_id = str(uuid.uuid4())
+
+            async def process_clone():
+                try:
+                    voice_id = await voice_generator.clone_voice(config)
+
+                    pro_jobs[job_id] = {
+                        "status": "completed",
+                        "type": "voice_clone",
+                        "voice_id": voice_id,
+                        "name": name,
+                        "sample_count": len(audio_samples)
+                    }
+                except Exception as e:
+                    logger.error(f"Voice cloning failed: {e}", exc_info=True)
+                    pro_jobs[job_id] = {
+                        "status": "failed",
+                        "type": "voice_clone",
+                        "error": str(e)
+                    }
+
+            background_tasks.add_task(process_clone)
+            pro_jobs[job_id] = {"status": "processing", "type": "voice_clone"}
+
+            return {
+                "status": "queued",
+                "job_id": job_id,
+                "message": "Voice cloning started"
+            }
+        else:
+            # Synchronous processing
+            voice_id = await voice_generator.clone_voice(config)
+
+            return {
+                "status": "success",
+                "voice_id": voice_id,
+                "name": name,
+                "sample_count": len(audio_samples),
+                "provider": "elevenlabs"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Clone voice error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/voice/library")
+async def get_voice_library(provider: Optional[str] = None):
+    """
+    Get list of available voices.
+
+    Query params:
+    - provider: str (optional) - Filter by provider ("openai" or "elevenlabs")
+
+    Returns:
+    - {voices: List[Dict], count: int}
+    """
+    try:
+        if provider:
+            provider_enum = VoiceProvider.OPENAI if provider.lower() == "openai" else VoiceProvider.ELEVENLABS
+            voices = await voice_generator.get_available_voices(provider_enum)
+        else:
+            # Get both providers
+            openai_voices = await voice_generator.get_available_voices(VoiceProvider.OPENAI)
+
+            # Try to get ElevenLabs voices (may fail if no API key)
+            try:
+                elevenlabs_voices = await voice_generator.get_available_voices(VoiceProvider.ELEVENLABS)
+            except:
+                elevenlabs_voices = []
+
+            voices = openai_voices + elevenlabs_voices
+
+        # Add custom cloned voices from library
+        custom_voices = voice_generator.get_voice_library()
+        for voice_id, voice_data in custom_voices.items():
+            voices.append(voice_data)
+
+        return {
+            "status": "success",
+            "voices": voices,
+            "count": len(voices)
+        }
+
+    except Exception as e:
+        logger.error(f"Get voice library error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/voice/sync")
+async def sync_voiceover_to_video(request: Dict[str, Any], background_tasks: BackgroundTasks):
+    """
+    Add voiceover audio to video with synchronization.
+
+    Body:
+    - audio_path: str (required) - Path to voiceover audio file
+    - video_path: str (required) - Path to source video file
+    - output_path: str (optional) - Output video path
+    - volume: float (optional) - Audio volume multiplier 0.0-2.0 (default: 1.0)
+    - fade_in: float (optional) - Fade in duration in seconds (default: 0.0)
+    - fade_out: float (optional) - Fade out duration in seconds (default: 0.0)
+    - async: bool (optional) - Process asynchronously (default: false)
+
+    Returns:
+    - Immediate: {status: "success", output_path: str}
+    - Async: {status: "queued", job_id: str}
+    """
+    try:
+        audio_path = request.get("audio_path")
+        if not audio_path or not os.path.exists(audio_path):
+            raise HTTPException(status_code=400, detail="Invalid audio_path")
+
+        video_path = request.get("video_path")
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=400, detail="Invalid video_path")
+
+        output_path = request.get("output_path")
+        volume = float(request.get("volume", 1.0))
+        fade_in = float(request.get("fade_in", 0.0))
+        fade_out = float(request.get("fade_out", 0.0))
+        is_async = request.get("async", False)
+
+        if is_async:
+            # Asynchronous processing
+            job_id = str(uuid.uuid4())
+
+            async def process_sync():
+                try:
+                    result_path = await voice_generator.sync_to_video(
+                        audio_path=audio_path,
+                        video_path=video_path,
+                        output_path=output_path,
+                        volume=volume,
+                        fade_in=fade_in,
+                        fade_out=fade_out
+                    )
+
+                    pro_jobs[job_id] = {
+                        "status": "completed",
+                        "type": "voice_sync",
+                        "output_path": result_path
+                    }
+                except Exception as e:
+                    logger.error(f"Voice sync failed: {e}", exc_info=True)
+                    pro_jobs[job_id] = {
+                        "status": "failed",
+                        "type": "voice_sync",
+                        "error": str(e)
+                    }
+
+            background_tasks.add_task(process_sync)
+            pro_jobs[job_id] = {"status": "processing", "type": "voice_sync"}
+
+            return {
+                "status": "queued",
+                "job_id": job_id,
+                "message": "Voice sync started"
+            }
+        else:
+            # Synchronous processing
+            result_path = await voice_generator.sync_to_video(
+                audio_path=audio_path,
+                video_path=video_path,
+                output_path=output_path,
+                volume=volume,
+                fade_in=fade_in,
+                fade_out=fade_out
+            )
+
+            return {
+                "status": "success",
+                "output_path": result_path
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Sync voiceover error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/voice/{voice_id}")
+async def delete_voice(voice_id: str):
+    """
+    Delete a cloned voice (ElevenLabs only).
+
+    Path params:
+    - voice_id: str - Voice ID to delete
+
+    Returns:
+    - {status: "success", message: str}
+    """
+    try:
+        success = await voice_generator.delete_voice(voice_id)
+
+        return {
+            "status": "success",
+            "message": f"Voice {voice_id} deleted successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Delete voice error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/voice/generate-multilingual")
+async def generate_multilingual_voiceover(request: Dict[str, Any], background_tasks: BackgroundTasks):
+    """
+    Generate voiceovers in multiple languages (ElevenLabs only).
+
+    Body:
+    - script: str (required) - Text to convert to speech
+    - voice_id: str (required) - ElevenLabs voice ID
+    - languages: List[str] (required) - Language codes (e.g., ["en", "es", "fr", "de"])
+
+    Returns:
+    - {status: "queued", job_id: str}
+    """
+    try:
+        script = request.get("script")
+        if not script:
+            raise HTTPException(status_code=400, detail="script required")
+
+        voice_id = request.get("voice_id")
+        if not voice_id:
+            raise HTTPException(status_code=400, detail="voice_id required")
+
+        languages = request.get("languages", [])
+        if not languages:
+            raise HTTPException(status_code=400, detail="languages required")
+
+        job_id = str(uuid.uuid4())
+
+        async def process_multilingual():
+            try:
+                results = {}
+                for lang in languages:
+                    output_path = await voice_generator.generate_voiceover(
+                        script=script,
+                        voice_id=voice_id,
+                        provider=VoiceProvider.ELEVENLABS,
+                        language=lang
+                    )
+                    results[lang] = output_path
+
+                pro_jobs[job_id] = {
+                    "status": "completed",
+                    "type": "multilingual_voiceover",
+                    "results": results,
+                    "language_count": len(results)
+                }
+            except Exception as e:
+                logger.error(f"Multilingual voiceover failed: {e}", exc_info=True)
+                pro_jobs[job_id] = {
+                    "status": "failed",
+                    "type": "multilingual_voiceover",
+                    "error": str(e)
+                }
+
+        background_tasks.add_task(process_multilingual)
+        pro_jobs[job_id] = {"status": "processing", "type": "multilingual_voiceover"}
+
+        return {
+            "status": "queued",
+            "job_id": job_id,
+            "message": f"Generating voiceovers for {len(languages)} languages"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Multilingual voiceover error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

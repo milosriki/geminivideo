@@ -117,3 +117,190 @@ class Prediction(Base):
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     actuals_fetched_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class AccountInsight(Base):
+    """
+    Cross-Account Learning: Anonymized insights from account performance.
+
+    Stores aggregated patterns and benchmarks from accounts for cross-learning.
+    Privacy-preserving: No actual content, only patterns and metrics.
+    """
+    __tablename__ = "account_insights"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(String, nullable=False, index=True)
+    niche = Column(String, nullable=False, index=True)
+    niche_confidence = Column(Float, default=0.0)
+
+    # Anonymized patterns (JSON)
+    top_hook_types = Column(JSON, default=[])
+    optimal_duration_range = Column(JSON, default={})  # {min: X, max: Y}
+    best_posting_times = Column(JSON, default=[])  # Array of hours
+    effective_cta_styles = Column(JSON, default=[])
+    visual_preferences = Column(JSON, default=[])
+
+    # Performance benchmarks (aggregated, not raw)
+    avg_ctr = Column(Float, default=0.0)
+    avg_conversion_rate = Column(Float, default=0.0)
+    avg_roas = Column(Float, default=0.0)
+
+    # Metadata
+    total_campaigns = Column(Integer, default=0)
+    total_conversions = Column(Integer, default=0)
+    account_age_days = Column(Integer, default=0)
+    opted_in = Column(Boolean, default=True)
+
+    # Timestamps
+    extracted_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    @@index(['niche', 'opted_in'])
+    @@index(['account_id', 'extracted_at'])
+
+
+class NichePattern(Base):
+    """
+    Cross-Account Learning: Aggregated patterns for each niche.
+
+    Stores niche-wide insights aggregated from multiple accounts.
+    Updated periodically as new account insights are extracted.
+    """
+    __tablename__ = "niche_patterns"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    niche = Column(String, nullable=False, unique=True, index=True)
+    sample_size = Column(Integer, default=0)  # Number of contributing accounts
+
+    # Aggregated patterns (JSON)
+    top_hook_types = Column(JSON, default=[])
+    optimal_duration = Column(JSON, default={})  # {min: X, max: Y}
+    peak_hours = Column(JSON, default=[])
+    proven_cta_styles = Column(JSON, default=[])
+    winning_visual_patterns = Column(JSON, default=[])
+
+    # Benchmark metrics
+    niche_avg_ctr = Column(Float, default=0.0)
+    niche_avg_conversion_rate = Column(Float, default=0.0)
+    niche_avg_roas = Column(Float, default=0.0)
+
+    # Quality metrics
+    confidence_score = Column(Float, default=0.0)
+
+    # Timestamps
+    last_updated = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    @@index(['niche', 'sample_size'])
+
+
+class CrossLearningEvent(Base):
+    """
+    Cross-Account Learning: Track when accounts benefit from cross-learning.
+
+    Logs when niche wisdom is applied to accounts and tracks results.
+    """
+    __tablename__ = "cross_learning_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(String, nullable=False, index=True)
+    niche = Column(String, nullable=False)
+    event_type = Column(String, nullable=False)  # 'wisdom_applied', 'insight_extracted', 'pattern_shared'
+
+    # Details
+    wisdom_applied = Column(JSON, default={})
+    results = Column(JSON, default={})
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    @@index(['account_id', 'created_at'])
+    @@index(['niche', 'event_type'])
+
+
+class CreativeFormula(Base):
+    """
+    Creative DNA Formula storage for winning pattern replication.
+
+    Stores extracted patterns from winning creatives that can be applied
+    to new creatives for compounding success. (Agent 48)
+    """
+    __tablename__ = "creative_formulas"
+
+    formula_id = Column(String, primary_key=True)
+    account_id = Column(String, nullable=False, unique=True, index=True)
+
+    # Formula data stored as JSON
+    formula_data = Column(JSON, nullable=False)
+
+    # Metadata
+    sample_size = Column(Integer, nullable=False)  # Number of winners analyzed
+    min_roas_threshold = Column(Float, nullable=False, default=3.0)
+
+    # Performance benchmarks
+    avg_roas = Column(Float, nullable=True)
+    avg_ctr = Column(Float, nullable=True)
+    avg_conversion_rate = Column(Float, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class CreativeDNAExtraction(Base):
+    """
+    Individual creative DNA extraction records.
+
+    Tracks DNA extracted from each creative for analysis and comparison.
+    """
+    __tablename__ = "creative_dna_extractions"
+
+    extraction_id = Column(String, primary_key=True)
+    creative_id = Column(String, nullable=False, index=True)
+    account_id = Column(String, nullable=False, index=True)
+
+    # DNA components stored as JSON
+    hook_dna = Column(JSON)
+    visual_dna = Column(JSON)
+    audio_dna = Column(JSON)
+    pacing_dna = Column(JSON)
+    copy_dna = Column(JSON)
+    cta_dna = Column(JSON)
+
+    # Performance metrics at time of extraction
+    ctr = Column(Float)
+    roas = Column(Float)
+    conversion_rate = Column(Float)
+
+    # Timestamps
+    extracted_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DNAApplication(Base):
+    """
+    Track DNA applications to new creatives.
+
+    Records when DNA suggestions were applied to creatives and their results.
+    """
+    __tablename__ = "dna_applications"
+
+    application_id = Column(String, primary_key=True)
+    creative_id = Column(String, nullable=False, index=True)
+    account_id = Column(String, nullable=False, index=True)
+    formula_id = Column(String, nullable=False)
+
+    # Suggestions provided
+    suggestions = Column(JSON, nullable=False)
+    suggestions_count = Column(Integer, default=0)
+
+    # Application results
+    applied = Column(Boolean, default=False)
+    applied_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Performance before/after
+    performance_before = Column(JSON)
+    performance_after = Column(JSON)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

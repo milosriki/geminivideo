@@ -61,10 +61,29 @@ genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
 class DeepVideoIntelligence:
     def __init__(self):
-        # Use the thinking model for deep reasoning
+        # Use Gemini 2.0 Flash Thinking for deep reasoning (December 2024)
         self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-thinking-exp-1219")
-        self.vision_model = genai.GenerativeModel(self.model_name)
-        
+        self.fallback_model = "gemini-1.5-pro-002"  # Stable fallback
+
+        # Generation config for thinking model
+        self.generation_config = {
+            "temperature": 1.0,  # Higher for creative reasoning
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 8192,  # Thinking models need more tokens
+        }
+
+        # Initialize primary model
+        try:
+            self.vision_model = genai.GenerativeModel(
+                self.model_name,
+                generation_config=self.generation_config
+            )
+            print(f"✅ Gemini Model: {self.model_name}")
+        except Exception as e:
+            print(f"⚠️ Primary model failed, using fallback: {e}")
+            self.vision_model = genai.GenerativeModel(self.fallback_model)
+
         # Initialize MediaPipe Pose if available
         if MEDIAPIPE_AVAILABLE:
             self.mp_pose = mp.solutions.pose
@@ -76,7 +95,7 @@ class DeepVideoIntelligence:
             )
         else:
             self.pose = None
-        
+
         # Initialize Whisper if available
         if WHISPER_AVAILABLE:
             try:
@@ -88,7 +107,7 @@ class DeepVideoIntelligence:
         else:
             self.whisper_model = None
 
-        print(f"🧠 DEEP VIDEO INTELLIGENCE: Initialized (Gemini 2.0: Active, CV2: {CV2_AVAILABLE}, MP: {MEDIAPIPE_AVAILABLE})")
+        print(f"🧠 DEEP VIDEO INTELLIGENCE: Initialized (Gemini 2.0 Thinking, CV2: {CV2_AVAILABLE}, MP: {MEDIAPIPE_AVAILABLE})")
 
     def analyze_video(self, video_path: str) -> Dict[str, Any]:
         """
@@ -220,76 +239,197 @@ class DeepVideoIntelligence:
 
     def _semantic_analysis(self, video_path: str, key_timestamps: List[float]) -> Dict[str, Any]:
         """
-        Uses Gemini 2.0 to understand WHAT is happening in key frames.
+        Uses Gemini 2.0 Flash Thinking to understand WHAT is happening in key frames.
+        Enhanced with structured JSON schema output.
         """
         # If no timestamps or CV2 missing, try to upload video file directly to Gemini API if supported
         # For now, we'll assume if CV2 is missing, we skip visual semantic analysis or use a text-only fallback
-        
+
         frames = self._extract_frames(video_path, key_timestamps)
-        
+
         if not frames:
              # Fallback: Try to use Gemini Thinking on just the filename/context if visual extraction fails
              return {"narrative": "Visual analysis skipped (OpenCV missing)", "error": "No frames extracted"}
 
-        # Prepare prompt for Gemini
+        # Enhanced prompt with structured JSON schema for Gemini 2.0
         prompt = """
-        Analyze these key frames from a video ad.
-        For each frame, identify:
-        1. The action taking place.
-        2. The emotion displayed.
-        3. Any text overlay visible.
-        
-        Then, summarize the visual narrative arc:
-        - What is the hook?
-        - What is the conflict/pain?
-        - What is the resolution/transformation?
-        
-        Return valid JSON.
+        Analyze these key frames from a video ad with deep reasoning.
+
+        Use chain-of-thought analysis:
+        1. First, identify visual elements (actions, objects, people, text)
+        2. Then, analyze emotional cues and body language
+        3. Finally, synthesize the narrative arc
+
+        For each frame, provide:
+        - Timestamp description
+        - Main action
+        - Emotion detected
+        - Text overlays (if any)
+
+        Then summarize the complete narrative:
+        - Hook strategy (what grabs attention)
+        - Conflict/pain point (what problem is shown)
+        - Resolution/transformation (how it's solved)
+
+        Return ONLY valid JSON in this exact structure:
+        {
+          "frames": [
+            {
+              "timestamp": "scene description",
+              "action": "what is happening",
+              "emotion": "emotion detected",
+              "text_overlay": "visible text"
+            }
+          ],
+          "narrative": {
+            "hook": "description",
+            "conflict": "description",
+            "resolution": "description"
+          },
+          "visual_quality": "assessment",
+          "engagement_level": "high/medium/low"
+        }
         """
-        
+
         try:
             # Gemini 2.0 supports list of images + text
             inputs = frames + [prompt]
+
+            # Generate with thinking model
             response = self.vision_model.generate_content(inputs)
-            
-            # Parse JSON from response
-            text = response.text.replace("```json", "").replace("```", "").strip()
-            return json.loads(text)
+
+            # Parse JSON from response with better error handling
+            text = response.text.strip()
+            json_text = text.replace("```json", "").replace("```", "").strip()
+
+            # Validate and parse JSON
+            result = json.loads(json_text)
+
+            # Ensure required fields exist
+            if "frames" not in result:
+                result["frames"] = []
+            if "narrative" not in result:
+                result["narrative"] = {"hook": "Unknown", "conflict": "Unknown", "resolution": "Unknown"}
+
+            return result
+
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON Parsing Error: {e}")
+            # Return structured fallback
+            return {
+                "error": "Invalid JSON response",
+                "raw_text": text if 'text' in locals() else "",
+                "frames": [],
+                "narrative": {"hook": "Error", "conflict": "Error", "resolution": "Error"}
+            }
         except Exception as e:
             print(f"❌ Semantic Analysis Error: {e}")
-            return {"error": str(e), "narrative": "Analysis failed"}
+            return {
+                "error": str(e),
+                "frames": [],
+                "narrative": {"hook": "Error", "conflict": "Error", "resolution": "Error"}
+            }
 
     def _psychology_analysis(self, video_path: str, semantic_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Analyzes transcript + visual context for psychological triggers using the Pro-Grade Rubric.
+        Enhanced with Gemini 2.0 Flash Thinking for deeper psychological insights.
         """
         transcript_text = ""
         if self.whisper_model:
             try:
                 result = self.whisper_model.transcribe(video_path)
                 transcript_text = result["text"]
+                print(f"✅ Transcription complete: {len(transcript_text)} chars")
             except Exception as e:
                 print(f"⚠️ Transcription failed: {e}")
-        
+
         # Use Andromeda Logic for Prompt Generation
-        from engines.andromeda_prompts import get_andromeda_roas_prompt
-        
-        ad_data = {
-            "transcript": transcript_text,
-            "visual_summary": semantic_data,
-            "real_time_hooks": "Pattern Interrupts, ASMR Unboxing, 'Stop Scrolling' text"
-        }
-        
-        prompt = get_andromeda_roas_prompt(ad_data)
-        
         try:
+            from engines.andromeda_prompts import get_andromeda_roas_prompt
+
+            ad_data = {
+                "transcript": transcript_text,
+                "visual_summary": semantic_data,
+                "real_time_hooks": "Pattern Interrupts, ASMR Unboxing, 'Stop Scrolling' text"
+            }
+
+            prompt = get_andromeda_roas_prompt(ad_data)
+        except ImportError:
+            # Fallback if andromeda_prompts not available
+            prompt = f"""
+            Analyze this video ad for psychological effectiveness using deep reasoning.
+
+            TRANSCRIPT: {transcript_text[:1000]}
+            VISUAL SUMMARY: {json.dumps(semantic_data, indent=2)}
+
+            Use chain-of-thought analysis:
+            1. Identify psychological triggers (FOMO, curiosity, social proof, etc.)
+            2. Analyze persuasion techniques (scarcity, authority, reciprocity)
+            3. Evaluate emotional resonance
+            4. Assess viral potential
+
+            Return JSON with:
+            {{
+              "predicted_roas_score": 0-100,
+              "psychological_triggers": ["list of triggers"],
+              "persuasion_techniques": ["list of techniques"],
+              "emotional_impact": "high/medium/low",
+              "viral_potential": "high/medium/low",
+              "reasoning": "detailed analysis"
+            }}
+            """
+
+        try:
+            # Generate with thinking model
             response = self.vision_model.generate_content(prompt)
-            text = response.text.replace("```json", "").replace("```", "").strip()
-            return json.loads(text)
+
+            # Parse JSON with better error handling
+            text = response.text.strip()
+            json_text = text.replace("```json", "").replace("```", "").strip()
+
+            result = json.loads(json_text)
+
+            # Ensure predicted_roas_score exists
+            if "predicted_roas_score" not in result:
+                # Try to extract from other fields
+                if "score" in result:
+                    result["predicted_roas_score"] = result["score"]
+                elif "Final Score" in result:
+                    result["predicted_roas_score"] = result["Final Score"]
+                else:
+                    result["predicted_roas_score"] = 50.0
+
+            return result
+
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON Parsing Error in Psychology Analysis: {e}")
+            # Return structured fallback with extracted score if possible
+            score = 50.0
+            if 'text' in locals():
+                # Try to extract a number from the text
+                import re
+                numbers = re.findall(r'(?<![.\d])\d{1,3}(?:\.\d+)?(?![.\d])', text)
+                if numbers:
+                    score = float(numbers[-1])  # Use last number found
+
+            return {
+                "error": "Invalid JSON in psychology analysis",
+                "predicted_roas_score": score,
+                "raw_response": text if 'text' in locals() else ""
+            }
         except Exception as e:
             # Fallback if Gemini fails
             print(f"⚠️ Psychology Analysis Error: {e}")
-            return {"error": str(e), "predicted_roas_score": 50}
+            import traceback
+            traceback.print_exc()
+
+            return {
+                "error": str(e),
+                "predicted_roas_score": 50.0,
+                "psychological_triggers": [],
+                "reasoning": f"Analysis failed: {str(e)}"
+            }
 
     def _calculate_ad_score(self, technical, semantic, psychology) -> float:
         """

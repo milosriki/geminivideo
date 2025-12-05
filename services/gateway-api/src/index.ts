@@ -2186,6 +2186,31 @@ import reportRoutes from './routes/reports';
 app.use('/api/reports', reportRoutes);
 
 // ============================================================================
+// REAL-TIME STREAMING ENDPOINTS (Agent 38 - SSE/WebSocket)
+// ============================================================================
+
+import streamingRoutes from './routes/streaming';
+app.use('/api', streamingRoutes);
+
+// Import real-time infrastructure
+import {
+  initializeChannelManager,
+  initializeWebSocketManager,
+  getSSEManager,
+  shutdownChannelManager,
+  shutdownWebSocketManager,
+  shutdownSSEManager
+} from './realtime';
+
+// ============================================================================
+// IMAGE GENERATION ENDPOINTS (Agent 37 - AI Image Generation)
+// ============================================================================
+
+import { createImageGenerationRouter } from './routes/image-generation';
+const imageGenerationRouter = createImageGenerationRouter(pgPool);
+app.use('/api/image', imageGenerationRouter);
+
+// ============================================================================
 // HEALTH CHECK
 // ============================================================================
 
@@ -2196,12 +2221,83 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-const server = app.listen(PORT, () => {
+// Real-time stats endpoint
+app.get('/api/realtime/stats', (req: Request, res: Response) => {
+  const sseManager = getSSEManager();
+  const channelManager = require('./realtime').getChannelManager();
+
+  res.json({
+    status: 'healthy',
+    sse: sseManager.getStats(),
+    channels: channelManager.getStats(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+const server = app.listen(PORT, async () => {
   console.log(`Gateway API listening on port ${PORT}`);
 
-  // Initialize WebSocket for real-time alerts
-  initializeAlertWebSocket(server);
-  console.log('Alert WebSocket server initialized on /ws/alerts');
+  // Initialize real-time infrastructure
+  try {
+    console.log('🚀 Initializing real-time infrastructure...');
+
+    // Initialize channel manager (Redis pub/sub)
+    await initializeChannelManager();
+    console.log('✅ Channel manager initialized');
+
+    // Initialize WebSocket manager
+    initializeWebSocketManager(server);
+    console.log('✅ WebSocket server initialized on /ws');
+
+    // Initialize SSE manager (singleton, auto-initializes)
+    getSSEManager();
+    console.log('✅ SSE manager initialized');
+
+    // Initialize alert WebSocket (existing)
+    initializeAlertWebSocket(server);
+    console.log('✅ Alert WebSocket server initialized on /ws/alerts');
+
+    console.log('🎉 Real-time infrastructure ready!');
+  } catch (error) {
+    console.error('❌ Failed to initialize real-time infrastructure:', error);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
+
+  try {
+    await shutdownWebSocketManager();
+    await shutdownChannelManager();
+    shutdownSSEManager();
+
+    server.close(() => {
+      console.log('✅ Server closed');
+      process.exit(0);
+    });
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
+});
+
+process.on('SIGINT', async () => {
+  console.log('🛑 SIGINT received, shutting down gracefully...');
+
+  try {
+    await shutdownWebSocketManager();
+    await shutdownChannelManager();
+    shutdownSSEManager();
+
+    server.close(() => {
+      console.log('✅ Server closed');
+      process.exit(0);
+    });
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
 });
 
 export default app;

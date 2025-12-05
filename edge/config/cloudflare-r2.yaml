@@ -1,0 +1,79 @@
+# Cloudflare R2 Storage Configuration
+# Cheaper than AWS S3 with zero egress fees
+
+buckets:
+  # Main asset storage
+  - name: geminivideo-assets
+    public: true
+    cors:
+      - allowed_origins: ['*']
+        allowed_methods: ['GET', 'HEAD']
+        allowed_headers: ['*']
+        max_age_seconds: 3600
+    lifecycle:
+      - prefix: "temp/"
+        expiration_days: 7
+      - prefix: "thumbnails/"
+        expiration_days: 90
+
+  # Video cache (processed videos)
+  - name: geminivideo-videos
+    public: false
+    cors:
+      - allowed_origins: ['https://geminivideo.com', 'https://*.geminivideo.com']
+        allowed_methods: ['GET', 'HEAD']
+        allowed_headers: ['Range', 'Content-Type']
+        max_age_seconds: 86400
+    lifecycle:
+      - prefix: "processed/"
+        transition_to_infrequent_access_days: 30
+      - prefix: "archive/"
+        expiration_days: 365
+
+  # Upload staging area
+  - name: geminivideo-uploads
+    public: false
+    lifecycle:
+      - prefix: ""
+        expiration_days: 1
+
+  # Analytics data
+  - name: geminivideo-analytics
+    public: false
+    lifecycle:
+      - prefix: "events/"
+        expiration_days: 90
+      - prefix: "aggregated/"
+        transition_to_infrequent_access_days: 180
+
+# R2 Custom Domains
+custom_domains:
+  - bucket: geminivideo-assets
+    domain: cdn.geminivideo.com
+  - bucket: geminivideo-videos
+    domain: video.geminivideo.com
+
+# Access Policies
+policies:
+  - name: public-read
+    buckets: ['geminivideo-assets']
+    actions: ['GetObject', 'HeadObject']
+    principals: ['*']
+
+  - name: worker-write
+    buckets: ['geminivideo-assets', 'geminivideo-videos', 'geminivideo-uploads']
+    actions: ['PutObject', 'GetObject', 'DeleteObject']
+    principals: ['${CLOUDFLARE_ACCOUNT_ID}']
+
+# Cost Comparison (vs AWS S3)
+# R2 Advantages:
+# - Zero egress fees (S3 charges $0.09/GB)
+# - Storage: $0.015/GB/month (same as S3)
+# - Operations: Class A $4.50/million (vs S3 $5/million)
+# - Operations: Class B $0.36/million (vs S3 $0.40/million)
+# - For 1TB egress/month: Save ~$90/month
+
+# Estimated monthly costs for 10TB storage + 100TB egress:
+# AWS S3: $150 (storage) + $9000 (egress) = $9,150
+# Cloudflare R2: $150 (storage) + $0 (egress) = $150
+# Monthly savings: $9,000
