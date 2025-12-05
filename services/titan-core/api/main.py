@@ -14,8 +14,8 @@ import sys
 import asyncio
 import logging
 import uuid
-from datetime import datetime
-from typing import Dict, Any, List, Optional, Union
+from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional, Union, AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, validator
 import uvicorn
+import httpx
 
 # Setup logging
 logging.basicConfig(
@@ -126,6 +127,10 @@ class Config:
     MAX_CONCURRENT_RENDERS = int(os.getenv("MAX_CONCURRENT_RENDERS", "5"))
     DEFAULT_NUM_VARIATIONS = int(os.getenv("DEFAULT_NUM_VARIATIONS", "10"))
     APPROVAL_THRESHOLD = float(os.getenv("APPROVAL_THRESHOLD", "85.0"))
+
+    # Video Agent Integration
+    VIDEO_AGENT_URL = os.getenv("VIDEO_AGENT_URL", "http://localhost:8002")
+    INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key")
 
     # CORS
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
@@ -1443,43 +1448,165 @@ async def generate_embeddings_endpoint(request: EmbeddingsRequest):
 
 
 # ============================================================================
-# BACKGROUND TASKS
+# BACKGROUND TASKS - REAL VIDEO-AGENT INTEGRATION
 # ============================================================================
+
+async def process_render_job_real(job_id: str, job_config: dict) -> AsyncGenerator[dict, None]:
+    """Actually process render job via video-agent"""
+    
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        headers = {"X-Internal-API-Key": Config.INTERNAL_API_KEY}
+        
+        # Step 1: Initialize
+        yield {"progress": 0, "stage": "initializing", "message": "Starting render job"}
+        
+        # Step 2: Call video-agent to start render
+        try:
+            response = await client.post(
+                f"{Config.VIDEO_AGENT_URL}/api/pro/render-winning-ad",
+                json={
+                    "job_id": job_id,
+                    "niche": job_config.get("niche", "fitness"),
+                    "style": job_config.get("style", "transformation"),
+                    "duration": job_config.get("duration", 15),
+                    "hooks": job_config.get("hooks", []),
+                    "music_style": job_config.get("music_style", "energetic"),
+                    "caption_style": job_config.get("caption_style", "instagram"),
+                    "assets": job_config.get("assets", {}),
+                    "video_clips": job_config.get("video_clips", []),
+                    "template": job_config.get("template", "fitness_transformation"),
+                    "platform": job_config.get("platform", "instagram"),
+                    "hook_text": job_config.get("hook_text", ""),
+                    "cta_text": job_config.get("cta_text", "")
+                },
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise Exception(f"Video agent returned {response.status_code}: {response.text}")
+            
+            render_response = response.json()
+            video_agent_job_id = render_response.get("job_id", job_id)
+            
+        except Exception as e:
+            yield {"progress": 0, "stage": "error", "error": str(e)}
+            return
+        
+        # Step 3: Poll for progress
+        yield {"progress": 10, "stage": "processing", "message": "Render job started"}
+        
+        max_polls = 180  # 30 minutes max (180 * 10s)
+        for i in range(max_polls):
+            try:
+                status_response = await client.get(
+                    f"{Config.VIDEO_AGENT_URL}/api/pro/job/{video_agent_job_id}",
+                    headers=headers
+                )
+                
+                if status_response.status_code != 200:
+                    await asyncio.sleep(10)
+                    continue
+                
+                status_data = status_response.json()
+                job_data = status_data.get("data", {})
+                progress = job_data.get("progress", 0)
+                stage = job_data.get("status", "processing")
+                
+                yield {
+                    "progress": min(progress, 99),  # Reserve 100 for completion
+                    "stage": stage,
+                    "message": job_data.get("message", f"Processing... {progress}%")
+                }
+                
+                if stage == "completed":
+                    yield {
+                        "progress": 100,
+                        "stage": "completed",
+                        "output_url": job_data.get("output_path"),
+                        "video_url": job_data.get("video_url"),
+                        "metadata": job_data.get("metadata", {}),
+                        "message": "Render complete!"
+                    }
+                    return
+                
+                if stage == "failed":
+                    yield {
+                        "progress": progress,
+                        "stage": "error",
+                        "error": job_data.get("error", "Unknown error"),
+                        "message": f"Render failed: {job_data.get('error')}"
+                    }
+                    return
+                
+                await asyncio.sleep(10)  # Poll every 10 seconds
+                
+            except Exception as e:
+                logger.error(f"Poll error: {e}")
+                await asyncio.sleep(10)
+        
+        # Timeout
+        yield {
+            "progress": 0,
+            "stage": "error",
+            "error": "Render job timed out after 30 minutes",
+            "message": "Job timed out"
+        }
+
+
 async def _process_render_job(job_id: str, request: RenderStartRequest):
     """
-    Process a render job in the background
+    Process a render job in the background via video-agent service
 
-    This is a placeholder for the actual rendering logic.
-    In production, this would:
-    1. Use WinningAdsGenerator to create the video
-    2. Apply auto-captions
-    3. Apply smart cropping
-    4. Save to output directory
-    5. Update job status
+    This implementation:
+    1. Calls video-agent to start the render job
+    2. Polls for progress updates
+    3. Updates job status in real-time
+    4. Handles completion and errors
     """
     try:
         # Update status to processing
         app_state.render_jobs[job_id]["status"] = RenderStatus.PROCESSING
         app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
 
-        logger.info(f"Processing render job {job_id}")
+        logger.info(f"Processing render job {job_id} via video-agent")
 
-        # Simulate rendering (replace with actual rendering logic)
-        for progress in [0, 25, 50, 75, 100]:
-            await asyncio.sleep(1)  # Simulate work
+        # Convert request to job config
+        job_config = request.model_dump() if hasattr(request, 'model_dump') else request.dict()
+        job_config["blueprint"] = job_config.get("blueprint", {})
+
+        # Process via video-agent
+        async for progress_update in process_render_job_real(job_id, job_config):
+            stage = progress_update.get("stage", "processing")
+            progress = progress_update.get("progress", 0)
+            
             app_state.render_jobs[job_id]["progress"] = progress
             app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+            
+            if stage == "completed":
+                output_url = progress_update.get("output_url") or progress_update.get("video_url")
+                output_path = output_url or os.path.join(Config.OUTPUT_DIR, f"{job_id}.mp4")
+                
+                app_state.render_jobs[job_id]["status"] = RenderStatus.COMPLETED
+                app_state.render_jobs[job_id]["output_path"] = output_path
+                app_state.render_jobs[job_id]["video_url"] = progress_update.get("video_url")
+                app_state.render_jobs[job_id]["metadata"] = progress_update.get("metadata", {})
+                app_state.render_jobs[job_id]["progress"] = 100.0
+                
+                logger.info(f"Render job {job_id} completed via video-agent")
+                return
+            
+            if stage == "error":
+                app_state.render_jobs[job_id]["status"] = RenderStatus.FAILED
+                app_state.render_jobs[job_id]["error"] = progress_update.get("error", "Unknown error")
+                
+                logger.error(f"Render job {job_id} failed: {progress_update.get('error')}")
+                return
 
-        # In production, this would be the actual output path
-        output_path = os.path.join(Config.OUTPUT_DIR, f"{job_id}.mp4")
-
-        # Mark as completed
-        app_state.render_jobs[job_id]["status"] = RenderStatus.COMPLETED
-        app_state.render_jobs[job_id]["output_path"] = output_path
-        app_state.render_jobs[job_id]["progress"] = 100.0
-        app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
-
-        logger.info(f"Render job {job_id} completed")
+        # If we exit the loop without completing, mark as failed
+        if app_state.render_jobs[job_id]["status"] != RenderStatus.COMPLETED:
+            app_state.render_jobs[job_id]["status"] = RenderStatus.FAILED
+            app_state.render_jobs[job_id]["error"] = "Render job did not complete"
+            app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
 
     except Exception as e:
         logger.error(f"Render job {job_id} failed: {e}")
