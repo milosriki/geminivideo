@@ -138,6 +138,20 @@ const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
 const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
 const GOOGLE_ADS_URL = process.env.GOOGLE_ADS_URL || 'http://localhost:8084';
 
+// ============================================================================
+// INTERNAL SERVICE AUTHENTICATION
+// ============================================================================
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
+
+// Create a reusable internal service client with auth headers
+const internalServiceClient = axios.create({
+  timeout: 120000, // 2 minute timeout for long operations
+  headers: {
+    'X-Internal-API-Key': INTERNAL_API_KEY,
+    'Content-Type': 'application/json'
+  }
+});
+
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
   res.json({
@@ -159,6 +173,7 @@ function validateServiceUrl(url: string): boolean {
         parsed.hostname.includes('ml-service') ||
         parsed.hostname.includes('meta-publisher') ||
         parsed.hostname.includes('google-ads') ||
+        parsed.hostname.includes('titan-core') ||
         parsed.hostname.includes('.run.app')); // Cloud Run domains
   } catch {
     return false;
@@ -1707,8 +1722,8 @@ app.post('/api/council/evaluate',
 
       console.log(`AI Council evaluation: creative_id=${creative_id || 'N/A'}, video_uri=${video_uri || 'N/A'}`);
 
-      // Forward to Titan Core AI Council
-      const response = await axios.post(`${TITAN_CORE_URL}/council/evaluate`, {
+      // Forward to Titan Core AI Council with internal API key
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/council/evaluate`, {
         creative_id,
         video_uri,
         metadata
@@ -1749,8 +1764,8 @@ app.post('/api/oracle/predict',
 
       console.log(`Oracle prediction: type=${prediction_type}, data_keys=${Object.keys(campaign_data).length}`);
 
-      // Forward to Titan Core Oracle
-      const response = await axios.post(`${TITAN_CORE_URL}/oracle/predict`, {
+      // Forward to Titan Core Oracle with internal API key
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/oracle/predict`, {
         campaign_data,
         prediction_type
       }, {
@@ -1792,8 +1807,8 @@ app.post('/api/director/generate',
 
       console.log(`Director generation: brief_length=${brief.length}, assets=${assets?.length || 0}, style=${style || 'auto'}`);
 
-      // Forward to Titan Core Director
-      const response = await axios.post(`${TITAN_CORE_URL}/director/generate`, {
+      // Forward to Titan Core Director with internal API key
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/director/generate`, {
         brief,
         assets: assets || [],
         style: style || 'auto',
@@ -1843,8 +1858,8 @@ app.post('/api/pipeline/generate-campaign',
 
       console.log(`Pipeline campaign generation: videos=${video_files.length}, audience=${audience || 'general'}, platform=${platform}`);
 
-      // Forward to Titan Core Pipeline
-      const response = await axios.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
+      // Forward to Titan Core Pipeline with internal API key
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
         video_files,
         audience: audience || 'general',
         platform,
