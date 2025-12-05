@@ -11,12 +11,10 @@ export default function LoginPage() {
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     // Add your authentication logic here
-    console.log('Login submitted')
   }
 
   const handleSocialLogin = (provider: 'google' | 'github') => {
     // Add your social authentication logic here
-    console.log(`Login with ${provider}`)
   }
 
   return (

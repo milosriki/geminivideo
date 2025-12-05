@@ -655,6 +655,246 @@ export function createCampaignsRouter(pgPool: Pool): Router {
     }
   );
 
+  /**
+   * POST /api/campaigns/draft
+   * Create a new draft campaign with partial data
+   */
+  router.post(
+    '/draft',
+    uploadRateLimiter,
+    validateInput({
+      body: {
+        name: { type: 'string', required: false, min: 1, max: 255, sanitize: true },
+        budget_daily: { type: 'number', required: false, min: 0 },
+        target_audience: { type: 'object', required: false },
+        objective: { type: 'string', required: false, enum: ['conversions', 'traffic', 'awareness', 'engagement'] }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { name, budget_daily, target_audience, objective } = req.body;
+
+        console.log(`Creating draft campaign: ${name || 'Untitled'}`);
+
+        // Generate campaign ID
+        const campaignId = uuidv4();
+
+        // Insert campaign into database with draft status
+        const query = `
+          INSERT INTO campaigns (id, name, status, budget_daily, target_audience, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+          RETURNING *
+        `;
+
+        const values = [
+          campaignId,
+          name || 'Untitled Draft',
+          'draft',
+          budget_daily || 0,
+          JSON.stringify(target_audience || {})
+        ];
+
+        const result = await pgPool.query(query, values);
+        const campaign = result.rows[0];
+
+        console.log(`Draft campaign created successfully: ${campaignId}`);
+
+        res.status(201).json({
+          status: 'success',
+          message: 'Draft campaign created successfully',
+          campaign: {
+            id: campaign.id,
+            name: campaign.name,
+            status: campaign.status,
+            budget_daily: parseFloat(campaign.budget_daily),
+            target_audience: campaign.target_audience,
+            created_at: campaign.created_at,
+            updated_at: campaign.updated_at
+          }
+        });
+
+      } catch (error: any) {
+        console.error('Error creating draft campaign:', error);
+        res.status(500).json({
+          error: 'Failed to create draft campaign',
+          message: error.message
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/campaigns/:id/resume
+   * Resume a paused campaign (change status from paused to active)
+   */
+  router.post(
+    '/:id/resume',
+    apiRateLimiter,
+    validateInput({
+      params: {
+        id: { type: 'uuid', required: true }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+
+        console.log(`Resuming campaign: ${id}`);
+
+        // Update campaign status to active
+        const updateQuery = `
+          UPDATE campaigns
+          SET status = 'active', updated_at = NOW()
+          WHERE id = $1 AND status = 'paused'
+          RETURNING *
+        `;
+
+        const result = await pgPool.query(updateQuery, [id]);
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({
+            error: 'Campaign not found or not paused',
+            message: `Campaign with id ${id} does not exist or is not paused`
+          });
+        }
+
+        const campaign = result.rows[0];
+
+        // Notify ML service for tracking
+        try {
+          await axios.post(`${ML_SERVICE_URL}/api/ml/campaigns/track`, {
+            campaign_id: id,
+            name: campaign.name,
+            budget: parseFloat(campaign.budget_daily),
+            status: 'resumed'
+          }, { timeout: 5000 });
+        } catch (mlError: any) {
+          console.warn('ML service notification failed:', mlError.message);
+          // Non-fatal, continue
+        }
+
+        console.log(`Campaign resumed successfully: ${id}`);
+
+        res.json({
+          status: 'success',
+          message: 'Campaign resumed successfully',
+          campaign: {
+            id: campaign.id,
+            name: campaign.name,
+            status: campaign.status,
+            budget_daily: parseFloat(campaign.budget_daily),
+            target_audience: campaign.target_audience,
+            updated_at: campaign.updated_at
+          }
+        });
+
+      } catch (error: any) {
+        console.error('Error resuming campaign:', error);
+        res.status(500).json({
+          error: 'Failed to resume campaign',
+          message: error.message
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/campaigns/predict
+   * Get ML predictions for campaign performance (CTR, ROAS)
+   */
+  router.post(
+    '/predict',
+    apiRateLimiter,
+    validateInput({
+      body: {
+        campaign_data: { type: 'object', required: true },
+        budget: { type: 'number', required: false, min: 1 },
+        target_audience: { type: 'object', required: false },
+        objective: { type: 'string', required: false, enum: ['conversions', 'traffic', 'awareness', 'engagement'] }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { campaign_data, budget, target_audience, objective } = req.body;
+
+        console.log(`Requesting campaign predictions: objective=${objective || 'conversions'}`);
+
+        // Forward to ML service for predictions
+        try {
+          const mlResponse = await axios.post(
+            `${ML_SERVICE_URL}/api/ml/predict-campaign`,
+            {
+              campaign_data,
+              budget: budget || campaign_data.budget || 1000,
+              target_audience: target_audience || campaign_data.target_audience || {},
+              objective: objective || campaign_data.objective || 'conversions',
+              include_confidence: true
+            },
+            { timeout: 30000 }
+          );
+
+          const predictions = mlResponse.data;
+
+          console.log(`Campaign predictions received: predicted_ctr=${predictions.predicted_ctr}, predicted_roas=${predictions.predicted_roas}`);
+
+          res.json({
+            status: 'success',
+            predictions: {
+              predicted_ctr: predictions.predicted_ctr || 0.02,
+              predicted_roas: predictions.predicted_roas || 2.5,
+              predicted_conversions: predictions.predicted_conversions || 0,
+              predicted_spend: predictions.predicted_spend || budget,
+              confidence_score: predictions.confidence || 0.75,
+              recommendation: predictions.recommendation || 'Launch campaign with current settings',
+              risk_level: predictions.risk_level || 'medium'
+            },
+            input_data: {
+              budget,
+              objective,
+              target_audience
+            },
+            timestamp: new Date().toISOString()
+          });
+
+        } catch (mlError: any) {
+          console.warn('ML service unavailable, returning fallback predictions:', mlError.message);
+
+          // Fallback to rule-based predictions
+          const estimatedCTR = 0.02; // 2% baseline CTR
+          const estimatedROAS = 2.5; // 2.5x baseline ROAS
+          const estimatedConversions = Math.floor((budget || 1000) * estimatedCTR);
+
+          res.json({
+            status: 'success',
+            predictions: {
+              predicted_ctr: estimatedCTR,
+              predicted_roas: estimatedROAS,
+              predicted_conversions: estimatedConversions,
+              predicted_spend: budget || 1000,
+              confidence_score: 0.5,
+              recommendation: 'ML service unavailable. Using baseline estimates.',
+              risk_level: 'medium'
+            },
+            input_data: {
+              budget,
+              objective,
+              target_audience
+            },
+            fallback: true,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+      } catch (error: any) {
+        console.error('Error getting campaign predictions:', error);
+        res.status(500).json({
+          error: 'Failed to get campaign predictions',
+          message: error.message
+        });
+      }
+    }
+  );
+
   return router;
 }
 

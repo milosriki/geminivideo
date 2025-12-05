@@ -1,0 +1,94 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.*
+!.env.example
+*.env
+*.local
+
+# Node.js dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache
+.mypy_cache
+.coverage
+htmlcov
+*.egg-info
+dist
+build
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files
+*.test
+*.spec.ts
+*.spec.js
+tests
+test
+coverage
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Docker files
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp
+temp
+*.tmp
+*.temp
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+.circleci
+
+# Build artifacts
+dist
+build
+out
+.next
+.nuxt
+
+# Credentials
+credentials.json
+*.pem
+*.key
+*.crt
+*.cert

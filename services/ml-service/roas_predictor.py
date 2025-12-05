@@ -337,6 +337,13 @@ class ROASPredictor:
         if self.ensemble is None:
             raise ValueError("Model not trained. Call train() first or load a trained model.")
 
+        # Input validation
+        if features is None:
+            raise ValueError("features cannot be None")
+
+        if not isinstance(features, FeatureSet):
+            raise TypeError(f"features must be a FeatureSet instance, got {type(features)}")
+
         # Convert features to array
         X = self._features_to_array(features)
         X_scaled = self.scaler.transform(X.reshape(1, -1))

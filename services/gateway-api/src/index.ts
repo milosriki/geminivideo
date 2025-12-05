@@ -2033,8 +2033,9 @@ app.get('/api/platforms/specs',
   async (req: Request, res: Response) => {
     try {
       const platformsQuery = req.query.platforms as string;
-      const platforms = platformsQuery
-        ? (platformsQuery.split(',') as ('meta' | 'google' | 'tiktok')[])
+      const platforms: ('meta' | 'google' | 'tiktok')[] = platformsQuery
+        ? platformsQuery.split(',').filter((p): p is 'meta' | 'google' | 'tiktok' =>
+            ['meta', 'google', 'tiktok'].includes(p))
         : ['meta', 'google', 'tiktok'];
 
       const specs = multiPlatformPublisher.getPlatformSpecs(platforms);
@@ -2184,6 +2185,11 @@ app.use('/api/ads', adsRouter);
 import { createPredictionsRouter } from './routes/predictions';
 const predictionsRouter = createPredictionsRouter(pgPool);
 app.use('/api/predictions', predictionsRouter);
+
+// Creatives Routes
+import { createCreativesRouter } from './routes/creatives';
+const creativesRouter = createCreativesRouter(pgPool);
+app.use('/api/creatives', creativesRouter);
 
 // ============================================================================
 // ONBOARDING ENDPOINTS

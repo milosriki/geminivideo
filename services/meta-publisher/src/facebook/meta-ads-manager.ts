@@ -1,6 +1,7 @@
 /**
  * Meta Ads Manager - Real Facebook SDK Integration
  * Agents 11-14: Campaign, AdSet, Ad creation, Video upload, and Insights
+ * Agent 95: Enhanced with retry logic, CAPI integration, and error handling
  */
 import {
   FacebookAdsApi,
@@ -13,6 +14,8 @@ import {
 } from 'facebook-nodejs-business-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
+import axios from 'axios';
+import crypto from 'crypto';
 
 export interface MetaConfig {
   accessToken: string;
@@ -56,6 +59,76 @@ export interface AdParams {
   status?: string;
 }
 
+export interface ConversionEvent {
+  eventName: string;
+  eventTime: number;
+  userData: {
+    email?: string;
+    phone?: string;
+    externalId?: string;
+    clientIpAddress?: string;
+    clientUserAgent?: string;
+    fbc?: string;
+    fbp?: string;
+  };
+  customData?: Record<string, any>;
+  eventSourceUrl?: string;
+  actionSource: string;
+}
+
+export interface RetryConfig {
+  maxRetries: number;
+  baseDelay: number;
+  maxDelay: number;
+}
+
+/**
+ * Retry helper with exponential backoff
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  config: RetryConfig = { maxRetries: 3, baseDelay: 1000, maxDelay: 10000 }
+): Promise<T> {
+  let lastError: Error;
+
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+
+      // Check if error is retryable
+      const isRateLimitError = error.message?.includes('rate limit') ||
+                                error.code === 4 ||
+                                error.code === 17 ||
+                                error.code === 32;
+
+      const isServerError = error.code >= 500 || error.message?.includes('server error');
+
+      const shouldRetry = isRateLimitError || isServerError;
+
+      if (!shouldRetry || attempt === config.maxRetries) {
+        throw error;
+      }
+
+      // Calculate exponential backoff delay
+      const delay = Math.min(
+        config.baseDelay * Math.pow(2, attempt),
+        config.maxDelay
+      );
+
+      // Add jitter to prevent thundering herd
+      const jitter = Math.random() * 0.3 * delay;
+      const totalDelay = delay + jitter;
+
+      console.log(`Retry attempt ${attempt + 1}/${config.maxRetries} after ${Math.round(totalDelay)}ms`);
+      await new Promise(resolve => setTimeout(resolve, totalDelay));
+    }
+  }
+
+  throw lastError!;
+}
+
 /**
  * Meta Ads Manager - Full Facebook Marketing API Integration
  */
@@ -63,6 +136,8 @@ export class MetaAdsManager {
   private api: typeof FacebookAdsApi;
   private adAccount: AdAccount;
   private config: MetaConfig;
+  private eventDeduplicationCache: Set<string> = new Set();
+  private readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
   constructor(config: MetaConfig) {
     this.config = config;
@@ -72,26 +147,35 @@ export class MetaAdsManager {
     this.adAccount = new AdAccount(`act_${config.adAccountId}`);
 
     console.log(`Meta Ads Manager initialized for account: act_${config.adAccountId}`);
+
+    // Clean up deduplication cache periodically
+    setInterval(() => {
+      this.eventDeduplicationCache.clear();
+      console.log('Event deduplication cache cleared');
+    }, this.CACHE_TTL);
   }
 
   /**
    * Agent 12: Create Campaign
+   * Agent 95: Enhanced with retry logic
    */
   async createCampaign(params: CampaignParams): Promise<string> {
-    try {
-      const campaign = await this.adAccount.createCampaign([], {
-        name: params.name,
-        objective: params.objective || 'OUTCOME_ENGAGEMENT',
-        status: params.status || 'PAUSED',
-        special_ad_categories: params.specialAdCategories || []
-      });
+    return retryWithBackoff(async () => {
+      try {
+        const campaign = await this.adAccount.createCampaign([], {
+          name: params.name,
+          objective: params.objective || 'OUTCOME_ENGAGEMENT',
+          status: params.status || 'PAUSED',
+          special_ad_categories: params.specialAdCategories || []
+        });
 
-      console.log(`Campaign created: ${campaign.id}`);
-      return campaign.id;
-    } catch (error: any) {
-      console.error('Error creating campaign:', error);
-      throw new Error(`Failed to create campaign: ${error.message}`);
-    }
+        console.log(`Campaign created: ${campaign.id}`);
+        return campaign.id;
+      } catch (error: any) {
+        console.error('Error creating campaign:', error);
+        throw this.normalizeError(error, 'Failed to create campaign');
+      }
+    });
   }
 
   /**
@@ -432,6 +516,122 @@ export class MetaAdsManager {
       console.error('Meta API Error (getAccountInsights):', error);
       throw new Error(`Failed to fetch account insights: ${error.message}`);
     }
+  }
+
+  /**
+   * Agent 95: Send Conversion API Event
+   * Implements event deduplication using event_id
+   */
+  async sendConversionEvent(event: ConversionEvent, pixelId?: string): Promise<void> {
+    return retryWithBackoff(async () => {
+      try {
+        // Generate event ID for deduplication
+        const eventId = this.generateEventId(event);
+
+        // Check if event already sent (deduplication)
+        if (this.eventDeduplicationCache.has(eventId)) {
+          console.log(`Event ${eventId} already sent, skipping (deduplication)`);
+          return;
+        }
+
+        // Hash user data for privacy
+        const hashedUserData = this.hashUserData(event.userData);
+
+        const eventData = {
+          event_name: event.eventName,
+          event_time: event.eventTime,
+          event_id: eventId,
+          action_source: event.actionSource,
+          user_data: hashedUserData,
+          custom_data: event.customData || {},
+          event_source_url: event.eventSourceUrl || ''
+        };
+
+        // Use pixel ID from config if not provided
+        const targetPixelId = pixelId || this.config.pageId;
+
+        // Send to Meta Conversion API
+        const META_API_VERSION = 'v18.0';
+        const url = `https://graph.facebook.com/${META_API_VERSION}/${targetPixelId}/events`;
+
+        await axios.post(url, {
+          data: [eventData],
+          access_token: this.config.accessToken
+        });
+
+        // Add to deduplication cache
+        this.eventDeduplicationCache.add(eventId);
+
+        console.log(`Conversion event sent successfully: ${event.eventName} (${eventId})`);
+      } catch (error: any) {
+        console.error('Error sending conversion event:', error);
+        throw this.normalizeError(error, 'Failed to send conversion event');
+      }
+    });
+  }
+
+  /**
+   * Agent 95: Generate unique event ID for deduplication
+   */
+  private generateEventId(event: ConversionEvent): string {
+    const data = JSON.stringify({
+      eventName: event.eventName,
+      eventTime: event.eventTime,
+      externalId: event.userData.externalId,
+      email: event.userData.email
+    });
+
+    return crypto.createHash('sha256').update(data).digest('hex').substring(0, 16);
+  }
+
+  /**
+   * Agent 95: Hash user data for privacy compliance
+   */
+  private hashUserData(userData: ConversionEvent['userData']): any {
+    const hashed: any = {};
+
+    if (userData.email) {
+      hashed.em = crypto.createHash('sha256')
+        .update(userData.email.toLowerCase().trim())
+        .digest('hex');
+    }
+
+    if (userData.phone) {
+      hashed.ph = crypto.createHash('sha256')
+        .update(userData.phone.replace(/\D/g, ''))
+        .digest('hex');
+    }
+
+    if (userData.externalId) {
+      hashed.external_id = userData.externalId;
+    }
+
+    // Non-PII fields don't need hashing
+    if (userData.clientIpAddress) hashed.client_ip_address = userData.clientIpAddress;
+    if (userData.clientUserAgent) hashed.client_user_agent = userData.clientUserAgent;
+    if (userData.fbc) hashed.fbc = userData.fbc;
+    if (userData.fbp) hashed.fbp = userData.fbp;
+
+    return hashed;
+  }
+
+  /**
+   * Agent 95: Normalize error responses for consistent error handling
+   */
+  private normalizeError(error: any, defaultMessage: string): Error {
+    const errorObj = new Error(defaultMessage);
+
+    if (error.response?.data?.error) {
+      const fbError = error.response.data.error;
+      (errorObj as any).code = fbError.code;
+      (errorObj as any).type = fbError.type;
+      (errorObj as any).message = fbError.message || defaultMessage;
+      (errorObj as any).fbtrace_id = fbError.fbtrace_id;
+    } else if (error.message) {
+      (errorObj as any).message = error.message;
+    }
+
+    return errorObj;
   }
 }
 

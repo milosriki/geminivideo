@@ -202,10 +202,11 @@ class ThompsonSamplingOptimizer:
         variant = self.variants[variant_id]
 
         # Update Beta distribution parameters
+        # Thompson Sampling uses binary outcomes: success = +1 alpha, failure = +1 beta
         if reward > 0:
-            variant['alpha'] += reward
+            variant['alpha'] += 1  # SUCCESS: increment by 1 (not by reward value)
         else:
-            variant['beta'] += 1
+            variant['beta'] += 1  # FAILURE: increment by 1
 
         # Update metrics
         if metrics:
@@ -214,11 +215,16 @@ class ThompsonSamplingOptimizer:
             variant['conversions'] = metrics.get('conversions', variant['conversions'])
             variant['spend'] += cost
 
-            # Calculate rates
+            # Calculate rates with zero-division protection
             if variant['impressions'] > 0:
                 variant['ctr'] = variant['clicks'] / variant['impressions']
+            else:
+                variant['ctr'] = 0.0
+
             if variant['clicks'] > 0:
                 variant['cvr'] = variant['conversions'] / variant['clicks']
+            else:
+                variant['cvr'] = 0.0
             if variant['spend'] > 0:
                 # ROAS = Revenue / Spend (using REAL revenue from Meta Conversion API)
                 try:

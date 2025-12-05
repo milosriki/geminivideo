@@ -614,6 +614,342 @@ export function createABTestsRouter(pgPool: Pool): Router {
     }
   );
 
+  /**
+   * PUT /api/ab-tests/:id
+   * Update A/B test configuration
+   */
+  router.put(
+    '/:id',
+    apiRateLimiter,
+    validateInput({
+      params: {
+        id: { type: 'uuid', required: true }
+      },
+      body: {
+        name: { type: 'string', required: false, min: 1, max: 255, sanitize: true },
+        budget_split: { type: 'string', required: false, enum: ['even', 'thompson_sampling', 'weighted'] },
+        total_budget: { type: 'number', required: false, min: 1 },
+        objective: { type: 'string', required: false, enum: ['ctr', 'conversions', 'roas', 'engagement'] },
+        status: { type: 'string', required: false, enum: ['active', 'paused', 'completed'] }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const updates = req.body;
+
+        console.log(`Updating A/B test: ${id}`);
+
+        // Check if experiment exists
+        const checkQuery = 'SELECT * FROM campaigns WHERE id = $1';
+        const checkResult = await pgPool.query(checkQuery, [id]);
+
+        if (checkResult.rows.length === 0) {
+          return res.status(404).json({
+            error: 'A/B test not found',
+            message: `A/B test with id ${id} does not exist`
+          });
+        }
+
+        // Build update query dynamically
+        const updateFields: string[] = [];
+        const values: any[] = [];
+        let paramIndex = 1;
+
+        if (updates.name !== undefined) {
+          updateFields.push(`name = $${paramIndex}`);
+          values.push(updates.name);
+          paramIndex++;
+        }
+
+        if (updates.total_budget !== undefined) {
+          updateFields.push(`budget_daily = $${paramIndex}`);
+          values.push(updates.total_budget);
+          paramIndex++;
+        }
+
+        if (updates.status !== undefined) {
+          updateFields.push(`status = $${paramIndex}`);
+          values.push(updates.status);
+          paramIndex++;
+        }
+
+        if (updateFields.length === 0) {
+          return res.status(400).json({
+            error: 'No updates provided',
+            message: 'At least one field must be provided for update'
+          });
+        }
+
+        // Add updated_at timestamp
+        updateFields.push(`updated_at = NOW()`);
+
+        // Add experiment ID as last parameter
+        values.push(id);
+
+        const updateQuery = `
+          UPDATE campaigns
+          SET ${updateFields.join(', ')}
+          WHERE id = $${paramIndex}
+          RETURNING *
+        `;
+
+        const result = await pgPool.query(updateQuery, values);
+        const experiment = result.rows[0];
+
+        // Notify ML service if budget or objective changed
+        if (updates.budget_split || updates.objective || updates.total_budget) {
+          try {
+            await axios.put(
+              `${ML_SERVICE_URL}/api/ml/ab/experiments/${id}`,
+              {
+                budget_split: updates.budget_split,
+                objective: updates.objective,
+                total_budget: updates.total_budget
+              },
+              { timeout: 10000 }
+            );
+          } catch (mlError: any) {
+            console.warn('ML service update notification failed:', mlError.message);
+            // Non-fatal, continue
+          }
+        }
+
+        console.log(`A/B test updated successfully: ${id}`);
+
+        res.json({
+          status: 'success',
+          message: 'A/B test updated successfully',
+          experiment: {
+            experiment_id: experiment.id,
+            name: experiment.name,
+            status: experiment.status,
+            total_budget: parseFloat(experiment.budget_daily),
+            updated_at: experiment.updated_at
+          }
+        });
+
+      } catch (error: any) {
+        console.error('Error updating A/B test:', error);
+        res.status(500).json({
+          error: 'Failed to update A/B test',
+          message: error.message
+        });
+      }
+    }
+  );
+
+  /**
+   * DELETE /api/ab-tests/:id
+   * Delete an A/B test experiment
+   */
+  router.delete(
+    '/:id',
+    apiRateLimiter,
+    validateInput({
+      params: {
+        id: { type: 'uuid', required: true }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+
+        console.log(`Deleting A/B test: ${id}`);
+
+        // Check if experiment exists
+        const checkQuery = 'SELECT * FROM campaigns WHERE id = $1';
+        const checkResult = await pgPool.query(checkQuery, [id]);
+
+        if (checkResult.rows.length === 0) {
+          return res.status(404).json({
+            error: 'A/B test not found',
+            message: `A/B test with id ${id} does not exist`
+          });
+        }
+
+        const experiment = checkResult.rows[0];
+
+        // Prevent deletion of active experiments
+        if (experiment.status === 'active') {
+          return res.status(400).json({
+            error: 'Cannot delete active experiment',
+            message: 'Please pause the experiment before deleting it'
+          });
+        }
+
+        // Soft delete by setting status to 'deleted'
+        const deleteQuery = `
+          UPDATE campaigns
+          SET status = 'deleted', updated_at = NOW()
+          WHERE id = $1
+          RETURNING *
+        `;
+
+        await pgPool.query(deleteQuery, [id]);
+
+        // Notify ML service
+        try {
+          await axios.delete(
+            `${ML_SERVICE_URL}/api/ml/ab/experiments/${id}`,
+            { timeout: 5000 }
+          );
+        } catch (mlError: any) {
+          console.warn('ML service deletion notification failed:', mlError.message);
+          // Non-fatal, continue
+        }
+
+        console.log(`A/B test deleted successfully: ${id}`);
+
+        res.json({
+          status: 'success',
+          message: 'A/B test deleted successfully',
+          experiment_id: id
+        });
+
+      } catch (error: any) {
+        console.error('Error deleting A/B test:', error);
+        res.status(500).json({
+          error: 'Failed to delete A/B test',
+          message: error.message
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/ab-tests/:id/start
+   * Start an A/B test experiment
+   */
+  router.post(
+    '/:id/start',
+    uploadRateLimiter,
+    validateInput({
+      params: {
+        id: { type: 'uuid', required: true }
+      },
+      body: {
+        force_start: { type: 'boolean', required: false }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const { force_start = false } = req.body;
+
+        console.log(`Starting A/B test: ${id}`);
+
+        // Check if experiment exists
+        const checkQuery = `
+          SELECT c.*, COUNT(DISTINCT co.id) as variant_count
+          FROM campaigns c
+          LEFT JOIN campaign_outcomes co ON c.id = co.campaign_id
+          WHERE c.id = $1
+          GROUP BY c.id
+        `;
+        const checkResult = await pgPool.query(checkQuery, [id]);
+
+        if (checkResult.rows.length === 0) {
+          return res.status(404).json({
+            error: 'A/B test not found',
+            message: `A/B test with id ${id} does not exist`
+          });
+        }
+
+        const experiment = checkResult.rows[0];
+
+        // Validate experiment can be started
+        if (experiment.status === 'active' && !force_start) {
+          return res.status(400).json({
+            error: 'Experiment already active',
+            message: 'This experiment is already running. Use force_start=true to restart.'
+          });
+        }
+
+        if (parseInt(experiment.variant_count) < 2 && !force_start) {
+          return res.status(400).json({
+            error: 'Insufficient variants',
+            message: 'At least 2 variants are required to start an A/B test. Use force_start=true to override.'
+          });
+        }
+
+        // Update experiment status to active
+        const updateQuery = `
+          UPDATE campaigns
+          SET status = 'active', updated_at = NOW()
+          WHERE id = $1
+          RETURNING *
+        `;
+
+        const result = await pgPool.query(updateQuery, [id]);
+        const updatedExperiment = result.rows[0];
+
+        // Forward to ML service to initialize Thompson Sampling
+        try {
+          const mlResponse = await axios.post(
+            `${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/start`,
+            {
+              force_start,
+              budget: parseFloat(updatedExperiment.budget_daily),
+              variant_count: parseInt(experiment.variant_count)
+            },
+            { timeout: 30000 }
+          );
+
+          console.log(`A/B test started successfully: ${id}`);
+
+          res.json({
+            status: 'success',
+            message: 'A/B test started successfully',
+            experiment: {
+              experiment_id: updatedExperiment.id,
+              name: updatedExperiment.name,
+              status: updatedExperiment.status,
+              total_budget: parseFloat(updatedExperiment.budget_daily),
+              variant_count: parseInt(experiment.variant_count),
+              started_at: updatedExperiment.updated_at
+            },
+            ml_response: mlResponse.data,
+            thompson_sampling: {
+              enabled: true,
+              exploration_rate: mlResponse.data.exploration_rate || 0.2,
+              confidence_threshold: mlResponse.data.confidence_threshold || 0.95
+            }
+          });
+
+        } catch (mlError: any) {
+          console.warn('ML service start failed, experiment started without optimization:', mlError.message);
+
+          // Still return success, but note ML service unavailable
+          res.json({
+            status: 'success',
+            message: 'A/B test started (ML optimization unavailable)',
+            experiment: {
+              experiment_id: updatedExperiment.id,
+              name: updatedExperiment.name,
+              status: updatedExperiment.status,
+              total_budget: parseFloat(updatedExperiment.budget_daily),
+              variant_count: parseInt(experiment.variant_count),
+              started_at: updatedExperiment.updated_at
+            },
+            thompson_sampling: {
+              enabled: false,
+              note: 'ML service unavailable - using even budget split'
+            },
+            warning: 'ML service unavailable. Thompson Sampling optimization disabled.'
+          });
+        }
+
+      } catch (error: any) {
+        console.error('Error starting A/B test:', error);
+        res.status(500).json({
+          error: 'Failed to start A/B test',
+          message: error.message
+        });
+      }
+    }
+  );
+
   return router;
 }
 
