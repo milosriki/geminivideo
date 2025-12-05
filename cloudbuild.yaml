@@ -332,6 +332,48 @@ steps:
       - push-frontend
       - deploy-gateway-api
 
+  # Deploy Drive Worker (Background)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: deploy-drive-worker
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "drive-worker"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/drive-intel:${_SHORT_SHA}"
+      - "--command=python"
+      - "--args=worker.py"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--memory=2Gi"
+      - "--cpu=1"
+      - "--timeout=300"
+      - "--service-account=${_SERVICE_ACCOUNT}"
+      - "--no-allow-unauthenticated"
+    waitFor:
+      - push-drive-intel
+
+  # Deploy Video Worker (Background)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: deploy-video-worker
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "video-worker"
+      - "--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/video-agent:${_SHORT_SHA}"
+      - "--command=python"
+      - "--args=worker.py"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--memory=4Gi"
+      - "--cpu=2"
+      - "--timeout=900"
+      - "--service-account=${_SERVICE_ACCOUNT}"
+      - "--no-allow-unauthenticated"
+    waitFor:
+      - push-video-agent
+
   # =============================================================================
   # Step 4: Health Checks
   # =============================================================================

@@ -217,8 +217,33 @@ class VideoWorker:
                     json.dumps({"status": "failed", "error": str(e)})
                 )
     
+    def start_health_server(self):
+        """Start a dummy HTTP server for Cloud Run health checks"""
+        from http.server import HTTPServer, BaseHTTPRequestHandler
+        import threading
+
+        class HealthCheckHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"OK")
+            
+            # Suppress logs
+            def log_message(self, format, *args):
+                pass
+
+        port = int(os.getenv("PORT", "8080"))
+        server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+        
+        print(f"🏥 Health check server listening on port {port}")
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
     def run(self):
         """Main worker loop - blocks and processes jobs"""
+        # Start health check server for Cloud Run
+        self.start_health_server()
+
         print("🚀 Video Worker started, waiting for jobs...")
         print("   Queue: render_queue")
         

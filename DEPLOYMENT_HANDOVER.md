@@ -21,6 +21,7 @@ Once the current deployment completes, the Titan Engine will be accessible at th
     *   `titan-core`: Updated `autogen` packages to `0.4.0+` to fix missing modules.
     *   `drive-intel`: Resolved `opencv` and `torch` version conflicts.
 *   **Build Pipeline:** Fixed race conditions in `cloudbuild.yaml`.
+*   **New Services:** Added `drive-worker` and `video-worker` to Cloud Run deployment for background processing.
 
 ## 2. Setting Up on a New Machine
 
