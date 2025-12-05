@@ -13,7 +13,7 @@ from typing import List, Optional, Dict, Any
 import os
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import logging
 
@@ -459,10 +459,28 @@ async def download_video(video_id: str):
     expires_at = video.get("signed_url_expires_at")
     
     if signed_url and expires_at:
+        # Parse datetime if it's a string
         if isinstance(expires_at, str):
-            expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
-        if expires_at > datetime.utcnow():
-            return RedirectResponse(url=signed_url)
+            try:
+                # Handle ISO format with or without timezone
+                if expires_at.endswith('Z'):
+                    expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                elif '+' in expires_at or expires_at.endswith('00'):
+                    expires_at = datetime.fromisoformat(expires_at)
+                else:
+                    # Assume UTC if no timezone specified
+                    expires_at = datetime.fromisoformat(expires_at).replace(tzinfo=timezone.utc)
+            except (ValueError, AttributeError):
+                expires_at = None
+        
+        # Make comparison timezone-aware
+        if expires_at is not None:
+            now_utc = datetime.now(timezone.utc)
+            # If expires_at is naive, assume UTC
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at > now_utc:
+                return RedirectResponse(url=signed_url)
     
     # Generate new signed URL if we have a GCS path
     gcs_path = video.get("gcs_path")
@@ -479,13 +497,13 @@ async def download_video(video_id: str):
             )
             
             # Update storage with new signed URL
-            new_expires_at = datetime.utcnow() + timedelta(days=7)
+            new_expires_at = datetime.now(timezone.utc) + timedelta(days=7)
             if video_id in generated_videos:
                 generated_videos[video_id]["signed_url"] = signed_url
-                generated_videos[video_id]["signed_url_expires_at"] = new_expires_at
+                generated_videos[video_id]["signed_url_expires_at"] = new_expires_at.isoformat()
             elif video_id in pro_jobs:
                 pro_jobs[video_id]["signed_url"] = signed_url
-                pro_jobs[video_id]["signed_url_expires_at"] = new_expires_at
+                pro_jobs[video_id]["signed_url_expires_at"] = new_expires_at.isoformat()
             
             return RedirectResponse(url=signed_url)
             
@@ -507,15 +525,17 @@ async def download_video(video_id: str):
 
 def register_generated_video(video_id: str, video_data: Dict[str, Any]):
     """Helper function to register a generated video for download tracking"""
+    expires_at = video_data.get("signed_url_expires_at")
+    if expires_at is None and video_data.get("video_url"):
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    
     generated_videos[video_id] = {
         "id": video_id,
         "gcs_path": video_data.get("gcs_path"),
         "local_path": video_data.get("local_path") or video_data.get("video_path"),
         "signed_url": video_data.get("signed_url") or video_data.get("video_url"),
-        "signed_url_expires_at": video_data.get("signed_url_expires_at") or (
-            datetime.utcnow() + timedelta(days=7) if video_data.get("video_url") else None
-        ),
-        "created_at": datetime.utcnow().isoformat()
+        "signed_url_expires_at": expires_at,
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
 
 

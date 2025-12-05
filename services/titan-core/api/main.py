@@ -131,6 +131,8 @@ class Config:
     # Video Agent Integration
     VIDEO_AGENT_URL = os.getenv("VIDEO_AGENT_URL", "http://localhost:8002")
     INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key")
+    RENDER_TIMEOUT_MINUTES = int(os.getenv("RENDER_TIMEOUT_MINUTES", "30"))
+    POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "10"))
 
     # CORS
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
@@ -1495,7 +1497,10 @@ async def process_render_job_real(job_id: str, job_config: dict) -> AsyncGenerat
         # Step 3: Poll for progress
         yield {"progress": 10, "stage": "processing", "message": "Render job started"}
         
-        max_polls = 180  # 30 minutes max (180 * 10s)
+        # Calculate max polls based on configurable timeout
+        max_polls = (Config.RENDER_TIMEOUT_MINUTES * 60) // Config.POLL_INTERVAL_SECONDS
+        poll_interval = Config.POLL_INTERVAL_SECONDS
+        
         for i in range(max_polls):
             try:
                 status_response = await client.get(
@@ -1504,7 +1509,7 @@ async def process_render_job_real(job_id: str, job_config: dict) -> AsyncGenerat
                 )
                 
                 if status_response.status_code != 200:
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(poll_interval)
                     continue
                 
                 status_data = status_response.json()
@@ -1538,17 +1543,17 @@ async def process_render_job_real(job_id: str, job_config: dict) -> AsyncGenerat
                     }
                     return
                 
-                await asyncio.sleep(10)  # Poll every 10 seconds
+                await asyncio.sleep(poll_interval)
                 
             except Exception as e:
                 logger.error(f"Poll error: {e}")
-                await asyncio.sleep(10)
+                await asyncio.sleep(poll_interval)
         
         # Timeout
         yield {
             "progress": 0,
             "stage": "error",
-            "error": "Render job timed out after 30 minutes",
+            "error": f"Render job timed out after {Config.RENDER_TIMEOUT_MINUTES} minutes",
             "message": "Job timed out"
         }
 
@@ -1570,8 +1575,8 @@ async def _process_render_job(job_id: str, request: RenderStartRequest):
 
         logger.info(f"Processing render job {job_id} via video-agent")
 
-        # Convert request to job config
-        job_config = request.model_dump() if hasattr(request, 'model_dump') else request.dict()
+        # Convert request to job config (Pydantic v2 API)
+        job_config = request.model_dump()
         job_config["blueprint"] = job_config.get("blueprint", {})
 
         # Process via video-agent

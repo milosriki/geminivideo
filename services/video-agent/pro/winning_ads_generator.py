@@ -40,7 +40,6 @@ import random
 from datetime import datetime, timedelta
 
 from google.cloud import storage
-from google.cloud.storage import Blob
 
 # Import from our pro modules
 try:
@@ -176,7 +175,12 @@ def get_gcs_uploader() -> Optional[GCSUploader]:
         try:
             _gcs_uploader = GCSUploader()
         except Exception as e:
-            logger.warning(f"GCS uploader initialization failed: {e}")
+            logger.warning(
+                f"GCS uploader initialization failed: {e}. "
+                f"Ensure GOOGLE_CLOUD_PROJECT and GCS_BUCKET env vars are set, "
+                f"and valid credentials are available (via GOOGLE_APPLICATION_CREDENTIALS "
+                f"or default application credentials)."
+            )
             return None
     return _gcs_uploader
 
