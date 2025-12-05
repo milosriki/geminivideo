@@ -1,0 +1,20 @@
+# E2E Test Requirements
+# Install with: pip install -r tests/e2e/requirements.txt
+
+# Testing framework
+pytest>=7.4.0
+pytest-timeout>=2.1.0
+pytest-xdist>=3.3.0  # Parallel test execution
+
+# HTTP requests
+requests>=2.31.0
+
+# Database
+psycopg2-binary>=2.9.9  # PostgreSQL adapter
+
+# Data processing
+numpy>=1.24.0
+
+# Report generation (optional)
+reportlab>=4.0.0  # PDF generation
+markdown>=3.5.0  # Markdown to HTML

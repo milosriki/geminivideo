@@ -18,6 +18,10 @@ scipy==1.11.4
 lightgbm==4.1.0
 shap==0.43.0
 
+# Alert System Dependencies (Agent 16 - Real-Time Alerts)
+aiohttp==3.9.1
+aiosmtplib==3.0.1
+
 # A/B Testing uses scipy.stats.beta for Thompson Sampling (Agent 6)
 # vowpalwabbit removed due to complex build dependencies
 
@@ -25,7 +29,27 @@ shap==0.43.0
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 
+# Report Generation Dependencies (Agent 18)
+reportlab==4.0.7
+openpyxl==3.1.2
+
+# Vector Database (Agent 39 - pgvector)
+pgvector==0.2.4
+asyncpg==0.29.0
+
+# Embeddings (Agent 39 - OpenAI + CLIP)
+openai==1.54.0
+tiktoken==0.8.0
+transformers==4.36.0
+torch==2.1.0
+pillow==10.1.0
+sentence-transformers==2.2.2
+
 # Utilities
 python-dotenv==1.0.0
 requests==2.31.0
 schedule
+python-dateutil==2.8.2
+
+# Precomputation (Agent 45)
+redis==5.0.1

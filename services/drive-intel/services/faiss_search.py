@@ -15,6 +15,13 @@ import os
 from typing import Dict, List, Optional, Any, Tuple, Callable
 from dataclasses import dataclass, asdict
 from pathlib import Path
+import sys
+
+# Add shared directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'shared'))
+
+from sqlalchemy import select, delete
+from db.models import EmbeddingMetadata as EmbeddingMetadataModel
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +52,8 @@ class FAISSEmbeddingSearch:
         dimension: int = 384,  # all-MiniLM-L6-v2 dimension
         index_type: str = "IVF",  # IVF, Flat, HNSW
         nlist: int = 100,  # Number of clusters for IVF
-        use_gpu: bool = False
+        use_gpu: bool = False,
+        db_session = None  # Optional database session for persistence
     ):
         """
         Initialize FAISS index.
@@ -55,15 +63,16 @@ class FAISSEmbeddingSearch:
             index_type: Type of index (IVF, Flat, HNSW)
             nlist: Number of clusters for IVF index
             use_gpu: Whether to use GPU acceleration
+            db_session: Optional SQLAlchemy AsyncSession for metadata persistence
         """
         self.dimension = dimension
         self.index_type = index_type
         self.nlist = nlist
         self.use_gpu = use_gpu
+        self.db_session = db_session
         self.index = None
         self.id_map = {}  # internal_id -> external_id
         self.reverse_id_map = {}  # external_id -> internal_id
-        self.metadata_store = {}  # external_id -> metadata
         self.embedding_model = None
         self.next_internal_id = 0
         self._init_index(index_type, nlist, use_gpu)
@@ -118,7 +127,7 @@ class FAISSEmbeddingSearch:
                 raise
 
     # Index Building
-    def build_index(
+    async def build_index(
         self,
         embeddings: np.ndarray,
         ids: List[str],
@@ -149,21 +158,78 @@ class FAISSEmbeddingSearch:
             # Add embeddings
             self.index.add(embeddings)
 
-            # Build ID maps
+            # Build ID maps and store metadata in PostgreSQL
             for i, external_id in enumerate(ids):
                 internal_id = self.next_internal_id + i
                 self.id_map[internal_id] = external_id
                 self.reverse_id_map[external_id] = internal_id
 
-                # Store metadata if provided
-                if metadata:
-                    self.metadata_store[external_id] = metadata[i]
+                # Store metadata in database if session provided
+                if self.db_session and metadata:
+                    await self._store_metadata_db(external_id, internal_id, metadata[i])
 
             self.next_internal_id += len(ids)
             logger.info(f"Built index with {len(ids)} vectors")
         except Exception as e:
             logger.error(f"Failed to build index: {e}")
             raise
+
+    async def _store_metadata_db(
+        self,
+        external_id: str,
+        internal_id: int,
+        metadata: Dict[str, Any]
+    ) -> None:
+        """Store metadata in PostgreSQL."""
+        if not self.db_session:
+            return
+
+        try:
+            # Check if exists
+            result = await self.db_session.execute(
+                select(EmbeddingMetadataModel).where(EmbeddingMetadataModel.external_id == external_id)
+            )
+            existing = result.scalar_one_or_none()
+
+            if existing:
+                # Update
+                existing.internal_id = internal_id
+                existing.metadata = metadata
+                existing.embedding_dimension = self.dimension
+                existing.index_type = self.index_type
+            else:
+                # Insert new
+                db_metadata = EmbeddingMetadataModel(
+                    external_id=external_id,
+                    internal_id=internal_id,
+                    metadata=metadata,
+                    embedding_dimension=self.dimension,
+                    index_type=self.index_type
+                )
+                self.db_session.add(db_metadata)
+
+            await self.db_session.commit()
+        except Exception as e:
+            await self.db_session.rollback()
+            logger.error(f"Failed to store metadata in database: {e}")
+
+    async def _load_metadata_db(self, external_id: str) -> Optional[Dict[str, Any]]:
+        """Load metadata from PostgreSQL."""
+        if not self.db_session:
+            return None
+
+        try:
+            result = await self.db_session.execute(
+                select(EmbeddingMetadataModel).where(EmbeddingMetadataModel.external_id == external_id)
+            )
+            db_metadata = result.scalar_one_or_none()
+
+            if db_metadata:
+                return db_metadata.metadata
+            return None
+        except Exception as e:
+            logger.error(f"Failed to load metadata from database: {e}")
+            return None
 
     def train_index(
         self,
@@ -188,7 +254,7 @@ class FAISSEmbeddingSearch:
             raise
 
     # Search
-    def search_similar(
+    async def search_similar(
         self,
         query_embedding: np.ndarray,
         k: int = 10,
@@ -222,7 +288,9 @@ class FAISSEmbeddingSearch:
                     continue
 
                 external_id = self.id_map[idx]
-                metadata = self.metadata_store.get(external_id, {})
+
+                # Load metadata from database or fallback to memory
+                metadata = await self._load_metadata_db(external_id) if self.db_session else {}
 
                 # Apply filter if provided
                 if filter_fn and not filter_fn(external_id, metadata):
@@ -424,7 +492,7 @@ class FAISSEmbeddingSearch:
             logger.error(f"Failed to add batch: {e}")
             return 0
 
-    def remove_from_index(
+    async def remove_from_index(
         self,
         id: str
     ) -> bool:
@@ -451,13 +519,18 @@ class FAISSEmbeddingSearch:
             del self.id_map[internal_id]
             del self.reverse_id_map[id]
 
-            # Remove metadata
-            if id in self.metadata_store:
-                del self.metadata_store[id]
+            # Remove metadata from database
+            if self.db_session:
+                await self.db_session.execute(
+                    delete(EmbeddingMetadataModel).where(EmbeddingMetadataModel.external_id == id)
+                )
+                await self.db_session.commit()
 
             logger.info(f"Removed ID {id} from metadata (vector remains in index)")
             return True
         except Exception as e:
+            if self.db_session:
+                await self.db_session.rollback()
             logger.error(f"Failed to remove from index: {e}")
             return False
 
@@ -692,7 +765,7 @@ class FAISSEmbeddingSearch:
             raise
 
     # Metadata
-    def get_metadata(
+    async def get_metadata(
         self,
         id: str
     ) -> Dict[str, Any]:
@@ -705,9 +778,12 @@ class FAISSEmbeddingSearch:
         Returns:
             Metadata dict (empty if not found)
         """
-        return self.metadata_store.get(id, {})
+        if self.db_session:
+            metadata = await self._load_metadata_db(id)
+            return metadata if metadata else {}
+        return {}
 
-    def update_metadata(
+    async def update_metadata(
         self,
         id: str,
         metadata: Dict[str, Any]
@@ -726,10 +802,13 @@ class FAISSEmbeddingSearch:
             logger.warning(f"ID not found: {id}")
             return False
 
-        self.metadata_store[id] = metadata
+        if self.db_session:
+            internal_id = self.reverse_id_map[id]
+            await self._store_metadata_db(id, internal_id, metadata)
+
         return True
 
-    def filter_by_metadata(
+    async def filter_by_metadata(
         self,
         filter_dict: Dict[str, Any]
     ) -> List[str]:
@@ -742,11 +821,26 @@ class FAISSEmbeddingSearch:
         Returns:
             List of matching IDs
         """
-        matching_ids = []
-        for id, metadata in self.metadata_store.items():
-            if all(metadata.get(k) == v for k, v in filter_dict.items()):
-                matching_ids.append(id)
-        return matching_ids
+        if not self.db_session:
+            return []
+
+        try:
+            # Query database for all metadata
+            result = await self.db_session.execute(
+                select(EmbeddingMetadataModel)
+            )
+            all_metadata = result.scalars().all()
+
+            matching_ids = []
+            for db_meta in all_metadata:
+                metadata = db_meta.metadata
+                if all(metadata.get(k) == v for k, v in filter_dict.items()):
+                    matching_ids.append(db_meta.external_id)
+
+            return matching_ids
+        except Exception as e:
+            logger.error(f"Failed to filter by metadata: {e}")
+            return []
 
     # Stats
     def get_stats(self) -> IndexStats:

@@ -11,7 +11,7 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import joblib
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,14 @@ class CTRPredictor:
         self.feature_names: List[str] = []
         self.training_metrics: Dict[str, float] = {}
         self.is_trained = False
+
+        # Import accuracy tracker
+        try:
+            from src.accuracy_tracker import accuracy_tracker
+            self.accuracy_tracker = accuracy_tracker
+        except ImportError:
+            logger.warning("AccuracyTracker not available - retraining checks will be disabled")
+            self.accuracy_tracker = None
 
         # Create models directory if it doesn't exist
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
@@ -259,6 +267,157 @@ class CTRPredictor:
             'training_metrics': self.training_metrics,
             'model_params': self.model.get_params() if self.model else {}
         }
+
+    async def check_and_retrain(self) -> Dict:
+        """
+        Check if model needs retraining based on prediction accuracy
+
+        Returns:
+            Dictionary with retraining status and metrics
+        """
+        if not self.accuracy_tracker:
+            logger.warning("AccuracyTracker not available - cannot check accuracy")
+            return {
+                'status': 'error',
+                'error': 'AccuracyTracker not available'
+            }
+
+        try:
+            # Get recent predictions with actuals
+            accuracy = await self.accuracy_tracker.calculate_accuracy_metrics(days_back=7)
+
+            total_predictions = accuracy.get('total_predictions', 0)
+            ctr_mae = accuracy.get('ctr_mae', 0.0)
+
+            logger.info(f"Current accuracy check: MAE={ctr_mae:.4f}, samples={total_predictions}")
+
+            # If accuracy dropped below threshold, retrain
+            if ctr_mae > 0.02:  # 2% error threshold
+                logger.warning(f"Accuracy dropped (MAE={ctr_mae:.4f} > 0.02) - triggering retrain")
+                return await self.retrain_on_real_data()
+
+            return {
+                'status': 'no_retrain_needed',
+                'current_accuracy': accuracy,
+                'threshold': 0.02,
+                'message': f"Model accuracy acceptable (MAE={ctr_mae:.4f} <= 0.02)"
+            }
+
+        except Exception as e:
+            logger.error(f"Error during check_and_retrain: {e}", exc_info=True)
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
+
+    async def retrain_on_real_data(self) -> Dict:
+        """
+        Retrain model using actual performance data from database
+
+        Returns:
+            Dictionary with retraining status and metrics
+        """
+        try:
+            # Load predictions with actuals
+            training_data = await self.load_real_training_data()
+
+            if len(training_data) < 50:
+                logger.warning(f"Insufficient training data: {len(training_data)} samples (need 50+)")
+                return {
+                    'status': 'insufficient_data',
+                    'count': len(training_data),
+                    'message': f"Need at least 50 samples for retraining, got {len(training_data)}"
+                }
+
+            # Extract features and targets
+            X = self.extract_features(training_data)
+            y = np.array([d['actual_ctr'] for d in training_data])
+
+            logger.info(f"Retraining model with {len(training_data)} real performance samples...")
+
+            # Store old metrics for comparison
+            old_metrics = self.training_metrics.copy() if self.training_metrics else {}
+
+            # Retrain
+            from src.feature_engineering import feature_extractor
+            metrics = self.train(X, y, feature_names=feature_extractor.feature_names)
+
+            # Log improvement
+            improvement = {}
+            if old_metrics:
+                improvement = {
+                    'r2_improvement': metrics['test_r2'] - old_metrics.get('test_r2', 0),
+                    'mae_improvement': old_metrics.get('test_mae', 1) - metrics['test_mae']
+                }
+                logger.info(f"Model retrained. New R²: {metrics['test_r2']:.4f} (improvement: {improvement['r2_improvement']:+.4f})")
+            else:
+                logger.info(f"Model retrained. New R²: {metrics['test_r2']:.4f}")
+
+            return {
+                'status': 'retrained',
+                'samples': len(training_data),
+                'metrics': metrics,
+                'old_metrics': old_metrics,
+                'improvement': improvement,
+                'retrained_at': datetime.utcnow().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"Error during retraining: {e}", exc_info=True)
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
+
+    async def load_real_training_data(self) -> List[Dict[str, Any]]:
+        """
+        Load real training data from database (videos with actual performance)
+
+        Returns:
+            List of dictionaries containing features and actual CTR
+        """
+        try:
+            from src.data_loader import get_data_loader
+
+            data_loader = get_data_loader()
+            if data_loader is None:
+                logger.warning("Database connection not available for loading training data")
+                return []
+
+            # Fetch training data
+            X, y = data_loader.fetch_training_data(min_impressions=100)
+
+            if X is None or len(X) == 0:
+                logger.warning("No training data available from database")
+                return []
+
+            # Convert to list of dicts
+            training_data = []
+            for i in range(len(X)):
+                training_data.append({
+                    'features': X[i],
+                    'actual_ctr': y[i]
+                })
+
+            logger.info(f"Loaded {len(training_data)} training samples from database")
+            return training_data
+
+        except Exception as e:
+            logger.error(f"Error loading real training data: {e}", exc_info=True)
+            return []
+
+    def extract_features(self, training_data: List[Dict[str, Any]]) -> np.ndarray:
+        """
+        Extract feature matrix from training data
+
+        Args:
+            training_data: List of training samples with features
+
+        Returns:
+            Feature matrix as numpy array
+        """
+        features = [sample['features'] for sample in training_data]
+        return np.array(features)
 
 
 def generate_synthetic_training_data(n_samples: int = 1000) -> Tuple[np.ndarray, np.ndarray]:

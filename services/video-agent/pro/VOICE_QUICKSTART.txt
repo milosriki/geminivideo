@@ -1,0 +1,145 @@
+╔═══════════════════════════════════════════════════════════════╗
+║   AI VOICE GENERATION - 60 SECOND QUICK START                 ║
+╚═══════════════════════════════════════════════════════════════╝
+
+STEP 1: Set API Key (5 seconds)
+────────────────────────────────────────────────────────────────
+export OPENAI_API_KEY=your_key_here
+
+
+STEP 2: Start Service (5 seconds)
+────────────────────────────────────────────────────────────────
+cd /home/user/geminivideo/services/video-agent
+python3 main.py
+
+
+STEP 3: Generate Voiceover (10 seconds)
+────────────────────────────────────────────────────────────────
+curl -X POST http://localhost:8002/api/voice/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "script": "Transform your business with AI video ads. Get 10x engagement!",
+    "voice_id": "nova",
+    "provider": "openai"
+  }'
+
+
+STEP 4: Check Output (5 seconds)
+────────────────────────────────────────────────────────────────
+ls -lh /tmp/geminivideo/voiceovers/
+
+
+═══════════════════════════════════════════════════════════════
+                    AVAILABLE VOICES
+═══════════════════════════════════════════════════════════════
+
+FEMALE VOICES:
+  • nova     - Warm, friendly (recommended for most ads)
+  • shimmer  - Energetic, exciting (CTAs, urgent offers)
+
+MALE VOICES:
+  • echo     - Clear, professional
+  • onyx     - Deep, dramatic (authority, premium)
+  • fable    - British, authoritative (luxury brands)
+
+NEUTRAL:
+  • alloy    - Balanced, versatile
+
+
+═══════════════════════════════════════════════════════════════
+                  COMMON USE CASES
+═══════════════════════════════════════════════════════════════
+
+PROFESSIONAL AD:
+{
+  "script": "Discover the future of marketing",
+  "voice_id": "nova",
+  "model": "tts-1-hd",
+  "speed": 1.0
+}
+
+URGENT CTA:
+{
+  "script": "Limited time! Order now!",
+  "voice_id": "shimmer",
+  "speed": 1.25
+}
+
+LUXURY BRAND:
+{
+  "script": "Experience excellence",
+  "voice_id": "fable",
+  "speed": 0.95
+}
+
+
+═══════════════════════════════════════════════════════════════
+                  PYTHON SDK (ADVANCED)
+═══════════════════════════════════════════════════════════════
+
+from pro.voice_generator import VoiceGenerator, VoiceProvider
+import asyncio
+
+async def main():
+    gen = VoiceGenerator()
+
+    # Generate voiceover
+    audio = await gen.generate_voiceover(
+        script="Your script here",
+        voice_id="nova",
+        provider=VoiceProvider.OPENAI
+    )
+
+    print(f"Generated: {audio}")
+
+asyncio.run(main())
+
+
+═══════════════════════════════════════════════════════════════
+                      PRICING
+═══════════════════════════════════════════════════════════════
+
+OpenAI TTS (Recommended):
+  • tts-1:     $15/1M chars (~$0.015/1K)
+  • tts-1-hd:  $30/1M chars (~$0.030/1K)
+  • 30-sec ad: ~$0.0045
+
+ElevenLabs (Voice Cloning):
+  • Free:    10K chars/month
+  • Starter: $5/mo - 30K chars
+  • Creator: $22/mo - 100K chars
+
+
+═══════════════════════════════════════════════════════════════
+                    NEXT STEPS
+═══════════════════════════════════════════════════════════════
+
+1. Test different voices for your brand
+2. A/B test voice variants in ads
+3. Clone your brand voice (ElevenLabs)
+4. Integrate with video pipeline
+5. Generate multi-language versions
+
+Read full documentation:
+  • VOICE_GENERATION_README.md (complete guide)
+  • VOICE_GENERATION_QUICKREF.md (quick reference)
+  • voice_generator_example.py (10 working examples)
+
+
+═══════════════════════════════════════════════════════════════
+              TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════
+
+Issue: "API key not configured"
+Fix:   export OPENAI_API_KEY=your_key
+
+Issue: Service not starting
+Fix:   pip install -r requirements.txt
+
+Issue: No audio output
+Fix:   Check /tmp/geminivideo/voiceovers/ permissions
+
+
+═══════════════════════════════════════════════════════════════
+        🎙️ VOICE IS CRITICAL FOR PROFESSIONAL ADS! 🚀
+═══════════════════════════════════════════════════════════════

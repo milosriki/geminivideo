@@ -1,0 +1,171 @@
+# Cloudflare Workers Configuration
+# Deploy with: wrangler deploy
+
+name = "geminivideo-edge"
+main = "workers/prediction-cache.ts"
+compatibility_date = "2024-01-01"
+account_id = "${CLOUDFLARE_ACCOUNT_ID}"
+
+# Workers Sites (for static assets)
+[site]
+bucket = "./public"
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "PREDICTIONS"
+id = "${KV_PREDICTIONS_ID}"
+preview_id = "${KV_PREDICTIONS_PREVIEW_ID}"
+
+[[kv_namespaces]]
+binding = "CREATIVE_SCORES"
+id = "${KV_SCORES_ID}"
+preview_id = "${KV_SCORES_PREVIEW_ID}"
+
+[[kv_namespaces]]
+binding = "AB_TESTS"
+id = "${KV_AB_TESTS_ID}"
+preview_id = "${KV_AB_TESTS_PREVIEW_ID}"
+
+[[kv_namespaces]]
+binding = "ANALYTICS"
+id = "${KV_ANALYTICS_ID}"
+preview_id = "${KV_ANALYTICS_PREVIEW_ID}"
+
+# R2 Buckets
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "geminivideo-assets"
+preview_bucket_name = "geminivideo-assets-preview"
+
+[[r2_buckets]]
+binding = "VIDEO_CACHE"
+bucket_name = "geminivideo-videos"
+preview_bucket_name = "geminivideo-videos-preview"
+
+# D1 Database (SQLite at edge)
+[[d1_databases]]
+binding = "DB"
+database_name = "geminivideo-edge"
+database_id = "${D1_DATABASE_ID}"
+
+# Durable Objects (for stateful edge logic)
+[[durable_objects.bindings]]
+name = "ANALYTICS_AGGREGATOR"
+class_name = "AnalyticsAggregator"
+script_name = "edge-analytics"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+script_name = "rate-limiter"
+
+# Environment Variables
+[vars]
+ENABLE_EDGE_ANALYTICS = "true"
+ENABLE_SMART_ROUTING = "true"
+CACHE_TTL_SECONDS = "300"
+
+# Secrets (set via: wrangler secret put SECRET_NAME)
+# ORIGIN_URL
+# GATEWAY_API_URL
+# TITAN_CORE_URL
+# ML_SERVICE_URL
+# API_SECRET
+# STREAM_ACCOUNT_ID
+# STREAM_API_TOKEN
+
+# Routes
+[[routes]]
+pattern = "api.geminivideo.com/api/predict-quick/*"
+zone_name = "geminivideo.com"
+
+[[routes]]
+pattern = "api.geminivideo.com/api/score-cached/*"
+zone_name = "geminivideo.com"
+
+[[routes]]
+pattern = "api.geminivideo.com/api/hooks/trending/*"
+zone_name = "geminivideo.com"
+
+[[routes]]
+pattern = "api.geminivideo.com/api/ab/*"
+zone_name = "geminivideo.com"
+
+[[routes]]
+pattern = "cdn.geminivideo.com/assets/*"
+zone_name = "geminivideo.com"
+
+# Limits and Quotas
+[limits]
+cpu_ms = 50  # 50ms CPU time per request
+
+# Build Configuration
+[build]
+command = "npm run build"
+
+# ============================================================================
+# WORKER: Prediction Cache
+# ============================================================================
+[env.prediction-cache]
+name = "prediction-cache"
+main = "workers/prediction-cache.ts"
+route = "api.geminivideo.com/api/predict-quick/*"
+
+# ============================================================================
+# WORKER: Creative Scorer
+# ============================================================================
+[env.creative-scorer]
+name = "creative-scorer"
+main = "workers/creative-scorer.ts"
+route = "api.geminivideo.com/api/score-cached/*"
+
+# ============================================================================
+# WORKER: A/B Test Router
+# ============================================================================
+[env.ab-router]
+name = "ab-router"
+main = "workers/ab-router.ts"
+route = "api.geminivideo.com/api/ab/*"
+
+# ============================================================================
+# WORKER: Trending Hooks
+# ============================================================================
+[env.trending-hooks]
+name = "trending-hooks"
+main = "workers/trending-hooks.ts"
+route = "api.geminivideo.com/api/hooks/trending/*"
+
+# ============================================================================
+# WORKER: Asset Delivery
+# ============================================================================
+[env.asset-delivery]
+name = "asset-delivery"
+main = "workers/asset-delivery.ts"
+route = "cdn.geminivideo.com/assets/*"
+
+# ============================================================================
+# WORKER: Edge Analytics
+# ============================================================================
+[env.edge-analytics]
+name = "edge-analytics"
+main = "workers/edge-analytics.ts"
+route = "api.geminivideo.com/api/analytics/*"
+
+# Analytics and Observability
+[observability]
+enabled = true
+head_sampling_rate = 1  # Log 100% of requests initially
+
+# Tail Workers for real-time log processing
+[[tail_consumers]]
+service = "analytics-processor"
+
+# Production Environment
+[env.production]
+name = "geminivideo-edge-production"
+vars = { ENVIRONMENT = "production", CACHE_TTL_SECONDS = "600" }
+
+# Staging Environment
+[env.staging]
+name = "geminivideo-edge-staging"
+vars = { ENVIRONMENT = "staging", CACHE_TTL_SECONDS = "60" }

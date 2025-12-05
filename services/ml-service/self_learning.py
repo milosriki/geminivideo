@@ -18,6 +18,19 @@ from enum import Enum
 import uuid
 import json
 from collections import defaultdict
+import sys
+import os
+
+# Add shared directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'shared'))
+
+from sqlalchemy import select, and_, update, delete
+from db.models import (
+    PredictionRecord, ModelPerformanceHistory as ModelPerformanceHistoryModel,
+    DriftReport as DriftReportModel, ABTest as ABTestModel,
+    FeatureImportanceHistory as FeatureImportanceHistoryModel,
+    LearningAlert as LearningAlertModel
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -110,30 +123,17 @@ class SelfLearningEngine:
 
     def __init__(
         self,
-        database_service,
+        database_session,
         model_registry: Dict[str, Any]
     ):
-        """Initialize with database and models."""
-        self.db = database_service
+        """Initialize with database session and models."""
+        self.db_session = database_session
         self.model_registry = model_registry
 
-        # In-memory storage for predictions and outcomes
-        self.predictions: Dict[str, Dict[str, Any]] = {}
-        self.outcomes: List[PredictionOutcome] = []
-        self.drift_reports: List[DriftReport] = []
-        self.ab_tests: Dict[str, Dict[str, Any]] = {}
-        self.alerts: List[Dict[str, Any]] = []
-
-        # Performance tracking
-        self.performance_history: Dict[ModelType, List[ModelPerformance]] = defaultdict(list)
-
-        # Feature importance tracking
-        self.feature_importance_history: Dict[ModelType, Dict[str, List[Tuple[datetime, float]]]] = defaultdict(lambda: defaultdict(list))
-
-        logger.info("SelfLearningEngine initialized")
+        logger.info("SelfLearningEngine initialized with PostgreSQL persistence")
 
     # Outcome Collection
-    def collect_prediction_outcomes(
+    async def collect_prediction_outcomes(
         self,
         model_type: ModelType = None,
         days_back: int = 7
@@ -142,12 +142,34 @@ class SelfLearningEngine:
         try:
             cutoff_date = datetime.now() - timedelta(days=days_back)
 
-            # Filter outcomes by date and optionally by model type
-            filtered_outcomes = [
-                outcome for outcome in self.outcomes
-                if outcome.timestamp >= cutoff_date and
-                (model_type is None or outcome.model_type == model_type)
-            ]
+            # Query database for outcomes
+            query = select(PredictionRecord).where(
+                and_(
+                    PredictionRecord.outcome_recorded_at >= cutoff_date,
+                    PredictionRecord.actual_value.isnot(None)
+                )
+            )
+
+            if model_type:
+                query = query.where(PredictionRecord.model_type == model_type.value)
+
+            result = await self.db_session.execute(query)
+            db_outcomes = result.scalars().all()
+
+            # Convert to PredictionOutcome objects
+            filtered_outcomes = []
+            for db_outcome in db_outcomes:
+                outcome = PredictionOutcome(
+                    prediction_id=db_outcome.prediction_id,
+                    model_type=ModelType(db_outcome.model_type),
+                    predicted_value=db_outcome.predicted_value,
+                    actual_value=db_outcome.actual_value,
+                    features=db_outcome.features,
+                    timestamp=db_outcome.outcome_recorded_at,
+                    error=db_outcome.error,
+                    error_percentage=db_outcome.error_percentage
+                )
+                filtered_outcomes.append(outcome)
 
             logger.info(f"Collected {len(filtered_outcomes)} outcomes for {model_type or 'all models'} from last {days_back} days")
             return filtered_outcomes
@@ -156,40 +178,53 @@ class SelfLearningEngine:
             logger.error(f"Error collecting prediction outcomes: {str(e)}")
             raise
 
-    def record_outcome(
+    async def record_outcome(
         self,
         prediction_id: str,
         actual_value: float
     ) -> PredictionOutcome:
         """Record actual outcome for prediction."""
         try:
-            if prediction_id not in self.predictions:
+            # Find prediction in database
+            result = await self.db_session.execute(
+                select(PredictionRecord).where(PredictionRecord.prediction_id == prediction_id)
+            )
+            db_prediction = result.scalar_one_or_none()
+
+            if not db_prediction:
                 raise ValueError(f"Prediction {prediction_id} not found")
 
-            prediction = self.predictions[prediction_id]
-            predicted_value = prediction['predicted_value']
+            predicted_value = db_prediction.predicted_value
 
             # Calculate error metrics
             error = actual_value - predicted_value
             error_percentage = (error / actual_value * 100) if actual_value != 0 else 0
 
+            # Update prediction record with outcome
+            db_prediction.actual_value = actual_value
+            db_prediction.error = error
+            db_prediction.error_percentage = error_percentage
+            db_prediction.outcome_recorded_at = datetime.now()
+
+            await self.db_session.commit()
+
             outcome = PredictionOutcome(
                 prediction_id=prediction_id,
-                model_type=ModelType(prediction['model_type']),
+                model_type=ModelType(db_prediction.model_type),
                 predicted_value=predicted_value,
                 actual_value=actual_value,
-                features=prediction['features'],
-                timestamp=datetime.now(),
+                features=db_prediction.features,
+                timestamp=db_prediction.outcome_recorded_at,
                 error=error,
                 error_percentage=error_percentage
             )
 
-            self.outcomes.append(outcome)
             logger.info(f"Recorded outcome for prediction {prediction_id}: error={error:.2f}")
 
             return outcome
 
         except Exception as e:
+            await self.db_session.rollback()
             logger.error(f"Error recording outcome: {str(e)}")
             raise
 
@@ -709,7 +744,7 @@ class SelfLearningEngine:
             raise
 
     # A/B Testing Models
-    def ab_test_model_versions(
+    async def ab_test_model_versions(
         self,
         model_type: ModelType,
         model_a_id: str,
@@ -720,24 +755,28 @@ class SelfLearningEngine:
         """A/B test two model versions."""
         try:
             test_id = str(uuid.uuid4())
+            start_date = datetime.now()
+            end_date = start_date + timedelta(days=duration_days)
 
-            test_config = {
-                'test_id': test_id,
-                'model_type': model_type.value,
-                'model_a_id': model_a_id,
-                'model_b_id': model_b_id,
-                'traffic_split': traffic_split,
-                'duration_days': duration_days,
-                'start_date': datetime.now(),
-                'end_date': datetime.now() + timedelta(days=duration_days),
-                'status': 'active',
-                'results': {
+            # Create A/B test in database
+            db_test = ABTestModel(
+                test_id=test_id,
+                model_type=model_type.value,
+                model_a_id=model_a_id,
+                model_b_id=model_b_id,
+                traffic_split=traffic_split,
+                duration_days=duration_days,
+                start_date=start_date,
+                end_date=end_date,
+                status='active',
+                results={
                     'model_a': {'predictions': [], 'outcomes': []},
                     'model_b': {'predictions': [], 'outcomes': []}
                 }
-            }
+            )
 
-            self.ab_tests[test_id] = test_config
+            self.db_session.add(db_test)
+            await self.db_session.commit()
 
             logger.info(f"Started A/B test {test_id} for {model_type.value}: {model_a_id} vs {model_b_id}")
             return {
@@ -748,12 +787,13 @@ class SelfLearningEngine:
                     'model_b_id': model_b_id,
                     'traffic_split': traffic_split,
                     'duration_days': duration_days,
-                    'start_date': test_config['start_date'].isoformat(),
-                    'end_date': test_config['end_date'].isoformat()
+                    'start_date': start_date.isoformat(),
+                    'end_date': end_date.isoformat()
                 }
             }
 
         except Exception as e:
+            await self.db_session.rollback()
             logger.error(f"Error creating A/B test: {str(e)}")
             raise
 
@@ -1176,7 +1216,7 @@ class SelfLearningEngine:
             logger.error(f"Error checking alerts: {str(e)}")
             raise
 
-    def create_alert(
+    async def create_alert(
         self,
         alert_type: str,
         model_type: ModelType,
@@ -1186,27 +1226,29 @@ class SelfLearningEngine:
         try:
             alert_id = str(uuid.uuid4())
 
-            alert = {
-                'alert_id': alert_id,
-                'alert_type': alert_type,
-                'model_type': model_type.value,
-                'details': details,
-                'severity': details.get('severity', 'medium'),
-                'created_at': datetime.now().isoformat(),
-                'status': 'active'
-            }
+            # Create alert in database
+            db_alert = LearningAlertModel(
+                alert_id=alert_id,
+                alert_type=alert_type,
+                model_type=model_type.value,
+                severity=details.get('severity', 'medium'),
+                details=details,
+                status='active'
+            )
 
-            self.alerts.append(alert)
+            self.db_session.add(db_alert)
+            await self.db_session.commit()
 
             logger.warning(f"Created alert {alert_id}: {alert_type} for {model_type.value}")
             return alert_id
 
         except Exception as e:
+            await self.db_session.rollback()
             logger.error(f"Error creating alert: {str(e)}")
             raise
 
     # Helper method to register a prediction
-    def register_prediction(
+    async def register_prediction(
         self,
         model_type: ModelType,
         predicted_value: float,
@@ -1216,15 +1258,20 @@ class SelfLearningEngine:
         try:
             prediction_id = str(uuid.uuid4())
 
-            self.predictions[prediction_id] = {
-                'model_type': model_type.value,
-                'predicted_value': predicted_value,
-                'features': features,
-                'timestamp': datetime.now().isoformat()
-            }
+            # Store prediction in database
+            db_prediction = PredictionRecord(
+                prediction_id=prediction_id,
+                model_type=model_type.value,
+                predicted_value=predicted_value,
+                features=features
+            )
+
+            self.db_session.add(db_prediction)
+            await self.db_session.commit()
 
             return prediction_id
 
         except Exception as e:
+            await self.db_session.rollback()
             logger.error(f"Error registering prediction: {str(e)}")
             raise

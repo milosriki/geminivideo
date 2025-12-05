@@ -1,6 +1,10 @@
 version: '3.8'
 
 services:
+  # ========================================================================
+  # INFRASTRUCTURE SERVICES
+  # ========================================================================
+
   postgres:
     image: postgres:15-alpine
     container_name: geminivideo-postgres
@@ -13,10 +17,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U geminivideo" ]
+      test: ["CMD-SHELL", "pg_isready -U geminivideo"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - geminivideo-network
 
   redis:
     image: redis:7-alpine
@@ -24,74 +32,18 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - geminivideo-network
 
-  drive-intel:
-    build:
-      context: ./services/drive-intel
-      dockerfile: Dockerfile
-    container_name: geminivideo-drive-intel
-    environment:
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
-      REDIS_URL: redis://redis:6379
-      PORT: 8081
-    ports:
-      - "8081:8081"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./shared:/app/shared
-      - ./services/drive-intel/src:/app/src
-
-  gateway-api:
-    build:
-      context: ./services/gateway-api
-      dockerfile: Dockerfile
-    container_name: geminivideo-gateway-api
-    environment:
-      PORT: 8080
-      DRIVE_INTEL_URL: http://drive-intel:8081
-      VIDEO_AGENT_URL: http://video-agent:8082
-      ML_SERVICE_URL: http://ml-service:8003
-      TITAN_CORE_URL: http://titan-core:8084
-      META_PUBLISHER_URL: http://meta-publisher:8083
-      REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
-    ports:
-      - "8080:8080"
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./shared:/app/shared
-
-  video-agent:
-    build:
-      context: ./services/video-agent
-      dockerfile: Dockerfile
-    container_name: geminivideo-video-agent
-    environment:
-      PORT: 8082
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
-      REDIS_URL: redis://redis:6379
-    ports:
-      - "8082:8082"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./shared:/app/shared
-      - ./services/video-agent/src:/app/src
+  # ========================================================================
+  # CORE BACKEND SERVICES
+  # ========================================================================
 
   ml-service:
     build:
@@ -101,14 +53,26 @@ services:
     environment:
       PORT: 8003
       DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
     ports:
       - "8003:8003"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8003/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
     volumes:
       - ./shared:/app/shared
       - ./services/ml-service/models:/app/models
+    networks:
+      - geminivideo-network
 
   titan-core:
     build:
@@ -131,8 +95,82 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
     volumes:
       - ./services/titan-core:/app
+    networks:
+      - geminivideo-network
+
+  video-agent:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: geminivideo-video-agent
+    environment:
+      PORT: 8082
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
+      ASSET_DIR: /tmp/assets
+      VOICEOVER_DIR: /tmp/voiceovers
+      OUTPUT_DIR: /tmp/outputs
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared
+      - ./services/video-agent/src:/app/src
+    networks:
+      - geminivideo-network
+
+  drive-intel:
+    build:
+      context: ./services/drive-intel
+      dockerfile: Dockerfile
+    container_name: geminivideo-drive-intel
+    environment:
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
+      PORT: 8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared
+      - ./services/drive-intel/src:/app/src
+    networks:
+      - geminivideo-network
+
+  # ========================================================================
+  # PUBLISHING SERVICES
+  # ========================================================================
 
   meta-publisher:
     build:
@@ -151,8 +189,95 @@ services:
       DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
     ports:
       - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
     volumes:
       - ./shared:/app/shared
+    networks:
+      - geminivideo-network
+
+  tiktok-ads:
+    build:
+      context: ./services/tiktok-ads
+      dockerfile: Dockerfile
+    container_name: geminivideo-tiktok-ads
+    environment:
+      PORT: 8085
+      TIKTOK_ACCESS_TOKEN: ${TIKTOK_ACCESS_TOKEN:-}
+      TIKTOK_ADVERTISER_ID: ${TIKTOK_ADVERTISER_ID:-}
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    volumes:
+      - ./services/tiktok-ads/src:/app/src
+    networks:
+      - geminivideo-network
+
+  # ========================================================================
+  # GATEWAY & FRONTEND
+  # ========================================================================
+
+  gateway-api:
+    build:
+      context: ./services/gateway-api
+      dockerfile: Dockerfile
+    container_name: geminivideo-gateway-api
+    environment:
+      PORT: 8080
+      DRIVE_INTEL_URL: http://drive-intel:8081
+      VIDEO_AGENT_URL: http://video-agent:8082
+      ML_SERVICE_URL: http://ml-service:8003
+      TITAN_CORE_URL: http://titan-core:8084
+      META_PUBLISHER_URL: http://meta-publisher:8083
+      TIKTOK_ADS_URL: http://tiktok-ads:8085
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+      titan-core:
+        condition: service_healthy
+      video-agent:
+        condition: service_healthy
+      drive-intel:
+        condition: service_healthy
+      meta-publisher:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared
+    networks:
+      - geminivideo-network
 
   frontend:
     build:
@@ -166,8 +291,21 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - gateway-api
-      - drive-intel
+      gateway-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - geminivideo-network
+
+  # ========================================================================
+  # BACKGROUND WORKERS
+  # ========================================================================
 
   drive-worker:
     build:
@@ -183,9 +321,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
     volumes:
       - ./shared:/app/shared
       - ./services/drive-intel/src:/app/src
+    networks:
+      - geminivideo-network
 
   video-worker:
     build:
@@ -201,9 +342,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
     volumes:
       - ./shared:/app/shared
       - ./services/video-agent/src:/app/src
+    networks:
+      - geminivideo-network
+
+networks:
+  geminivideo-network:
+    driver: bridge
 
 volumes:
   postgres_data:
