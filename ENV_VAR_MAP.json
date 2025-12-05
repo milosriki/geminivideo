@@ -1,0 +1,1389 @@
+{
+  "scan_date": "2025-12-05",
+  "agent": "AGENT 88: ENVIRONMENT VARIABLE MISMATCH MAP",
+  "summary": {
+    "total_issues": 142,
+    "undocumented": 87,
+    "unused": 12,
+    "different_names": 8,
+    "no_default": 23,
+    "weak_defaults": 5,
+    "missing_docker": 47,
+    "potential_secrets": 15
+  },
+  "env_var_issues": [
+    {
+      "variable": "FOREPLAY_API_KEY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["scripts/inject_knowledge.py:93"],
+      "documented_in": [],
+      "description": "Used in knowledge injection script but not documented in any .env.example file",
+      "fix": "Add to .env.example.complete under Third-Party Integrations section"
+    },
+    {
+      "variable": "YOUTUBE_API_KEY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "scripts/inject_knowledge.py:95",
+        "services/gateway-api/src/services/youtube-client.ts:67"
+      ],
+      "documented_in": [],
+      "description": "Used for YouTube data fetching but not documented",
+      "fix": "Add to .env.example.complete under Third-Party Integrations section"
+    },
+    {
+      "variable": "TIKTOK_API_KEY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["scripts/inject_knowledge.py:96"],
+      "documented_in": [],
+      "description": "Used in knowledge injection but not documented. Note: Different from TIKTOK_ACCESS_TOKEN",
+      "fix": "Add to .env.example.complete or clarify relationship with TIKTOK_ACCESS_TOKEN"
+    },
+    {
+      "variable": "HUGGINGFACE_API_TOKEN",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/services/dataset-loaders.ts:290"],
+      "documented_in": [],
+      "description": "Used for HuggingFace dataset loading but not documented",
+      "fix": "Add to .env.example.complete under AI Model API Keys section"
+    },
+    {
+      "variable": "HF_TOKEN",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/video-agent/pro/auto_captions.py:1124"],
+      "documented_in": [],
+      "description": "Used for HuggingFace models in auto captions. May be duplicate of HUGGINGFACE_API_TOKEN",
+      "fix": "Standardize on one variable name and document it"
+    },
+    {
+      "variable": "KAGGLE_DATA_PATH",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/services/dataset-loaders.ts:45"],
+      "documented_in": [],
+      "description": "Path for Kaggle datasets but not documented",
+      "fix": "Add to .env.example under Application Configuration section"
+    },
+    {
+      "variable": "REPLICATE_API_TOKEN",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/video-agent/pro/image_generator.py:169,201"],
+      "documented_in": [],
+      "description": "Used for Replicate AI image generation but not documented",
+      "fix": "Add to .env.example.complete under AI Video Generation APIs section"
+    },
+    {
+      "variable": "TOGETHER_API_KEY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/video-agent/pro/image_generator.py:170"],
+      "documented_in": [],
+      "description": "Used for Together AI services but not documented",
+      "fix": "Add to .env.example.complete under AI Model API Keys section"
+    },
+    {
+      "variable": "VITE_GOOGLE_API_KEY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["frontend/src/services/googleDriveService.ts:20"],
+      "documented_in": [],
+      "description": "Used for Google Drive integration in frontend but not documented",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "VITE_GOOGLE_CLIENT_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["frontend/src/services/googleDriveService.ts:21"],
+      "documented_in": [],
+      "description": "Used for Google Drive OAuth in frontend but not documented",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "VITE_SUPABASE_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "frontend/src/services/supabaseClient.ts:4",
+        "frontend/src/utils/supabase.ts:3"
+      ],
+      "documented_in": [],
+      "description": "Used in frontend but only backend SUPABASE_URL is documented",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "VITE_SUPABASE_ANON_KEY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "frontend/src/services/supabaseClient.ts:5",
+        "frontend/src/utils/supabase.ts:4"
+      ],
+      "documented_in": [],
+      "description": "Used in frontend but only backend SUPABASE_ANON_KEY is documented",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "VITE_WS_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["frontend/src/components/AlertNotifications.tsx:18"],
+      "documented_in": [],
+      "description": "WebSocket URL for frontend real-time features but not documented",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "VITE_API_BASE_URL",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": [
+        "frontend/src/components/ABTestingDashboard.tsx:126",
+        "docker-compose.production.yml:287,290"
+      ],
+      "documented_in": [],
+      "description": "Used in some places instead of VITE_API_URL - inconsistent naming",
+      "fix": "Standardize on VITE_API_URL or VITE_API_BASE_URL throughout codebase"
+    },
+    {
+      "variable": "VITE_VIDEO_AGENT_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["frontend/src/config/api.ts:12"],
+      "documented_in": [],
+      "description": "Frontend URL for video agent service but not documented",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "VITE_META_PUBLISHER_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["frontend/src/config/api.ts:13"],
+      "documented_in": [],
+      "description": "Frontend URL for meta publisher service but not documented",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "LOGS_DIR",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": ["services/gateway-api/src/logger.ts:17"],
+      "documented_in": [],
+      "description": "Used for log directory but LOG_DIR and LOG_FILE also exist - inconsistent",
+      "fix": "Standardize on one variable name and document it"
+    },
+    {
+      "variable": "LOG_DIR",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": ["services/gateway-api/src/services/learning-service.ts:19"],
+      "documented_in": [],
+      "description": "Used for log directory - inconsistent with LOGS_DIR",
+      "fix": "Standardize on one variable name (prefer LOG_DIR) and document it"
+    },
+    {
+      "variable": "LOG_FILE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "monitoring/middleware/fastapi_middleware.py:225",
+        "monitoring/.env.example:11"
+      ],
+      "documented_in": ["monitoring/.env.example"],
+      "description": "Documented in monitoring/.env.example but not in main .env.example files",
+      "fix": "Add to .env.example.complete under Logging section"
+    },
+    {
+      "variable": "FIREBASE_SERVICE_ACCOUNT_PATH",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/services/firebase-auth.ts:33"],
+      "documented_in": [],
+      "description": "Path to Firebase service account JSON but not documented",
+      "fix": "Add to .env.example.complete under Firebase Configuration section"
+    },
+    {
+      "variable": "FIREBASE_PROJECT_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "services/gateway-api/src/services/firebase-auth.ts:38,48,52,61,75"
+      ],
+      "documented_in": [],
+      "description": "Firebase backend project ID (different from VITE_FIREBASE_PROJECT_ID)",
+      "fix": "Add to .env.example.complete under Firebase Configuration section"
+    },
+    {
+      "variable": "FIREBASE_CLIENT_EMAIL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/services/firebase-auth.ts:49"],
+      "documented_in": [],
+      "description": "Firebase service account client email but not documented",
+      "fix": "Add to .env.example.complete under Firebase Configuration section"
+    },
+    {
+      "variable": "FIREBASE_PRIVATE_KEY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/services/firebase-auth.ts:50"],
+      "documented_in": [],
+      "description": "Firebase service account private key - CRITICAL SECRET",
+      "fix": "Add to .env.example.complete with warning about secret management"
+    },
+    {
+      "variable": "FIREBASE_STORAGE_BUCKET",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/services/firebase-auth.ts:39,53"],
+      "documented_in": [],
+      "description": "Firebase storage bucket for backend but not documented",
+      "fix": "Add to .env.example.complete under Firebase Configuration section"
+    },
+    {
+      "variable": "GOOGLE_APPLICATION_CREDENTIALS",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": ["services/gateway-api/src/services/firebase-auth.ts:59"],
+      "documented_in": [],
+      "description": "Standard GCP env var, overlaps with GCP_SERVICE_ACCOUNT_JSON",
+      "fix": "Document relationship between GOOGLE_APPLICATION_CREDENTIALS and GCP_SERVICE_ACCOUNT_JSON"
+    },
+    {
+      "variable": "GCLOUD_PROJECT",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": ["services/gateway-api/src/services/firebase-auth.ts:61"],
+      "documented_in": [],
+      "description": "Alternative to GCP_PROJECT_ID used by some Google libraries",
+      "fix": "Document that either GCP_PROJECT_ID or GCLOUD_PROJECT can be used"
+    },
+    {
+      "variable": "FRONTEND_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "services/gateway-api/src/services/firebase-auth.ts:299,321"
+      ],
+      "documented_in": [],
+      "description": "Frontend base URL for email verification links but not documented",
+      "fix": "Add to .env.example.complete under Service URLs section"
+    },
+    {
+      "variable": "EMAIL_VERIFICATION_REDIRECT_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/services/firebase-auth.ts:299"],
+      "documented_in": [],
+      "description": "Email verification redirect URL but not documented",
+      "fix": "Add to .env.example.complete under Firebase Configuration section"
+    },
+    {
+      "variable": "PASSWORD_RESET_REDIRECT_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/services/firebase-auth.ts:321"],
+      "documented_in": [],
+      "description": "Password reset redirect URL but not documented",
+      "fix": "Add to .env.example.complete under Firebase Configuration section"
+    },
+    {
+      "variable": "SERVICE_NAME",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/utils/logger.ts:194"],
+      "documented_in": [],
+      "description": "Service name for logging but not documented",
+      "fix": "Add to .env.example.complete under Application Configuration section"
+    },
+    {
+      "variable": "API_KEYS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/middleware/security.ts:493"],
+      "documented_in": [],
+      "description": "Comma-separated list of valid API keys but not documented",
+      "fix": "Add to .env.example.complete under Security Configuration section"
+    },
+    {
+      "variable": "ALLOWED_ORIGINS",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": [
+        "services/ml-service/src/main.py:81",
+        "services/meta-publisher/src/index.ts:15",
+        "services/tiktok-ads/src/index.ts:18",
+        "services/google-ads/src/index.ts:13",
+        "services/gateway-api/src/middleware/security.ts:440"
+      ],
+      "documented_in": ["services/google-ads/.env.example:24"],
+      "description": "Used in many services but documented name is CORS_ORIGINS in main .env.example",
+      "fix": "Standardize on CORS_ORIGINS or ALLOWED_ORIGINS across all services"
+    },
+    {
+      "variable": "ENVIRONMENT",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": [
+        "monitoring/middleware/fastapi_middleware.py:214,218",
+        "monitoring/middleware/express_middleware.ts:200",
+        "services/ml-service/src/main.py:77"
+      ],
+      "documented_in": [],
+      "description": "Used instead of NODE_ENV in some places - inconsistent",
+      "fix": "Document that both NODE_ENV and ENVIRONMENT are supported"
+    },
+    {
+      "variable": "SERVICE_VERSION",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "monitoring/middleware/fastapi_middleware.py:218",
+        "monitoring/middleware/express_middleware.ts:201",
+        "monitoring/.env.example:6"
+      ],
+      "documented_in": ["monitoring/.env.example"],
+      "description": "Documented in monitoring/.env.example but not in main files",
+      "fix": "Add to .env.example.complete under Monitoring section"
+    },
+    {
+      "variable": "SMTP_USE_TLS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "monitoring/alerting.py:523",
+        "monitoring/.env.example:27"
+      ],
+      "documented_in": ["monitoring/.env.example"],
+      "description": "Documented in monitoring/.env.example but not in main files",
+      "fix": "Add to .env.example.complete under Email/Notifications section"
+    },
+    {
+      "variable": "ALLOWED_INGEST_PATHS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/drive-intel/services/ingestion.py:44"],
+      "documented_in": [],
+      "description": "Security setting for allowed ingestion paths but not documented",
+      "fix": "Add to .env.example.complete under Security Configuration section"
+    },
+    {
+      "variable": "CELERY_BROKER_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/video-agent/pro/celery_app.py:64"],
+      "documented_in": [],
+      "description": "Celery message broker URL but not documented",
+      "fix": "Add to .env.example.complete under Worker Configuration section"
+    },
+    {
+      "variable": "CELERY_RESULT_BACKEND",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/video-agent/pro/celery_app.py:65"],
+      "documented_in": [],
+      "description": "Celery result backend URL but not documented",
+      "fix": "Add to .env.example.complete under Worker Configuration section"
+    },
+    {
+      "variable": "TEMP_DIR",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/video-agent/pro/celery_app.py:68"],
+      "documented_in": [],
+      "description": "Used in video-agent but TEMP_STORAGE_PATH is documented - inconsistent",
+      "fix": "Standardize on TEMP_STORAGE_PATH and update code"
+    },
+    {
+      "variable": "RENDER_DIR",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/video-agent/pro/celery_app.py:69"],
+      "documented_in": [],
+      "description": "Render output directory but not documented",
+      "fix": "Add to .env.example.complete under Video Processing section"
+    },
+    {
+      "variable": "PREVIEW_DIR",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/video-agent/pro/celery_app.py:70"],
+      "documented_in": [],
+      "description": "Preview output directory but not documented",
+      "fix": "Add to .env.example.complete under Video Processing section"
+    },
+    {
+      "variable": "RENDER_TIMEOUT",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/video-agent/pro/celery_app.py:77"],
+      "documented_in": [],
+      "description": "Render timeout in seconds but not documented",
+      "fix": "Add to .env.example.complete under Video Processing section"
+    },
+    {
+      "variable": "XGBOOST_MODEL_PATH",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["deploy/banana/banana_model.py:50"],
+      "documented_in": [],
+      "description": "Path to XGBoost model for Banana.dev deployment but not documented",
+      "fix": "Add to .env.example.complete under ML Model Configuration section"
+    },
+    {
+      "variable": "CLIP_MODEL_NAME",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["deploy/banana/banana_model.py:51"],
+      "documented_in": [],
+      "description": "CLIP model name for Banana.dev deployment but not documented",
+      "fix": "Add to .env.example.complete under ML Model Configuration section"
+    },
+    {
+      "variable": "GOOGLE_DRIVE_CREDENTIALS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/drive-intel/services/google_drive_service.py:45"],
+      "documented_in": [],
+      "description": "Google Drive credentials path but not documented",
+      "fix": "Add to .env.example.complete under Google Cloud Platform section"
+    },
+    {
+      "variable": "GOOGLE_OAUTH_CREDENTIALS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/drive-intel/services/test_google_drive.py:44"],
+      "documented_in": [],
+      "description": "Google OAuth credentials for Drive access but not documented",
+      "fix": "Add to .env.example.complete under Google Cloud Platform section"
+    },
+    {
+      "variable": "GOOGLE_DRIVE_FOLDER_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "services/drive-intel/services/test_google_drive.py:301",
+        "services/drive-intel/services/QUICKSTART_EXAMPLE.py:201"
+      ],
+      "documented_in": [],
+      "description": "Google Drive folder ID for ingestion but not documented",
+      "fix": "Add to .env.example.complete under Google Cloud Platform section"
+    },
+    {
+      "variable": "GOOGLE_DRIVE_FILE_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/drive-intel/services/test_google_drive.py:302"],
+      "documented_in": [],
+      "description": "Google Drive file ID for testing but not documented",
+      "fix": "Add to .env.example.complete under Development/Testing section"
+    },
+    {
+      "variable": "WEBHOOK_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/drive-intel/services/test_google_drive.py:303"],
+      "documented_in": [],
+      "description": "Webhook URL for Drive notifications but not documented",
+      "fix": "Add to .env.example.complete under Google Cloud Platform section"
+    },
+    {
+      "variable": "VECTOR_INDEX_ENDPOINT_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/titan-core/ai_council/learning_loop.py:17"],
+      "documented_in": [],
+      "description": "Vertex AI vector index endpoint ID but not documented",
+      "fix": "Add to .env.example.complete under Google Cloud Platform section"
+    },
+    {
+      "variable": "OPENAI_BATCH_ENABLED",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/titan-core/ai_council/council_of_titans.py:270"],
+      "documented_in": [],
+      "description": "Feature flag for OpenAI Batch API but not documented",
+      "fix": "Add to .env.example.complete under Feature Flags section"
+    },
+    {
+      "variable": "PROMPT_CACHING_ENABLED",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/titan-core/ai_council/council_of_titans.py:273"],
+      "documented_in": [],
+      "description": "Feature flag for prompt caching but not documented",
+      "fix": "Add to .env.example.complete under Feature Flags section"
+    },
+    {
+      "variable": "GOOGLE_API_KEY",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": [
+        "services/titan-core/ai_council/council_of_titans.py:247",
+        "api/services/ai/emotionRecognition.ts:49"
+      ],
+      "documented_in": [],
+      "description": "Alternative name for GEMINI_API_KEY - inconsistent",
+      "fix": "Standardize on GEMINI_API_KEY throughout codebase"
+    },
+    {
+      "variable": "ENSEMBLE_WINDOW_SIZE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/titan-core/ai_council/ensemble_optimizer.py:730"],
+      "documented_in": [],
+      "description": "Ensemble optimizer window size but not documented",
+      "fix": "Add to .env.example.complete under ML Model Configuration section"
+    },
+    {
+      "variable": "ENSEMBLE_ALPHA",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/titan-core/ai_council/ensemble_optimizer.py:731"],
+      "documented_in": [],
+      "description": "Ensemble optimizer alpha parameter but not documented",
+      "fix": "Add to .env.example.complete under ML Model Configuration section"
+    },
+    {
+      "variable": "ENSEMBLE_MIN_SAMPLES",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/titan-core/ai_council/ensemble_optimizer.py:732"],
+      "documented_in": [],
+      "description": "Ensemble optimizer minimum samples but not documented",
+      "fix": "Add to .env.example.complete under ML Model Configuration section"
+    },
+    {
+      "variable": "GCS_MOCK_MODE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/knowledge.ts:18"],
+      "documented_in": [],
+      "description": "Flag to enable GCS mock mode for testing but not documented",
+      "fix": "Add to .env.example.complete under Development/Testing section"
+    },
+    {
+      "variable": "REDIS_CLUSTER_NODES",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "services/gateway-api/src/services/redis-config.ts:15",
+        "services/gateway-api/.env.example:20"
+      ],
+      "documented_in": ["services/gateway-api/.env.example"],
+      "description": "Documented in gateway-api/.env.example but not in main .env files",
+      "fix": "Add to .env.example.complete under Redis Configuration section"
+    },
+    {
+      "variable": "REDIS_HOST",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "shared/db/redis_client.py:9",
+        "monitoring/.env.example:72"
+      ],
+      "documented_in": ["monitoring/.env.example"],
+      "description": "Redis host (alternative to REDIS_URL) but not in main .env files",
+      "fix": "Add to .env.example.complete as alternative to REDIS_URL"
+    },
+    {
+      "variable": "REDIS_PORT",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "shared/db/redis_client.py:10",
+        "monitoring/.env.example:73"
+      ],
+      "documented_in": ["monitoring/.env.example"],
+      "description": "Redis port (alternative to REDIS_URL) but not in main .env files",
+      "fix": "Add to .env.example.complete as alternative to REDIS_URL"
+    },
+    {
+      "variable": "REDIS_DB",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "shared/db/redis_client.py:11",
+        ".env.example.complete:65"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for consistency"
+    },
+    {
+      "variable": "REDIS_PASSWORD",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "shared/db/redis_client.py:12",
+        ".env.example.complete:64",
+        "monitoring/.env.example:74"
+      ],
+      "documented_in": [".env.example.complete", "monitoring/.env.example"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for consistency"
+    },
+    {
+      "variable": "TEST_DATABASE_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "tests/integration/conftest.py:63",
+        "tests/setup.ts:14",
+        "tests/integration/test_api_endpoints.ts:16",
+        ".env.example.complete:564"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for development use"
+    },
+    {
+      "variable": "TEST_REDIS_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "tests/setup.ts:15",
+        "tests/integration/test_api_endpoints.ts:17",
+        ".env.example.complete:565"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for development use"
+    },
+    {
+      "variable": "TEST_API_KEY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["tests/integration/test_api_endpoints.ts:146"],
+      "documented_in": [],
+      "description": "API key for testing but not documented",
+      "fix": "Add to .env.example.complete under Development/Testing section"
+    },
+    {
+      "variable": "TEST_API_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["tests/integration/test_api_endpoints.ts:15"],
+      "documented_in": [],
+      "description": "API URL for testing but not documented",
+      "fix": "Add to .env.example.complete under Development/Testing section"
+    },
+    {
+      "variable": "SKIP_EXTERNAL_TESTS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["tests/integration/conftest.py:528"],
+      "documented_in": [],
+      "description": "Flag to skip external API tests but not documented",
+      "fix": "Add to .env.example.complete under Development/Testing section"
+    },
+    {
+      "variable": "SILENT_TESTS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["tests/setup.ts:18"],
+      "documented_in": [],
+      "description": "Flag to silence test output but not documented",
+      "fix": "Add to .env.example.complete under Development/Testing section"
+    },
+    {
+      "variable": "E2E_BASE_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "playwright.config.ts:34",
+        "tests/e2e/test_campaign_flow.spec.ts:13"
+      ],
+      "documented_in": [],
+      "description": "Base URL for E2E tests but not documented",
+      "fix": "Add to .env.example.complete under Development/Testing section"
+    },
+    {
+      "variable": "E2E_API_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["tests/e2e/test_campaign_flow.spec.ts:14"],
+      "documented_in": [],
+      "description": "API URL for E2E tests but not documented",
+      "fix": "Add to .env.example.complete under Development/Testing section"
+    },
+    {
+      "variable": "CI",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "playwright.config.ts:19,20,21,97,100",
+        "jest.config.js:87"
+      ],
+      "documented_in": [],
+      "description": "Standard CI environment variable - document for completeness",
+      "fix": "Add note to .env.example.complete that CI is auto-set by CI systems"
+    },
+    {
+      "variable": "npm_package_version",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["services/gateway-api/src/services/monitoring.ts:123"],
+      "documented_in": [],
+      "description": "Auto-set by npm - document for completeness",
+      "fix": "Add note to .env.example.complete that npm auto-sets this"
+    },
+    {
+      "variable": "META_API_VERSION",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "services/meta-publisher/src/index.ts:53",
+        ".env.example.complete:151"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for consistency"
+    },
+    {
+      "variable": "GOOGLE_ADS_API_VERSION",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:177"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for consistency"
+    },
+    {
+      "variable": "TIKTOK_API_VERSION",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:197"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for consistency"
+    },
+    {
+      "variable": "PRECOMPUTE_WORKERS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["docker-compose.prod.yml:74"],
+      "documented_in": [],
+      "description": "Number of precompute workers in ML service but not documented",
+      "fix": "Add to .env.example.complete under Worker Configuration section"
+    },
+    {
+      "variable": "NODE_OPTIONS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["docker-compose.prod.yml:201"],
+      "documented_in": [],
+      "description": "Node.js runtime options for gateway-api but not documented",
+      "fix": "Add to .env.example.complete under Application Configuration section"
+    },
+    {
+      "variable": "POSTGRES_USER",
+      "issue_type": "NO_DEFAULT",
+      "used_in": ["docker-compose.yml:12"],
+      "documented_in": [".env.example.complete:29"],
+      "description": "Has default 'geminivideo' in docker-compose but should be customizable",
+      "fix": "Ensure documented in .env.example"
+    },
+    {
+      "variable": "POSTGRES_PASSWORD",
+      "issue_type": "WEAK_DEFAULT",
+      "used_in": ["docker-compose.yml:13"],
+      "documented_in": [".env.example.complete:30"],
+      "description": "Default is 'geminivideo' which is insecure for production",
+      "fix": "Add warning in .env.example to change for production"
+    },
+    {
+      "variable": "POSTGRES_DB",
+      "issue_type": "NO_DEFAULT",
+      "used_in": ["docker-compose.yml:14"],
+      "documented_in": [".env.example.complete:31"],
+      "description": "Has default 'geminivideo' in docker-compose but should be customizable",
+      "fix": "Ensure documented in .env.example"
+    },
+    {
+      "variable": "POSTGRES_HOST",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:32"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for consistency"
+    },
+    {
+      "variable": "POSTGRES_PORT",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:33"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for consistency"
+    },
+    {
+      "variable": "POSTGRES_MAX_CONNECTIONS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:36"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for production use"
+    },
+    {
+      "variable": "POSTGRES_SHARED_BUFFERS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:37"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for production use"
+    },
+    {
+      "variable": "POSTGRES_EFFECTIVE_CACHE_SIZE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:38"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for production use"
+    },
+    {
+      "variable": "DATABASE_POOL_MIN",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:53"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for production use"
+    },
+    {
+      "variable": "DATABASE_POOL_MAX",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:54"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for production use"
+    },
+    {
+      "variable": "DATABASE_POOL_TIMEOUT",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:55"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for production use"
+    },
+    {
+      "variable": "DATABASE_POOL_IDLE_TIMEOUT",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:56"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for production use"
+    },
+    {
+      "variable": "JWT_SECRET",
+      "issue_type": "WEAK_DEFAULT",
+      "used_in": [
+        "services/gateway-api/.env.example:25",
+        ".env.example:145"
+      ],
+      "documented_in": [".env.example", ".env.example.complete"],
+      "description": "Has weak example value 'your-super-secret-jwt-key-change-this-in-production'",
+      "fix": "Add prominent warning to change for production and provide generation command"
+    },
+    {
+      "variable": "CORS_ORIGINS",
+      "issue_type": "WEAK_DEFAULT",
+      "used_in": ["services/titan-core/api/.env.example:36"],
+      "documented_in": [".env.example", ".env.example.complete"],
+      "description": "Has wildcard '*' default in titan-core which is insecure for production",
+      "fix": "Add warning about security implications of wildcard CORS"
+    },
+    {
+      "variable": "GCS_BUCKET",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": ["shared/python/config_loader.py:12"],
+      "documented_in": [],
+      "description": "Used instead of GCS_BUCKET_NAME - inconsistent naming",
+      "fix": "Standardize on GCS_BUCKET_NAME throughout codebase"
+    },
+    {
+      "variable": "SUPABASE_SERVICE_ROLE_KEY",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": [
+        "services/titan-core/services/supabase_connector.py:21",
+        ".env.example:199"
+      ],
+      "documented_in": [".env.example", ".env.example.complete"],
+      "description": "Sometimes called SUPABASE_KEY - inconsistent naming",
+      "fix": "Document that SUPABASE_SERVICE_ROLE_KEY is preferred over SUPABASE_KEY"
+    },
+    {
+      "variable": "GATEWAY_URL",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": [
+        "scripts/investor-demo.py:29",
+        "scripts/validate-production.py:26",
+        "docker-compose.production.yml:255"
+      ],
+      "documented_in": [],
+      "description": "Sometimes GATEWAY_API_URL, sometimes GATEWAY_URL - inconsistent",
+      "fix": "Standardize on GATEWAY_API_URL throughout codebase"
+    },
+    {
+      "variable": "KNOWLEDGE_BASE_PATH",
+      "issue_type": "DIFFERENT_NAME",
+      "used_in": [
+        "services/gateway-api/src/services/ad-intelligence.ts:343",
+        ".env.example.complete:425"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Sometimes CONFIG_PATH, sometimes KNOWLEDGE_BASE_PATH - inconsistent",
+      "fix": "Document that both can point to same location or clarify difference"
+    },
+    {
+      "variable": "VITE_ENABLE_ANALYTICS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["docker-compose.production.yml:440"],
+      "documented_in": [],
+      "description": "Frontend analytics flag but not documented in frontend/.env.example",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "VITE_ENABLE_PERFORMANCE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["frontend/.env.example:20"],
+      "documented_in": ["frontend/.env.example"],
+      "description": "Documented in frontend/.env.example but not in main .env files",
+      "fix": "Add to .env.example.complete for completeness"
+    },
+    {
+      "variable": "UPSTASH_REDIS_REST_URL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "scripts/validate-env.py:204,605",
+        ".env.example.complete:71"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example as alternative Redis option"
+    },
+    {
+      "variable": "UPSTASH_REDIS_REST_TOKEN",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:72"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example as alternative Redis option"
+    },
+    {
+      "variable": "GEMINI_TEMPERATURE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:87"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for AI configuration"
+    },
+    {
+      "variable": "GEMINI_MAX_TOKENS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:88"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for AI configuration"
+    },
+    {
+      "variable": "ANTHROPIC_MODEL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:92"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for AI configuration"
+    },
+    {
+      "variable": "ANTHROPIC_MAX_TOKENS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:93"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for AI configuration"
+    },
+    {
+      "variable": "OPENAI_MODEL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:97"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for AI configuration"
+    },
+    {
+      "variable": "OPENAI_TEMPERATURE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:98"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for AI configuration"
+    },
+    {
+      "variable": "OPENAI_MAX_TOKENS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:99"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for AI configuration"
+    },
+    {
+      "variable": "ELEVENLABS_VOICE_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:122"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for voice configuration"
+    },
+    {
+      "variable": "OPENAI_TTS_MODEL",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:125"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for voice configuration"
+    },
+    {
+      "variable": "OPENAI_TTS_VOICE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:126"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for voice configuration"
+    },
+    {
+      "variable": "META_BUSINESS_ACCOUNT_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:142"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for Meta Ads"
+    },
+    {
+      "variable": "META_PIXEL_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:147"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example (VITE_META_PIXEL_ID is in frontend)",
+      "fix": "Add to .env.example for backend Meta integration"
+    },
+    {
+      "variable": "META_CONVERSION_API_TOKEN",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:148"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for Meta Conversions API"
+    },
+    {
+      "variable": "META_RATE_LIMIT_TIER",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:152"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for Meta API configuration"
+    },
+    {
+      "variable": "META_SANDBOX_MODE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:155"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for Meta testing"
+    },
+    {
+      "variable": "GOOGLE_ADS_MANAGER_CUSTOMER_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:174"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for Google Ads"
+    },
+    {
+      "variable": "GOOGLE_ADS_LOGIN_CUSTOMER_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:178"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for Google Ads"
+    },
+    {
+      "variable": "TIKTOK_APP_SECRET",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:186"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for TikTok Ads"
+    },
+    {
+      "variable": "TIKTOK_ACCESS_TOKEN_EXPIRY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:190"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for TikTok Ads"
+    },
+    {
+      "variable": "TIKTOK_BUSINESS_CENTER_ID",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:194"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for TikTok Ads"
+    },
+    {
+      "variable": "TIKTOK_SANDBOX_MODE",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:198"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example for TikTok testing"
+    },
+    {
+      "variable": "GCP_SERVICE_ACCOUNT_JSON_BASE64",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [".env.example.complete:213"],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example as alternative to file path"
+    },
+    {
+      "variable": "ASSET_DIR",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [".env.example:163"],
+      "documented_in": [".env.example"],
+      "description": "Documented but not passed to docker containers that need it",
+      "fix": "Add to video-agent environment in docker-compose.yml"
+    },
+    {
+      "variable": "RUNWAY_API_KEY",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [".env.example:27"],
+      "documented_in": [".env.example"],
+      "description": "Documented but not passed to docker containers",
+      "fix": "Add to video-agent environment in docker-compose.yml if needed"
+    },
+    {
+      "variable": "KLING_API_KEY",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [".env.example:31"],
+      "documented_in": [".env.example"],
+      "description": "Documented but not passed to docker containers",
+      "fix": "Add to video-agent environment in docker-compose.yml if needed"
+    },
+    {
+      "variable": "PIKA_API_KEY",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [".env.example:35"],
+      "documented_in": [".env.example"],
+      "description": "Documented but not passed to docker containers",
+      "fix": "Add to video-agent environment in docker-compose.yml if needed"
+    },
+    {
+      "variable": "GCP_SERVICE_ACCOUNT_JSON",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [".env.example:97"],
+      "documented_in": [".env.example"],
+      "description": "Documented but not passed to docker containers that need it",
+      "fix": "Mount as secret volume in docker-compose.yml"
+    },
+    {
+      "variable": "VITE_GEMINI_API_KEY",
+      "issue_type": "EXPOSED",
+      "used_in": ["frontend/src/services/geminiService.ts:11"],
+      "documented_in": [],
+      "description": "API key exposed in frontend bundle - SECURITY RISK",
+      "fix": "Remove from frontend, proxy through backend API instead"
+    },
+    {
+      "variable": "API_KEY",
+      "issue_type": "EXPOSED",
+      "used_in": [
+        "frontend/src/services/geminiService.ts:11,161",
+        "frontend/api/generate.py:18"
+      ],
+      "documented_in": [],
+      "description": "Generic API_KEY variable used - unclear and potentially insecure",
+      "fix": "Use specific named variables and ensure proper scoping"
+    },
+    {
+      "variable": "SUPABASE_DB_PASSWORD",
+      "issue_type": "NO_DEFAULT",
+      "used_in": [".env.example:46"],
+      "documented_in": [".env.example"],
+      "description": "Required for Supabase but has no default",
+      "fix": "Ensure users set this when using Supabase"
+    },
+    {
+      "variable": "META_ACCESS_TOKEN",
+      "issue_type": "NO_DEFAULT",
+      "used_in": ["docker-compose.yml:89"],
+      "documented_in": [".env.example"],
+      "description": "Required for Meta integration but will fail silently if not set",
+      "fix": "Add validation check in Meta services startup"
+    },
+    {
+      "variable": "VERCEL_TOKEN",
+      "issue_type": "UNUSED",
+      "used_in": [],
+      "documented_in": [".env.example:194"],
+      "description": "Documented but not used anywhere in code",
+      "fix": "Remove or add usage in deployment scripts"
+    },
+    {
+      "variable": "CLOUD_RUN_SERVICE_ACCOUNT",
+      "issue_type": "UNUSED",
+      "used_in": [],
+      "documented_in": [".env.example:191"],
+      "description": "Documented but not used in deployment scripts",
+      "fix": "Remove or add usage in Cloud Run deployment"
+    },
+    {
+      "variable": "CLOUD_RUN_REGION",
+      "issue_type": "UNUSED",
+      "used_in": [],
+      "documented_in": [".env.example:190"],
+      "description": "Documented but not used in deployment scripts",
+      "fix": "Remove or add usage in Cloud Run deployment"
+    },
+    {
+      "variable": "KNOWLEDGE_RELOAD_INTERVAL",
+      "issue_type": "UNUSED",
+      "used_in": [],
+      "documented_in": [".env.example:136"],
+      "description": "Documented but not used in code",
+      "fix": "Remove or implement knowledge base hot reload"
+    },
+    {
+      "variable": "MAX_VIDEO_SIZE_MB",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [".env.example:151"],
+      "documented_in": [".env.example"],
+      "description": "Documented but not passed to video-agent in main docker-compose.yml",
+      "fix": "Add to video-agent environment in docker-compose.yml"
+    },
+    {
+      "variable": "DRIVE_WORKER_CONCURRENCY",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": ["docker-compose.production.yml:486"],
+      "documented_in": [],
+      "description": "Used in production compose but not documented",
+      "fix": "Add to .env.example.complete under Worker Configuration"
+    },
+    {
+      "variable": "VIDEO_WORKER_CONCURRENCY",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [
+        "docker-compose.production.yml:527",
+        ".env.example.complete:438"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example under Worker Configuration"
+    },
+    {
+      "variable": "DRIVE_WORKER_REPLICAS",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": ["docker-compose.production.yml:504"],
+      "documented_in": [],
+      "description": "Used in production compose but not documented",
+      "fix": "Add to .env.example.complete under Worker Configuration"
+    },
+    {
+      "variable": "VIDEO_WORKER_REPLICAS",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [
+        "docker-compose.production.yml:545",
+        ".env.example.complete:439"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example under Worker Configuration"
+    },
+    {
+      "variable": "REGISTRY_URL",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [
+        "docker-compose.production.yml:82,139,195,248,297,349,424,476,518",
+        ".env.example.complete:21"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Used extensively in production compose but not in main .env.example",
+      "fix": "Add to .env.example for production deployments"
+    },
+    {
+      "variable": "IMAGE_TAG",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [
+        "docker-compose.production.yml:82,139,195,248,297,349,424,476,518",
+        ".env.example.complete:22"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Used extensively in production compose but not in main .env.example",
+      "fix": "Add to .env.example for production deployments"
+    },
+    {
+      "variable": "VITE_GATEWAY_URL",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": ["docker-compose.production.yml:421,428"],
+      "documented_in": [],
+      "description": "Used in production frontend but not documented in frontend/.env.example",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "VITE_DRIVE_INTEL_URL",
+      "issue_type": "MISSING_DOCKER",
+      "used_in": [
+        "docker-compose.production.yml:429",
+        "frontend/src/config/api.ts:11"
+      ],
+      "documented_in": [],
+      "description": "Used but not documented in frontend/.env.example",
+      "fix": "Add to frontend/.env.example"
+    },
+    {
+      "variable": "DATA_DIR",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["docker-compose.production.yml:95"],
+      "documented_in": [],
+      "description": "Used in drive-intel production config but not documented",
+      "fix": "Add to .env.example.complete under Storage Paths"
+    },
+    {
+      "variable": "VIDEO_QUALITY",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "docker-compose.production.yml:153",
+        ".env.example.complete:407"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example under Video Processing"
+    },
+    {
+      "variable": "FFMPEG_THREADS",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": [
+        "docker-compose.production.yml:154",
+        ".env.example.complete:408"
+      ],
+      "documented_in": [".env.example.complete"],
+      "description": "Documented in .env.example.complete but not .env.example",
+      "fix": "Add to .env.example under Video Processing"
+    },
+    {
+      "variable": "MODEL_PATH",
+      "issue_type": "UNDOCUMENTED",
+      "used_in": ["docker-compose.production.yml:204"],
+      "documented_in": [],
+      "description": "Used in ML service but not documented (ML_MODEL_PATH is documented)",
+      "fix": "Standardize on ML_MODEL_PATH or document MODEL_PATH"
+    }
+  ],
+  "critical_security_issues": [
+    {
+      "issue": "VITE_GEMINI_API_KEY exposed in frontend",
+      "severity": "CRITICAL",
+      "impact": "API key will be visible in frontend bundle and can be stolen",
+      "fix": "Remove from frontend, proxy all AI requests through backend"
+    },
+    {
+      "issue": "CORS_ORIGINS wildcard in titan-core",
+      "severity": "HIGH",
+      "impact": "Allows any origin to access API in development template",
+      "fix": "Change default to specific origins and add production warning"
+    },
+    {
+      "issue": "Weak JWT_SECRET default",
+      "severity": "HIGH",
+      "impact": "Predictable JWT tokens if default is not changed",
+      "fix": "Generate random secret in setup script, add validation"
+    },
+    {
+      "issue": "Hardcoded postgres password in docker-compose",
+      "severity": "HIGH",
+      "impact": "Database can be accessed with default credentials",
+      "fix": "Force environment variable, add startup check"
+    },
+    {
+      "issue": "FIREBASE_PRIVATE_KEY in environment variable",
+      "severity": "CRITICAL",
+      "impact": "Private key could be exposed in logs or environment dumps",
+      "fix": "Recommend using service account JSON file or secret manager"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "HIGH",
+      "action": "Consolidate .env.example and .env.example.complete",
+      "reason": "Having two files causes confusion - merge complete version into main .env.example"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Standardize variable naming conventions",
+      "reason": "Many variables have inconsistent names (LOGS_DIR vs LOG_DIR, GCS_BUCKET vs GCS_BUCKET_NAME)"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Add environment variable validation on startup",
+      "reason": "Services fail silently when required vars are missing"
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Document all docker-compose environment variables",
+      "reason": "Many vars used in docker-compose files are not in .env.example"
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Create separate .env.example for each service",
+      "reason": "Each service has unique requirements - service-specific examples would be clearer"
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Implement secret management",
+      "reason": "Critical secrets like private keys should not be in environment variables"
+    },
+    {
+      "priority": "LOW",
+      "action": "Remove unused environment variables",
+      "reason": "VERCEL_TOKEN, CLOUD_RUN_SERVICE_ACCOUNT, etc. are documented but not used"
+    },
+    {
+      "priority": "LOW",
+      "action": "Add .env validation script",
+      "reason": "Automate checking for missing required variables before deployment"
+    }
+  ],
+  "file_coverage": {
+    "env_example_files_scanned": 7,
+    "docker_compose_files_scanned": 3,
+    "python_files_scanned": "200+",
+    "typescript_files_scanned": "200+",
+    "dockerfiles_scanned": 14
+  }
+}

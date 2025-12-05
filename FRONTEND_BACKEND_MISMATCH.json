@@ -1,0 +1,418 @@
+{
+  "analysis_date": "2025-12-05",
+  "agent": "AGENT 83: FRONTEND-BACKEND MISMATCH DETECTOR",
+  "summary": {
+    "total_mismatches": 15,
+    "critical_mismatches": 8,
+    "warning_mismatches": 7,
+    "categories": {
+      "endpoint_missing": 10,
+      "field_missing": 0,
+      "type_mismatch": 0,
+      "method_wrong": 0,
+      "path_different": 5
+    }
+  },
+  "mismatches": [
+    {
+      "id": 1,
+      "severity": "CRITICAL",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 398,
+      "api_call": "POST /api/campaigns/draft",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "POST",
+        "path": "/api/campaigns/draft",
+        "body": {
+          "campaign": "Partial<Campaign>"
+        },
+        "response": {
+          "campaign": "Campaign"
+        }
+      },
+      "backend_provides": null,
+      "fix_location": "backend",
+      "fix_description": "Add POST /api/campaigns/draft endpoint to services/gateway-api/src/routes/campaigns.ts. Should accept partial campaign data and save with status='draft'.",
+      "impact": "HIGH - Users cannot save campaign drafts without publishing"
+    },
+    {
+      "id": 2,
+      "severity": "CRITICAL",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 418,
+      "api_call": "POST /api/campaigns/:id/resume",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "POST",
+        "path": "/api/campaigns/:id/resume",
+        "params": {
+          "id": "string (campaignId)"
+        },
+        "response": {
+          "campaign": "Campaign"
+        }
+      },
+      "backend_provides": null,
+      "fix_location": "backend",
+      "fix_description": "Add POST /api/campaigns/:id/resume endpoint to services/gateway-api/src/routes/campaigns.ts. Should change campaign status from 'paused' to 'active'.",
+      "impact": "HIGH - Users cannot resume paused campaigns via the UI"
+    },
+    {
+      "id": 3,
+      "severity": "CRITICAL",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 425,
+      "api_call": "POST /api/campaigns/predict",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "POST",
+        "path": "/api/campaigns/predict",
+        "body": {
+          "campaignData": "Partial<Campaign>"
+        },
+        "response": {
+          "predictions": "CampaignPredictions"
+        }
+      },
+      "backend_provides": null,
+      "fix_location": "backend",
+      "fix_description": "Add POST /api/campaigns/predict endpoint to services/gateway-api/src/routes/campaigns.ts or predictions.ts. Should forward to ML service for CTR/ROAS predictions. Alternatively, update frontend to use /api/predictions/campaign instead.",
+      "impact": "HIGH - Campaign prediction feature is broken"
+    },
+    {
+      "id": 4,
+      "severity": "WARNING",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 457,
+      "api_call": "GET /api/analytics/predictions/accuracy",
+      "backend_exists": true,
+      "mismatch_type": "PATH_DIFFERENT",
+      "frontend_expects": {
+        "method": "GET",
+        "path": "/api/analytics/predictions/accuracy",
+        "query": {
+          "timeRange": "string"
+        }
+      },
+      "backend_provides": {
+        "method": "GET",
+        "path": "/api/analytics/predictions-vs-actual",
+        "query": {
+          "start_date": "string",
+          "end_date": "string",
+          "limit": "number"
+        }
+      },
+      "fix_location": "both",
+      "fix_description": "Either: (1) Add alias route in backend for /api/analytics/predictions/accuracy that maps to predictions-vs-actual, OR (2) Update frontend api.ts line 457 to use /api/analytics/predictions-vs-actual path instead. Also note query parameter differences: timeRange vs start_date/end_date.",
+      "impact": "MEDIUM - Prediction accuracy metrics may not display correctly"
+    },
+    {
+      "id": 5,
+      "severity": "CRITICAL",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 464,
+      "api_call": "GET /api/analytics/roi/performance",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "GET",
+        "path": "/api/analytics/roi/performance",
+        "query": {
+          "timeRange": "string"
+        }
+      },
+      "backend_provides": null,
+      "fix_location": "backend",
+      "fix_description": "Add GET /api/analytics/roi/performance endpoint to services/gateway-api/src/routes/analytics.ts. Should calculate and return ROI/ROAS performance metrics aggregated across campaigns.",
+      "impact": "HIGH - ROI performance dashboard is broken"
+    },
+    {
+      "id": 6,
+      "severity": "CRITICAL",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 471,
+      "api_call": "GET /api/analytics/roi/trends",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "GET",
+        "path": "/api/analytics/roi/trends",
+        "query": {
+          "period": "string (daily|weekly|monthly)"
+        }
+      },
+      "backend_provides": null,
+      "fix_location": "backend",
+      "fix_description": "Add GET /api/analytics/roi/trends endpoint to services/gateway-api/src/routes/analytics.ts. Should return time-series ROI trend data grouped by period.",
+      "impact": "HIGH - ROI trends chart is broken"
+    },
+    {
+      "id": 7,
+      "severity": "WARNING",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 503,
+      "api_call": "PUT /api/ab-tests/:id",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "PUT",
+        "path": "/api/ab-tests/:id",
+        "body": {
+          "updates": "Partial<ABTest>"
+        },
+        "response": {
+          "test": "ABTest"
+        }
+      },
+      "backend_provides": null,
+      "fix_location": "backend",
+      "fix_description": "Add PUT /api/ab-tests/:id endpoint to services/gateway-api/src/routes/ab-tests.ts for updating A/B test configuration.",
+      "impact": "MEDIUM - Cannot update A/B test settings after creation"
+    },
+    {
+      "id": 8,
+      "severity": "WARNING",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 510,
+      "api_call": "DELETE /api/ab-tests/:id",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "DELETE",
+        "path": "/api/ab-tests/:id",
+        "params": {
+          "id": "string (testId)"
+        }
+      },
+      "backend_provides": null,
+      "fix_location": "backend",
+      "fix_description": "Add DELETE /api/ab-tests/:id endpoint to services/gateway-api/src/routes/ab-tests.ts for deleting A/B tests.",
+      "impact": "MEDIUM - Cannot delete A/B tests via UI"
+    },
+    {
+      "id": 9,
+      "severity": "WARNING",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 517,
+      "api_call": "POST /api/ab-tests/:id/start",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "POST",
+        "path": "/api/ab-tests/:id/start",
+        "params": {
+          "id": "string (testId)"
+        },
+        "response": {
+          "test": "ABTest"
+        }
+      },
+      "backend_provides": {
+        "note": "Backend does not have /start endpoint. Tests are started when created or must use ML service directly."
+      },
+      "fix_location": "backend",
+      "fix_description": "Add POST /api/ab-tests/:id/start endpoint to services/gateway-api/src/routes/ab-tests.ts. Should forward to ML service to start the experiment.",
+      "impact": "MEDIUM - Cannot explicitly start A/B tests, may auto-start on creation"
+    },
+    {
+      "id": 10,
+      "severity": "WARNING",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 524,
+      "api_call": "POST /api/ab-tests/:id/stop",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "POST",
+        "path": "/api/ab-tests/:id/stop",
+        "params": {
+          "id": "string (testId)"
+        },
+        "response": {
+          "test": "ABTest"
+        }
+      },
+      "backend_provides": {
+        "method": "POST",
+        "path": "/api/ab-tests/:id/pause",
+        "note": "Backend has /pause instead of /stop"
+      },
+      "fix_location": "frontend",
+      "fix_description": "Update frontend/src/lib/api.ts line 524 to use POST /api/ab-tests/:id/pause instead of /stop. Backend uses 'pause' terminology instead of 'stop'. Alternatively, add alias route in backend.",
+      "impact": "MEDIUM - Stop A/B test button may not work correctly"
+    },
+    {
+      "id": 11,
+      "severity": "CRITICAL",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 556,
+      "api_call": "POST /api/publish/google",
+      "backend_exists": true,
+      "mismatch_type": "PATH_DIFFERENT",
+      "frontend_expects": {
+        "method": "POST",
+        "path": "/api/publish/google",
+        "body": {
+          "request": "PublishRequest"
+        }
+      },
+      "backend_provides": {
+        "method": "POST",
+        "path": "/api/google-ads/publish",
+        "note": "Backend uses /api/google-ads/publish for Google Ads publishing, not /api/publish/google. Also supports multi-platform publishing via /api/publish/multi."
+      },
+      "fix_location": "both",
+      "fix_description": "Option 1: Add alias route in backend for /api/publish/google that forwards to /api/google-ads/publish. Option 2: Update frontend to use /api/google-ads/publish. Option 3: Use unified /api/publish/multi endpoint instead.",
+      "impact": "HIGH - Google Ads publishing is broken from frontend"
+    },
+    {
+      "id": 12,
+      "severity": "CRITICAL",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 563,
+      "api_call": "POST /api/publish/tiktok",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "POST",
+        "path": "/api/publish/tiktok",
+        "body": {
+          "request": "PublishRequest"
+        }
+      },
+      "backend_provides": {
+        "method": "POST",
+        "path": "/api/publish/multi",
+        "note": "Backend supports TikTok via multi-platform publishing at /api/publish/multi, not as a separate /api/publish/tiktok endpoint."
+      },
+      "fix_location": "backend",
+      "fix_description": "Add POST /api/publish/tiktok endpoint to services/gateway-api/src/index.ts that forwards to the multi-platform publisher with platform='tiktok'. Alternatively, update frontend to use /api/publish/multi.",
+      "impact": "HIGH - TikTok publishing is broken from frontend"
+    },
+    {
+      "id": 13,
+      "severity": "CRITICAL",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 577,
+      "api_call": "GET /api/publish/campaigns/:campaignId",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "GET",
+        "path": "/api/publish/campaigns/:campaignId",
+        "params": {
+          "campaignId": "string"
+        },
+        "response": {
+          "jobs": "PublishStatus[]"
+        }
+      },
+      "backend_provides": null,
+      "fix_location": "backend",
+      "fix_description": "Add GET /api/publish/campaigns/:campaignId endpoint to services/gateway-api/src/index.ts. Should return all publishing jobs associated with a specific campaign ID.",
+      "impact": "HIGH - Cannot view publishing history for campaigns"
+    },
+    {
+      "id": 14,
+      "severity": "CRITICAL",
+      "frontend_file": "frontend/src/lib/api.ts",
+      "frontend_line": 595,
+      "api_call": "POST /api/creatives/upload",
+      "backend_exists": false,
+      "mismatch_type": "ENDPOINT_MISSING",
+      "frontend_expects": {
+        "method": "POST",
+        "path": "/api/creatives/upload",
+        "body": {
+          "formData": "FormData (multipart)"
+        },
+        "headers": {
+          "Content-Type": "multipart/form-data"
+        }
+      },
+      "backend_provides": null,
+      "fix_location": "backend",
+      "fix_description": "Add POST /api/creatives/upload endpoint to services/gateway-api/src/index.ts. Should handle multipart file upload for video/image creatives and return asset metadata.",
+      "impact": "HIGH - Cannot upload creative files from frontend"
+    },
+    {
+      "id": 15,
+      "severity": "WARNING",
+      "frontend_file": "frontend/src/hooks/usePublishing.ts",
+      "frontend_line": 27,
+      "api_call": "GET /api/publish/status/:jobId",
+      "backend_exists": true,
+      "mismatch_type": "PATH_DIFFERENT",
+      "frontend_expects": {
+        "method": "GET",
+        "path": "/api/publish/status/:jobId"
+      },
+      "backend_provides": {
+        "method": "GET",
+        "path": "/api/publish/status/:job_id",
+        "note": "Backend uses job_id (snake_case) instead of jobId (camelCase) in URL parameter"
+      },
+      "fix_location": "none",
+      "fix_description": "No fix needed - Express router treats parameter names as interchangeable in path matching. Both :jobId and :job_id will work.",
+      "impact": "NONE - Works correctly despite naming difference"
+    }
+  ],
+  "recommendations": {
+    "immediate_fixes": [
+      {
+        "priority": "P0 - CRITICAL",
+        "action": "Add missing campaign endpoints: /api/campaigns/draft, /api/campaigns/:id/resume, /api/campaigns/predict",
+        "file": "services/gateway-api/src/routes/campaigns.ts",
+        "estimated_effort": "2-3 hours"
+      },
+      {
+        "priority": "P0 - CRITICAL",
+        "action": "Add missing analytics ROI endpoints: /api/analytics/roi/performance, /api/analytics/roi/trends",
+        "file": "services/gateway-api/src/routes/analytics.ts",
+        "estimated_effort": "3-4 hours"
+      },
+      {
+        "priority": "P0 - CRITICAL",
+        "action": "Add publishing endpoints: /api/publish/google, /api/publish/tiktok, /api/publish/campaigns/:campaignId, /api/creatives/upload",
+        "file": "services/gateway-api/src/index.ts",
+        "estimated_effort": "4-5 hours"
+      },
+      {
+        "priority": "P1 - HIGH",
+        "action": "Add missing A/B test CRUD endpoints: PUT /api/ab-tests/:id, DELETE /api/ab-tests/:id, POST /api/ab-tests/:id/start",
+        "file": "services/gateway-api/src/routes/ab-tests.ts",
+        "estimated_effort": "2-3 hours"
+      }
+    ],
+    "architectural_improvements": [
+      {
+        "recommendation": "Standardize API versioning",
+        "description": "Consider adding /api/v1 prefix to all endpoints for future versioning support"
+      },
+      {
+        "recommendation": "Create OpenAPI/Swagger specification",
+        "description": "Generate automatic API documentation and use code generation to prevent frontend-backend drift"
+      },
+      {
+        "recommendation": "Add integration tests",
+        "description": "Create automated tests that verify frontend API client calls match backend routes"
+      },
+      {
+        "recommendation": "Use unified multi-platform publisher",
+        "description": "Migrate all platform-specific publishing (meta, google, tiktok) to use the unified /api/publish/multi endpoint to reduce code duplication"
+      }
+    ]
+  },
+  "notes": [
+    "Backend has many additional endpoints not used by frontend (e.g., /api/ads, /api/predictions, /api/council, /api/oracle, etc.)",
+    "Some backend routes exist in index.ts while others are in separate route modules - consider consolidating for consistency",
+    "Frontend expects snake_case in some places and camelCase in others - standardize on one convention",
+    "Backend has comprehensive security middleware but some endpoints may need additional validation",
+    "Multi-platform publishing infrastructure exists but frontend doesn't leverage it yet"
+  ]
+}

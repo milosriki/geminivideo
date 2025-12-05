@@ -1,0 +1,3595 @@
+{
+  "generated_at": "2025-12-05T00:00:00Z",
+  "agent": "AGENT 82: BACKEND API COMPLETE MAP",
+  "total_endpoints": 187,
+  "services": {
+    "gateway-api": {
+      "base_url": "http://localhost:8080",
+      "framework": "Express.js (TypeScript)",
+      "file": "/services/gateway-api/src/index.ts",
+      "endpoints": 28
+    },
+    "ml-service": {
+      "base_url": "http://localhost:8003",
+      "framework": "FastAPI (Python)",
+      "file": "/services/ml-service/src/main.py",
+      "endpoints": 97
+    },
+    "video-agent": {
+      "base_url": "http://localhost:8002",
+      "framework": "FastAPI (Python)",
+      "file": "/services/video-agent/main.py",
+      "endpoints": 37
+    },
+    "meta-publisher": {
+      "base_url": "http://localhost:8083",
+      "framework": "Express.js (TypeScript)",
+      "file": "/services/meta-publisher/src/index.ts",
+      "endpoints": 21
+    },
+    "titan-core": {
+      "base_url": "http://localhost:8000",
+      "framework": "FastAPI (Python)",
+      "file": "/services/titan-core/api/main.py",
+      "endpoints": 4
+    }
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/index.ts",
+      "line": 50,
+      "status": "REAL",
+      "description": "Root endpoint - service info",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "service": "string",
+        "status": "string",
+        "version": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/index.ts",
+      "line": 57,
+      "status": "REAL",
+      "description": "Health check endpoint",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "timestamp": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/campaigns",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/campaigns.ts",
+      "line": 28,
+      "status": "MOCK",
+      "description": "Create a new campaign",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "name": "string",
+        "objective": "string",
+        "budget": "number"
+      },
+      "response_schema": {
+        "id": "string",
+        "name": "string",
+        "status": "string"
+      },
+      "issues": ["Mock implementation - returns hardcoded data"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/campaigns",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/campaigns.ts",
+      "line": 45,
+      "status": "MOCK",
+      "description": "Get all campaigns",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "campaigns": "array"
+      },
+      "issues": ["Mock implementation - returns hardcoded data"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/campaigns/:id",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/campaigns.ts",
+      "line": 65,
+      "status": "MOCK",
+      "description": "Get campaign by ID",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "id": "string",
+        "name": "string",
+        "objective": "string"
+      },
+      "issues": ["Mock implementation"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/ads",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/ads.ts",
+      "line": 24,
+      "status": "MOCK",
+      "description": "Create a new ad",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "campaignId": "string",
+        "creative": "object"
+      },
+      "response_schema": {
+        "id": "string",
+        "status": "string"
+      },
+      "issues": ["Mock implementation"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/ads",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/ads.ts",
+      "line": 40,
+      "status": "MOCK",
+      "description": "Get all ads",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "ads": "array"
+      },
+      "issues": ["Mock implementation"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/analytics/overview",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/analytics.ts",
+      "line": 25,
+      "status": "MOCK",
+      "description": "Get analytics overview",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "impressions": "number",
+        "clicks": "number",
+        "conversions": "number"
+      },
+      "issues": ["Mock implementation - returns hardcoded metrics"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/analytics/campaigns/:id",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/analytics.ts",
+      "line": 45,
+      "status": "MOCK",
+      "description": "Get campaign analytics",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "campaignId": "string",
+        "metrics": "object"
+      },
+      "issues": ["Mock implementation"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/ab-tests",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/ab-tests.ts",
+      "line": 28,
+      "status": "MOCK",
+      "description": "Create A/B test",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "name": "string",
+        "variants": "array"
+      },
+      "response_schema": {
+        "id": "string",
+        "status": "string"
+      },
+      "issues": ["Mock implementation"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/ab-tests",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/ab-tests.ts",
+      "line": 48,
+      "status": "MOCK",
+      "description": "Get all A/B tests",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "tests": "array"
+      },
+      "issues": ["Mock implementation"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/predictions/ctr",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/predictions.ts",
+      "line": 32,
+      "status": "REAL",
+      "description": "Predict CTR for creative",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["ml-service"],
+      "request_body": {
+        "creative": "object"
+      },
+      "response_schema": {
+        "predictedCTR": "number",
+        "confidence": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/roas-dashboard",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/roas-dashboard.ts",
+      "line": 28,
+      "status": "MOCK",
+      "description": "Get ROAS dashboard data",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "roas": "number",
+        "campaigns": "array"
+      },
+      "issues": ["Mock implementation"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/onboarding/start",
+      "service": "gateway-api",
+      "file": "services/gateway-api/src/routes/onboarding.ts",
+      "line": 24,
+      "status": "MOCK",
+      "description": "Start onboarding process",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "userId": "string"
+      },
+      "response_schema": {
+        "sessionId": "string",
+        "step": "number"
+      },
+      "issues": ["Mock implementation"]
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 133,
+      "status": "REAL",
+      "description": "Health check with model status",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "service": "string",
+        "uptime": "number",
+        "xgboost_loaded": "boolean",
+        "model_metrics": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 152,
+      "status": "REAL",
+      "description": "Root endpoint with all available endpoints",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "service": "string",
+        "version": "string",
+        "endpoints": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/predict-ctr",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 205,
+      "status": "REAL",
+      "description": "XGBoost CTR prediction for single clip",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "clip_data": "object",
+        "include_confidence": "boolean"
+      },
+      "response_schema": {
+        "predicted_ctr": "number",
+        "confidence": "number",
+        "features_used": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/predict-ctr/batch",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 239,
+      "status": "REAL",
+      "description": "Batch CTR prediction for multiple clips",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "clips_data": "array",
+        "include_confidence": "boolean"
+      },
+      "response_schema": {
+        "predictions": "array",
+        "count": "number",
+        "features_used": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/train",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 281,
+      "status": "REAL",
+      "description": "Train XGBoost CTR model",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["videos"],
+      "external_apis": [],
+      "request_body": {
+        "use_synthetic_data": "boolean",
+        "n_samples": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "message": "string",
+        "metrics": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/model-info",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 326,
+      "status": "REAL",
+      "description": "Get trained model information",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "is_trained": "boolean",
+        "feature_count": "number",
+        "metrics": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/feature-importance",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 337,
+      "status": "REAL",
+      "description": "Get XGBoost feature importance",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "feature_importance": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/predict/ctr",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 377,
+      "status": "REAL",
+      "description": "Enhanced CTR prediction with 75+ features (Agent 5)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "clip_data": "object"
+      },
+      "response_schema": {
+        "predicted_ctr": "number",
+        "predicted_band": "string",
+        "confidence": "number",
+        "features_used": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/train/ctr",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 407,
+      "status": "REAL",
+      "description": "Train enhanced XGBoost model with 75+ features",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "use_synthetic_data": "boolean",
+        "n_samples": "number",
+        "historical_ads": "array"
+      },
+      "response_schema": {
+        "status": "string",
+        "metrics": "object",
+        "target_achieved": "boolean",
+        "features_used": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/model/importance",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 448,
+      "status": "REAL",
+      "description": "Get enhanced model feature importance (75+ features)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "feature_importance": "object",
+        "top_20_features": "object",
+        "total_features": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/ab/register-variant",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 509,
+      "status": "REAL",
+      "description": "Register A/B test variant for Thompson Sampling",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "variant_id": "string",
+        "metadata": "object"
+      },
+      "response_schema": {
+        "status": "string",
+        "variant_id": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/ab/select-variant",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 527,
+      "status": "REAL",
+      "description": "Select best variant using Thompson Sampling",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "context": "object",
+        "available_variants": "array"
+      },
+      "response_schema": {
+        "variant_id": "string",
+        "expected_ctr": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/ab/update-variant",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 541,
+      "status": "REAL",
+      "description": "Update variant with observed performance",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "variant_id": "string",
+        "reward": "number",
+        "cost": "number",
+        "metrics": "object"
+      },
+      "response_schema": {
+        "status": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/ab/variant-stats/:variant_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 562,
+      "status": "REAL",
+      "description": "Get statistics for specific variant",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "variant_id": "string",
+        "impressions": "number",
+        "clicks": "number",
+        "alpha": "number",
+        "beta": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/ab/all-variants",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 573,
+      "status": "REAL",
+      "description": "Get statistics for all variants",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "variants": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/ab/best-variant",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 584,
+      "status": "REAL",
+      "description": "Get best performing variant",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "variant_id": "string",
+        "expected_ctr": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/ab/reallocate-budget",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 595,
+      "status": "REAL",
+      "description": "Reallocate budget based on variant performance (Agent 8)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "total_budget": "number",
+        "min_budget_per_variant": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "allocations": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/ab/experiments/:experiment_id/results",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 615,
+      "status": "REAL",
+      "description": "Get detailed AB test experiment results",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "experiment_id": "string",
+        "variants": "array",
+        "overall_metrics": "object",
+        "best_variant": "object",
+        "winner_probabilities": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/ab/experiments/:experiment_id/variants",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 695,
+      "status": "REAL",
+      "description": "Get variant performance data for experiment",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "experiment_id": "string",
+        "variants": "array",
+        "count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/ab/experiments",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 760,
+      "status": "REAL",
+      "description": "List all active AB test experiments",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "experiments": "array",
+        "count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/feedback",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 852,
+      "status": "REAL",
+      "description": "Record performance feedback for learning loop (Agent 5)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["videos"],
+      "external_apis": [],
+      "request_body": {
+        "ad_id": "string",
+        "variant_id": "string",
+        "impressions": "number",
+        "clicks": "number",
+        "conversions": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "ctr": "number",
+        "feedback_count": "number",
+        "retrain_triggered": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/stats",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 912,
+      "status": "REAL",
+      "description": "Get feedback loop status and statistics",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "feedback_loop": "object",
+        "thompson_sampler": "object",
+        "xgboost_model": "object",
+        "system_health": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/check-retrain",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 970,
+      "status": "REAL",
+      "description": "Check model accuracy and retrain if needed (Agent 10)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["videos"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "samples": "number",
+        "metrics": "object",
+        "checked_at": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/accuracy-report",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1036,
+      "status": "REAL",
+      "description": "Generate investor validation accuracy report (Agent 9)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["ml_prediction_log"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "summary": "object",
+        "overall_accuracy": "object",
+        "by_hook_type": "array",
+        "by_template": "array",
+        "top_performers": "array",
+        "investment_validation": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/accuracy-metrics",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1075,
+      "status": "REAL",
+      "description": "Get overall accuracy metrics (Agent 9)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["ml_prediction_log"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "ctr_mae": "number",
+        "ctr_rmse": "number",
+        "ctr_accuracy_pct": "number",
+        "roas_mae": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/prediction/record",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1098,
+      "status": "REAL",
+      "description": "Record new prediction for accuracy tracking (Agent 9)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["ml_prediction_log"],
+      "external_apis": [],
+      "request_body": {
+        "prediction_id": "string",
+        "campaign_id": "string",
+        "creative_id": "string",
+        "predicted_ctr": "number",
+        "predicted_roas": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "prediction_id": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ml/prediction/update-actuals",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1139,
+      "status": "REAL",
+      "description": "Update prediction with actual performance (Agent 9)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["ml_prediction_log"],
+      "external_apis": [],
+      "request_body": {
+        "prediction_id": "string",
+        "actual_ctr": "number",
+        "actual_roas": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/ml/top-performers",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1175,
+      "status": "REAL",
+      "description": "Get top performing predictions (Agent 9)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["ml_prediction_log"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "top_performers": "array",
+        "count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/alerts/rules",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1236,
+      "status": "REAL",
+      "description": "Create alert rule (Agent 16)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "rule_id": "string",
+        "name": "string",
+        "alert_type": "string",
+        "severity": "string",
+        "threshold": "number"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "rule": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/alerts/rules",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1280,
+      "status": "REAL",
+      "description": "Get all alert rules",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "rules": "array",
+        "count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/alerts/rules/:rule_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1307,
+      "status": "REAL",
+      "description": "Get specific alert rule",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "rule_id": "string",
+        "name": "string",
+        "alert_type": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/alerts/rules/:rule_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1332,
+      "status": "REAL",
+      "description": "Delete alert rule",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "rule_id": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/alerts/rules/:rule_id/enable",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1357,
+      "status": "REAL",
+      "description": "Enable alert rule",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "enabled": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/alerts/rules/:rule_id/disable",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1372,
+      "status": "REAL",
+      "description": "Disable alert rule",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "enabled": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/alerts/check",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1387,
+      "status": "REAL",
+      "description": "Check metric against alert rules (Agent 16)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "metric_name": "string",
+        "metric_value": "number",
+        "campaign_id": "string",
+        "campaign_name": "string"
+      },
+      "response_schema": {
+        "alerts_triggered": "number",
+        "alerts": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/alerts",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1438,
+      "status": "REAL",
+      "description": "Get active alerts",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "alerts": "array",
+        "count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/alerts/history",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1481,
+      "status": "REAL",
+      "description": "Get alert history",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "alerts": "array",
+        "count": "number",
+        "days_back": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/alerts/stats",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1521,
+      "status": "REAL",
+      "description": "Get alert statistics",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "total_alerts": "number",
+        "active_alerts": "number",
+        "by_severity": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/alerts/:alert_id/acknowledge",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1543,
+      "status": "REAL",
+      "description": "Acknowledge an alert",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "user_id": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "alert_id": "string",
+        "acknowledged_by": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/alerts/:alert_id/resolve",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1575,
+      "status": "REAL",
+      "description": "Resolve an alert",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "alert_id": "string",
+        "resolved": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/alerts/:alert_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1606,
+      "status": "REAL",
+      "description": "Get specific alert details",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "alert_id": "string",
+        "alert_type": "string",
+        "severity": "string",
+        "metric_value": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/alerts/test",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1638,
+      "status": "REAL",
+      "description": "Send test alert notification",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "channel": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/reports/generate",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1694,
+      "status": "REAL",
+      "description": "Generate professional PDF/Excel report (Agent 18)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["campaigns", "ads", "insights"],
+      "external_apis": [],
+      "request_body": {
+        "report_type": "string",
+        "format": "string",
+        "start_date": "string",
+        "end_date": "string",
+        "campaign_ids": "array"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "report_id": "string",
+        "file_path": "string",
+        "download_url": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1795,
+      "status": "REAL",
+      "description": "List all generated reports",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["reports"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "reports": "array",
+        "count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/:report_id/download",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1850,
+      "status": "REAL",
+      "description": "Download generated report file",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": "file",
+      "issues": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/reports/:report_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1886,
+      "status": "REAL",
+      "description": "Delete a generated report",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["reports"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "report_id": "string",
+        "deleted_files": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/precompute/video",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 1971,
+      "status": "REAL",
+      "description": "Trigger video analysis precomputation (Agent 45)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_id": "string",
+        "user_id": "string",
+        "video_data": "object"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "video_id": "string",
+        "queued_tasks": "object",
+        "status": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/precompute/campaign",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2015,
+      "status": "REAL",
+      "description": "Trigger campaign variants precomputation (Agent 45)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "campaign_id": "string",
+        "user_id": "string",
+        "campaign_data": "object"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "campaign_id": "string",
+        "queued_tasks": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/precompute/login",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2056,
+      "status": "REAL",
+      "description": "Trigger dashboard precomputation on login (Agent 45)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "user_id": "string",
+        "user_data": "object"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "user_id": "string",
+        "queued_tasks": "object",
+        "predicted_actions": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/precompute/predict-actions",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2101,
+      "status": "REAL",
+      "description": "Predict user next actions (Agent 45)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "user_id": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "user_id": "string",
+        "predictions": "array",
+        "count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/precompute/cache/:cache_key",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2133,
+      "status": "REAL",
+      "description": "Get precomputed result from cache",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "cache_key": "string",
+        "result": "object",
+        "cached": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/precompute/cache",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2165,
+      "status": "REAL",
+      "description": "Invalidate cache entries",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "pattern": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "pattern": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/precompute/refresh/:task_type",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2191,
+      "status": "REAL",
+      "description": "Proactively refresh cache for task type",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "task_type": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/precompute/metrics",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2226,
+      "status": "REAL",
+      "description": "Get precomputation metrics (Agent 45)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "metrics": "object",
+        "timestamp": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/precompute/queue",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2257,
+      "status": "REAL",
+      "description": "Get precomputation queue status",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "queue_stats": "object",
+        "timestamp": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/cross-learning/detect-niche",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2303,
+      "status": "REAL",
+      "description": "Detect account niche using AI (Agent 49)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "account_id": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "account_id": "string",
+        "niche": "string",
+        "confidence": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/cross-learning/extract-insights",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2337,
+      "status": "REAL",
+      "description": "Extract anonymized insights from account (Agent 49)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "account_id": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "account_id": "string",
+        "insights": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/cross-learning/niche-wisdom/:niche",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2376,
+      "status": "REAL",
+      "description": "Get aggregated wisdom for niche (Agent 49)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "niche": "string",
+        "wisdom": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/cross-learning/apply-wisdom",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2417,
+      "status": "REAL",
+      "description": "Apply niche wisdom to account (Agent 49)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "account_id": "string",
+        "auto_apply": "boolean"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "niche": "string",
+        "recommendations": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/cross-learning/dashboard/:account_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2449,
+      "status": "REAL",
+      "description": "Get cross-learning dashboard for account (Agent 49)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "account_id": "string",
+        "niche": "string",
+        "performance_vs_niche": "object",
+        "improvement_opportunities": "array",
+        "network_effect_stats": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/cross-learning/stats",
+      "service": "ml-service",
+      "file": "services/ml-service/src/main.py",
+      "line": 2481,
+      "status": "REAL",
+      "description": "Get cross-learning system statistics (Agent 49)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "network_effects": "object",
+        "system_status": "object",
+        "privacy": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/batch/queue",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 93,
+      "status": "REAL",
+      "description": "Queue job for batch processing (Agent 42)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["openai", "anthropic", "gemini"],
+      "request_body": {
+        "job_type": "string",
+        "provider": "string",
+        "data": "object",
+        "priority": "number"
+      },
+      "response_schema": {
+        "job_id": "string",
+        "status": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/batch/queue/bulk",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 147,
+      "status": "REAL",
+      "description": "Queue multiple jobs at once (Agent 42)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "jobs": "array"
+      },
+      "response_schema": {
+        "total": "number",
+        "successful": "number",
+        "failed": "number",
+        "job_ids": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/batch/queue/status",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 185,
+      "status": "REAL",
+      "description": "Get current queue status",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "total_queued": "number",
+        "breakdown": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/batch/process",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 217,
+      "status": "REAL",
+      "description": "Manually trigger batch processing",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["openai", "anthropic", "gemini"],
+      "request_body": {
+        "job_type": "string",
+        "provider": "string",
+        "max_jobs": "number"
+      },
+      "response_schema": {
+        "batch_id": "string",
+        "status": "string",
+        "job_count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/batch/process/all",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 264,
+      "status": "REAL",
+      "description": "Process all queued batches",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/batch/status/:batch_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 290,
+      "status": "REAL",
+      "description": "Check batch status",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "batch_id": "string",
+        "provider": "string",
+        "status": "string",
+        "job_count": "number",
+        "cost_savings": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/batch/results/:batch_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 313,
+      "status": "REAL",
+      "description": "Retrieve batch results",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "batch_id": "string",
+        "result_count": "number",
+        "results": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/batch/active",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 342,
+      "status": "REAL",
+      "description": "Get active batches",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "count": "number",
+        "batches": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/batch/metrics",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 366,
+      "status": "REAL",
+      "description": "Get batch processing metrics",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "jobs_processed": "number",
+        "batches_submitted": "number",
+        "cost_savings": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/batch/dashboard",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 387,
+      "status": "REAL",
+      "description": "Get comprehensive dashboard data (Agent 42)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "overview": "object",
+        "active_batches": "array",
+        "queue_breakdown": "object",
+        "cost_savings": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/batch/savings",
+      "service": "ml-service",
+      "file": "services/ml-service/src/batch_api.py",
+      "line": 408,
+      "status": "REAL",
+      "description": "Get cost savings report",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "total_savings": "number",
+        "savings_by_job_type": "object",
+        "savings_by_provider": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/auto-scaler/evaluate",
+      "service": "ml-service",
+      "file": "services/ml-service/src/auto_scaler_api.py",
+      "line": 128,
+      "status": "REAL",
+      "description": "Evaluate campaign and determine scaling action (Agent 47)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["campaigns", "insights"],
+      "external_apis": [],
+      "request_body": {
+        "campaign_id": "string",
+        "account_id": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "action_type": "string",
+        "budget_before": "number",
+        "budget_after": "number",
+        "executed": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/auto-scaler/evaluate-bulk",
+      "service": "ml-service",
+      "file": "services/ml-service/src/auto_scaler_api.py",
+      "line": 152,
+      "status": "REAL",
+      "description": "Evaluate multiple campaigns in bulk (Agent 47)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["campaigns", "insights"],
+      "external_apis": [],
+      "request_body": {
+        "campaign_ids": "array",
+        "account_id": "string"
+      },
+      "response_schema": {
+        "total": "number",
+        "successful": "number",
+        "failed": "number",
+        "executed": "number",
+        "pending_approval": "number",
+        "results": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/auto-scaler/approve",
+      "service": "ml-service",
+      "file": "services/ml-service/src/auto_scaler_api.py",
+      "line": 197,
+      "status": "REAL",
+      "description": "Approve or reject scaling action (Agent 47)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["scaling_actions"],
+      "external_apis": [],
+      "request_body": {
+        "action_id": "number",
+        "approved_by": "string",
+        "approved": "boolean",
+        "rejection_reason": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "action_id": "number",
+        "status": "string",
+        "execution": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/auto-scaler/actions/pending",
+      "service": "ml-service",
+      "file": "services/ml-service/src/auto_scaler_api.py",
+      "line": 252,
+      "status": "REAL",
+      "description": "Get pending scaling actions",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["scaling_actions"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "count": "number",
+        "actions": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/auto-scaler/actions/history",
+      "service": "ml-service",
+      "file": "services/ml-service/src/auto_scaler_api.py",
+      "line": 295,
+      "status": "REAL",
+      "description": "Get scaling action history",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["scaling_actions"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "count": "number",
+        "period_days": "number",
+        "actions": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/auto-scaler/dashboard",
+      "service": "ml-service",
+      "file": "services/ml-service/src/auto_scaler_api.py",
+      "line": 349,
+      "status": "REAL",
+      "description": "Get auto-scaler dashboard data (Agent 47)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["scaling_actions"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "period_days": "number",
+        "summary": "object",
+        "action_breakdown": "object",
+        "budget_impact": "object",
+        "performance": "object",
+        "recent_actions": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/auto-scaler/rules",
+      "service": "ml-service",
+      "file": "services/ml-service/src/auto_scaler_api.py",
+      "line": 442,
+      "status": "REAL",
+      "description": "Create scaling rule",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["scaling_rules"],
+      "external_apis": [],
+      "request_body": {
+        "account_id": "string",
+        "campaign_id": "string",
+        "rule_name": "string",
+        "roas_scale_up": "number",
+        "roas_scale_down": "number"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "rule_id": "number",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/auto-scaler/rules",
+      "service": "ml-service",
+      "file": "services/ml-service/src/auto_scaler_api.py",
+      "line": 467,
+      "status": "REAL",
+      "description": "Get scaling rules",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["scaling_rules"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "count": "number",
+        "rules": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/dna/extract",
+      "service": "ml-service",
+      "file": "services/ml-service/src/dna_endpoints.py",
+      "line": 51,
+      "status": "REAL",
+      "description": "Extract DNA from creative (Agent 48)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["creatives"],
+      "external_apis": [],
+      "request_body": {
+        "creative_id": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "creative_id": "string",
+        "dna": "object",
+        "extracted_at": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/dna/formula/build",
+      "service": "ml-service",
+      "file": "services/ml-service/src/dna_endpoints.py",
+      "line": 103,
+      "status": "REAL",
+      "description": "Build winning formula from top performers (Agent 48)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["creatives", "insights"],
+      "external_apis": [],
+      "request_body": {
+        "account_id": "string",
+        "min_roas": "number",
+        "min_samples": "number",
+        "lookback_days": "number"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "formula": "object",
+        "summary": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/dna/formula/:account_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/dna_endpoints.py",
+      "line": 173,
+      "status": "REAL",
+      "description": "Get winning formula for account (Agent 48)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["winning_formulas"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "formula": "object",
+        "cached": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/dna/apply",
+      "service": "ml-service",
+      "file": "services/ml-service/src/dna_endpoints.py",
+      "line": 218,
+      "status": "REAL",
+      "description": "Apply winning DNA to new creative (Agent 48)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["creatives", "winning_formulas"],
+      "external_apis": [],
+      "request_body": {
+        "creative_id": "string",
+        "account_id": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "creative_id": "string",
+        "suggestions_count": "number",
+        "suggestions": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/dna/score",
+      "service": "ml-service",
+      "file": "services/ml-service/src/dna_endpoints.py",
+      "line": 274,
+      "status": "REAL",
+      "description": "Score creative against winning formula (Agent 48)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["creatives", "winning_formulas"],
+      "external_apis": [],
+      "request_body": {
+        "creative_id": "string",
+        "account_id": "string"
+      },
+      "response_schema": {
+        "success": "boolean",
+        "creative_id": "string",
+        "score": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/dna/dashboard/:account_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/dna_endpoints.py",
+      "line": 323,
+      "status": "REAL",
+      "description": "Get DNA dashboard for account (Agent 48)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["winning_formulas", "creatives"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "dashboard": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/dna/top-performers/:account_id",
+      "service": "ml-service",
+      "file": "services/ml-service/src/dna_endpoints.py",
+      "line": 406,
+      "status": "REAL",
+      "description": "Get top performing creatives (Agent 48)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["creatives", "insights"],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "success": "boolean",
+        "account_id": "string",
+        "count": "number",
+        "performers": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 191,
+      "status": "REAL",
+      "description": "Root endpoint with service info",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "service": "string",
+        "status": "string",
+        "version": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/render/remix",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 196,
+      "status": "REAL",
+      "description": "Render remixed video with overlays and subtitles",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "scenes": "array",
+        "variant": "string",
+        "template_id": "string",
+        "driver_signals": "object"
+      },
+      "response_schema": {
+        "job_id": "string",
+        "status": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/render/status/:job_id",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 238,
+      "status": "REAL",
+      "description": "Get render job status",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "job_id": "string",
+        "status": "string",
+        "progress": "number",
+        "output_path": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/generate/batch",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 336,
+      "status": "REAL",
+      "description": "Generate multiple ad variants from creative brief",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "product_name": "string",
+        "hook": "string",
+        "cta": "string",
+        "variant_count": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "jobs": "array",
+        "base_id": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 405,
+      "status": "REAL",
+      "description": "Health check endpoint",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "service": "string",
+        "uptime": "number",
+        "jobs_count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/dco/generate-variants",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 422,
+      "status": "REAL",
+      "description": "Generate DCO variants for Meta ad formats",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "jobId": "string",
+        "sourceVideoPath": "string",
+        "outputDir": "string",
+        "config": "object"
+      },
+      "response_schema": {
+        "status": "string",
+        "job_id": "string",
+        "total_variants": "number",
+        "variants": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/dco/formats",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 578,
+      "status": "REAL",
+      "description": "Get available Meta ad format specifications",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "total_formats": "number",
+        "formats": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/dco/examples",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 642,
+      "status": "REAL",
+      "description": "Get example DCO generation requests",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "examples": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/caption",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 722,
+      "status": "REAL",
+      "description": "Generate AI-powered captions with multiple styles",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_path": "string",
+        "style": "string",
+        "language": "string",
+        "burn_in": "boolean"
+      },
+      "response_schema": {
+        "status": "string",
+        "captions": "object",
+        "style": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/color-grade",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 782,
+      "status": "REAL",
+      "description": "Apply professional color grading presets",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_path": "string",
+        "preset": "string",
+        "intensity": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "output_path": "string",
+        "preset": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/render-winning-ad",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 835,
+      "status": "REAL",
+      "description": "Generate complete winning video ad with all pro features",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_clips": "array",
+        "template": "string",
+        "platform": "string",
+        "hook_text": "string",
+        "cta_text": "string"
+      },
+      "response_schema": {
+        "status": "string",
+        "job_id": "string",
+        "template": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/smart-crop",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 908,
+      "status": "REAL",
+      "description": "Auto-crop video for different platforms with face/object tracking",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_path": "string",
+        "target_aspect": "string",
+        "track_faces": "boolean"
+      },
+      "response_schema": {
+        "status": "string",
+        "output_path": "string",
+        "target_aspect": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/audio-mix",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 958,
+      "status": "REAL",
+      "description": "Professional audio mixing with ducking and enhancement",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_path": "string",
+        "music_path": "string",
+        "voiceover_path": "string",
+        "auto_duck": "boolean"
+      },
+      "response_schema": {
+        "status": "string",
+        "output_path": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/transitions",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1019,
+      "status": "REAL",
+      "description": "Add professional transitions between clips",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "clips": "array",
+        "transition_type": "string",
+        "duration": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "output_path": "string",
+        "transition": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/motion-graphics",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1081,
+      "status": "REAL",
+      "description": "Add animated text and motion graphics",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_path": "string",
+        "type": "string",
+        "text": "string",
+        "style": "string"
+      },
+      "response_schema": {
+        "status": "string",
+        "output_path": "string",
+        "type": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/preview",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1171,
+      "status": "REAL",
+      "description": "Generate quick preview or proxy video",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_path": "string",
+        "quality": "string",
+        "thumbnail_strip": "boolean"
+      },
+      "response_schema": {
+        "status": "string",
+        "output_path": "string",
+        "quality": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/timeline",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1228,
+      "status": "REAL",
+      "description": "Create and manipulate video timeline",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "operation": "string",
+        "timeline_id": "string",
+        "clips": "array"
+      },
+      "response_schema": {
+        "status": "string",
+        "timeline_id": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/keyframe",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1314,
+      "status": "REAL",
+      "description": "Create keyframe animations for video properties",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_path": "string",
+        "property": "string",
+        "keyframes": "array"
+      },
+      "response_schema": {
+        "status": "string",
+        "property": "string",
+        "keyframe_count": "number",
+        "ffmpeg_filter": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/assets",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1380,
+      "status": "REAL",
+      "description": "Manage video/audio/image assets",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "operation": "string",
+        "asset_type": "string",
+        "file_path": "string"
+      },
+      "response_schema": {
+        "status": "string",
+        "asset_id": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pro/render",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1473,
+      "status": "REAL",
+      "description": "Advanced video rendering with GPU acceleration",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "input_path": "string",
+        "platform": "string",
+        "quality": "string",
+        "aspect_ratio": "string",
+        "use_gpu": "boolean"
+      },
+      "response_schema": {
+        "status": "string",
+        "job_id": "string",
+        "platform": "string",
+        "quality": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pro/health",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1556,
+      "status": "REAL",
+      "description": "Health check for all 13 pro video modules",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "modules": "object",
+        "total_modules": "number",
+        "production_ready": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pro/job/:job_id",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1596,
+      "status": "REAL",
+      "description": "Get status of pro module job",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "job_id": "string",
+        "status": "string",
+        "data": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/video/beat-sync-render",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1613,
+      "status": "REAL",
+      "description": "Render video with cuts synchronized to music beats",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "video_clips": "array",
+        "audio_path": "string",
+        "platform": "string",
+        "quality": "string",
+        "async_mode": "boolean"
+      },
+      "response_schema": {
+        "status": "string",
+        "job_id": "string",
+        "output_path": "string",
+        "beat_info": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/voice/generate",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1828,
+      "status": "REAL",
+      "description": "Generate voiceover from script using AI TTS (ElevenLabs/OpenAI)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["elevenlabs", "openai"],
+      "request_body": {
+        "script": "string",
+        "voice_id": "string",
+        "provider": "string",
+        "model": "string",
+        "speed": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "output_path": "string",
+        "duration": "number",
+        "provider": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/voice/clone",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 1946,
+      "status": "REAL",
+      "description": "Clone voice from audio samples (ElevenLabs)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["elevenlabs"],
+      "request_body": {
+        "name": "string",
+        "description": "string",
+        "audio_samples": "array",
+        "labels": "object"
+      },
+      "response_schema": {
+        "status": "string",
+        "voice_id": "string",
+        "name": "string",
+        "sample_count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/voice/library",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 2035,
+      "status": "REAL",
+      "description": "Get list of available voices",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["openai", "elevenlabs"],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "voices": "array",
+        "count": "number"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/voice/sync",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 2078,
+      "status": "REAL",
+      "description": "Add voiceover audio to video with synchronization",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": {
+        "audio_path": "string",
+        "video_path": "string",
+        "output_path": "string",
+        "volume": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "output_path": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/voice/:voice_id",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 2170,
+      "status": "REAL",
+      "description": "Delete cloned voice (ElevenLabs)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["elevenlabs"],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/voice/generate-multilingual",
+      "service": "video-agent",
+      "file": "services/video-agent/main.py",
+      "line": 2194,
+      "status": "REAL",
+      "description": "Generate voiceovers in multiple languages (ElevenLabs)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["elevenlabs"],
+      "request_body": {
+        "script": "string",
+        "voice_id": "string",
+        "languages": "array"
+      },
+      "response_schema": {
+        "status": "string",
+        "job_id": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 94,
+      "status": "REAL",
+      "description": "Root endpoint with service info",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "service": "string",
+        "status": "string",
+        "version": "string",
+        "real_sdk_enabled": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/campaigns",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 114,
+      "status": "REAL",
+      "description": "Create Meta campaign (Agent 12)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": {
+        "name": "string",
+        "objective": "string",
+        "status": "string",
+        "specialAdCategories": "array"
+      },
+      "response_schema": {
+        "status": "string",
+        "campaign_id": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/adsets",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 143,
+      "status": "REAL",
+      "description": "Create Meta AdSet (Agent 12)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": {
+        "name": "string",
+        "campaignId": "string",
+        "bidAmount": "number",
+        "dailyBudget": "number",
+        "targeting": "object"
+      },
+      "response_schema": {
+        "status": "string",
+        "adset_id": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/video-ads",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 184,
+      "status": "REAL",
+      "description": "Create video ad - complete workflow (Agent 13)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": {
+        "videoPath": "string",
+        "campaignId": "string",
+        "adSetId": "string",
+        "creative": "object",
+        "adName": "string"
+      },
+      "response_schema": {
+        "status": "string",
+        "video_id": "string",
+        "creative_id": "string",
+        "ad_id": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/videos/upload",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 219,
+      "status": "REAL",
+      "description": "Upload video to Meta (Agent 13)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": {
+        "videoPath": "string"
+      },
+      "response_schema": {
+        "status": "string",
+        "video_id": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/ads",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 242,
+      "status": "REAL",
+      "description": "Create ad from existing creative (Agent 13)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": {
+        "name": "string",
+        "adSetId": "string",
+        "creativeId": "string",
+        "status": "string"
+      },
+      "response_schema": {
+        "status": "string",
+        "ad_id": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/insights/ad/:adId",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 270,
+      "status": "REAL",
+      "description": "Get ad insights from Meta (Agent 14)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "insights": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/insights/campaign/:campaignId",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 296,
+      "status": "REAL",
+      "description": "Get campaign insights from Meta (Agent 14)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "insights": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/insights/adset/:adSetId",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 322,
+      "status": "REAL",
+      "description": "Get adset insights from Meta (Agent 14)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "insights": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/ads/:adId/status",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 348,
+      "status": "REAL",
+      "description": "Update ad status",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": {
+        "status": "string"
+      },
+      "response_schema": {
+        "status": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/adsets/:adSetId/budget",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 371,
+      "status": "REAL",
+      "description": "Update adset budget",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": {
+        "dailyBudget": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "message": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/info",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 394,
+      "status": "REAL",
+      "description": "Get Meta account info",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "account": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/publish/meta",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 414,
+      "status": "REAL",
+      "description": "Legacy publish to Meta endpoint (deprecated)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": {
+        "videoUrl": "string",
+        "fileHash": "string",
+        "adSetId": "string",
+        "pageId": "string"
+      },
+      "response_schema": {
+        "status": "string",
+        "creative_id": "string",
+        "ad_id": "string"
+      },
+      "issues": ["Deprecated endpoint - use /api/video-ads instead"]
+    },
+    {
+      "method": "GET",
+      "path": "/insights",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 503,
+      "status": "REAL",
+      "description": "Legacy insights endpoint (deprecated)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": null,
+      "response_schema": {
+        "ad_id": "string",
+        "impressions": "number",
+        "clicks": "number",
+        "ctr": "number"
+      },
+      "issues": ["Deprecated endpoint - use /api/insights/ad/:adId instead"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/creatives",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 562,
+      "status": "MOCK",
+      "description": "Get creatives performance (dashboard mock data)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "creatives": "array"
+      },
+      "issues": ["Mock implementation - returns hardcoded data"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/timeseries",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 587,
+      "status": "MOCK",
+      "description": "Get timeseries data (dashboard mock data)",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "timeseries": "array"
+      },
+      "issues": ["Mock implementation - returns hardcoded data"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/dco/generate-meta-variants",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 639,
+      "status": "REAL",
+      "description": "Generate Meta-compliant DCO variants",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["video-agent"],
+      "request_body": {
+        "sourceVideoPath": "string",
+        "productName": "string",
+        "hook": "string",
+        "cta": "string",
+        "variantCount": "number",
+        "formats": "array"
+      },
+      "response_schema": {
+        "status": "string",
+        "jobId": "string",
+        "totalVariants": "number",
+        "variants": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/dco/upload-variants",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 802,
+      "status": "REAL",
+      "description": "Upload DCO variants to Meta",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta"],
+      "request_body": {
+        "variants": "array",
+        "campaignId": "string",
+        "adSetId": "string"
+      },
+      "response_schema": {
+        "status": "string",
+        "totalVariants": "number",
+        "successCount": "number",
+        "failCount": "number",
+        "results": "array"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/campaigns/dco",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 887,
+      "status": "REAL",
+      "description": "Create DCO campaign with auto-generated variants",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": ["meta", "video-agent"],
+      "request_body": {
+        "campaignName": "string",
+        "sourceVideoPath": "string",
+        "productName": "string",
+        "hook": "string",
+        "cta": "string",
+        "targeting": "object",
+        "dailyBudget": "number"
+      },
+      "response_schema": {
+        "status": "string",
+        "campaign": "object",
+        "variants": "object"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "service": "meta-publisher",
+      "file": "services/meta-publisher/src/index.ts",
+      "line": 978,
+      "status": "REAL",
+      "description": "Health check endpoint",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "timestamp": "string",
+        "meta_configured": "boolean"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "service": "titan-core",
+      "file": "services/titan-core/api/main.py",
+      "line": 45,
+      "status": "REAL",
+      "description": "Health check endpoint",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "status": "string",
+        "service": "string",
+        "timestamp": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "service": "titan-core",
+      "file": "services/titan-core/api/main.py",
+      "line": 55,
+      "status": "REAL",
+      "description": "Root endpoint with service info",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": [],
+      "external_apis": [],
+      "request_body": null,
+      "response_schema": {
+        "service": "string",
+        "status": "string",
+        "version": "string"
+      },
+      "issues": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/videos/analyze",
+      "service": "titan-core",
+      "file": "services/titan-core/api/main.py",
+      "line": 70,
+      "status": "PARTIAL",
+      "description": "Analyze video and extract scenes",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["videos"],
+      "external_apis": [],
+      "request_body": {
+        "video_path": "string"
+      },
+      "response_schema": {
+        "video_id": "string",
+        "scenes": "array",
+        "metadata": "object"
+      },
+      "issues": ["Implementation incomplete - basic functionality only"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/remix/generate",
+      "service": "titan-core",
+      "file": "services/titan-core/api/main.py",
+      "line": 95,
+      "status": "PARTIAL",
+      "description": "Generate video remix from scenes",
+      "authentication": false,
+      "rate_limiting": false,
+      "has_error_handling": true,
+      "database_tables": ["videos", "remixes"],
+      "external_apis": [],
+      "request_body": {
+        "scenes": "array",
+        "template": "string"
+      },
+      "response_schema": {
+        "remix_id": "string",
+        "output_path": "string",
+        "status": "string"
+      },
+      "issues": ["Implementation incomplete - basic functionality only"]
+    }
+  ],
+  "summary": {
+    "total_endpoints": 187,
+    "by_service": {
+      "gateway-api": 14,
+      "ml-service": 97,
+      "video-agent": 37,
+      "meta-publisher": 21,
+      "titan-core": 4
+    },
+    "by_status": {
+      "REAL": 165,
+      "MOCK": 18,
+      "PARTIAL": 4
+    },
+    "by_method": {
+      "GET": 65,
+      "POST": 108,
+      "PUT": 4,
+      "PATCH": 2,
+      "DELETE": 8
+    },
+    "authentication_enabled": 0,
+    "rate_limiting_enabled": 0,
+    "with_error_handling": 187,
+    "critical_issues": [
+      "Gateway API routes are mostly MOCK implementations - need real database integration",
+      "No authentication on any endpoints - security risk",
+      "No rate limiting implemented - API abuse risk",
+      "Titan Core API endpoints are PARTIAL - need completion"
+    ]
+  }
+}

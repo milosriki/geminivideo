@@ -1,0 +1,578 @@
+[
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 21,
+    "error_type": "MISSING_IMPORT",
+    "description": "Imports GradientBackground from '@/components/radiant/gradient' but this component exists in the file",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": true,
+    "fix_required": "Component exists - no fix needed, but verify export in gradient.tsx"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 182,
+    "error_type": "HARDCODED",
+    "description": "Mock hardcoded metrics data - metrics array with fake values for Total Spend ($45230), ROAS (4.2x), Videos Generated (156), Active Campaigns (12)",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Replace with real API calls using useAnalyticsOverview hook or fetch from /api/analytics/overview"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 189,
+    "error_type": "HARDCODED",
+    "description": "quickActions array with hardcoded links - href values are static and may not match actual routing structure",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Verify all href values match actual routes defined in App.tsx routing"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 196,
+    "error_type": "HARDCODED",
+    "description": "recentJobs array - completely hardcoded mock data with fake job IDs and statuses",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Replace with real job queue data from backend /api/jobs endpoint"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 203,
+    "error_type": "HARDCODED",
+    "description": "recentActivity array - completely hardcoded mock activity data",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Replace with real activity feed from backend /api/activity or /api/audit-log endpoint"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 216,
+    "error_type": "HARDCODED",
+    "description": "Hardcoded user name 'Welcome back, Milos 👋' - should come from auth context or user store",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Use AuthContext or userStore to get actual logged-in user's name"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/LandingPage.tsx",
+    "line": 11,
+    "error_type": "HARDCODED",
+    "description": "Hardcoded faqs array with TaxPal placeholder data - 'Does TaxPal handle VAT?', etc. This is not relevant to the GeminiVideo product",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Replace with real FAQs relevant to GeminiVideo / video ad creation platform"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/LandingPage.tsx",
+    "line": 39,
+    "error_type": "HARDCODED",
+    "description": "Testimonials component has hardcoded TaxPal testimonials - completely irrelevant content",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Replace with real testimonials or remove component if not using on landing page"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/LandingPage.tsx",
+    "line": 69,
+    "error_type": "HARDCODED",
+    "description": "Footer has hardcoded copyright with 'TaxPal' - wrong product name",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Change to actual product name (GeminiVideo or appropriate brand name)"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/auth/LoginPage.tsx",
+    "line": 11,
+    "error_type": "BROKEN_HANDLER",
+    "description": "handleSubmit function only does console.log('Login submitted') - no actual authentication logic",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement real authentication using AuthContext.login() method or API call to /api/auth/login"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/auth/LoginPage.tsx",
+    "line": 17,
+    "error_type": "BROKEN_HANDLER",
+    "description": "handleSocialLogin function only does console.log - no OAuth implementation",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement OAuth flow using AuthContext.loginWithGoogle() or backend OAuth endpoints"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/auth/RegisterPage.tsx",
+    "line": 66,
+    "error_type": "BROKEN_HANDLER",
+    "description": "handleSubmit has TODO comment and only console.log - no registration implementation",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement real registration using AuthContext.signup() method or API call to /api/auth/register"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/auth/RegisterPage.tsx",
+    "line": 77,
+    "error_type": "BROKEN_HANDLER",
+    "description": "handleSocialSignup has TODO comment and only console.log - no OAuth signup",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement OAuth signup flow"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/campaigns/CreateCampaignPage.tsx",
+    "line": 22,
+    "error_type": "API_MISMATCH",
+    "description": "Imports useCampaignStore from '@/stores' - need to verify this store exists and is properly exported",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": true,
+    "fix_required": "Verify campaignStore.ts exists and exports useCampaignStore function"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/campaigns/CreateCampaignPage.tsx",
+    "line": 374,
+    "error_type": "BROKEN_HANDLER",
+    "description": "handleNext function has TODO comment 'TODO: API call to create campaign' - no actual campaign creation",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement campaign creation using useCreateCampaign hook or direct API call to /api/campaigns"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/campaigns/CampaignsPage.tsx",
+    "line": 17,
+    "error_type": "MISSING_IMPORT",
+    "description": "Imports NoCampaignsEmpty from '@/components/catalyst/empty-state' - need to verify this component exists",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": true,
+    "fix_required": "Verify empty-state.tsx exports NoCampaignsEmpty component or create it"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/campaigns/CampaignsPage.tsx",
+    "line": 19,
+    "error_type": "API_MISMATCH",
+    "description": "Imports LoadingSpinner from '@/components/ui/LoadingSpinner' - component exists",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": true,
+    "fix_required": "No fix needed - component exists"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/CampaignBuilder.tsx",
+    "line": 22,
+    "error_type": "API_MISMATCH",
+    "description": "Imports from '../services/api' - should use '@/lib/api' for consistency",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": true,
+    "fix_required": "Change import to use '@/lib/api' instead of relative path"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/CampaignBuilder.tsx",
+    "line": 302,
+    "error_type": "API_MISMATCH",
+    "description": "API call to '/assets' endpoint - need to verify backend route exists",
+    "api_endpoint_called": "/api/assets",
+    "api_endpoint_exists": true,
+    "fix_required": "Verify backend has GET /api/assets endpoint implemented"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/CampaignBuilder.tsx",
+    "line": 312,
+    "error_type": "API_MISMATCH",
+    "description": "API call to '/campaigns/predict' endpoint",
+    "api_endpoint_called": "/api/campaigns/predict",
+    "api_endpoint_exists": true,
+    "fix_required": "Verify backend has POST /api/campaigns/predict endpoint implemented"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/CampaignBuilder.tsx",
+    "line": 331,
+    "error_type": "API_MISMATCH",
+    "description": "API call to '/campaigns/draft' endpoint",
+    "api_endpoint_called": "/api/campaigns/draft",
+    "api_endpoint_exists": true,
+    "fix_required": "Verify backend has POST /api/campaigns/draft endpoint (defined in api.ts line 398)"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/CampaignBuilder.tsx",
+    "line": 360,
+    "error_type": "API_MISMATCH",
+    "description": "API call to '/creatives/upload' endpoint",
+    "api_endpoint_called": "/api/creatives/upload",
+    "api_endpoint_exists": true,
+    "fix_required": "Verify backend has POST /api/creatives/upload endpoint (defined in api.ts line 596)"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/CampaignBuilder.tsx",
+    "line": 370,
+    "error_type": "API_MISMATCH",
+    "description": "API call to '/campaigns/launch' endpoint - this endpoint doesn't exist in api.ts",
+    "api_endpoint_called": "/api/campaigns/launch",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs POST /api/campaigns/launch endpoint OR use existing launchCampaign from api.ts which calls /api/campaigns/:id/launch"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/hooks/usePublishing.ts",
+    "line": 174,
+    "error_type": "TYPE_ERROR",
+    "description": "usePublishingProgress hook violates React Hooks rules by calling usePublishStatus in a map function (line 176)",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Refactor to not call hooks conditionally - move hook calls outside of map or use different pattern"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AnalyticsPage.tsx",
+    "line": 136,
+    "error_type": "API_MISMATCH",
+    "description": "Fetch call to ${API_BASE_URL}/api/analytics/chart - uses double /api in path",
+    "api_endpoint_called": "/api/analytics/chart",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/analytics/chart endpoint OR fix path to not include duplicate /api"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AnalyticsPage.tsx",
+    "line": 138,
+    "error_type": "API_MISMATCH",
+    "description": "Fetch call to ${API_BASE_URL}/api/kpis endpoint",
+    "api_endpoint_called": "/api/kpis",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/kpis endpoint OR use /api/analytics/overview from lib/api.ts"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AdSpyPage.tsx",
+    "line": 7,
+    "error_type": "HARDCODED",
+    "description": "File has extensive comment block (lines 6-33) documenting that this is 100% FAKE UI with hardcoded mock data",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement real competitor tracking using Meta Ads Library API or Apify scraper"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AdSpyPage.tsx",
+    "line": 101,
+    "error_type": "API_MISMATCH",
+    "description": "API call to /api/ads/trending endpoint",
+    "api_endpoint_called": "/api/ads/trending",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/ads/trending endpoint to provide real trending ad data"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AdSpyPage.tsx",
+    "line": 137,
+    "error_type": "BROKEN_HANDLER",
+    "description": "Search button has no onClick handler - doesn't actually search",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement search functionality with API call to search competitor ads"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AdSpyPage.tsx",
+    "line": 145,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'View All' button is plain text button with no actual functionality",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement navigation to full ad library or load more ads"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AdSpyPage.tsx",
+    "line": 172,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'Connect Data Source' button has no onClick handler",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement data source connection flow"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AdSpyPage.tsx",
+    "line": 198,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'Add Competitor' button has no onClick handler",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement add competitor modal/form"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 3,
+    "error_type": "MISSING_IMPORT",
+    "description": "Imports ValidationStatusPanel, PredictionAccuracyChart, CorrelationHeatmap from './predictions' - need to verify these components exist",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": null,
+    "fix_required": "Verify frontend/src/components/predictions/index.ts exports these components"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 4,
+    "error_type": "MISSING_IMPORT",
+    "description": "Imports ROIDashboard from './roi-dashboard' - need to verify component exists",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": true,
+    "fix_required": "Verify ROIDashboard component exists (file exists at /home/user/geminivideo/frontend/src/components/roi-dashboard/ROIDashboard.tsx)"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 144,
+    "error_type": "API_MISMATCH",
+    "description": "API call to /analytics/campaigns endpoint (no /api prefix)",
+    "api_endpoint_called": "/api/analytics/campaigns",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/analytics/campaigns endpoint OR use existing getCampaignAnalytics from api.ts"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 168,
+    "error_type": "API_MISMATCH",
+    "description": "API call to /analytics/trends endpoint",
+    "api_endpoint_called": "/api/analytics/trends",
+    "api_endpoint_exists": true,
+    "fix_required": "Verify backend has GET /api/analytics/trends endpoint (defined in api.ts line 450)"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 190,
+    "error_type": "API_MISMATCH",
+    "description": "API call to /analytics/funnel endpoint",
+    "api_endpoint_called": "/api/analytics/funnel",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/analytics/funnel endpoint"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 212,
+    "error_type": "API_MISMATCH",
+    "description": "API call to /analytics/creatives endpoint",
+    "api_endpoint_called": "/api/analytics/creatives",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/analytics/creatives endpoint"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 234,
+    "error_type": "API_MISMATCH",
+    "description": "API call to /analytics/hubspot-deals endpoint",
+    "api_endpoint_called": "/api/analytics/hubspot-deals",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/analytics/hubspot-deals endpoint for HubSpot CRM integration"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 256,
+    "error_type": "API_MISMATCH",
+    "description": "API call to /analytics/prediction-comparison endpoint",
+    "api_endpoint_called": "/api/analytics/prediction-comparison",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/analytics/prediction-comparison endpoint"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 280,
+    "error_type": "API_MISMATCH",
+    "description": "API call to /analytics/export/csv endpoint",
+    "api_endpoint_called": "/api/analytics/export/csv",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/analytics/export/csv endpoint"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 293,
+    "error_type": "API_MISMATCH",
+    "description": "API call to POST /analytics/alerts endpoint",
+    "api_endpoint_called": "/api/analytics/alerts",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs POST /api/analytics/alerts endpoint for alert configuration"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 313,
+    "error_type": "API_MISMATCH",
+    "description": "API call to GET /analytics/alerts endpoint",
+    "api_endpoint_called": "/api/analytics/alerts",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/analytics/alerts endpoint"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 326,
+    "error_type": "API_MISMATCH",
+    "description": "API call to POST /analytics/scheduled-reports endpoint",
+    "api_endpoint_called": "/api/analytics/scheduled-reports",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs POST /api/analytics/scheduled-reports endpoint"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 340,
+    "error_type": "API_MISMATCH",
+    "description": "API call to GET /analytics/scheduled-reports endpoint",
+    "api_endpoint_called": "/api/analytics/scheduled-reports",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs GET /api/analytics/scheduled-reports endpoint"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/components/AnalyticsDashboard.tsx",
+    "line": 511,
+    "error_type": "API_MISMATCH",
+    "description": "WebSocket connection to /analytics/stream endpoint - WebSocket support needed",
+    "api_endpoint_called": "ws://API_BASE/analytics/stream",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs WebSocket endpoint /analytics/stream for real-time analytics updates"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/studio/StudioPage.tsx",
+    "line": 30,
+    "error_type": "MISSING_IMPORT",
+    "description": "Imports apiClient from '@/services/apiClient' - need to verify this file exists",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": true,
+    "fix_required": "Verify apiClient.ts exists and exports apiClient (file exists)"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/studio/StudioPage.tsx",
+    "line": 28,
+    "error_type": "MISSING_IMPORT",
+    "description": "Imports Video as VideoPlayer from '@/components/compass/video-player' - need to verify component exists",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": null,
+    "fix_required": "Verify video-player component exists in compass directory"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/studio/StudioPage.tsx",
+    "line": 31,
+    "error_type": "TYPE_ERROR",
+    "description": "Imports Avatar type from '@/types' but this directory may not exist",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": null,
+    "fix_required": "Create @/types/index.ts with Avatar interface or move type definition into component"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/studio/StudioPage.tsx",
+    "line": 158,
+    "error_type": "API_MISMATCH",
+    "description": "API call to /api/generate endpoint",
+    "api_endpoint_called": "/api/generate",
+    "api_endpoint_exists": false,
+    "fix_required": "Backend needs POST /api/generate endpoint for video generation (likely exists in video-agent service)"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/contexts/AuthContext.tsx",
+    "line": 18,
+    "error_type": "MISSING_IMPORT",
+    "description": "Imports from '../firebaseConfig' - need to verify Firebase is configured",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": true,
+    "fix_required": "Verify firebaseConfig.ts exists and exports auth (file exists)"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/lib/api.ts",
+    "line": 12,
+    "error_type": "MISSING_IMPORT",
+    "description": "Imports API_BASE_URL from '../config/api' - need to verify this file exists",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": true,
+    "fix_required": "Verify config/api.ts exists and exports API_BASE_URL (file exists)"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/App.tsx",
+    "line": 4,
+    "error_type": "MISSING_IMPORT",
+    "description": "Imports DashboardLayout from '@/layouts/DashboardLayout' - need to verify layout component exists",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": null,
+    "fix_required": "Verify DashboardLayout.tsx exists in layouts directory"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 278,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'View All Jobs' button is plain button with no actual href or onClick - doesn't navigate anywhere",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Add navigation to jobs page or implement modal to show all jobs"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 292,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'View All' activity link has href but no actual page exists",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Create /activity page or remove link"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 328,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'Generate Variants' button has no onClick handler - doesn't do anything",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement variant generation functionality"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/HomePage.tsx",
+    "line": 332,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'View Analysis' button is plain button with no onClick - doesn't navigate or show analysis",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement analysis view functionality"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AnalyticsPage.tsx",
+    "line": 221,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'Custom' date range button has no onClick handler - doesn't open date picker",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement custom date range picker"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AnalyticsPage.tsx",
+    "line": 360,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'Filter' button has no onClick handler - doesn't filter campaigns",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement campaign filtering functionality"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/AnalyticsPage.tsx",
+    "line": 407,
+    "error_type": "BROKEN_HANDLER",
+    "description": "Pagination links have href={null} or href='#' - pagination doesn't work",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement actual pagination logic with page state"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/studio/StudioPage.tsx",
+    "line": 202,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'AI Enhance' button has no onClick handler",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement AI enhancement functionality"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/studio/StudioPage.tsx",
+    "line": 258,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'Add Clip' button is plain button with no onClick handler",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement clip addition functionality"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/studio/StudioPage.tsx",
+    "line": 313,
+    "error_type": "BROKEN_HANDLER",
+    "description": "'AI Rewrite' button has no onClick handler - doesn't rewrite script",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement AI script rewriting using GPT or Gemini"
+  },
+  {
+    "file": "/home/user/geminivideo/frontend/src/pages/studio/StudioPage.tsx",
+    "line": 416,
+    "error_type": "BROKEN_HANDLER",
+    "description": "Export dialog 'Export Video' button has no onClick handler",
+    "api_endpoint_called": null,
+    "api_endpoint_exists": false,
+    "fix_required": "Implement video export functionality"
+  }
+]

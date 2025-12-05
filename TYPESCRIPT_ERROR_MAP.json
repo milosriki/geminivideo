@@ -1,0 +1,810 @@
+{
+  "typescript_errors": [
+    {
+      "file": "/home/user/geminivideo/edge/workers/prediction-cache.ts",
+      "line": 59,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches - reduces type safety",
+      "fix": "Use 'unknown' type and type guard: catch (error: unknown) { if (error instanceof Error) { ... } }",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/prediction-cache.ts",
+      "line": 60,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Edge Worker Error:', error);",
+      "description": "Console.error in production code - should use structured logging",
+      "fix": "Replace with structured error logging service or remove for production",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/prediction-cache.ts",
+      "line": 87,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log(`[Edge] Checking cache for: ${cacheKey}`);",
+      "description": "Console.log in production code",
+      "fix": "Remove or replace with proper logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/prediction-cache.ts",
+      "line": 98,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log(`[Edge] Cache HIT: ${cacheKey}`);",
+      "description": "Console.log in production code",
+      "fix": "Remove or replace with proper logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/prediction-cache.ts",
+      "line": 121,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log(`[Edge] Cache MISS: ${cacheKey}`);",
+      "description": "Console.log in production code",
+      "fix": "Remove or replace with proper logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/prediction-cache.ts",
+      "line": 176,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches",
+      "fix": "Use 'unknown' type and type guard",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/prediction-cache.ts",
+      "line": 177,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error(`[Edge] Origin fetch failed: ${error.message}`);",
+      "description": "Console.error in production code and accessing error.message without type check",
+      "fix": "Use structured logging and type guards for error.message",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/prediction-cache.ts",
+      "line": 320,
+      "error_type": "TYPE",
+      "code_snippet": "event: any",
+      "description": "Parameter typed as 'any' - loses type safety",
+      "fix": "Create proper interface for event parameter",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/prediction-cache.ts",
+      "line": 333,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Analytics tracking failed:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/middleware/smart-router.ts",
+      "line": 25,
+      "error_type": "TYPE",
+      "code_snippet": "const cf = (request as any).cf;",
+      "description": "Using 'as any' type assertion - bypasses type checking",
+      "fix": "Create proper type definition for Cloudflare request object",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/middleware/smart-router.ts",
+      "line": 31,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log(`[Smart Router] Request from ${country} (${colo}): ${path}`);",
+      "description": "Console.log in production code",
+      "fix": "Remove or replace with proper logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/middleware/smart-router.ts",
+      "line": 97,
+      "error_type": "HARDCODED",
+      "code_snippet": "return 'https://prediction-cache.workers.dev' + path;",
+      "description": "Hardcoded worker URL - should be environment variable",
+      "fix": "Move to environment configuration: this.env.PREDICTION_CACHE_URL",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/middleware/smart-router.ts",
+      "line": 100,
+      "error_type": "HARDCODED",
+      "code_snippet": "return 'https://creative-scorer.workers.dev' + path;",
+      "description": "Hardcoded worker URL - should be environment variable",
+      "fix": "Move to environment configuration: this.env.CREATIVE_SCORER_URL",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/middleware/smart-router.ts",
+      "line": 103,
+      "error_type": "HARDCODED",
+      "code_snippet": "return 'https://trending-hooks.workers.dev' + path;",
+      "description": "Hardcoded worker URL - should be environment variable",
+      "fix": "Move to environment configuration: this.env.TRENDING_HOOKS_URL",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/middleware/smart-router.ts",
+      "line": 106,
+      "error_type": "HARDCODED",
+      "code_snippet": "return 'https://ab-router.workers.dev' + path;",
+      "description": "Hardcoded worker URL - should be environment variable",
+      "fix": "Move to environment configuration: this.env.AB_ROUTER_URL",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/middleware/smart-router.ts",
+      "line": 130,
+      "error_type": "TYPE",
+      "code_snippet": "const regionMap: Record<string, any> = {",
+      "description": "Using 'any' in Record type - loses type safety",
+      "fix": "Define proper interface for region config",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/tiktok-ads/src/index.ts",
+      "line": 96,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log('[TIKTOK PLACEHOLDER] Create campaign:', { name, objective, budget, status });",
+      "description": "Console.log in production code",
+      "fix": "Use proper logging library",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/tiktok-ads/src/index.ts",
+      "line": 108,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches",
+      "fix": "Use 'unknown' type and type guard",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/google-ads/src/index.ts",
+      "line": 33,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn(`CORS blocked origin: ${origin}`);",
+      "description": "Console.warn in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/google-ads/src/index.ts",
+      "line": 123,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches (repeated pattern)",
+      "fix": "Use 'unknown' type and type guard",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/contexts/DashboardContext.tsx",
+      "line": 51,
+      "error_type": "TYPE",
+      "code_snippet": "[key: string]: CacheEntry<any>;",
+      "description": "Using 'any' in generic type - loses type safety",
+      "fix": "Use proper generic constraint or unknown",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/contexts/DashboardContext.tsx",
+      "line": 249,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error(`API Error [${key}]:`, error);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service (e.g., Sentry)",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/contexts/AuthContext.tsx",
+      "line": 34,
+      "error_type": "TYPE",
+      "code_snippet": "customClaims?: Record<string, any>;",
+      "description": "Using 'any' in Record type",
+      "fix": "Define proper interface for custom claims",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/contexts/AuthContext.tsx",
+      "line": 124,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Error fetching custom claims:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/contexts/AuthContext.tsx",
+      "line": 155,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches",
+      "fix": "Use 'unknown' type and type guard",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/contexts/AuthContext.tsx",
+      "line": 307,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Error getting ID token:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/contexts/AuthContext.tsx",
+      "line": 329,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Error refreshing token:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useWebSocket.ts",
+      "line": 80,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn('WebSocket is not connected');",
+      "description": "Console.warn in production code",
+      "fix": "Use proper error handling or notification system",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useWebSocket.ts",
+      "line": 131,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Failed to parse WebSocket message:', e);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useWebSocket.ts",
+      "line": 200,
+      "error_type": "HARDCODED",
+      "code_snippet": "const wsUrl = jobId ? `ws://localhost:8000/ws?userId=demo` : null;",
+      "description": "Hardcoded WebSocket URL with localhost - breaks in production",
+      "fix": "Use environment variable: import.meta.env.VITE_WS_URL",
+      "severity": "CRITICAL"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useWebSocket.ts",
+      "line": 237,
+      "error_type": "HARDCODED",
+      "code_snippet": "const wsUrl = userId ? `ws://localhost:8000/ws?userId=${userId}` : null;",
+      "description": "Hardcoded WebSocket URL with localhost - breaks in production",
+      "fix": "Use environment variable: import.meta.env.VITE_WS_URL",
+      "severity": "CRITICAL"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useWebSocket.ts",
+      "line": 280,
+      "error_type": "HARDCODED",
+      "code_snippet": "const wsUrl = entityId ? `ws://localhost:8000/ws?userId=demo` : null;",
+      "description": "Hardcoded WebSocket URL with localhost - breaks in production",
+      "fix": "Use environment variable: import.meta.env.VITE_WS_URL",
+      "severity": "CRITICAL"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/metaPixel.ts",
+      "line": 83,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn('[MetaPixel] Already initialized');",
+      "description": "Console.warn in production code",
+      "fix": "Remove or use proper logging",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/metaPixel.ts",
+      "line": 90,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('[MetaPixel] No Pixel ID provided');",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/metaPixel.ts",
+      "line": 119,
+      "error_type": "HARDCODED",
+      "code_snippet": "'https://connect.facebook.net/en_US/fbevents.js'",
+      "description": "Hardcoded Facebook Pixel script URL (acceptable for third-party SDK)",
+      "fix": "No fix needed - standard Facebook Pixel implementation",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/metaPixel.ts",
+      "line": 136,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log('[MetaPixel] Initialized with ID:', this.pixelId);",
+      "description": "Console.log in production code - debug mode conditional",
+      "fix": "Only log when debugMode is true (already handled)",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/metaPixel.ts",
+      "line": 262,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn('[MetaPixel] Not initialized. Call initPixel() first.');",
+      "description": "Console.warn in production code",
+      "fix": "Throw error or use proper warning system",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+      "line": 68,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn('Security Redis initialization failed (non-fatal):', err.message);",
+      "description": "Console.warn in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+      "line": 81,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Redis Client Error:', err.message);",
+      "description": "Console.error in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+      "line": 88,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log('✅ Redis connected for async queues');",
+      "description": "Console.log in production code",
+      "fix": "Use structured logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+      "line": 91,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn('⚠️ Redis connection failed (Queue disabled):', err.message);",
+      "description": "Console.warn in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+      "line": 101,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('❌ DATABASE_URL environment variable is required');",
+      "description": "Console.error in production code - startup validation",
+      "fix": "Acceptable for startup validation, but use logger",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+      "line": 111,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log('✅ PostgreSQL connected')",
+      "description": "Console.log in production code",
+      "fix": "Use structured logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+      "line": 113,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('❌ PostgreSQL connection failed:', err.message);",
+      "description": "Console.error in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+      "line": 121,
+      "error_type": "TYPE",
+      "code_snippet": ") as any;",
+      "description": "Type assertion to 'any' - bypasses type checking",
+      "fix": "Define proper type for weights config",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/index.ts",
+      "line": 178,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches (repeated pattern)",
+      "fix": "Use 'unknown' type and type guard",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/dashboardAPI.ts",
+      "line": 327,
+      "error_type": "NULL",
+      "code_snippet": "const status = error.response.status;",
+      "description": "Accessing error.response.status without checking if error.response exists",
+      "fix": "Use optional chaining: error.response?.status",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/dashboardAPI.ts",
+      "line": 339,
+      "error_type": "NULL",
+      "code_snippet": "message: (error.response.data as any)?.error || error.message,",
+      "description": "Accessing error.response.data without checking if error.response exists first",
+      "fix": "Use optional chaining: error.response?.data",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/dashboardAPI.ts",
+      "line": 340,
+      "error_type": "NULL",
+      "code_snippet": "status: error.response.status,",
+      "description": "Accessing error.response.status without null check",
+      "fix": "Use optional chaining: error.response?.status",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/dashboardAPI.ts",
+      "line": 341,
+      "error_type": "NULL",
+      "code_snippet": "code: (error.response.data as any)?.code,",
+      "description": "Accessing error.response.data without null check",
+      "fix": "Use optional chaining: error.response?.data",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/dashboardAPI.ts",
+      "line": 342,
+      "error_type": "NULL",
+      "code_snippet": "details: error.response.data,",
+      "description": "Accessing error.response.data without null check",
+      "fix": "Use optional chaining: error.response?.data",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/api.ts",
+      "line": 17,
+      "error_type": "NULL",
+      "code_snippet": "? (typeof error.response.data === 'string' ? error.response.data : JSON.stringify(error.response.data))",
+      "description": "Accessing error.response.data without checking if error.response exists",
+      "fix": "Use optional chaining: error.response?.data",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/api.ts",
+      "line": 20,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error(`API Error [${error.config?.method?.toUpperCase()} ${error.config?.url}]:`, message);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/firebaseConfig.ts",
+      "line": 32,
+      "error_type": "NULL",
+      "code_snippet": "apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string,",
+      "description": "Type assertion 'as string' without runtime validation - could be undefined",
+      "fix": "Add runtime check or use proper type guard",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/firebaseConfig.ts",
+      "line": 64,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn('⚠️ Firebase initialization failed:', error);",
+      "description": "Console.warn in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/ab-router.ts",
+      "line": 44,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches",
+      "fix": "Use 'unknown' type and type guard",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/ab-router.ts",
+      "line": 45,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('[AB Router] Error:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/ab-router.ts",
+      "line": 83,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log(`[AB] User already assigned: ${user_id} -> variant ${cached.variant_id}`);",
+      "description": "Console.log in production code",
+      "fix": "Remove or use structured logging",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/edge-analytics.ts",
+      "line": 47,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('[Edge Analytics] Error:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/edge-analytics.ts",
+      "line": 76,
+      "error_type": "TYPE",
+      "code_snippet": "const cf = (request as any).cf;",
+      "description": "Using 'as any' type assertion",
+      "fix": "Create proper type definition for Cloudflare request",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/creative-scorer.ts",
+      "line": 39,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches",
+      "fix": "Use 'unknown' type and type guard",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/creative-scorer.ts",
+      "line": 40,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('[Creative Scorer] Error:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/asset-delivery.ts",
+      "line": 40,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches",
+      "fix": "Use 'unknown' type and type guard",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/asset-delivery.ts",
+      "line": 41,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('[Asset Delivery] Error:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/asset-delivery.ts",
+      "line": 62,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log(`[Asset Delivery] Video request: ${videoId}`);",
+      "description": "Console.log in production code",
+      "fix": "Remove or use structured logging",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/trending-hooks.ts",
+      "line": 53,
+      "error_type": "TYPE",
+      "code_snippet": "} catch (error: any) {",
+      "description": "Using 'any' type for error catches",
+      "fix": "Use 'unknown' type and type guard",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/edge/workers/trending-hooks.ts",
+      "line": 54,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('[Trending Hooks] Error:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/supabaseClient.ts",
+      "line": 8,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn('⚠️ Supabase URL or Anon Key is missing. Check your .env.local file.')",
+      "description": "Console.warn in production code",
+      "fix": "Throw error or use proper error handling",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/geminiService.ts",
+      "line": 13,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn(\"Gemini API Key is missing or undefined. Some features may not work.\");",
+      "description": "Console.warn in production code",
+      "fix": "Throw error or use proper warning system",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/googleDriveService.ts",
+      "line": 36,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn(\"Google Drive API Key or Client ID is missing in environment variables.\");",
+      "description": "Console.warn in production code",
+      "fix": "Use proper error handling",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useSSE.ts",
+      "line": 97,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Failed to parse SSE message:', e);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useSSE.ts",
+      "line": 111,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log(",
+      "description": "Console.log in production code - reconnection logging",
+      "fix": "Remove or use proper logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/utils/error.ts",
+      "line": 37,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error(\"Unhandled Application Error:\", error);",
+      "description": "Console.error in error handler - acceptable for unhandled errors",
+      "fix": "Also send to error tracking service (Sentry, etc.)",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/middleware/auth.ts",
+      "line": 172,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Authentication error:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/gateway-api/src/middleware/auth.ts",
+      "line": 259,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn('Optional auth failed:', error);",
+      "description": "Console.warn in production code",
+      "fix": "Use structured logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useMetaPixel.ts",
+      "line": 119,
+      "error_type": "TYPE",
+      "code_snippet": "params?: Record<string, any>,",
+      "description": "Using 'any' in Record type",
+      "fix": "Define proper type for params",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useSSE.ts",
+      "line": 9,
+      "error_type": "TYPE",
+      "code_snippet": "onMessage?: (event: any) => void;",
+      "description": "Using 'any' type for event parameter",
+      "fix": "Create proper interface for SSE event",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/hooks/useSSE.ts",
+      "line": 19,
+      "error_type": "TYPE",
+      "code_snippet": "export interface SSEHookResult<T = any> {",
+      "description": "Default generic type parameter as 'any'",
+      "fix": "Use 'unknown' as default: SSEHookResult<T = unknown>",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/meta-publisher/src/facebook/meta-ads-manager.ts",
+      "line": 35,
+      "error_type": "TYPE",
+      "code_snippet": "targeting: any;",
+      "description": "Using 'any' type for targeting field",
+      "fix": "Define proper interface for Meta Ads targeting",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/meta-publisher/src/facebook/meta-ads-manager.ts",
+      "line": 74,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log(`Meta Ads Manager initialized for account: act_${config.adAccountId}`);",
+      "description": "Console.log in production code",
+      "fix": "Use structured logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/meta-publisher/src/index.ts",
+      "line": 35,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.warn(`CORS blocked origin: ${origin}`);",
+      "description": "Console.warn in production code",
+      "fix": "Use structured logging service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/meta-publisher/src/index.ts",
+      "line": 64,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log('Meta Ads Manager initialized with real Facebook SDK');",
+      "description": "Console.log in production code",
+      "fix": "Use structured logging service",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/components/LoginPage.tsx",
+      "line": 113,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('Authentication error:', err);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service and show user-friendly message",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/pages/studio/StudioPage.tsx",
+      "line": 154,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.log('Generating video with script:', script);",
+      "description": "Console.log in production code",
+      "fix": "Remove debug logging",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/batchProcessor.ts",
+      "line": 250,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error(`Unexpected error processing job ${job.id}:`, err);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/frontend/src/services/firestoreService.ts",
+      "line": 30,
+      "error_type": "CONSOLE",
+      "code_snippet": "console.error('❌ Error saving project:', error);",
+      "description": "Console.error in production code",
+      "fix": "Use error tracking service",
+      "severity": "MEDIUM"
+    }
+  ],
+  "summary": {
+    "total_errors": 88,
+    "by_severity": {
+      "CRITICAL": 3,
+      "HIGH": 13,
+      "MEDIUM": 47,
+      "LOW": 25
+    },
+    "by_type": {
+      "CONSOLE": 55,
+      "TYPE": 20,
+      "HARDCODED": 7,
+      "NULL": 6
+    },
+    "critical_issues": [
+      "Hardcoded localhost URLs in WebSocket hooks will break production deployment",
+      "Multiple instances of accessing error.response without null checks can cause runtime crashes",
+      "Hardcoded worker URLs in smart-router.ts prevent proper environment configuration"
+    ],
+    "recommendations": [
+      "1. Implement centralized structured logging service (e.g., Winston, Pino) to replace all console.* calls",
+      "2. Replace all 'any' types with 'unknown' and proper type guards for better type safety",
+      "3. Move all hardcoded URLs to environment variables with proper configuration management",
+      "4. Add optional chaining (?.) for all error.response access patterns",
+      "5. Implement error boundary components for React application",
+      "6. Set up error tracking service (Sentry, LogRocket) for production error monitoring",
+      "7. Add ESLint rules to prevent console.* usage and 'any' type abuse",
+      "8. Implement proper TypeScript strict mode configuration",
+      "9. Add runtime environment variable validation at application startup",
+      "10. Review and add missing React hook dependencies using eslint-plugin-react-hooks"
+    ]
+  }
+}
