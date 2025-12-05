@@ -17,6 +17,15 @@ from enum import Enum
 import hashlib
 import json
 from collections import defaultdict, Counter
+import sys
+import os
+
+# Add shared directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'shared'))
+
+from db.redis_client import set_cache, get_cache, delete_cache
+from db.models import UnifiedConversion as UnifiedConversionModel
+from sqlalchemy import select, and_
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +132,7 @@ class ConversionHub:
         meta_capi_client,
         hubspot_client,
         anytrack_client,
-        database_service
+        database_session
     ):
         """
         Initialize with all integration clients.
@@ -132,18 +141,17 @@ class ConversionHub:
             meta_capi_client: Meta Conversions API client
             hubspot_client: HubSpot API client
             anytrack_client: AnyTrack API client
-            database_service: Database service for persistence
+            database_session: SQLAlchemy AsyncSession for database operations
         """
         self.meta_capi = meta_capi_client
         self.hubspot = hubspot_client
         self.anytrack = anytrack_client
-        self.db = database_service
+        self.db_session = database_session
 
-        # In-memory cache for fast lookups
-        self._conversion_cache: Dict[str, UnifiedConversion] = {}
-        self._dedup_index: Dict[str, str] = {}  # dedup_key -> conversion_id
+        # Redis cache TTL (1 hour for hot data)
+        self.cache_ttl = 3600
 
-        logger.info("ConversionHub initialized successfully")
+        logger.info("ConversionHub initialized with PostgreSQL + Redis")
 
     # ========== Conversion Ingestion ==========
 
@@ -858,80 +866,357 @@ class ConversionHub:
         key_string = json.dumps(data, sort_keys=True)
         return hashlib.sha256(key_string.encode()).hexdigest()[:16]
 
-    def _store_conversion(self, conversion: UnifiedConversion) -> None:
-        """Store conversion in database and cache."""
-        self._conversion_cache[conversion.id] = conversion
-        self.db.set(f"conversion:{conversion.id}", conversion.to_dict())
+    async def _store_conversion(self, conversion: UnifiedConversion) -> None:
+        """Store conversion in PostgreSQL and Redis cache."""
+        try:
+            # Convert to database model
+            db_conversion = UnifiedConversionModel(
+                id=conversion.id,
+                external_ids=conversion.external_ids,
+                contact_email=conversion.contact_email,
+                contact_id=conversion.contact_id,
+                value=float(conversion.value),
+                currency=conversion.currency,
+                conversion_type=conversion.conversion_type,
+                sources=[s.value for s in conversion.sources],
+                touchpoints=[tp.to_dict() for tp in conversion.touchpoints],
+                attributed_campaign_id=conversion.attributed_campaign_id,
+                attributed_ad_id=conversion.attributed_ad_id,
+                attribution_model=conversion.attribution_model.value,
+                first_touch_at=conversion.first_touch_at,
+                converted_at=conversion.converted_at,
+                is_offline=conversion.is_offline,
+                metadata=conversion.metadata
+            )
 
-    def _load_conversion(self, conversion_id: str) -> Optional[UnifiedConversion]:
-        """Load conversion from cache or database."""
-        if conversion_id in self._conversion_cache:
-            return self._conversion_cache[conversion_id]
+            # Check if exists (for update)
+            result = await self.db_session.execute(
+                select(UnifiedConversionModel).where(UnifiedConversionModel.id == conversion.id)
+            )
+            existing = result.scalar_one_or_none()
 
-        data = self.db.get(f"conversion:{conversion_id}")
-        if not data:
+            if existing:
+                # Update existing
+                for key, value in conversion.to_dict().items():
+                    if key not in ['created_at']:
+                        setattr(existing, key, value)
+            else:
+                # Add new
+                self.db_session.add(db_conversion)
+
+            await self.db_session.commit()
+
+            # Cache in Redis for fast access
+            set_cache(f"conversion:{conversion.id}", conversion.to_dict(), self.cache_ttl)
+
+            logger.debug(f"Stored conversion {conversion.id} in PostgreSQL + Redis")
+        except Exception as e:
+            await self.db_session.rollback()
+            logger.error(f"Failed to store conversion: {e}")
+            raise
+
+    async def _load_conversion(self, conversion_id: str) -> Optional[UnifiedConversion]:
+        """Load conversion from Redis cache or PostgreSQL."""
+        try:
+            # Try Redis cache first
+            cached_data = get_cache(f"conversion:{conversion_id}")
+            if cached_data:
+                # Reconstruct from cached dict
+                return self._dict_to_conversion(cached_data)
+
+            # Load from PostgreSQL
+            result = await self.db_session.execute(
+                select(UnifiedConversionModel).where(UnifiedConversionModel.id == conversion_id)
+            )
+            db_conversion = result.scalar_one_or_none()
+
+            if not db_conversion:
+                return None
+
+            # Convert to dataclass
+            conversion = UnifiedConversion(
+                id=db_conversion.id,
+                external_ids=db_conversion.external_ids,
+                contact_email=db_conversion.contact_email,
+                contact_id=db_conversion.contact_id,
+                value=float(db_conversion.value),
+                currency=db_conversion.currency,
+                conversion_type=db_conversion.conversion_type,
+                sources=[ConversionSource(s) for s in db_conversion.sources],
+                touchpoints=[Touchpoint.from_dict(tp) for tp in db_conversion.touchpoints],
+                attributed_campaign_id=db_conversion.attributed_campaign_id,
+                attributed_ad_id=db_conversion.attributed_ad_id,
+                attribution_model=AttributionModel(db_conversion.attribution_model),
+                first_touch_at=db_conversion.first_touch_at,
+                converted_at=db_conversion.converted_at,
+                is_offline=db_conversion.is_offline,
+                metadata=db_conversion.metadata
+            )
+
+            # Cache for future lookups
+            set_cache(f"conversion:{conversion_id}", conversion.to_dict(), self.cache_ttl)
+
+            return conversion
+        except Exception as e:
+            logger.error(f"Failed to load conversion {conversion_id}: {e}")
             return None
 
-        # Reconstruct UnifiedConversion (simplified)
-        return None  # Would need full deserialization
+    def _dict_to_conversion(self, data: Dict[str, Any]) -> UnifiedConversion:
+        """Convert dictionary to UnifiedConversion object."""
+        return UnifiedConversion(
+            id=data['id'],
+            external_ids=data['external_ids'],
+            contact_email=data.get('contact_email'),
+            contact_id=data.get('contact_id'),
+            value=data['value'],
+            currency=data['currency'],
+            conversion_type=data['conversion_type'],
+            sources=[ConversionSource(s) for s in data['sources']],
+            touchpoints=[Touchpoint.from_dict(tp) for tp in data['touchpoints']],
+            attributed_campaign_id=data.get('attributed_campaign_id'),
+            attributed_ad_id=data.get('attributed_ad_id'),
+            attribution_model=AttributionModel(data['attribution_model']),
+            first_touch_at=datetime.fromisoformat(data['first_touch_at']),
+            converted_at=datetime.fromisoformat(data['converted_at']),
+            is_offline=data['is_offline'],
+            metadata=data.get('metadata', {})
+        )
 
-    def _get_conversions_since(self, cutoff: datetime) -> List[UnifiedConversion]:
+    async def _get_conversions_since(self, cutoff: datetime) -> List[UnifiedConversion]:
         """Get all conversions since cutoff time."""
-        return list(self._conversion_cache.values())
+        try:
+            result = await self.db_session.execute(
+                select(UnifiedConversionModel)
+                .where(UnifiedConversionModel.converted_at >= cutoff)
+                .order_by(UnifiedConversionModel.converted_at.desc())
+            )
+            db_conversions = result.scalars().all()
 
-    def _get_conversions_in_range(
+            conversions = []
+            for db_conv in db_conversions:
+                conv = UnifiedConversion(
+                    id=db_conv.id,
+                    external_ids=db_conv.external_ids,
+                    contact_email=db_conv.contact_email,
+                    contact_id=db_conv.contact_id,
+                    value=float(db_conv.value),
+                    currency=db_conv.currency,
+                    conversion_type=db_conv.conversion_type,
+                    sources=[ConversionSource(s) for s in db_conv.sources],
+                    touchpoints=[Touchpoint.from_dict(tp) for tp in db_conv.touchpoints],
+                    attributed_campaign_id=db_conv.attributed_campaign_id,
+                    attributed_ad_id=db_conv.attributed_ad_id,
+                    attribution_model=AttributionModel(db_conv.attribution_model),
+                    first_touch_at=db_conv.first_touch_at,
+                    converted_at=db_conv.converted_at,
+                    is_offline=db_conv.is_offline,
+                    metadata=db_conv.metadata
+                )
+                conversions.append(conv)
+
+            return conversions
+        except Exception as e:
+            logger.error(f"Failed to get conversions since {cutoff}: {e}")
+            return []
+
+    async def _get_conversions_in_range(
         self,
         start: datetime,
         end: datetime
     ) -> List[UnifiedConversion]:
         """Get conversions in date range."""
-        return [
-            c for c in self._conversion_cache.values()
-            if start <= c.converted_at <= end
-        ]
+        try:
+            result = await self.db_session.execute(
+                select(UnifiedConversionModel)
+                .where(and_(
+                    UnifiedConversionModel.converted_at >= start,
+                    UnifiedConversionModel.converted_at <= end
+                ))
+                .order_by(UnifiedConversionModel.converted_at.desc())
+            )
+            db_conversions = result.scalars().all()
 
-    def _get_conversions_by_campaign(
+            conversions = []
+            for db_conv in db_conversions:
+                conv = UnifiedConversion(
+                    id=db_conv.id,
+                    external_ids=db_conv.external_ids,
+                    contact_email=db_conv.contact_email,
+                    contact_id=db_conv.contact_id,
+                    value=float(db_conv.value),
+                    currency=db_conv.currency,
+                    conversion_type=db_conv.conversion_type,
+                    sources=[ConversionSource(s) for s in db_conv.sources],
+                    touchpoints=[Touchpoint.from_dict(tp) for tp in db_conv.touchpoints],
+                    attributed_campaign_id=db_conv.attributed_campaign_id,
+                    attributed_ad_id=db_conv.attributed_ad_id,
+                    attribution_model=AttributionModel(db_conv.attribution_model),
+                    first_touch_at=db_conv.first_touch_at,
+                    converted_at=db_conv.converted_at,
+                    is_offline=db_conv.is_offline,
+                    metadata=db_conv.metadata
+                )
+                conversions.append(conv)
+
+            return conversions
+        except Exception as e:
+            logger.error(f"Failed to get conversions in range: {e}")
+            return []
+
+    async def _get_conversions_by_campaign(
         self,
         campaign_id: str,
         date_range: Optional[Tuple[datetime, datetime]] = None
     ) -> List[UnifiedConversion]:
         """Get conversions for campaign."""
-        conversions = [
-            c for c in self._conversion_cache.values()
-            if c.attributed_campaign_id == campaign_id
-        ]
+        try:
+            query = select(UnifiedConversionModel).where(
+                UnifiedConversionModel.attributed_campaign_id == campaign_id
+            )
 
-        if date_range:
-            start, end = date_range
-            conversions = [c for c in conversions if start <= c.converted_at <= end]
+            if date_range:
+                start, end = date_range
+                query = query.where(and_(
+                    UnifiedConversionModel.converted_at >= start,
+                    UnifiedConversionModel.converted_at <= end
+                ))
 
-        return conversions
+            result = await self.db_session.execute(query)
+            db_conversions = result.scalars().all()
 
-    def _get_conversions_by_contact(self, contact_id: str) -> List[UnifiedConversion]:
+            conversions = []
+            for db_conv in db_conversions:
+                conv = UnifiedConversion(
+                    id=db_conv.id,
+                    external_ids=db_conv.external_ids,
+                    contact_email=db_conv.contact_email,
+                    contact_id=db_conv.contact_id,
+                    value=float(db_conv.value),
+                    currency=db_conv.currency,
+                    conversion_type=db_conv.conversion_type,
+                    sources=[ConversionSource(s) for s in db_conv.sources],
+                    touchpoints=[Touchpoint.from_dict(tp) for tp in db_conv.touchpoints],
+                    attributed_campaign_id=db_conv.attributed_campaign_id,
+                    attributed_ad_id=db_conv.attributed_ad_id,
+                    attribution_model=AttributionModel(db_conv.attribution_model),
+                    first_touch_at=db_conv.first_touch_at,
+                    converted_at=db_conv.converted_at,
+                    is_offline=db_conv.is_offline,
+                    metadata=db_conv.metadata
+                )
+                conversions.append(conv)
+
+            return conversions
+        except Exception as e:
+            logger.error(f"Failed to get conversions by campaign: {e}")
+            return []
+
+    async def _get_conversions_by_contact(self, contact_id: str) -> List[UnifiedConversion]:
         """Get all conversions for contact."""
-        return [
-            c for c in self._conversion_cache.values()
-            if c.contact_id == contact_id
-        ]
+        try:
+            result = await self.db_session.execute(
+                select(UnifiedConversionModel).where(
+                    UnifiedConversionModel.contact_id == contact_id
+                )
+            )
+            db_conversions = result.scalars().all()
 
-    def _get_all_conversions(
+            conversions = []
+            for db_conv in db_conversions:
+                conv = UnifiedConversion(
+                    id=db_conv.id,
+                    external_ids=db_conv.external_ids,
+                    contact_email=db_conv.contact_email,
+                    contact_id=db_conv.contact_id,
+                    value=float(db_conv.value),
+                    currency=db_conv.currency,
+                    conversion_type=db_conv.conversion_type,
+                    sources=[ConversionSource(s) for s in db_conv.sources],
+                    touchpoints=[Touchpoint.from_dict(tp) for tp in db_conv.touchpoints],
+                    attributed_campaign_id=db_conv.attributed_campaign_id,
+                    attributed_ad_id=db_conv.attributed_ad_id,
+                    attribution_model=AttributionModel(db_conv.attribution_model),
+                    first_touch_at=db_conv.first_touch_at,
+                    converted_at=db_conv.converted_at,
+                    is_offline=db_conv.is_offline,
+                    metadata=db_conv.metadata
+                )
+                conversions.append(conv)
+
+            return conversions
+        except Exception as e:
+            logger.error(f"Failed to get conversions by contact: {e}")
+            return []
+
+    async def _get_all_conversions(
         self,
         date_range: Optional[Tuple[datetime, datetime]] = None
     ) -> List[UnifiedConversion]:
         """Get all conversions, optionally filtered by date."""
-        conversions = list(self._conversion_cache.values())
+        try:
+            query = select(UnifiedConversionModel)
 
-        if date_range:
-            start, end = date_range
-            conversions = [c for c in conversions if start <= c.converted_at <= end]
+            if date_range:
+                start, end = date_range
+                query = query.where(and_(
+                    UnifiedConversionModel.converted_at >= start,
+                    UnifiedConversionModel.converted_at <= end
+                ))
 
-        return conversions
+            query = query.order_by(UnifiedConversionModel.converted_at.desc())
 
-    def _mark_conversion_merged(self, old_id: str, new_id: str) -> None:
-        """Mark conversion as merged."""
-        self.db.set(f"merged:{old_id}", new_id)
-        if old_id in self._conversion_cache:
-            del self._conversion_cache[old_id]
+            result = await self.db_session.execute(query)
+            db_conversions = result.scalars().all()
+
+            conversions = []
+            for db_conv in db_conversions:
+                conv = UnifiedConversion(
+                    id=db_conv.id,
+                    external_ids=db_conv.external_ids,
+                    contact_email=db_conv.contact_email,
+                    contact_id=db_conv.contact_id,
+                    value=float(db_conv.value),
+                    currency=db_conv.currency,
+                    conversion_type=db_conv.conversion_type,
+                    sources=[ConversionSource(s) for s in db_conv.sources],
+                    touchpoints=[Touchpoint.from_dict(tp) for tp in db_conv.touchpoints],
+                    attributed_campaign_id=db_conv.attributed_campaign_id,
+                    attributed_ad_id=db_conv.attributed_ad_id,
+                    attribution_model=AttributionModel(db_conv.attribution_model),
+                    first_touch_at=db_conv.first_touch_at,
+                    converted_at=db_conv.converted_at,
+                    is_offline=db_conv.is_offline,
+                    metadata=db_conv.metadata
+                )
+                conversions.append(conv)
+
+            return conversions
+        except Exception as e:
+            logger.error(f"Failed to get all conversions: {e}")
+            return []
+
+    async def _mark_conversion_merged(self, old_id: str, new_id: str) -> None:
+        """Mark conversion as merged in PostgreSQL and Redis."""
+        try:
+            # Update in database
+            result = await self.db_session.execute(
+                select(UnifiedConversionModel).where(UnifiedConversionModel.id == old_id)
+            )
+            db_conversion = result.scalar_one_or_none()
+
+            if db_conversion:
+                db_conversion.is_merged = True
+                db_conversion.merged_into = new_id
+                await self.db_session.commit()
+
+            # Update Redis cache
+            set_cache(f"merged:{old_id}", new_id, self.cache_ttl * 24)  # Keep for 24 hours
+            delete_cache(f"conversion:{old_id}")
+
+            logger.info(f"Marked conversion {old_id} as merged into {new_id}")
+        except Exception as e:
+            await self.db_session.rollback()
+            logger.error(f"Failed to mark conversion as merged: {e}")
 
     def _export_to_csv(self, conversions: List[UnifiedConversion]) -> str:
         """Export conversions to CSV format."""

@@ -17,6 +17,17 @@ from src.ctr_model import ctr_predictor
 from src.thompson_sampler import thompson_optimizer
 from src.data_loader import get_data_loader
 from src.enhanced_ctr_model import enhanced_ctr_predictor, generate_synthetic_training_data as generate_enhanced_data
+from src.accuracy_tracker import accuracy_tracker
+
+# Import Alert System (Agent 16)
+from src.alerts.alert_engine import alert_engine, Alert
+from src.alerts.alert_rules import alert_rule_manager, AlertRule, AlertType, AlertSeverity
+from src.alerts.alert_notifier import alert_notifier, NotificationChannel
+
+# Import Report Generator (Agent 18)
+from src.reports.report_generator import ReportGenerator, ReportType, ReportFormat
+from src.reports.pdf_builder import generate_pdf_report
+from src.reports.excel_builder import generate_excel_report
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -118,7 +129,15 @@ async def root():
             },
             "enhanced_predict_ctr": "/predict/ctr",
             "enhanced_train_ctr": "/train/ctr",
-            "enhanced_feature_importance": "/model/importance"
+            "enhanced_feature_importance": "/model/importance",
+            "check_retrain": "/api/ml/check-retrain",
+            "accuracy_tracking": {
+                "accuracy_report": "/api/ml/accuracy-report",
+                "accuracy_metrics": "/api/ml/accuracy-metrics",
+                "record_prediction": "/api/ml/prediction/record",
+                "update_actuals": "/api/ml/prediction/update-actuals",
+                "top_performers": "/api/ml/top-performers"
+            }
         }
     }
 
@@ -532,6 +551,199 @@ async def reallocate_budget(request: BudgetAllocation):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Additional AB Testing Endpoints for Visualization (Agent 15)
+
+@app.get("/api/ml/ab/experiments/{experiment_id}/results")
+async def get_experiment_results(experiment_id: str):
+    """
+    Get detailed results for an AB test experiment
+    Returns variant performance, statistical significance, and Thompson Sampling metrics
+    """
+    try:
+        # Get all variant stats
+        all_variants = thompson_optimizer.get_all_variants_stats()
+
+        # Filter variants for this experiment (if metadata contains experiment_id)
+        experiment_variants = [
+            v for v in all_variants
+            if v.get('metadata', {}).get('experiment_id') == experiment_id
+        ]
+
+        if not experiment_variants:
+            # If no experiment-specific filtering, return all variants
+            experiment_variants = all_variants
+
+        # Calculate overall metrics
+        total_impressions = sum(v['impressions'] for v in experiment_variants)
+        total_clicks = sum(v['clicks'] for v in experiment_variants)
+        total_conversions = sum(v['conversions'] for v in experiment_variants)
+        total_spend = sum(v['spend'] for v in experiment_variants)
+        total_revenue = sum(v.get('revenue', 0) for v in experiment_variants)
+
+        overall_ctr = total_clicks / total_impressions if total_impressions > 0 else 0
+        overall_cvr = total_conversions / total_clicks if total_clicks > 0 else 0
+        overall_roas = total_revenue / total_spend if total_spend > 0 else 0
+
+        # Find best variant
+        best_variant = max(
+            experiment_variants,
+            key=lambda v: v['alpha'] / (v['alpha'] + v['beta'])
+        ) if experiment_variants else None
+
+        # Calculate winner probability for each variant
+        winner_probabilities = {}
+        if len(experiment_variants) >= 2:
+            # Simple Thompson Sampling simulation
+            from src.thompson_sampler import thompson_optimizer as ts_opt
+            for variant in experiment_variants:
+                samples = np.random.beta(variant['alpha'], variant['beta'], 10000)
+                # Compare against all other variants
+                wins = 0
+                for _ in range(10000):
+                    this_sample = np.random.beta(variant['alpha'], variant['beta'])
+                    other_samples = [
+                        np.random.beta(v['alpha'], v['beta'])
+                        for v in experiment_variants
+                        if v['id'] != variant['id']
+                    ]
+                    if all(this_sample > s for s in other_samples):
+                        wins += 1
+                winner_probabilities[variant['id']] = wins / 10000
+
+        return {
+            "experiment_id": experiment_id,
+            "variants": experiment_variants,
+            "overall_metrics": {
+                "total_impressions": total_impressions,
+                "total_clicks": total_clicks,
+                "total_conversions": total_conversions,
+                "total_spend": total_spend,
+                "total_revenue": total_revenue,
+                "overall_ctr": overall_ctr,
+                "overall_cvr": overall_cvr,
+                "overall_roas": overall_roas
+            },
+            "best_variant": best_variant,
+            "winner_probabilities": winner_probabilities,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting experiment results: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/ab/experiments/{experiment_id}/variants")
+async def get_experiment_variants(experiment_id: str):
+    """
+    Get variant performance data for an experiment
+    Includes Thompson Sampling statistics and confidence intervals
+    """
+    try:
+        # Get all variant stats
+        all_variants = thompson_optimizer.get_all_variants_stats()
+
+        # Filter variants for this experiment
+        experiment_variants = [
+            v for v in all_variants
+            if v.get('metadata', {}).get('experiment_id') == experiment_id
+        ]
+
+        if not experiment_variants:
+            # If no experiment-specific filtering, return all variants
+            experiment_variants = all_variants
+
+        # Enhance with additional metrics
+        enhanced_variants = []
+        for variant in experiment_variants:
+            # Calculate actual CTR, CVR, ROAS
+            ctr = variant['clicks'] / variant['impressions'] if variant['impressions'] > 0 else 0
+            cvr = variant['conversions'] / variant['clicks'] if variant['clicks'] > 0 else 0
+            roas = variant.get('roas', 0)
+
+            # Thompson Sampling expected CTR
+            expected_ctr = variant['alpha'] / (variant['alpha'] + variant['beta'])
+
+            # Confidence interval (95%)
+            from scipy import stats
+            try:
+                ci_lower, ci_upper = stats.beta.interval(
+                    0.95,
+                    variant['alpha'],
+                    variant['beta']
+                )
+            except:
+                ci_lower, ci_upper = variant.get('ctr_ci_lower', 0), variant.get('ctr_ci_upper', 0)
+
+            enhanced_variants.append({
+                **variant,
+                "ctr": ctr,
+                "cvr": cvr,
+                "roas": roas,
+                "expected_ctr": expected_ctr,
+                "confidence_interval": {
+                    "lower": ci_lower,
+                    "upper": ci_upper
+                }
+            })
+
+        return {
+            "experiment_id": experiment_id,
+            "variants": enhanced_variants,
+            "count": len(enhanced_variants)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting experiment variants: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/ab/experiments")
+async def list_all_experiments():
+    """
+    List all active AB test experiments
+    Groups variants by experiment_id if available in metadata
+    """
+    try:
+        # Get all variants
+        all_variants = thompson_optimizer.get_all_variants_stats()
+
+        # Group by experiment_id
+        experiments = {}
+        for variant in all_variants:
+            exp_id = variant.get('metadata', {}).get('experiment_id', 'default')
+            if exp_id not in experiments:
+                experiments[exp_id] = {
+                    "experiment_id": exp_id,
+                    "experiment_name": variant.get('metadata', {}).get('experiment_name', f'Experiment {exp_id}'),
+                    "status": "running",
+                    "variants": [],
+                    "created_at": variant.get('created_at'),
+                    "total_budget": variant.get('metadata', {}).get('total_budget', 5000)
+                }
+            experiments[exp_id]['variants'].append(variant)
+
+        # Convert to list
+        experiments_list = list(experiments.values())
+
+        # Calculate metrics for each experiment
+        for exp in experiments_list:
+            total_impressions = sum(v['impressions'] for v in exp['variants'])
+            total_clicks = sum(v['clicks'] for v in exp['variants'])
+            exp['total_impressions'] = total_impressions
+            exp['total_clicks'] = total_clicks
+            exp['overall_ctr'] = total_clicks / total_impressions if total_impressions > 0 else 0
+
+        return {
+            "experiments": experiments_list,
+            "count": len(experiments_list)
+        }
+
+    except Exception as e:
+        logger.error(f"Error listing experiments: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Feedback Loop Endpoints (Agent 5)
 
 class FeedbackData(BaseModel):
@@ -696,11 +908,978 @@ async def get_feedback_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/ml/check-retrain")
+async def check_and_retrain_model():
+    """
+    Check model accuracy and retrain if needed (Agent 10)
+
+    This endpoint should be called daily via cron to:
+    1. Check prediction accuracy against actual performance
+    2. Trigger retraining if accuracy drops below threshold (MAE > 2%)
+    3. Return detailed metrics and status
+
+    Investment-grade implementation for €5M validation
+    """
+    try:
+        logger.info("🔄 CRON: Starting scheduled accuracy check and potential retrain...")
+
+        # Check if retraining is needed
+        result = await ctr_predictor.check_and_retrain()
+
+        # Add timestamp
+        result['checked_at'] = datetime.utcnow().isoformat()
+
+        # Log result
+        if result['status'] == 'retrained':
+            logger.info(f"✅ CRON: Model retrained successfully with {result['samples']} samples")
+            logger.info(f"   New R²: {result['metrics']['test_r2']:.4f}")
+            logger.info(f"   New MAE: {result['metrics']['test_mae']:.4f}")
+            if result.get('improvement'):
+                logger.info(f"   R² improvement: {result['improvement']['r2_improvement']:+.4f}")
+        elif result['status'] == 'no_retrain_needed':
+            logger.info(f"✅ CRON: Model accuracy acceptable - no retrain needed")
+            logger.info(f"   Current MAE: {result['current_accuracy']['ctr_mae']:.4f}")
+        elif result['status'] == 'insufficient_data':
+            logger.warning(f"⚠️  CRON: Insufficient training data ({result['count']} samples)")
+        else:
+            logger.error(f"❌ CRON: Error during check/retrain - {result.get('error', 'unknown')}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ CRON: Error in check_and_retrain endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Accuracy Tracking Endpoints (Agent 9)
+
+class PredictionRecordRequest(BaseModel):
+    """Request model for recording a new prediction"""
+    prediction_id: str
+    campaign_id: str
+    creative_id: str
+    predicted_ctr: float
+    predicted_roas: float
+    hook_type: Optional[str] = None
+    template_id: Optional[str] = None
+    features: Optional[Dict[str, Any]] = None
+    demographic_target: Optional[Dict[str, Any]] = None
+
+
+class UpdateActualsRequest(BaseModel):
+    """Request model for updating prediction with actuals"""
+    prediction_id: str
+    actual_ctr: float
+    actual_roas: float
+    actual_conversions: Optional[int] = None
+
+
+@app.get("/api/ml/accuracy-report")
+async def get_accuracy_report(days_back: int = 30):
+    """
+    Generate comprehensive investor validation report (Agent 9)
+
+    This is THE endpoint for €5M investment validation.
+    Shows investors that ML predictions match reality.
+
+    Args:
+        days_back: Number of days to analyze (default: 30)
+
+    Returns:
+        Complete investor report with:
+        - Overall accuracy metrics (CTR, ROAS)
+        - Performance by hook type
+        - Performance by template
+        - Top performing predictions
+        - Learning improvement over time
+        - Revenue impact analysis
+        - Investment validation verdict
+    """
+    try:
+        logger.info(f"📊 Generating investor accuracy report for last {days_back} days...")
+
+        report = await accuracy_tracker.generate_investor_report(days_back=days_back)
+
+        logger.info(f"✅ Investor report generated:")
+        logger.info(f"   Total predictions: {report.get('summary', {}).get('total_predictions', 0)}")
+        logger.info(f"   CTR accuracy: {report.get('summary', {}).get('ctr_accuracy', 0)}%")
+        logger.info(f"   ROAS accuracy: {report.get('summary', {}).get('roas_accuracy', 0)}%")
+        logger.info(f"   Investment verdict: {report.get('investment_validation', {}).get('overall_verdict', 'N/A')}")
+
+        return report
+
+    except Exception as e:
+        logger.error(f"Error generating accuracy report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/accuracy-metrics")
+async def get_accuracy_metrics(days_back: int = 30):
+    """
+    Get overall accuracy metrics (Agent 9)
+
+    Args:
+        days_back: Number of days to analyze
+
+    Returns:
+        Dictionary with accuracy metrics including:
+        - CTR MAE, RMSE, MAPE, accuracy percentage
+        - ROAS MAE, RMSE, MAPE, accuracy percentage
+        - Business impact metrics
+    """
+    try:
+        metrics = await accuracy_tracker.calculate_accuracy_metrics(days_back=days_back)
+        return metrics
+
+    except Exception as e:
+        logger.error(f"Error getting accuracy metrics: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/prediction/record")
+async def record_prediction(request: PredictionRecordRequest):
+    """
+    Record a new prediction for accuracy tracking (Agent 9)
+
+    This should be called whenever the ML model makes a prediction
+    before launching a campaign.
+
+    Args:
+        request: Prediction details
+
+    Returns:
+        Success status
+    """
+    try:
+        success = await accuracy_tracker.record_prediction(
+            prediction_id=request.prediction_id,
+            campaign_id=request.campaign_id,
+            creative_id=request.creative_id,
+            predicted_ctr=request.predicted_ctr,
+            predicted_roas=request.predicted_roas,
+            hook_type=request.hook_type,
+            template_id=request.template_id,
+            features=request.features,
+            demographic_target=request.demographic_target
+        )
+
+        if success:
+            return {
+                "status": "recorded",
+                "prediction_id": request.prediction_id,
+                "message": "Prediction recorded successfully"
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Failed to record prediction")
+
+    except Exception as e:
+        logger.error(f"Error recording prediction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/prediction/update-actuals")
+async def update_prediction_actuals(request: UpdateActualsRequest):
+    """
+    Update prediction with actual performance results (Agent 9)
+
+    This should be called after a campaign has run and actual
+    performance data is available.
+
+    Args:
+        request: Actual performance data
+
+    Returns:
+        Success status with accuracy score
+    """
+    try:
+        success = await accuracy_tracker.update_with_actuals(
+            prediction_id=request.prediction_id,
+            actual_ctr=request.actual_ctr,
+            actual_roas=request.actual_roas,
+            actual_conversions=request.actual_conversions
+        )
+
+        if success:
+            return {
+                "status": "updated",
+                "prediction_id": request.prediction_id,
+                "message": "Actuals recorded successfully"
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Prediction not found")
+
+    except Exception as e:
+        logger.error(f"Error updating actuals: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/top-performers")
+async def get_top_performers(limit: int = 10):
+    """
+    Get top performing predictions (Agent 9)
+
+    Shows which predictions were most accurate and had best outcomes.
+
+    Args:
+        limit: Number of top performers to return
+
+    Returns:
+        List of top performing predictions
+    """
+    try:
+        top_performers = await accuracy_tracker.get_top_performing_ads(limit=limit)
+        return {
+            "top_performers": top_performers,
+            "count": len(top_performers)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting top performers: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# ALERT SYSTEM ENDPOINTS (Agent 16)
+# Real-Time Performance Alerts for Elite Marketers
+# ============================================================
+
+class AlertRuleCreateRequest(BaseModel):
+    """Request model for creating alert rule"""
+    rule_id: str
+    name: str
+    alert_type: str
+    severity: str
+    enabled: bool = True
+    threshold: float = 0.0
+    threshold_operator: str = "<"
+    lookback_minutes: int = 60
+    cooldown_minutes: int = 30
+    conditions: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = {}
+
+
+class MetricCheckRequest(BaseModel):
+    """Request model for checking metrics against alert rules"""
+    metric_name: str
+    metric_value: float
+    campaign_id: str
+    campaign_name: str
+    ad_id: Optional[str] = ""
+    context: Optional[Dict[str, Any]] = None
+    alert_types: Optional[List[str]] = None
+
+
+class AcknowledgeAlertRequest(BaseModel):
+    """Request model for acknowledging an alert"""
+    user_id: str
+
+
+@app.post("/api/alerts/rules", tags=["Alerts"])
+async def create_alert_rule(request: AlertRuleCreateRequest):
+    """
+    Create or update an alert rule (Agent 16)
+
+    Allows marketers to configure custom alert rules for their campaigns.
+
+    Args:
+        request: Alert rule configuration
+
+    Returns:
+        Created/updated rule
+    """
+    try:
+        logger.info(f"Creating/updating alert rule: {request.rule_id}")
+
+        # Create alert rule
+        rule = AlertRule(
+            rule_id=request.rule_id,
+            name=request.name,
+            alert_type=AlertType(request.alert_type),
+            severity=AlertSeverity(request.severity),
+            enabled=request.enabled,
+            threshold=request.threshold,
+            threshold_operator=request.threshold_operator,
+            lookback_minutes=request.lookback_minutes,
+            cooldown_minutes=request.cooldown_minutes,
+            conditions=request.conditions,
+            metadata=request.metadata
+        )
+
+        # Add to manager
+        alert_rule_manager.add_rule(rule)
+
+        return {
+            "success": True,
+            "rule": rule.to_dict()
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating alert rule: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/alerts/rules", tags=["Alerts"])
+async def get_alert_rules(enabled_only: bool = False):
+    """
+    Get all alert rules (Agent 16)
+
+    Args:
+        enabled_only: Return only enabled rules
+
+    Returns:
+        List of alert rules
+    """
+    try:
+        if enabled_only:
+            rules = alert_rule_manager.get_enabled_rules()
+        else:
+            rules = alert_rule_manager.get_all_rules()
+
+        return {
+            "rules": [rule.to_dict() for rule in rules],
+            "count": len(rules)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting alert rules: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/alerts/rules/{rule_id}", tags=["Alerts"])
+async def get_alert_rule(rule_id: str):
+    """
+    Get a specific alert rule (Agent 16)
+
+    Args:
+        rule_id: Rule identifier
+
+    Returns:
+        Alert rule
+    """
+    try:
+        rule = alert_rule_manager.get_rule(rule_id)
+        if not rule:
+            raise HTTPException(status_code=404, detail=f"Rule not found: {rule_id}")
+
+        return rule.to_dict()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting alert rule: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/alerts/rules/{rule_id}", tags=["Alerts"])
+async def delete_alert_rule(rule_id: str):
+    """
+    Delete an alert rule (Agent 16)
+
+    Args:
+        rule_id: Rule identifier
+
+    Returns:
+        Success status
+    """
+    try:
+        success = alert_rule_manager.remove_rule(rule_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Rule not found: {rule_id}")
+
+        return {"success": True, "rule_id": rule_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting alert rule: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/alerts/rules/{rule_id}/enable", tags=["Alerts"])
+async def enable_alert_rule(rule_id: str):
+    """Enable an alert rule"""
+    try:
+        success = alert_rule_manager.enable_rule(rule_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Rule not found: {rule_id}")
+        return {"success": True, "enabled": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error enabling alert rule: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/alerts/rules/{rule_id}/disable", tags=["Alerts"])
+async def disable_alert_rule(rule_id: str):
+    """Disable an alert rule"""
+    try:
+        success = alert_rule_manager.disable_rule(rule_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Rule not found: {rule_id}")
+        return {"success": True, "enabled": False}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error disabling alert rule: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/alerts/check", tags=["Alerts"])
+async def check_metric(request: MetricCheckRequest):
+    """
+    Check a metric against alert rules (Agent 16)
+
+    This is the core endpoint for real-time alert monitoring.
+    Called whenever a metric needs to be checked (ROAS, CTR, budget, etc.)
+
+    Args:
+        request: Metric information
+
+    Returns:
+        List of triggered alerts
+    """
+    try:
+        logger.info(f"Checking metric: {request.metric_name}={request.metric_value} for campaign {request.campaign_id}")
+
+        # Convert alert type strings to enums if provided
+        alert_types = None
+        if request.alert_types:
+            alert_types = [AlertType(at) for at in request.alert_types]
+
+        # Check metric
+        alerts = alert_engine.check_metric(
+            metric_name=request.metric_name,
+            metric_value=request.metric_value,
+            campaign_id=request.campaign_id,
+            campaign_name=request.campaign_name,
+            ad_id=request.ad_id,
+            context=request.context,
+            alert_types=alert_types
+        )
+
+        # Send notifications for triggered alerts
+        for alert in alerts:
+            try:
+                await alert_engine.send_alert_notifications(alert)
+                logger.info(f"Notifications sent for alert: {alert.alert_id}")
+            except Exception as e:
+                logger.error(f"Failed to send notifications for alert {alert.alert_id}: {e}")
+
+        return {
+            "alerts_triggered": len(alerts),
+            "alerts": [alert.to_dict() for alert in alerts]
+        }
+
+    except Exception as e:
+        logger.error(f"Error checking metric: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/alerts", tags=["Alerts"])
+async def get_active_alerts(
+    campaign_id: Optional[str] = None,
+    alert_type: Optional[str] = None,
+    severity: Optional[str] = None,
+    limit: int = 100
+):
+    """
+    Get active alerts (Agent 16)
+
+    Returns list of currently active alerts with optional filtering.
+
+    Args:
+        campaign_id: Filter by campaign ID
+        alert_type: Filter by alert type
+        severity: Filter by severity
+        limit: Maximum number of alerts to return
+
+    Returns:
+        List of active alerts
+    """
+    try:
+        # Convert string enums
+        alert_type_enum = AlertType(alert_type) if alert_type else None
+        severity_enum = AlertSeverity(severity) if severity else None
+
+        alerts = alert_engine.get_active_alerts(
+            campaign_id=campaign_id,
+            alert_type=alert_type_enum,
+            severity=severity_enum,
+            limit=limit
+        )
+
+        return {
+            "alerts": [alert.to_dict() for alert in alerts],
+            "count": len(alerts)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting active alerts: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/alerts/history", tags=["Alerts"])
+async def get_alert_history(
+    campaign_id: Optional[str] = None,
+    days_back: int = 7,
+    limit: int = 100
+):
+    """
+    Get alert history (Agent 16)
+
+    Returns historical alerts with optional filtering.
+
+    Args:
+        campaign_id: Filter by campaign ID
+        days_back: Number of days to look back
+        limit: Maximum number of alerts to return
+
+    Returns:
+        List of historical alerts
+    """
+    try:
+        from datetime import timedelta
+
+        start_date = datetime.utcnow() - timedelta(days=days_back)
+        alerts = alert_engine.get_alert_history(
+            campaign_id=campaign_id,
+            start_date=start_date,
+            limit=limit
+        )
+
+        return {
+            "alerts": [alert.to_dict() for alert in alerts],
+            "count": len(alerts),
+            "days_back": days_back
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting alert history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/alerts/stats", tags=["Alerts"])
+async def get_alert_stats(campaign_id: Optional[str] = None):
+    """
+    Get alert statistics (Agent 16)
+
+    Returns summary statistics about alerts.
+
+    Args:
+        campaign_id: Filter by campaign ID (optional)
+
+    Returns:
+        Alert statistics
+    """
+    try:
+        stats = alert_engine.get_alert_stats(campaign_id=campaign_id)
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error getting alert stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/alerts/{alert_id}/acknowledge", tags=["Alerts"])
+async def acknowledge_alert(alert_id: str, request: AcknowledgeAlertRequest):
+    """
+    Acknowledge an alert (Agent 16)
+
+    Marks an alert as acknowledged by a user.
+
+    Args:
+        alert_id: Alert identifier
+        request: User ID who is acknowledging
+
+    Returns:
+        Success status
+    """
+    try:
+        success = alert_engine.acknowledge_alert(alert_id, request.user_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Alert not found: {alert_id}")
+
+        return {
+            "success": True,
+            "alert_id": alert_id,
+            "acknowledged_by": request.user_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error acknowledging alert: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/alerts/{alert_id}/resolve", tags=["Alerts"])
+async def resolve_alert(alert_id: str):
+    """
+    Resolve an alert (Agent 16)
+
+    Marks an alert as resolved and moves it to history.
+
+    Args:
+        alert_id: Alert identifier
+
+    Returns:
+        Success status
+    """
+    try:
+        success = alert_engine.resolve_alert(alert_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Alert not found: {alert_id}")
+
+        return {
+            "success": True,
+            "alert_id": alert_id,
+            "resolved": True
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving alert: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/alerts/{alert_id}", tags=["Alerts"])
+async def get_alert(alert_id: str):
+    """
+    Get a specific alert (Agent 16)
+
+    Args:
+        alert_id: Alert identifier
+
+    Returns:
+        Alert details
+    """
+    try:
+        alert = alert_engine.active_alerts.get(alert_id)
+        if not alert:
+            # Check history
+            for historical_alert in alert_engine.alert_history:
+                if historical_alert.alert_id == alert_id:
+                    alert = historical_alert
+                    break
+
+        if not alert:
+            raise HTTPException(status_code=404, detail=f"Alert not found: {alert_id}")
+
+        return alert.to_dict()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting alert: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/alerts/test", tags=["Alerts"])
+async def test_alert_notification(channel: str = "slack"):
+    """
+    Send a test alert notification (Agent 16)
+
+    Useful for verifying notification configuration.
+
+    Args:
+        channel: Notification channel to test (email, slack, webhook)
+
+    Returns:
+        Test result
+    """
+    try:
+        channel_enum = NotificationChannel(channel)
+        success = alert_notifier.send_test_notification(channel_enum)
+
+        return {
+            "success": success,
+            "channel": channel,
+            "message": "Test notification sent" if success else "Test notification failed"
+        }
+
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid channel: {channel}")
+    except Exception as e:
+        logger.error(f"Error sending test notification: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# END ALERT SYSTEM ENDPOINTS
+# ============================================================
+
+
+# ============================================================
+# REPORT GENERATION ENDPOINTS (Agent 18)
+# Professional PDF & Excel Reports for Elite Marketers
+# ============================================================
+
+# Initialize report generator
+report_generator = None
+
+class ReportGenerateRequest(BaseModel):
+    """Request model for report generation"""
+    report_type: str
+    format: str
+    start_date: str
+    end_date: str
+    campaign_ids: Optional[List[str]] = None
+    ad_ids: Optional[List[str]] = None
+    company_name: Optional[str] = "Your Company"
+    company_logo: Optional[str] = None
+    filters: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/reports/generate", tags=["Reports"])
+async def generate_report(request: ReportGenerateRequest):
+    """
+    Generate a professional campaign performance report (Agent 18)
+
+    Creates investment-grade PDF or Excel reports suitable for:
+    - C-suite executives
+    - Board presentations
+    - Client deliverables
+    - Investor updates
+
+    Args:
+        request: Report generation parameters
+
+    Returns:
+        Report metadata and download information
+    """
+    try:
+        logger.info(f"Generating {request.report_type} report in {request.format} format")
+
+        # Parse dates
+        from dateutil import parser
+        start_date = parser.parse(request.start_date)
+        end_date = parser.parse(request.end_date)
+
+        # Validate report type
+        try:
+            report_type_enum = ReportType(request.report_type)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid report type. Must be one of: {[t.value for t in ReportType]}"
+            )
+
+        # Validate format
+        try:
+            format_enum = ReportFormat(request.format)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid format. Must be one of: {[f.value for f in ReportFormat]}"
+            )
+
+        # Get database connection
+        data_loader = get_data_loader()
+        db_pool = data_loader.pool if data_loader else None
+
+        # Initialize report generator with DB pool
+        global report_generator
+        if report_generator is None:
+            report_generator = ReportGenerator(db_pool)
+
+        # Generate report content
+        report_data = await report_generator.generate_report(
+            report_type=report_type_enum,
+            format=format_enum,
+            start_date=start_date,
+            end_date=end_date,
+            campaign_ids=request.campaign_ids,
+            ad_ids=request.ad_ids,
+            company_name=request.company_name,
+            company_logo=request.company_logo,
+            filters=request.filters
+        )
+
+        # Build output file
+        report_id = report_data['report_id']
+        file_extension = 'pdf' if format_enum == ReportFormat.PDF else 'xlsx'
+        output_dir = '/tmp/reports'
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = f"{output_dir}/{report_id}.{file_extension}"
+
+        # Generate file based on format
+        if format_enum == ReportFormat.PDF:
+            file_path = generate_pdf_report(report_data['content'], output_path)
+        else:
+            file_path = generate_excel_report(report_data['content'], output_path)
+
+        logger.info(f"Report generated successfully: {file_path}")
+
+        return {
+            "success": True,
+            "report_id": report_id,
+            "report_type": request.report_type,
+            "format": request.format,
+            "file_path": file_path,
+            "download_url": f"/api/reports/{report_id}/download",
+            "generated_at": report_data['content']['generated_at'],
+            "summary": {
+                "campaigns_analyzed": report_data['content']['data'].get('total_campaigns', 0),
+                "date_range": report_data['content']['date_range']
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/reports", tags=["Reports"])
+async def list_reports(limit: int = 20):
+    """
+    List all generated reports (Agent 18)
+
+    Args:
+        limit: Maximum number of reports to return
+
+    Returns:
+        List of report metadata
+    """
+    try:
+        # Get database connection
+        data_loader = get_data_loader()
+
+        if not data_loader or not data_loader.pool:
+            # Return mock data if no DB
+            return {
+                "reports": [],
+                "count": 0,
+                "message": "Database not connected"
+            }
+
+        query = """
+            SELECT
+                report_id,
+                report_type,
+                format,
+                start_date,
+                end_date,
+                created_at,
+                status
+            FROM reports
+            ORDER BY created_at DESC
+            LIMIT $1
+        """
+
+        results = await data_loader.pool.fetch(query, limit)
+
+        reports = [dict(row) for row in results]
+
+        return {
+            "reports": reports,
+            "count": len(reports)
+        }
+
+    except Exception as e:
+        logger.error(f"Error listing reports: {e}", exc_info=True)
+        # Return empty list on error
+        return {
+            "reports": [],
+            "count": 0
+        }
+
+
+@app.get("/api/reports/{report_id}/download", tags=["Reports"])
+async def download_report(report_id: str):
+    """
+    Download a generated report file (Agent 18)
+
+    Args:
+        report_id: Report ID
+
+    Returns:
+        File download response
+    """
+    try:
+        from fastapi.responses import FileResponse
+
+        # Check both PDF and Excel extensions
+        for ext in ['pdf', 'xlsx']:
+            file_path = f"/tmp/reports/{report_id}.{ext}"
+            if os.path.exists(file_path):
+                # Determine media type
+                media_type = 'application/pdf' if ext == 'pdf' else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+                return FileResponse(
+                    path=file_path,
+                    media_type=media_type,
+                    filename=f"campaign_report_{report_id}.{ext}"
+                )
+
+        raise HTTPException(status_code=404, detail="Report file not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/reports/{report_id}", tags=["Reports"])
+async def delete_report(report_id: str):
+    """
+    Delete a generated report (Agent 18)
+
+    Args:
+        report_id: Report ID
+
+    Returns:
+        Deletion confirmation
+    """
+    try:
+        # Delete files
+        deleted_files = []
+        for ext in ['pdf', 'xlsx']:
+            file_path = f"/tmp/reports/{report_id}.{ext}"
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                deleted_files.append(ext)
+
+        if not deleted_files:
+            raise HTTPException(status_code=404, detail="Report not found")
+
+        # Delete from database
+        data_loader = get_data_loader()
+        if data_loader and data_loader.pool:
+            await data_loader.pool.execute(
+                "DELETE FROM reports WHERE report_id = $1",
+                report_id
+            )
+
+        return {
+            "success": True,
+            "report_id": report_id,
+            "deleted_files": deleted_files,
+            "message": "Report deleted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# END REPORT GENERATION ENDPOINTS
+# ============================================================
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize model on startup"""
     logger.info("ML Service starting up...")
     logger.info("Feedback loop enabled - system will learn from real data")
+    logger.info("Alert system initialized - monitoring performance metrics")
 
     # Try to load existing model or train with real data from database
     if not ctr_predictor.is_trained:

@@ -24,6 +24,8 @@ const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'))
 const PerformanceDashboard = lazy(() => import('./components/PerformanceDashboard'));
 const ReliabilityChart = lazy(() => import('./components/ReliabilityChart'));
 const DiversificationDashboard = lazy(() => import('./components/DiversificationDashboard'));
+const ROASDashboard = lazy(() => import('./pages/ROASDashboard'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 
 // Video Editing Suite
 const ProVideoEditor = lazy(() => import('./components/pro/ProVideoEditor'));
@@ -161,7 +163,14 @@ export const routes: RouteObject[] = [
           { path: 'performance', element: <PerformanceDashboard /> },
           { path: 'reliability', element: <ReliabilityChart /> },
           { path: 'diversification', element: <DiversificationDashboard /> },
+          { path: 'roas', element: <ROASDashboard /> },
         ],
+      },
+
+      // Reports (Agent 18)
+      {
+        path: 'reports',
+        element: <ReportsPage />,
       },
 
       // Video Studio (Pro Editor)

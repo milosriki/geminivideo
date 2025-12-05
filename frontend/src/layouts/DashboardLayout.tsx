@@ -17,6 +17,7 @@ import { Sidebar, SidebarBody, SidebarHeader, SidebarItem, SidebarLabel, Sidebar
 import { Navbar, NavbarItem, NavbarSection, NavbarSpacer } from '@/components/catalyst/navbar'
 import { Avatar } from '@/components/catalyst/avatar'
 import { Dropdown, DropdownButton, DropdownMenu, DropdownItem, DropdownLabel, DropdownDivider } from '@/components/catalyst/dropdown'
+import { DemoModeIndicator } from '@/components/DemoModeIndicator'
 
 const navigation = [
   { name: 'Home', href: '/', icon: HomeIcon },
@@ -116,6 +117,7 @@ export function DashboardLayout() {
       }
     >
       <Outlet />
+      <DemoModeIndicator position="bottom-right" showControls={true} />
     </SidebarLayout>
   )
 }
