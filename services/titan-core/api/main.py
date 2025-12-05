@@ -14,6 +14,7 @@ import sys
 import asyncio
 import logging
 import uuid
+import json
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Union
 from contextlib import asynccontextmanager
@@ -37,6 +38,18 @@ logger = logging.getLogger(__name__)
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# ============================================================================
+# DATABASE IMPORTS (Async PostgreSQL with SQLAlchemy)
+# ============================================================================
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+    from sqlalchemy import text
+    DATABASE_AVAILABLE = True
+    logger.info("✅ SQLAlchemy async loaded successfully")
+except ImportError as e:
+    DATABASE_AVAILABLE = False
+    logger.warning(f"⚠️ SQLAlchemy not available: {e}")
 
 # ============================================================================
 # IMPORT AI COUNCIL COMPONENTS
@@ -172,8 +185,32 @@ async def verify_internal_api_key(request: Request, api_key: str = Depends(api_k
 # ============================================================================
 # GLOBAL STATE & SINGLETONS
 # ============================================================================
+
+# Database configuration
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+db_engine = None
+async_session_factory = None
+
+if DATABASE_AVAILABLE and DATABASE_URL:
+    try:
+        # Convert postgresql:// to postgresql+asyncpg://
+        async_db_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+        db_engine = create_async_engine(
+            async_db_url,
+            echo=False,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True
+        )
+        async_session_factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+        logger.info("✅ Database engine configured")
+    except Exception as e:
+        logger.warning(f"⚠️ Database configuration failed: {e}")
+        db_engine = None
+
+
 class AppState:
-    """Global application state"""
+    """Global application state with database persistence"""
     def __init__(self):
         self.council: Optional[CouncilOfTitans] = None
         self.oracle: Optional[OracleAgent] = None
@@ -182,7 +219,8 @@ class AppState:
         self.video_renderer: Optional[VideoRenderer] = None
         self.winning_ads_generator: Optional[WinningAdsGenerator] = None
         self.vertex_ai: Optional[VertexAIService] = None
-        self.render_jobs: Dict[str, Dict[str, Any]] = {}
+        self.render_jobs: Dict[str, Dict[str, Any]] = {}  # In-memory fallback
+        self.db_available = db_engine is not None
         self.initialized = False
 
     async def initialize(self):
@@ -191,6 +229,16 @@ class AppState:
             return
 
         logger.info("🚀 Initializing Titan-Core components...")
+
+        # Test database connection
+        if self.db_available:
+            try:
+                async with async_session_factory() as session:
+                    await session.execute(text("SELECT 1"))
+                logger.info("✅ Database connection verified")
+            except Exception as e:
+                logger.warning(f"⚠️ Database connection failed, using in-memory storage: {e}")
+                self.db_available = False
 
         # Initialize AI Council
         if AI_COUNCIL_AVAILABLE:
@@ -224,6 +272,126 @@ class AppState:
 
         self.initialized = True
         logger.info("🎯 Titan-Core ready!")
+
+    # ========================================================================
+    # DATABASE METHODS FOR RENDER JOB PERSISTENCE
+    # ========================================================================
+    
+    async def create_render_job(self, job_id: str, job_data: dict) -> None:
+        """Create a render job in database or fallback to in-memory"""
+        if self.db_available and async_session_factory:
+            try:
+                async with async_session_factory() as session:
+                    query = text("""
+                        INSERT INTO render_jobs (id, status, progress, job_type, input_config, created_at, updated_at)
+                        VALUES (:id, :status, :progress, :job_type, :input_config, NOW(), NOW())
+                    """)
+                    await session.execute(query, {
+                        "id": job_id,
+                        "status": job_data.get("status", "pending"),
+                        "progress": job_data.get("progress", 0),
+                        "job_type": job_data.get("job_type", "render"),
+                        "input_config": json.dumps(job_data)
+                    })
+                    await session.commit()
+                logger.info(f"✅ Render job {job_id} saved to database")
+            except Exception as e:
+                logger.warning(f"⚠️ Database save failed, using in-memory: {e}")
+                self.render_jobs[job_id] = job_data
+        else:
+            self.render_jobs[job_id] = job_data
+
+    async def get_render_job(self, job_id: str) -> Optional[dict]:
+        """Get render job from database or in-memory fallback"""
+        if self.db_available and async_session_factory:
+            try:
+                async with async_session_factory() as session:
+                    query = text("""
+                        SELECT id, status, progress, job_type, input_config, output_url, error, 
+                               created_at, updated_at, completed_at
+                        FROM render_jobs WHERE id = :id
+                    """)
+                    result = await session.execute(query, {"id": job_id})
+                    row = result.fetchone()
+                    if row:
+                        job_data = json.loads(row.input_config) if row.input_config else {}
+                        return {
+                            "id": row.id,
+                            "status": row.status,
+                            "progress": row.progress or 0,
+                            "job_type": row.job_type,
+                            "output_path": row.output_url,
+                            "output_url": row.output_url,
+                            "error": row.error,
+                            "created_at": row.created_at,
+                            "updated_at": row.updated_at,
+                            "completed_at": row.completed_at,
+                            **job_data
+                        }
+            except Exception as e:
+                logger.warning(f"⚠️ Database read failed: {e}")
+        
+        # Fallback to in-memory
+        return self.render_jobs.get(job_id)
+
+    async def update_render_job(self, job_id: str, **updates) -> None:
+        """Update render job in database or in-memory fallback"""
+        if self.db_available and async_session_factory:
+            try:
+                async with async_session_factory() as session:
+                    # Build dynamic update query
+                    set_clauses = ["updated_at = NOW()"]
+                    params = {"id": job_id}
+                    
+                    if "status" in updates:
+                        set_clauses.append("status = :status")
+                        params["status"] = updates["status"]
+                    if "progress" in updates:
+                        set_clauses.append("progress = :progress")
+                        params["progress"] = updates["progress"]
+                    if "output_url" in updates:
+                        set_clauses.append("output_url = :output_url")
+                        params["output_url"] = updates["output_url"]
+                    if "error" in updates:
+                        set_clauses.append("error = :error")
+                        params["error"] = updates["error"]
+                    if "completed_at" in updates:
+                        set_clauses.append("completed_at = :completed_at")
+                        params["completed_at"] = updates["completed_at"]
+                    
+                    query = text(f"UPDATE render_jobs SET {', '.join(set_clauses)} WHERE id = :id")
+                    await session.execute(query, params)
+                    await session.commit()
+            except Exception as e:
+                logger.warning(f"⚠️ Database update failed: {e}")
+        
+        # Also update in-memory for consistency
+        if job_id in self.render_jobs:
+            self.render_jobs[job_id].update(updates)
+            self.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+
+    async def log_audit(self, action: str, entity_type: str, entity_id: str, 
+                        details: dict, user_id: str = None) -> None:
+        """Log action for audit trail"""
+        if self.db_available and async_session_factory:
+            try:
+                async with async_session_factory() as session:
+                    query = text("""
+                        INSERT INTO audit_log (action, entity_type, entity_id, details, user_id, created_at)
+                        VALUES (:action, :entity_type, :entity_id, :details, :user_id, NOW())
+                    """)
+                    await session.execute(query, {
+                        "action": action,
+                        "entity_type": entity_type,
+                        "entity_id": entity_id,
+                        "details": json.dumps(details),
+                        "user_id": user_id
+                    })
+                    await session.commit()
+            except Exception as e:
+                logger.warning(f"⚠️ Audit log failed: {e}")
+        else:
+            logger.info(f"[AUDIT] {action} on {entity_type}/{entity_id}: {details}")
 
 app_state = AppState()
 
@@ -840,10 +1008,11 @@ async def start_render(
     try:
         job_id = f"render_{uuid.uuid4().hex[:12]}"
 
-        # Create job entry
-        app_state.render_jobs[job_id] = {
+        # Create job data
+        job_data = {
             "id": job_id,
             "status": RenderStatus.PENDING,
+            "job_type": "render",
             "request": request.model_dump(),
             "progress": 0.0,
             "output_path": None,
@@ -851,6 +1020,12 @@ async def start_render(
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
+
+        # Save to database (with in-memory fallback)
+        await app_state.create_render_job(job_id, job_data)
+        
+        # Also keep in memory for fast access
+        app_state.render_jobs[job_id] = job_data
 
         # Start render in background
         background_tasks.add_task(
@@ -883,7 +1058,8 @@ async def get_render_status(
 
     Returns current status, progress, and output path when complete
     """
-    job = app_state.render_jobs.get(job_id)
+    # Try to get from database first, then fallback to in-memory
+    job = await app_state.get_render_job(job_id)
 
     if not job:
         raise HTTPException(
@@ -904,7 +1080,7 @@ async def download_render(
 
     Returns the rendered video file
     """
-    job = app_state.render_jobs.get(job_id)
+    job = await app_state.get_render_job(job_id)
 
     if not job:
         raise HTTPException(
@@ -918,7 +1094,7 @@ async def download_render(
             detail=f"Job is not completed (status: {job['status']})"
         )
 
-    if not job["output_path"] or not os.path.exists(job["output_path"]):
+    if not job.get("output_path") or not os.path.exists(job["output_path"]):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Output file not found"
@@ -1042,9 +1218,10 @@ async def render_winning_blueprints(
             )
             
             job_id = f"render_{uuid.uuid4().hex[:12]}"
-            app_state.render_jobs[job_id] = {
+            job_data = {
                 "id": job_id,
                 "status": RenderStatus.PENDING,
+                "job_type": "render",
                 "request": render_req.model_dump(),
                 "progress": 0.0,
                 "output_path": None,
@@ -1052,6 +1229,10 @@ async def render_winning_blueprints(
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }
+            
+            # Save to database
+            await app_state.create_render_job(job_id, job_data)
+            app_state.render_jobs[job_id] = job_data
             
             # Add to background tasks
             background_tasks.add_task(
@@ -1517,6 +1698,7 @@ async def _process_render_job(job_id: str, request: RenderStartRequest):
     """
     try:
         # Update status to processing
+        await app_state.update_render_job(job_id, status=RenderStatus.PROCESSING)
         app_state.render_jobs[job_id]["status"] = RenderStatus.PROCESSING
         app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
 
@@ -1525,25 +1707,55 @@ async def _process_render_job(job_id: str, request: RenderStartRequest):
         # Simulate rendering (replace with actual rendering logic)
         for progress in [0, 25, 50, 75, 100]:
             await asyncio.sleep(1)  # Simulate work
+            await app_state.update_render_job(job_id, progress=progress)
             app_state.render_jobs[job_id]["progress"] = progress
             app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
 
         # In production, this would be the actual output path
         output_path = os.path.join(Config.OUTPUT_DIR, f"{job_id}.mp4")
 
-        # Mark as completed
+        # Mark as completed in both database and memory
+        await app_state.update_render_job(
+            job_id,
+            status=RenderStatus.COMPLETED,
+            progress=100,
+            output_url=output_path,
+            completed_at=datetime.utcnow()
+        )
         app_state.render_jobs[job_id]["status"] = RenderStatus.COMPLETED
         app_state.render_jobs[job_id]["output_path"] = output_path
         app_state.render_jobs[job_id]["progress"] = 100.0
         app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
 
+        # Log audit trail
+        await app_state.log_audit(
+            action="render_completed",
+            entity_type="render_job",
+            entity_id=job_id,
+            details={"output_path": output_path, "status": "completed"}
+        )
+
         logger.info(f"Render job {job_id} completed")
 
     except Exception as e:
         logger.error(f"Render job {job_id} failed: {e}")
+        await app_state.update_render_job(
+            job_id,
+            status=RenderStatus.FAILED,
+            error=str(e),
+            completed_at=datetime.utcnow()
+        )
         app_state.render_jobs[job_id]["status"] = RenderStatus.FAILED
         app_state.render_jobs[job_id]["error"] = str(e)
         app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+
+        # Log audit trail
+        await app_state.log_audit(
+            action="render_failed",
+            entity_type="render_job",
+            entity_id=job_id,
+            details={"error": str(e), "status": "failed"}
+        )
 
 
 # ============================================================================
