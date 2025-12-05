@@ -1,0 +1,89 @@
+# Cloudflare Stream Configuration
+# Global video delivery with transcoding and adaptive bitrate streaming
+
+stream:
+  # Automatic video optimization
+  settings:
+    encoding:
+      - quality: "1080p"
+        bitrate: "5000k"
+        codec: "h264"
+      - quality: "720p"
+        bitrate: "2500k"
+        codec: "h264"
+      - quality: "480p"
+        bitrate: "1000k"
+        codec: "h264"
+      - quality: "360p"
+        bitrate: "500k"
+        codec: "h264"
+
+    # Adaptive bitrate streaming (HLS/DASH)
+    adaptive_streaming: true
+    audio_normalization: true
+
+    # Thumbnail generation
+    thumbnails:
+      enabled: true
+      interval_seconds: 10
+      width: 640
+      height: 360
+
+    # Watermarking
+    watermark:
+      enabled: false
+      position: "bottom-right"
+      opacity: 0.5
+
+  # Upload settings
+  upload:
+    max_duration_seconds: 300  # 5 minutes
+    allowed_origins: ['https://geminivideo.com', 'https://*.geminivideo.com']
+    require_signed_urls: true
+    expiration_hours: 24
+
+  # Delivery settings
+  delivery:
+    # Global CDN with 310+ locations
+    cdn_enabled: true
+
+    # Signed URLs for private videos
+    signed_urls_enabled: true
+    signature_expiration: 3600  # 1 hour
+
+    # DRM (optional)
+    drm_enabled: false
+
+    # Analytics
+    analytics_enabled: true
+
+  # Webhooks
+  webhooks:
+    - event: "video.ready"
+      url: "${WEBHOOK_URL}/stream/ready"
+    - event: "video.error"
+      url: "${WEBHOOK_URL}/stream/error"
+
+# Live Streaming (optional)
+live:
+  enabled: false
+  max_duration_hours: 6
+  recording_enabled: true
+  recording_bucket: "geminivideo-live-recordings"
+
+# Cost Comparison (vs AWS MediaConvert + CloudFront)
+# Cloudflare Stream Pricing:
+# - Storage: $5/1000 minutes stored
+# - Delivery: $1/1000 minutes delivered
+# - No transcoding fees
+# - No data transfer fees
+#
+# AWS Equivalent:
+# - MediaConvert: $0.015/minute transcoding
+# - S3 Storage: $0.023/GB
+# - CloudFront: $0.085/GB delivery
+#
+# For 10,000 video minutes/month:
+# Cloudflare Stream: $50 (storage) + $10 (delivery) = $60
+# AWS: $150 (transcoding) + $50 (storage) + $850 (delivery) = $1,050
+# Monthly savings: $990

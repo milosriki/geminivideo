@@ -53,6 +53,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Gemini 2.0 Model Constants (December 2024)
+GEMINI_2_0_FLASH_THINKING = "gemini-2.0-flash-thinking-exp-1219"  # Extended reasoning
+GEMINI_2_0_FLASH = "gemini-2.0-flash-exp"  # Fast, general purpose
+GEMINI_2_0_PRO = "gemini-2.0-pro-exp"  # Most powerful (if available)
+GEMINI_1_5_PRO = "gemini-1.5-pro-002"  # Fallback stable model
+GEMINI_1_5_FLASH = "gemini-1.5-flash-002"  # Fallback fast model
+
+
 @dataclass
 class VideoAnalysis:
     """Structured video analysis results from Gemini."""
@@ -67,6 +75,8 @@ class VideoAnalysis:
     engagement_score: Optional[float] = None
     marketing_insights: Dict[str, Any] = field(default_factory=dict)
     raw_response: Optional[str] = None
+    model_used: str = ""
+    thinking_time_ms: Optional[int] = None
 
 
 class VertexAIService:
@@ -85,16 +95,16 @@ class VertexAIService:
         self,
         project_id: Optional[str] = None,
         location: str = "us-central1",
-        gemini_model: str = "gemini-2.0-flash-exp",
+        gemini_model: str = GEMINI_2_0_FLASH,
         imagen_model: str = "imagen-3.0-generate-001"
     ):
         """
-        Initialize Vertex AI client.
+        Initialize Vertex AI client with Gemini 2.0 models.
 
         Args:
             project_id: GCP project ID (defaults to env var GOOGLE_CLOUD_PROJECT)
             location: GCP region (default: us-central1)
-            gemini_model: Gemini model version to use
+            gemini_model: Default Gemini model (defaults to 2.0 Flash)
             imagen_model: Imagen model version to use
         """
         if not VERTEXAI_AVAILABLE:
@@ -105,7 +115,7 @@ class VertexAIService:
             raise ValueError("project_id must be provided or GOOGLE_CLOUD_PROJECT must be set")
 
         self.location = location
-        self.gemini_model_name = gemini_model
+        self.default_gemini_model = gemini_model
         self.imagen_model_name = imagen_model
 
         # Initialize Vertex AI
@@ -116,9 +126,12 @@ class VertexAIService:
             logger.error(f"❌ Vertex AI initialization failed: {e}")
             raise
 
-        # Initialize models
-        self.gemini_model = GenerativeModel(self.gemini_model_name)
-        logger.info(f"🧠 Gemini model loaded: {self.gemini_model_name}")
+        # Model cache for different Gemini versions
+        self._model_cache: Dict[str, GenerativeModel] = {}
+
+        # Initialize default model
+        self.gemini_model = self._get_model(self.default_gemini_model)
+        logger.info(f"🧠 Default Gemini model: {self.default_gemini_model}")
 
         # Imagen model (lazy load on first use)
         self._imagen_model = None
@@ -126,13 +139,30 @@ class VertexAIService:
         # Embedding model (lazy load on first use)
         self._embedding_model = None
 
-        # Generation config defaults
-        self.default_config = {
+        # Generation configs for different tasks
+        self.config_fast = {
             "temperature": 0.7,
             "top_p": 0.95,
             "top_k": 40,
             "max_output_tokens": 2048,
         }
+
+        self.config_thinking = {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+        }
+
+        self.config_precise = {
+            "temperature": 0.3,
+            "top_p": 0.8,
+            "top_k": 20,
+            "max_output_tokens": 4096,
+        }
+
+        # Default config
+        self.default_config = self.config_fast
 
     @property
     def imagen_model(self) -> ImageGenerationModel:
@@ -159,13 +189,62 @@ class VertexAIService:
         return self._embedding_model
 
     # ========================================================================
+    # MODEL SELECTION AND MANAGEMENT
+    # ========================================================================
+
+    def _get_model(self, model_name: str) -> GenerativeModel:
+        """
+        Get or create a Gemini model instance with caching.
+
+        Args:
+            model_name: Gemini model identifier
+
+        Returns:
+            GenerativeModel instance
+        """
+        if model_name not in self._model_cache:
+            try:
+                self._model_cache[model_name] = GenerativeModel(model_name)
+                logger.info(f"🔄 Loaded model: {model_name}")
+            except Exception as e:
+                logger.error(f"❌ Failed to load {model_name}: {e}")
+                # Fallback to stable model
+                fallback_model = GEMINI_1_5_FLASH
+                logger.warning(f"⚠️ Falling back to {fallback_model}")
+                self._model_cache[model_name] = GenerativeModel(fallback_model)
+
+        return self._model_cache[model_name]
+
+    def select_model_for_task(self, task_complexity: str) -> Tuple[str, Dict[str, Any]]:
+        """
+        Select optimal Gemini model and config based on task complexity.
+
+        Args:
+            task_complexity: One of "simple", "complex", "critical"
+
+        Returns:
+            Tuple of (model_name, generation_config)
+        """
+        model_selection = {
+            "simple": (GEMINI_2_0_FLASH, self.config_fast),
+            "complex": (GEMINI_2_0_FLASH_THINKING, self.config_thinking),
+            "critical": (GEMINI_2_0_PRO, self.config_precise),
+        }
+
+        selected = model_selection.get(task_complexity, (GEMINI_2_0_FLASH, self.config_fast))
+        logger.info(f"📋 Task complexity '{task_complexity}' → Model: {selected[0]}")
+        return selected
+
+    # ========================================================================
     # GEMINI ANALYSIS METHODS
     # ========================================================================
 
     def analyze_video(
         self,
         video_gcs_uri: str,
-        prompt: Optional[str] = None
+        prompt: Optional[str] = None,
+        task_complexity: str = "complex",
+        use_streaming: bool = False
     ) -> VideoAnalysis:
         """
         Analyze video using Gemini 2.0 with multimodal understanding.
@@ -173,6 +252,8 @@ class VertexAIService:
         Args:
             video_gcs_uri: GCS URI (gs://bucket/video.mp4) or local file path
             prompt: Custom analysis prompt (optional)
+            task_complexity: "simple", "complex", or "critical" (affects model selection)
+            use_streaming: Enable streaming for real-time feedback
 
         Returns:
             VideoAnalysis object with structured results
@@ -222,6 +303,10 @@ class VertexAIService:
             """
 
         try:
+            # Select optimal model for task
+            model_name, gen_config = self.select_model_for_task(task_complexity)
+            model = self._get_model(model_name)
+
             # Create video part from GCS URI or file
             if video_gcs_uri.startswith("gs://"):
                 video_part = Part.from_uri(video_gcs_uri, mime_type="video/mp4")
@@ -231,12 +316,36 @@ class VertexAIService:
                     video_data = f.read()
                 video_part = Part.from_data(video_data, mime_type="video/mp4")
 
-            # Generate content
-            logger.info(f"🎬 Analyzing video: {video_gcs_uri}")
-            response = self.gemini_model.generate_content([video_part, prompt])
+            # Generate content with selected model and config
+            logger.info(f"🎬 Analyzing video: {video_gcs_uri} [Model: {model_name}]")
+            start_time = datetime.now()
+
+            if use_streaming:
+                # Streaming mode for real-time feedback
+                raw_text = ""
+                logger.info("🌊 Streaming enabled...")
+                response_stream = model.generate_content(
+                    [video_part, prompt],
+                    generation_config=gen_config,
+                    stream=True
+                )
+
+                for chunk in response_stream:
+                    if hasattr(chunk, 'text'):
+                        raw_text += chunk.text
+                        # Optional: yield or callback for real-time updates
+                        logger.debug(f"📥 Chunk received: {len(chunk.text)} chars")
+            else:
+                # Standard mode
+                response = model.generate_content(
+                    [video_part, prompt],
+                    generation_config=gen_config
+                )
+                raw_text = response.text.strip()
+
+            thinking_time = int((datetime.now() - start_time).total_seconds() * 1000)
 
             # Parse JSON response
-            raw_text = response.text.strip()
             json_text = raw_text.replace("```json", "").replace("```", "").strip()
 
             try:
@@ -261,19 +370,95 @@ class VertexAIService:
                 hook_quality=data.get("hook_quality"),
                 engagement_score=data.get("engagement_score"),
                 marketing_insights=data.get("marketing_insights", {}),
-                raw_response=raw_text
+                raw_response=raw_text,
+                model_used=model_name,
+                thinking_time_ms=thinking_time
             )
 
-            logger.info(f"✅ Video analysis complete: {len(analysis.scenes)} scenes, {len(analysis.objects_detected)} objects")
+            logger.info(f"✅ Video analysis complete: {len(analysis.scenes)} scenes, "
+                       f"{len(analysis.objects_detected)} objects [{thinking_time}ms]")
             return analysis
 
         except Exception as e:
             logger.error(f"❌ Video analysis failed: {e}")
+            import traceback
+            traceback.print_exc()
+
             # Return minimal analysis with error
             return VideoAnalysis(
                 summary=f"Analysis failed: {str(e)}",
-                raw_response=str(e)
+                raw_response=str(e),
+                model_used="error"
             )
+
+    def analyze_video_with_schema(
+        self,
+        video_gcs_uri: str,
+        analysis_schema: Dict[str, Any],
+        task_complexity: str = "complex"
+    ) -> Dict[str, Any]:
+        """
+        Analyze video with structured JSON schema output (Gemini 2.0 feature).
+
+        Args:
+            video_gcs_uri: GCS URI or local file path
+            analysis_schema: JSON schema defining expected output structure
+            task_complexity: "simple", "complex", or "critical"
+
+        Returns:
+            Structured dictionary matching the provided schema
+        """
+        try:
+            # Select optimal model
+            model_name, gen_config = self.select_model_for_task(task_complexity)
+            model = self._get_model(model_name)
+
+            # Create video part
+            if video_gcs_uri.startswith("gs://"):
+                video_part = Part.from_uri(video_gcs_uri, mime_type="video/mp4")
+            else:
+                with open(video_gcs_uri, "rb") as f:
+                    video_data = f.read()
+                video_part = Part.from_data(video_data, mime_type="video/mp4")
+
+            # Build schema-guided prompt
+            schema_str = json.dumps(analysis_schema, indent=2)
+            prompt = f"""
+            Analyze this video and return a structured JSON response matching this exact schema:
+
+            {schema_str}
+
+            Provide comprehensive analysis following the schema structure precisely.
+            Return ONLY valid JSON, no markdown formatting.
+            """
+
+            logger.info(f"📋 Schema-based analysis: {video_gcs_uri} [Model: {model_name}]")
+
+            # Generate with schema validation
+            response = model.generate_content(
+                [video_part, prompt],
+                generation_config=gen_config
+            )
+
+            # Parse and validate JSON
+            raw_text = response.text.strip()
+            json_text = raw_text.replace("```json", "").replace("```", "").strip()
+            structured_data = json.loads(json_text)
+
+            logger.info(f"✅ Structured analysis complete with schema validation")
+            return structured_data
+
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON schema validation failed: {e}")
+            return {
+                "error": "Invalid JSON response",
+                "raw_response": raw_text if 'raw_text' in locals() else str(e)
+            }
+        except Exception as e:
+            logger.error(f"❌ Schema-based analysis failed: {e}")
+            return {
+                "error": str(e)
+            }
 
     def analyze_image(self, image_gcs_uri: str, prompt: str) -> str:
         """

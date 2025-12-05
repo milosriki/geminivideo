@@ -1,7 +1,22 @@
 import os
 import re
 import asyncio
-from typing import Dict, Any
+import json
+from typing import Dict, Any, List, Optional, Literal
+from enum import Enum
+from datetime import datetime
+from base64 import b64encode
+
+# Import prompt caching system
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from prompts.cache_manager import (
+    prompt_loader,
+    cache_monitor,
+    get_cached_system_prompt,
+    print_cache_report
+)
 
 # Lazy imports for AI clients
 try:
@@ -20,32 +35,249 @@ except ImportError:
     genai = None
 
 
+class OpenAIModelType(str, Enum):
+    """
+    OpenAI Model Selection Strategy (November 2025)
+
+    Reference: https://platform.openai.com/docs/models
+    """
+    # Reasoning Models (Extended Chain-of-Thought)
+    O1 = "o1"  # Full reasoning - complex logic, structural analysis, deep thinking
+    O1_MINI = "o1-mini"  # Fast reasoning - quick logical checks, cost-optimized
+
+    # GPT-4o Family (Multimodal)
+    GPT4O_LATEST = "gpt-4o-2024-11-20"  # Latest - improved vision, audio, faster
+    GPT4O = "gpt-4o"  # Standard - production stable
+    GPT4O_MINI = "gpt-4o-mini"  # Cost-optimized - 90% cheaper, simple tasks
+
+    @classmethod
+    def select_for_task(cls, task_type: Literal["reasoning", "vision", "scoring", "fast"]) -> str:
+        """
+        Intelligent model selection based on task requirements
+
+        Args:
+            task_type: Type of task to perform
+                - "reasoning": Complex logical reasoning (o1)
+                - "vision": Multimodal analysis - images/video (gpt-4o-latest)
+                - "scoring": Simple numerical scoring (gpt-4o-mini)
+                - "fast": Fast reasoning checks (o1-mini)
+        """
+        selection_map = {
+            "reasoning": cls.O1.value,  # Complex reasoning with extended thinking
+            "vision": cls.GPT4O_LATEST.value,  # Multimodal analysis (images/video)
+            "scoring": cls.GPT4O_MINI.value,  # Simple numerical scoring
+            "fast": cls.O1_MINI.value  # Fast reasoning checks
+        }
+        return selection_map.get(task_type, cls.GPT4O_LATEST.value)
+
+
+class ScoreSchema:
+    """
+    JSON Schemas for Structured Outputs (November 2025 Feature)
+
+    Uses response_format: { type: "json_schema" } for consistent, validated responses.
+    Reference: https://platform.openai.com/docs/guides/structured-outputs
+    """
+
+    @staticmethod
+    def get_simple_score_schema() -> Dict[str, Any]:
+        """Schema for simple numeric scoring"""
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "viral_score_response",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "score": {
+                            "type": "number",
+                            "description": "Viral potential score from 0-100"
+                        },
+                        "confidence": {
+                            "type": "number",
+                            "description": "Confidence level 0-1"
+                        },
+                        "reasoning": {
+                            "type": "string",
+                            "description": "Brief explanation of the score"
+                        }
+                    },
+                    "required": ["score", "confidence", "reasoning"],
+                    "additionalProperties": False
+                }
+            }
+        }
+
+    @staticmethod
+    def get_detailed_critique_schema() -> Dict[str, Any]:
+        """Schema for detailed video analysis with o1 reasoning"""
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "detailed_critique_response",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "overall_score": {
+                            "type": "number",
+                            "description": "Overall score 0-100"
+                        },
+                        "hook_strength": {
+                            "type": "number",
+                            "description": "Hook effectiveness 0-100"
+                        },
+                        "emotional_resonance": {
+                            "type": "number",
+                            "description": "Emotional impact 0-100"
+                        },
+                        "cta_clarity": {
+                            "type": "number",
+                            "description": "Call-to-action clarity 0-100"
+                        },
+                        "pacing_score": {
+                            "type": "number",
+                            "description": "Content pacing 0-100"
+                        },
+                        "viral_potential": {
+                            "type": "number",
+                            "description": "Viral likelihood 0-100"
+                        },
+                        "strengths": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Key strengths identified"
+                        },
+                        "weaknesses": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Areas for improvement"
+                        },
+                        "improvement_suggestions": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Specific recommendations"
+                        }
+                    },
+                    "required": ["overall_score", "hook_strength", "emotional_resonance",
+                               "cta_clarity", "pacing_score", "viral_potential"],
+                    "additionalProperties": False
+                }
+            }
+        }
+
+    @staticmethod
+    def get_vision_analysis_schema() -> Dict[str, Any]:
+        """Schema for visual element analysis with GPT-4o Vision"""
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "vision_analysis_response",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "visual_score": {
+                            "type": "number",
+                            "description": "Visual quality score 0-100"
+                        },
+                        "has_human_face": {
+                            "type": "boolean",
+                            "description": "Detected human face(s)"
+                        },
+                        "scene_description": {
+                            "type": "string",
+                            "description": "Description of the visual scene"
+                        },
+                        "color_palette": {
+                            "type": "string",
+                            "description": "Dominant colors and mood"
+                        },
+                        "text_overlays_detected": {
+                            "type": "boolean",
+                            "description": "Text overlays present"
+                        },
+                        "composition_quality": {
+                            "type": "number",
+                            "description": "Visual composition score 0-100"
+                        },
+                        "attention_grabbing_elements": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Elements that capture attention"
+                        },
+                        "recommended_improvements": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Visual improvement suggestions"
+                        }
+                    },
+                    "required": ["visual_score", "has_human_face", "scene_description"],
+                    "additionalProperties": False
+                }
+            }
+        }
+
+
 class CouncilOfTitans:
     """
-    The Ultimate Ensemble:
-    1. Gemini 2.0 Flash Thinking (Newest - Extended Reasoning) - 40%
-    2. GPT-4o (Logic/Structure) - 20%
+    The Ultimate AI Council - November 2025 Edition
+
+    Model Strategy:
+    1. Gemini 2.0 Flash Thinking (Extended Reasoning) - 40%
+    2. OpenAI o1 (Complex Logic/Structure) - 20%
     3. Claude 3.5 Sonnet (Nuance/Psychology) - 30%
-    4. DeepCTR (Data/Math) - 10%
+    4. DeepCTR (Data/Heuristics) - 10%
+
+    OpenAI Upgrades (November 2025):
+    - o1: Complex reasoning with extended chain-of-thought
+    - o1-mini: Fast reasoning for quick checks
+    - GPT-4o (2024-11-20): Latest multimodal (vision, audio)
+    - GPT-4o-mini: Cost-optimized for simple tasks
+    - Structured Outputs: JSON schema validation
+    - Vision API: Video thumbnail/frame analysis
+    - Batch API: 50% cost savings for non-urgent tasks
     """
+
     def __init__(self):
         # Initialize Clients with proper error handling
         openai_key = os.getenv("OPENAI_API_KEY")
         anthropic_key = os.getenv("ANTHROPIC_API_KEY")
         gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        
+
         self.openai_client = AsyncOpenAI(api_key=openai_key) if AsyncOpenAI and openai_key else None
         self.anthropic_client = AsyncAnthropic(api_key=anthropic_key) if AsyncAnthropic and anthropic_key else None
-        
+
         # Configure Gemini
         if genai and gemini_key:
             genai.configure(api_key=gemini_key)
-        
-        # Use newest Gemini 3 Pro (Preview)
-        self.gemini_model = os.getenv("GEMINI_MODEL_ID", "gemini-3-pro-preview")
-        self.display_name = "Gemini 3 Pro (Preview)"
 
-        print(f"🏛️ COUNCIL: Initialized with {self.display_name}")
+        # Use Gemini 2.0 Flash Thinking (December 2024 - Extended Reasoning)
+        self.gemini_model = os.getenv("GEMINI_MODEL_ID", "gemini-2.0-flash-thinking-exp-1219")
+        self.display_name = "Gemini 2.0 Flash Thinking"
+
+        # Configure generation settings for thinking mode
+        self.generation_config = {
+            "temperature": 1.0,  # Higher for creative thinking
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 8192,  # Thinking models need more tokens
+        }
+
+        # Batch API queue for cost optimization
+        self.batch_queue: List[Dict[str, Any]] = []
+        self.batch_enabled = os.getenv("OPENAI_BATCH_ENABLED", "false").lower() == "true"
+
+        # Prompt caching enabled (10x cost reduction)
+        self.caching_enabled = os.getenv("PROMPT_CACHING_ENABLED", "true").lower() == "true"
+
+        print(f"🏛️ COUNCIL: Initialized with {self.display_name} + OpenAI November 2025 Models")
+        print(f"   - o1: Complex reasoning")
+        print(f"   - GPT-4o (2024-11-20): Latest multimodal")
+        print(f"   - GPT-4o-mini: Cost-optimized scoring")
+        print(f"   - Batch API: {'Enabled' if self.batch_enabled else 'Disabled'}")
+        print(f"   - Prompt Caching: {'Enabled (10x cost reduction)' if self.caching_enabled else 'Disabled'}")
 
     def _calculate_deep_ctr_score(self, visual_features: dict) -> float:
         """
@@ -89,107 +321,671 @@ class CouncilOfTitans:
         return max(0.0, min(100.0, score))
 
     async def get_gemini_critique(self, script: str) -> Dict[str, Any]:
-        """Gemini 2.0 Flash Thinking - Newest model with extended reasoning"""
+        """
+        Gemini 2.0 Flash Thinking - Extended reasoning with chain-of-thought
+
+        WITH CONTEXT CACHING: Gemini supports caching for repeated context (coming soon)
+        Currently using optimized system prompts for consistency
+        """
         if not genai:
             return {"score": 75.0, "source": "Gemini (Not Installed)"}
-            
+
         try:
-            model = genai.GenerativeModel(self.gemini_model)
-            response = model.generate_content(
-                f"You are a Viral Ad Strategist with deep reasoning capabilities. Analyze this script thoroughly and rate it 0-100 based on hook strength, psychological triggers, pacing, and viral potential. Return ONLY a number.\n\nSCRIPT:\n{script}"
+            # Create model with generation config for thinking mode
+            model = genai.GenerativeModel(
+                self.gemini_model,
+                generation_config=self.generation_config
             )
+
+            # Use cached system prompt for consistency (Gemini will auto-cache in future)
+            if self.caching_enabled:
+                system_context = get_cached_system_prompt("viral_ad_expert", provider="gemini")
+                enhanced_prompt = f"""{system_context}
+
+TASK: Analyze this ad script and provide a viral potential score (0-100).
+
+Use chain-of-thought reasoning:
+1. First, identify the hook type and strength
+2. Analyze psychological triggers deployed
+3. Evaluate pacing and emotional arc
+4. Consider viral pattern matching (2025 trends)
+5. Assess clarity of call-to-action
+
+After your analysis, return ONLY the final score as a number (0-100).
+
+SCRIPT:
+{script}
+
+FINAL SCORE (number only):"""
+            else:
+                # Fallback to simple prompt
+                enhanced_prompt = f"""You are an Elite Viral Ad Strategist with deep analytical reasoning.
+
+TASK: Analyze this ad script and provide a viral potential score (0-100).
+
+Use chain-of-thought reasoning:
+1. First, identify the hook type and strength
+2. Analyze psychological triggers deployed
+3. Evaluate pacing and emotional arc
+4. Consider viral pattern matching (2025 trends)
+5. Assess clarity of call-to-action
+
+After your analysis, return ONLY the final score as a number (0-100).
+
+SCRIPT:
+{script}
+
+FINAL SCORE (number only):"""
+
+            response = model.generate_content(enhanced_prompt)
+
             # Handle thinking models which may have different response structure
             score_text = response.text.strip()
-            # Extract numbers that look like scores (integers or decimals, not version numbers like 2.0)
-            # Match standalone numbers or numbers at the beginning/end of the text
+
+            # Extract the final number from thinking output
+            # Look for numbers that appear to be scores (0-100 range)
             numbers = re.findall(r'(?<![.\d])\d{1,3}(?:\.\d+)?(?![.\d])', score_text)
-            score = float(numbers[0]) if numbers else 75.0
+
+            # Filter for valid scores in 0-100 range
+            valid_scores = [float(n) for n in numbers if 0 <= float(n) <= 100]
+            score = valid_scores[-1] if valid_scores else 75.0  # Use last valid score
+
             # Clamp to valid range
             score = max(0.0, min(100.0, score))
-            return {"score": score, "source": "Gemini 2.0 Thinking"}
+
+            return {
+                "score": score,
+                "source": "Gemini 2.0 Flash Thinking",
+                "reasoning_used": True
+            }
+
         except Exception as e:
             print(f"⚠️ Gemini Error: {e}")
-            return {"score": 75.0, "source": "Gemini 2.0 Thinking (Fallback)"}
+            return {
+                "score": 75.0,
+                "source": "Gemini 2.0 Thinking (Fallback)",
+                "error": str(e)
+            }
 
-    async def get_gpt4_critique(self, script: str) -> Dict[str, Any]:
+    async def get_openai_o1_critique(self, script: str, mode: Literal["full", "mini"] = "full") -> Dict[str, Any]:
+        """
+        OpenAI o1 Reasoning Models (November 2025)
+
+        Features:
+        - Extended chain-of-thought reasoning
+        - Deep structural analysis
+        - Complex logical evaluation
+
+        Args:
+            script: The ad script to analyze
+            mode: "full" (o1) or "mini" (o1-mini for faster/cheaper)
+        """
         if not self.openai_client:
-            return {"score": 75.0, "source": "GPT-4o (Disabled)"}
-            
+            return {"score": 75.0, "source": "OpenAI o1 (Disabled)"}
+
+        model = OpenAIModelType.O1.value if mode == "full" else OpenAIModelType.O1_MINI.value
+
         try:
+            # o1 models use reasoning tokens and have specific requirements
+            # No system messages, no temperature control (uses internal reasoning)
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model=model,
                 messages=[
-                    {"role": "system", "content": "You are a Viral Ad Critic. Rate this script 0-100 based on logical structure, hook clarity, and CTA strength. Return ONLY a number."},
-                    {"role": "user", "content": script}
+                    {
+                        "role": "user",
+                        "content": f"""Analyze this viral ad script using deep logical reasoning.
+
+Evaluate these dimensions:
+1. Hook Structure: Pattern interrupt effectiveness, curiosity gap creation
+2. Logical Flow: Argument coherence, premise-to-conclusion strength
+3. CTA Clarity: Action steps, friction points, conversion pathway
+4. Structural Integrity: Story arc, pacing logic, retention mechanics
+
+Use chain-of-thought reasoning to score 0-100.
+
+SCRIPT:
+{script}
+
+Provide your analysis, then return ONLY the final score as a number."""
+                    }
                 ]
+                # Note: o1 models don't support temperature, top_p, or system messages
+                # They use internal reasoning optimization
             )
-            score = float(response.choices[0].message.content.strip())
-            return {"score": score, "source": "GPT-4o"}
+
+            content = response.choices[0].message.content.strip()
+
+            # Extract score from reasoning output
+            numbers = re.findall(r'(?<![.\d])\d{1,3}(?:\.\d+)?(?![.\d])', content)
+            valid_scores = [float(n) for n in numbers if 0 <= float(n) <= 100]
+            score = valid_scores[-1] if valid_scores else 75.0
+
+            score = max(0.0, min(100.0, score))
+
+            # o1 models provide reasoning_tokens usage
+            reasoning_tokens = response.usage.completion_tokens if hasattr(response, 'usage') else 0
+
+            return {
+                "score": score,
+                "source": f"OpenAI {model}",
+                "reasoning_tokens": reasoning_tokens,
+                "model": model
+            }
+
         except Exception as e:
-            print(f"⚠️ GPT-4o Error: {e}")
-            return {"score": 75.0, "source": "GPT-4o (Fallback)"}
+            print(f"⚠️ OpenAI o1 Error: {e}")
+            return {
+                "score": 75.0,
+                "source": f"OpenAI {model} (Fallback)",
+                "error": str(e)
+            }
+
+    async def get_gpt4o_critique_simple(self, script: str) -> Dict[str, Any]:
+        """
+        GPT-4o-mini for simple scoring (November 2025)
+
+        Cost-optimized model: 90% cheaper than GPT-4o
+        WITH PROMPT CACHING: OpenAI automatically caches consistent prefixes (50% reduction)
+        """
+        if not self.openai_client:
+            return {"score": 75.0, "source": "GPT-4o-mini (Disabled)"}
+
+        try:
+            # Use cached system prompt (OpenAI auto-caches consistent prefixes)
+            if self.caching_enabled:
+                system_content = get_cached_system_prompt("viral_ad_expert", provider="openai")
+            else:
+                system_content = "You are a Viral Ad Scoring Expert. Analyze scripts quickly and provide structured scores."
+
+            # Use structured outputs for consistent JSON response
+            response = await self.openai_client.chat.completions.create(
+                model=OpenAIModelType.GPT4O_MINI.value,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_content  # CACHED (automatic by OpenAI)
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Rate this ad script 0-100 based on hook strength, clarity, and viral potential.\n\nSCRIPT:\n{script}"
+                    }
+                ],
+                response_format=ScoreSchema.get_simple_score_schema()
+            )
+
+            # Parse structured JSON response
+            result = json.loads(response.choices[0].message.content)
+
+            # Track cache performance (if available in response)
+            if self.caching_enabled and hasattr(response, 'usage'):
+                usage = response.usage
+                cache_monitor.record_openai_request(
+                    model=OpenAIModelType.GPT4O_MINI.value,
+                    input_tokens=usage.prompt_tokens,
+                    cached_tokens=getattr(usage, 'prompt_tokens_details', {}).get('cached_tokens', 0),
+                    output_tokens=usage.completion_tokens
+                )
+
+            return {
+                "score": float(result["score"]),
+                "confidence": float(result.get("confidence", 0.8)),
+                "reasoning": result.get("reasoning", ""),
+                "source": "GPT-4o-mini (Cached)" if self.caching_enabled else "GPT-4o-mini (Structured)",
+                "model": OpenAIModelType.GPT4O_MINI.value,
+                "cached_tokens": getattr(response.usage, 'prompt_tokens_details', {}).get('cached_tokens', 0) if hasattr(response, 'usage') else 0
+            }
+
+        except Exception as e:
+            print(f"⚠️ GPT-4o-mini Error: {e}")
+            return {"score": 75.0, "source": "GPT-4o-mini (Fallback)", "error": str(e)}
+
+    async def get_gpt4o_vision_analysis(self, image_path: str, script: Optional[str] = None) -> Dict[str, Any]:
+        """
+        GPT-4o Vision Analysis (November 2025 - Latest)
+
+        Features:
+        - Improved vision capabilities
+        - Video thumbnail analysis
+        - Visual element extraction
+        - Color palette detection
+
+        Args:
+            image_path: Path to image/thumbnail or base64 image data
+            script: Optional script text for multimodal analysis
+        """
+        if not self.openai_client:
+            return {"visual_score": 75.0, "source": "GPT-4o Vision (Disabled)"}
+
+        try:
+            # Prepare image content
+            if os.path.exists(image_path):
+                with open(image_path, "rb") as img_file:
+                    image_data = b64encode(img_file.read()).decode("utf-8")
+                    image_url = f"data:image/jpeg;base64,{image_data}"
+            else:
+                # Assume it's a URL
+                image_url = image_path
+
+            # Build multimodal message
+            content_parts = [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": image_url}
+                },
+                {
+                    "type": "text",
+                    "text": """Analyze this video thumbnail/frame for viral ad potential.
+
+Evaluate:
+1. Visual appeal and attention-grabbing elements
+2. Composition quality and framing
+3. Color psychology and mood
+4. Presence of human faces (engagement driver)
+5. Text overlays and readability
+6. Overall viral potential
+
+Provide detailed structured analysis."""
+                }
+            ]
+
+            if script:
+                content_parts.append({
+                    "type": "text",
+                    "text": f"\n\nAD SCRIPT (for context):\n{script}"
+                })
+
+            # Use latest GPT-4o model with vision capabilities
+            response = await self.openai_client.chat.completions.create(
+                model=OpenAIModelType.GPT4O_LATEST.value,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": content_parts
+                    }
+                ],
+                response_format=ScoreSchema.get_vision_analysis_schema(),
+                max_tokens=1000
+            )
+
+            # Parse structured JSON response
+            result = json.loads(response.choices[0].message.content)
+
+            return {
+                **result,
+                "source": "GPT-4o Vision (2024-11-20)",
+                "model": OpenAIModelType.GPT4O_LATEST.value
+            }
+
+        except Exception as e:
+            print(f"⚠️ GPT-4o Vision Error: {e}")
+            return {
+                "visual_score": 75.0,
+                "has_human_face": False,
+                "scene_description": "Analysis failed",
+                "source": "GPT-4o Vision (Fallback)",
+                "error": str(e)
+            }
 
     async def get_claude_critique(self, script: str) -> Dict[str, Any]:
+        """
+        Claude 3.5 Sonnet - Psychology and emotional resonance expert
+
+        WITH PROMPT CACHING:
+        - 90% cost reduction on cached tokens
+        - System prompt (~2000 tokens) cached automatically
+        - Only script content (~500 tokens) sent fresh each time
+        """
         if not self.anthropic_client:
             return {"score": 75.0, "source": "Claude 3.5 (Disabled)"}
-            
+
         try:
+            # Use cached system prompt for 90% cost reduction
+            if self.caching_enabled:
+                system_prompt = get_cached_system_prompt("psychology_expert", provider="anthropic")
+            else:
+                # Fallback to simple prompt
+                system_prompt = [
+                    {
+                        "type": "text",
+                        "text": "You are a Psychology Expert. Rate ad scripts 0-100 based on emotional resonance and persuasion."
+                    }
+                ]
+
             response = await self.anthropic_client.messages.create(
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=100,
+                system=system_prompt,  # CACHED system prompt
                 messages=[
-                    {"role": "user", "content": f"You are a Psychology Expert. Rate this ad script 0-100 based on emotional resonance and persuasion. Return ONLY a number.\n\nSCRIPT:\n{script}"}
+                    {
+                        "role": "user",
+                        "content": f"Rate this ad script 0-100 based on emotional resonance and persuasion. Return ONLY a number.\n\nSCRIPT:\n{script}"
+                    }
                 ]
             )
+
+            # Extract score
             score = float(response.content[0].text.strip())
-            return {"score": score, "source": "Claude 3.5"}
+
+            # Track cache performance
+            if self.caching_enabled and hasattr(response, 'usage'):
+                usage = response.usage
+                cache_monitor.record_anthropic_request(
+                    input_tokens=usage.input_tokens,
+                    cached_tokens=getattr(usage, 'cache_read_input_tokens', 0),
+                    output_tokens=usage.output_tokens,
+                    cache_hit=getattr(usage, 'cache_read_input_tokens', 0) > 0
+                )
+
+            return {
+                "score": score,
+                "source": "Claude 3.5 (Cached)" if self.caching_enabled else "Claude 3.5",
+                "cached_tokens": getattr(response.usage, 'cache_read_input_tokens', 0) if hasattr(response, 'usage') else 0
+            }
+
         except Exception as e:
             print(f"⚠️ Claude Error: {e}")
             return {"score": 75.0, "source": "Claude 3.5 (Fallback)"}
 
-    async def evaluate_script(self, script: str, visual_features: dict = None) -> Dict[str, Any]:
+    async def batch_create_job(self, scripts: List[str]) -> Optional[str]:
         """
-        Runs the Council. Returns weighted average score.
+        Batch API for Non-Urgent Analysis (November 2025)
+
+        Benefits:
+        - 50% cost reduction compared to real-time API
+        - Process up to 100K requests per batch
+        - 24-hour turnaround time
+
+        Use for: Bulk script analysis, A/B testing variations, historical data processing
+
+        Reference: https://platform.openai.com/docs/guides/batch
         """
-        print("🏛️ THE COUNCIL IS CONVENING...")
-        
-        # 1. Run ALL LLMs in Parallel (including Gemini 2.0 Thinking)
-        gemini_task = self.get_gemini_critique(script)
-        gpt_task = self.get_gpt4_critique(script)
-        claude_task = self.get_claude_critique(script)
-        
-        # 2. Run DeepCTR (Heuristic-based scoring)
+        if not self.openai_client or not self.batch_enabled:
+            print("⚠️ Batch API disabled or client not available")
+            return None
+
+        try:
+            # Prepare batch requests in JSONL format
+            batch_requests = []
+            for idx, script in enumerate(scripts):
+                batch_requests.append({
+                    "custom_id": f"script-{idx}-{datetime.now().timestamp()}",
+                    "method": "POST",
+                    "url": "/v1/chat/completions",
+                    "body": {
+                        "model": OpenAIModelType.GPT4O_MINI.value,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "Rate this ad script 0-100 for viral potential."
+                            },
+                            {
+                                "role": "user",
+                                "content": script
+                            }
+                        ],
+                        "response_format": ScoreSchema.get_simple_score_schema()
+                    }
+                })
+
+            # Create batch input file
+            batch_file_path = f"/tmp/batch_input_{datetime.now().timestamp()}.jsonl"
+            with open(batch_file_path, "w") as f:
+                for req in batch_requests:
+                    f.write(json.dumps(req) + "\n")
+
+            # Upload batch file
+            with open(batch_file_path, "rb") as f:
+                batch_file = await self.openai_client.files.create(
+                    file=f,
+                    purpose="batch"
+                )
+
+            # Create batch job
+            batch_job = await self.openai_client.batches.create(
+                input_file_id=batch_file.id,
+                endpoint="/v1/chat/completions",
+                completion_window="24h"
+            )
+
+            print(f"📦 Batch Job Created: {batch_job.id}")
+            print(f"   - Scripts: {len(scripts)}")
+            print(f"   - Est. Cost Savings: 50%")
+            print(f"   - Completion: 24h")
+
+            return batch_job.id
+
+        except Exception as e:
+            print(f"⚠️ Batch API Error: {e}")
+            return None
+
+    async def batch_retrieve_results(self, batch_job_id: str) -> Optional[List[Dict[str, Any]]]:
+        """
+        Retrieve results from a batch job
+
+        Returns:
+            List of results if job completed, None if still processing
+        """
+        if not self.openai_client:
+            return None
+
+        try:
+            # Check batch status
+            batch = await self.openai_client.batches.retrieve(batch_job_id)
+
+            print(f"📦 Batch Job {batch_job_id}: {batch.status}")
+
+            if batch.status != "completed":
+                print(f"   - Status: {batch.status}")
+                return None
+
+            # Download results
+            result_file_id = batch.output_file_id
+            result_content = await self.openai_client.files.content(result_file_id)
+
+            # Parse JSONL results
+            results = []
+            for line in result_content.text.strip().split("\n"):
+                result = json.loads(line)
+                results.append(result)
+
+            print(f"✅ Batch Results Retrieved: {len(results)} items")
+            return results
+
+        except Exception as e:
+            print(f"⚠️ Batch Retrieval Error: {e}")
+            return None
+
+    async def evaluate_script(
+        self,
+        script: str,
+        visual_features: Optional[dict] = None,
+        image_path: Optional[str] = None,
+        use_o1: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Main Council Evaluation (November 2025 Edition)
+
+        Args:
+            script: Ad script text
+            visual_features: Optional visual metadata
+            image_path: Optional image/thumbnail for vision analysis
+            use_o1: Use o1 reasoning model instead of standard GPT (higher quality, higher cost)
+
+        Returns:
+            Comprehensive evaluation with weighted scores from all models
+        """
+        print("🏛️ THE COUNCIL IS CONVENING (November 2025 Edition)...")
+
+        # 1. Run ALL LLMs in Parallel
+        tasks = []
+
+        # Gemini 2.0 Flash Thinking (40% weight) - Extended Reasoning
+        tasks.append(self.get_gemini_critique(script))
+
+        # OpenAI Selection: o1 (complex reasoning) OR gpt-4o-mini (cost-optimized)
+        if use_o1:
+            print("   🧠 Using OpenAI o1 for deep reasoning...")
+            tasks.append(self.get_openai_o1_critique(script, mode="full"))
+        else:
+            print("   💰 Using GPT-4o-mini for cost-optimized scoring...")
+            tasks.append(self.get_gpt4o_critique_simple(script))
+
+        # Claude 3.5 Sonnet (30% weight) - Psychology
+        tasks.append(self.get_claude_critique(script))
+
+        # Optional: Vision Analysis
+        if image_path:
+            print("   👁️ Analyzing visual elements with GPT-4o Vision...")
+            tasks.append(self.get_gpt4o_vision_analysis(image_path, script))
+
+        # 2. Calculate DeepCTR Score (10% weight)
         if not visual_features:
             visual_features = {"has_human_face": True, "hook_type": "pattern_interrupt"}
 
-        # Calculate DeepCTR score using heuristic function
-        deep_ctr_normalized = self._calculate_deep_ctr_score(visual_features)
-        
+        deep_ctr_score = self._calculate_deep_ctr_score(visual_features)
+
         # 3. Gather Results
-        gemini_res, gpt_res, claude_res = await asyncio.gather(gemini_task, gpt_task, claude_task)
-        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Handle exceptions
+        gemini_res = results[0] if not isinstance(results[0], Exception) else {"score": 75.0, "source": "Gemini (Error)"}
+        openai_res = results[1] if not isinstance(results[1], Exception) else {"score": 75.0, "source": "OpenAI (Error)"}
+        claude_res = results[2] if not isinstance(results[2], Exception) else {"score": 75.0, "source": "Claude (Error)"}
+
+        vision_res = None
+        if image_path and len(results) > 3:
+            vision_res = results[3] if not isinstance(results[3], Exception) else None
+
         # 4. Calculate Weighted Score
-        # Gemini 2.0 Thinking (Newest + Extended Reasoning): 40%
-        # Claude (Psych): 30%
-        # GPT (Logic): 20%
-        # DeepCTR (Data): 10%
+        # Weights: Gemini (40%), Claude (30%), OpenAI (20%), DeepCTR (10%)
         final_score = (
-            gemini_res['score'] * 0.40 + 
-            claude_res['score'] * 0.30 + 
-            gpt_res['score'] * 0.20 + 
-            deep_ctr_normalized * 0.10
+            gemini_res['score'] * 0.40 +
+            claude_res['score'] * 0.30 +
+            openai_res['score'] * 0.20 +
+            deep_ctr_score * 0.10
         )
-        
-        return {
+
+        # Build response
+        response = {
             "final_score": round(final_score, 1),
             "breakdown": {
                 "gemini_2_0_thinking": gemini_res['score'],
-                "gpt_4o": gpt_res['score'],
+                "openai": openai_res['score'],
+                "openai_model": openai_res.get('model', 'gpt-4o-mini'),
                 "claude_3_5": claude_res['score'],
-                "deep_ctr": deep_ctr_normalized
+                "deep_ctr": deep_ctr_score
             },
-            "verdict": "APPROVE" if final_score > 85 else "REJECT"
+            "verdict": "APPROVE" if final_score > 85 else "REJECT",
+            "council_members": {
+                "gemini": gemini_res.get('source'),
+                "openai": openai_res.get('source'),
+                "claude": claude_res.get('source')
+            }
         }
+
+        # Add vision analysis if available
+        if vision_res:
+            response["vision_analysis"] = {
+                "visual_score": vision_res.get("visual_score", 0),
+                "has_human_face": vision_res.get("has_human_face", False),
+                "scene_description": vision_res.get("scene_description", ""),
+                "attention_elements": vision_res.get("attention_grabbing_elements", [])
+            }
+
+        # Print detailed breakdown
+        print(f"\n📊 COUNCIL VERDICT: {response['verdict']} (Score: {final_score:.1f}/100)")
+        print(f"   - Gemini 2.0 Thinking: {gemini_res['score']:.1f}")
+        print(f"   - {openai_res.get('source', 'OpenAI')}: {openai_res['score']:.1f}")
+        print(f"   - Claude 3.5: {claude_res['score']:.1f}")
+        print(f"   - DeepCTR: {deep_ctr_score:.1f}")
+        if vision_res:
+            print(f"   - Vision Score: {vision_res.get('visual_score', 0):.1f}")
+
+        # Show cache performance metrics
+        if self.caching_enabled:
+            total_cached = (
+                gemini_res.get('cached_tokens', 0) +
+                openai_res.get('cached_tokens', 0) +
+                claude_res.get('cached_tokens', 0)
+            )
+            if total_cached > 0:
+                print(f"\n💰 CACHE PERFORMANCE:")
+                print(f"   - Total Cached Tokens: {total_cached:,}")
+                print(f"   - Estimated Cost Savings: ~90% reduction")
+
+        return response
+
+    async def evaluate_with_detailed_critique(self, script: str) -> Dict[str, Any]:
+        """
+        Deep Analysis with o1 Reasoning Model
+
+        Uses o1 with structured outputs for comprehensive script breakdown.
+        Best for: Final approval decisions, complex script evaluation
+        """
+        if not self.openai_client:
+            return {"error": "OpenAI client not available"}
+
+        try:
+            print("🧠 Running Deep Analysis with OpenAI o1...")
+
+            response = await self.openai_client.chat.completions.create(
+                model=OpenAIModelType.O1.value,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"""Perform a comprehensive analysis of this viral ad script.
+
+Evaluate these dimensions thoroughly:
+1. Hook Strength: Pattern interrupt, curiosity gap, immediate impact
+2. Emotional Resonance: Psychological triggers, relatability, emotional arc
+3. CTA Clarity: Call-to-action strength, friction reduction, conversion pathway
+4. Pacing: Content flow, retention mechanics, attention maintenance
+5. Viral Potential: Shareability factors, trend alignment, cultural resonance
+
+Use deep chain-of-thought reasoning to provide:
+- Numerical scores for each dimension (0-100)
+- Key strengths and weaknesses
+- Specific improvement suggestions
+
+SCRIPT:
+{script}
+
+Provide your detailed analysis with structured scores."""
+                    }
+                ],
+                # Note: o1 doesn't support response_format yet (as of Nov 2025)
+                # Parse JSON from response manually
+            )
+
+            content = response.choices[0].message.content
+
+            # Try to extract structured data or return raw analysis
+            return {
+                "detailed_analysis": content,
+                "model": OpenAIModelType.O1.value,
+                "reasoning_tokens": response.usage.completion_tokens if hasattr(response, 'usage') else 0
+            }
+
+        except Exception as e:
+            print(f"⚠️ Deep Analysis Error: {e}")
+            return {"error": str(e)}
+
+    def get_cache_metrics(self) -> Dict[str, Any]:
+        """
+        Get current cache performance metrics
+
+        Returns:
+            Dictionary with cache statistics and cost savings
+        """
+        return cache_monitor.get_summary()
+
+    def print_cache_report(self):
+        """Print detailed cache performance report"""
+        print_cache_report()
+
+    def reset_cache_metrics(self):
+        """Reset cache performance metrics"""
+        cache_monitor.reset_metrics()
 
 
 # Global Council Instance

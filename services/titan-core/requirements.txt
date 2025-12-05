@@ -30,7 +30,7 @@ mediapipe
 
 # AI APIs
 openai>=1.6.1
-anthropic>=0.8.1
+anthropic>=0.40.0  # Latest SDK for Claude 4 Opus, extended thinking, prompt caching
 # pyautogen>=0.2.8
 autogen-agentchat==0.4.4
 autogen-core==0.4.4
@@ -42,3 +42,4 @@ tiktoken>=0.8.0
 
 # HTTP
 requests==2.31.0
+httpx>=0.25.0  # For async HTTP in routing

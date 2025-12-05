@@ -1,0 +1,23 @@
+# AI Image Generation Requirements
+# Agent 37: FLUX.1, DALL-E 3, Imagen 3, SDXL Turbo
+
+# Core dependencies
+pillow>=10.0.0              # Image processing
+aiohttp>=3.9.0             # Async HTTP requests
+asyncio-throttle>=1.0.2    # Rate limiting
+
+# OpenAI for DALL-E 3
+openai>=1.0.0              # DALL-E 3 API
+
+# Replicate for FLUX.1 and SDXL
+replicate>=0.20.0          # FLUX.1 Pro/Dev/Schnell, SDXL Turbo
+
+# Together AI (alternative FLUX provider)
+together>=0.2.0            # FLUX.1 alternative
+
+# Google Cloud for Imagen 3
+google-cloud-aiplatform>=1.38.0   # Vertex AI / Imagen 3
+
+# Already in other requirements
+# google-cloud-storage (for asset storage)
+# numpy (for embeddings)
