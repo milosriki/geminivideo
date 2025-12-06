@@ -990,6 +990,100 @@ async def get_feedback_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/ml/thompson/optimize")
+async def run_thompson_optimization(total_budget: float = 10000.0):
+    """
+    Run Thompson Sampling optimization (100% Thompson Integration)
+
+    This automatically:
+    1. Analyzes all variant performance from CAPI data
+    2. Reallocates budget to winners using Thompson Sampling
+    3. Identifies and flags losers for kill switch
+
+    Call daily or after significant data collection.
+    """
+    try:
+        from src.capi_feedback_loop import daily_thompson_optimization_job
+        result = await daily_thompson_optimization_job(total_budget)
+        return result
+    except Exception as e:
+        logger.error(f"Thompson optimization error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/thompson/status")
+async def get_thompson_status():
+    """
+    Get full Thompson Sampling status (100% Thompson Integration)
+
+    Returns:
+    - All variant stats with confidence intervals
+    - Best/worst performers
+    - Learning progress
+    - Budget allocation recommendations
+    """
+    try:
+        all_variants = thompson_optimizer.get_all_variants_stats()
+
+        if not all_variants:
+            return {
+                "status": "no_variants",
+                "message": "No variants registered. Variants are auto-registered from CAPI events.",
+                "variants": []
+            }
+
+        best = thompson_optimizer.get_best_variant()
+
+        # Calculate learning progress
+        total_events = sum(v.get('total_events', 0) for v in all_variants)
+        avg_confidence = sum(
+            1 - (v['ctr_ci_upper'] - v['ctr_ci_lower'])
+            for v in all_variants
+        ) / len(all_variants)
+
+        return {
+            "status": "active",
+            "total_variants": len(all_variants),
+            "total_events": total_events,
+            "learning_progress": {
+                "events_collected": total_events,
+                "avg_confidence": avg_confidence,
+                "ready_for_decision": total_events >= 100 and avg_confidence >= 0.7
+            },
+            "best_variant": {
+                "id": best['id'],
+                "estimated_ctr": best['estimated_ctr'],
+                "confidence_interval": [best['ctr_ci_lower'], best['ctr_ci_upper']],
+                "total_events": best['total_events']
+            },
+            "all_variants": all_variants,
+            "recommendation": _get_thompson_recommendation(all_variants, best)
+        }
+
+    except Exception as e:
+        logger.error(f"Thompson status error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _get_thompson_recommendation(variants: list, best: dict) -> str:
+    """Generate human-readable recommendation based on Thompson state"""
+    total_events = sum(v.get('total_events', 0) for v in variants)
+
+    if total_events < 50:
+        return f"Collecting data ({total_events}/50 events). Keep all variants active."
+    elif total_events < 100:
+        return f"Learning phase ({total_events}/100 events). Thompson is exploring."
+    else:
+        # Check if best is statistically significant
+        best_lower = best['ctr_ci_lower']
+        losers = [v for v in variants if v['ctr_ci_upper'] < best_lower]
+
+        if losers:
+            return f"RECOMMENDATION: Kill {len(losers)} loser(s) and reallocate budget to '{best['id']}'"
+        else:
+            return f"No clear winner yet. Best is '{best['id']}' but confidence intervals overlap."
+
+
 @app.post("/api/ml/check-retrain")
 async def check_and_retrain_model():
     """

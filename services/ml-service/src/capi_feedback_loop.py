@@ -26,6 +26,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
 from sqlalchemy import select, and_, update
 from db.models import PredictionRecord, CampaignActuals
 
+# Import Thompson Sampling for auto-update on CAPI events
+try:
+    from .thompson_sampler import thompson_optimizer
+    THOMPSON_AVAILABLE = True
+except ImportError:
+    thompson_optimizer = None
+    THOMPSON_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -122,6 +130,49 @@ class CAPIFeedbackLoop:
         if campaign_id:
             await self._update_campaign_actuals(campaign_id, event)
 
+        # AUTO-UPDATE THOMPSON SAMPLING with real conversion data
+        # This is the critical wiring that closes the learning loop
+        if THOMPSON_AVAILABLE and thompson_optimizer:
+            variant_id = creative_id or campaign_id
+            if variant_id:
+                try:
+                    # Determine reward based on event type and value
+                    # Purchase/Lead with value > 0 = success (reward = 1)
+                    # No conversion = failure (reward = 0)
+                    is_conversion = event.event_name in ['Purchase', 'Lead', 'CompleteRegistration', 'Subscribe']
+                    reward = 1.0 if (is_conversion and event.value > 0) else 0.0
+
+                    # Check if variant is registered, if not register it
+                    if variant_id not in thompson_optimizer.variants:
+                        thompson_optimizer.register_variant(
+                            variant_id=variant_id,
+                            metadata={
+                                'campaign_id': campaign_id,
+                                'creative_id': creative_id,
+                                'registered_from': 'capi_auto'
+                            }
+                        )
+
+                    # Update Thompson Sampling with real conversion data
+                    thompson_optimizer.update(
+                        variant_id=variant_id,
+                        reward=reward,
+                        cost=0.0,  # Cost comes from Meta API separately
+                        context={
+                            'event_name': event.event_name,
+                            'action_source': event.action_source
+                        },
+                        metrics={
+                            'conversions': 1 if is_conversion else 0,
+                            'revenue': event.value
+                        }
+                    )
+
+                    logger.info(f"Thompson Sampling updated: variant={variant_id}, reward={reward}, value=${event.value}")
+
+                except Exception as e:
+                    logger.error(f"Failed to update Thompson Sampling: {e}")
+
         logger.info(f"Processed CAPI event: {event.event_name} - ${event.value}")
 
         return {
@@ -129,7 +180,8 @@ class CAPIFeedbackLoop:
             'event_id': event.event_id,
             'campaign_id': campaign_id,
             'creative_id': creative_id,
-            'value': event.value
+            'value': event.value,
+            'thompson_updated': THOMPSON_AVAILABLE
         }
 
     async def _extract_campaign_id(self, event: CAPIConversionEvent) -> Optional[str]:
@@ -328,3 +380,68 @@ async def daily_retrain_job(db_session):
     else:
         logger.info("Daily retrain skipped - conditions not met")
         return {'status': 'skipped'}
+
+
+async def daily_thompson_optimization_job(total_budget: float = 10000.0):
+    """
+    Run daily to optimize budget allocation using Thompson Sampling.
+
+    This automatically:
+    1. Analyzes all variant performance
+    2. Reallocates budget to winners
+    3. Identifies and flags losers for kill switch
+
+    Schedule with cron:
+    0 3 * * * python -c "from capi_feedback_loop import daily_thompson_optimization_job; asyncio.run(daily_thompson_optimization_job(10000))"
+    """
+    if not THOMPSON_AVAILABLE or not thompson_optimizer:
+        logger.warning("Thompson Sampling not available for optimization")
+        return {'status': 'skipped', 'reason': 'thompson_not_available'}
+
+    try:
+        # Get all variant stats
+        all_variants = thompson_optimizer.get_all_variants_stats()
+
+        if not all_variants:
+            logger.info("No variants to optimize")
+            return {'status': 'skipped', 'reason': 'no_variants'}
+
+        # Reallocate budget based on Thompson Sampling scores
+        allocations = thompson_optimizer.reallocate_budget(
+            total_budget=total_budget,
+            min_budget_per_variant=total_budget * 0.05  # 5% minimum per variant
+        )
+
+        # Get best and worst performers
+        best_variant = thompson_optimizer.get_best_variant()
+
+        # Identify losers (variants with low probability of being best)
+        losers = []
+        for variant in all_variants:
+            # If expected CTR < 50% of best, flag as loser
+            best_ctr = best_variant['estimated_ctr']
+            if variant['estimated_ctr'] < best_ctr * 0.5:
+                losers.append({
+                    'variant_id': variant['id'],
+                    'estimated_ctr': variant['estimated_ctr'],
+                    'reason': f"CTR {variant['estimated_ctr']:.2%} < 50% of best ({best_ctr:.2%})"
+                })
+
+        logger.info(f"Thompson optimization complete: {len(allocations)} variants, {len(losers)} losers")
+
+        return {
+            'status': 'success',
+            'total_variants': len(all_variants),
+            'budget_allocations': allocations,
+            'best_variant': {
+                'id': best_variant['id'],
+                'estimated_ctr': best_variant['estimated_ctr'],
+                'allocated_budget': allocations.get(best_variant['id'], 0)
+            },
+            'losers_flagged': losers,
+            'timestamp': datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Thompson optimization failed: {e}")
+        return {'status': 'error', 'error': str(e)}
