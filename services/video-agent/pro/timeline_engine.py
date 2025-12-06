@@ -1032,6 +1032,182 @@ class Timeline:
         """Convert frame number to time"""
         return frame / self.frame_rate
 
+    # ==================== Beat Sync Integration ====================
+
+    def apply_beat_sync(
+        self,
+        sync_points: List,
+        track_id: str,
+        snap_tolerance: float = 0.05,
+        add_transitions: bool = True,
+        transition_duration: float = 0.5
+    ) -> Dict[str, Any]:
+        """
+        Align cuts/transitions to beat positions
+
+        Takes sync points from precision_av_sync and adjusts clip positions
+        to align with audio beats for beat-matched editing.
+
+        Args:
+            sync_points: List of SyncPoint objects from precision_av_sync
+            track_id: Track to apply beat sync to
+            snap_tolerance: How close clips need to be to snap to beat (seconds)
+            add_transitions: Whether to add transitions at beat points
+            transition_duration: Duration of transitions in seconds
+
+        Returns:
+            Dict with:
+                - adjusted_clips: Number of clips adjusted
+                - snapped_to_beats: Number of beats used for snapping
+                - transitions_added: Number of transitions added
+                - sync_quality: Overall sync quality score
+        """
+        track = self.get_track(track_id)
+        if not track or track.locked:
+            return {
+                "status": "failed",
+                "error": "Track not found or locked"
+            }
+
+        # Extract beat timestamps from sync points
+        beat_times = []
+        for sp in sync_points:
+            # Use audio peaks that are beats
+            if hasattr(sp, 'audio_peak') and sp.audio_peak.peak_type == 'beat':
+                beat_times.append(sp.audio_peak.timestamp)
+
+        if not beat_times:
+            # Fallback: use all audio timestamps
+            for sp in sync_points:
+                if hasattr(sp, 'audio_peak'):
+                    beat_times.append(sp.audio_peak.timestamp)
+
+        beat_times.sort()
+
+        if not beat_times:
+            return {
+                "status": "failed",
+                "error": "No beat times found in sync points"
+            }
+
+        adjusted_count = 0
+        snapped_count = 0
+        transitions_added = 0
+
+        # Adjust clip positions to align with beats
+        for clip in track.clips:
+            if clip.locked:
+                continue
+
+            # Find nearest beat to clip start
+            nearest_beat = min(beat_times, key=lambda t: abs(t - clip.start_time))
+            distance = abs(nearest_beat - clip.start_time)
+
+            # Snap to beat if within tolerance
+            if distance <= snap_tolerance:
+                clip.start_time = nearest_beat
+                adjusted_count += 1
+                snapped_count += 1
+
+            # Also check clip end
+            nearest_end_beat = min(beat_times, key=lambda t: abs(t - clip.end_time))
+            end_distance = abs(nearest_end_beat - clip.end_time)
+
+            if end_distance <= snap_tolerance:
+                # Adjust duration to snap end to beat
+                new_duration = nearest_end_beat - clip.start_time
+                if new_duration > 0:
+                    clip.duration = new_duration
+                    adjusted_count += 1
+
+        # Add transitions at beat points if requested
+        if add_transitions:
+            # Sort clips by start time
+            track._sort_clips()
+
+            for i in range(len(track.clips) - 1):
+                current_clip = track.clips[i]
+                next_clip = track.clips[i + 1]
+
+                # Check if there's a beat near the transition point
+                transition_point = current_clip.end_time
+                nearest_beat = min(beat_times, key=lambda t: abs(t - transition_point))
+
+                if abs(nearest_beat - transition_point) <= snap_tolerance:
+                    # Add transition
+                    transition = Transition(
+                        type=TransitionType.DISSOLVE,
+                        duration=min(transition_duration, current_clip.duration / 2, next_clip.duration / 2),
+                        from_clip_id=current_clip.id,
+                        to_clip_id=next_clip.id
+                    )
+                    self.transitions.append(transition)
+                    transitions_added += 1
+
+        # Calculate sync quality
+        total_clips = len([c for c in track.clips if not c.locked])
+        sync_quality = adjusted_count / total_clips if total_clips > 0 else 0
+
+        return {
+            "status": "success",
+            "adjusted_clips": adjusted_count,
+            "snapped_to_beats": snapped_count,
+            "transitions_added": transitions_added,
+            "sync_quality": sync_quality,
+            "total_beats_available": len(beat_times),
+            "track_id": track_id
+        }
+
+    def align_clips_to_beats(
+        self,
+        beat_times: List[float],
+        track_id: str,
+        strategy: str = "nearest"
+    ) -> int:
+        """
+        Align all clips in track to beat positions
+
+        Args:
+            beat_times: List of beat timestamps in seconds
+            track_id: Track to align
+            strategy: Alignment strategy ("nearest", "earlier", "later")
+
+        Returns:
+            Number of clips aligned
+        """
+        track = self.get_track(track_id)
+        if not track or track.locked:
+            return 0
+
+        aligned_count = 0
+
+        for clip in track.clips:
+            if clip.locked:
+                continue
+
+            if strategy == "nearest":
+                # Find nearest beat
+                nearest_beat = min(beat_times, key=lambda t: abs(t - clip.start_time))
+                clip.start_time = nearest_beat
+                aligned_count += 1
+
+            elif strategy == "earlier":
+                # Find nearest earlier beat
+                earlier_beats = [t for t in beat_times if t <= clip.start_time]
+                if earlier_beats:
+                    clip.start_time = max(earlier_beats)
+                    aligned_count += 1
+
+            elif strategy == "later":
+                # Find nearest later beat
+                later_beats = [t for t in beat_times if t >= clip.start_time]
+                if later_beats:
+                    clip.start_time = min(later_beats)
+                    aligned_count += 1
+
+        track._sort_clips()
+        return aligned_count
+
     # ==================== Serialization ====================
 
     def serialize(self) -> str:

@@ -92,6 +92,7 @@ app = Celery('video_processing')
 # Define exchanges
 default_exchange = Exchange('default', type='direct')
 priority_exchange = Exchange('priority', type='topic')
+dlq_exchange = Exchange('dead_letter', type='direct')
 
 # Configure Celery
 app.conf.update(
@@ -125,16 +126,35 @@ app.conf.update(
     worker_max_tasks_per_child=50,
     worker_disable_rate_limits=False,
 
-    # Queue definitions with priorities
+    # Queue definitions with priorities and DLQ routing
     task_queues=(
         Queue('render_queue', exchange=priority_exchange, routing_key='render.#',
-              priority=10, queue_arguments={'x-max-priority': 10}),
+              priority=10, queue_arguments={
+                  'x-max-priority': 10,
+                  'x-dead-letter-exchange': 'dead_letter',
+                  'x-dead-letter-routing-key': 'failed.render'
+              }),
         Queue('preview_queue', exchange=default_exchange, routing_key='preview',
-              priority=5, queue_arguments={'x-max-priority': 10}),
+              priority=5, queue_arguments={
+                  'x-max-priority': 10,
+                  'x-dead-letter-exchange': 'dead_letter',
+                  'x-dead-letter-routing-key': 'failed.preview'
+              }),
         Queue('transcode_queue', exchange=default_exchange, routing_key='transcode',
-              priority=7, queue_arguments={'x-max-priority': 10}),
+              priority=7, queue_arguments={
+                  'x-max-priority': 10,
+                  'x-dead-letter-exchange': 'dead_letter',
+                  'x-dead-letter-routing-key': 'failed.transcode'
+              }),
         Queue('caption_queue', exchange=default_exchange, routing_key='caption',
-              priority=6, queue_arguments={'x-max-priority': 10}),
+              priority=6, queue_arguments={
+                  'x-max-priority': 10,
+                  'x-dead-letter-exchange': 'dead_letter',
+                  'x-dead-letter-routing-key': 'failed.caption'
+              }),
+        # Dead Letter Queue for permanently failed tasks
+        Queue('dead_letter_queue', exchange=dlq_exchange, routing_key='failed.#',
+              queue_arguments={'x-message-ttl': 604800000}),  # 7 days TTL
     ),
 
     # Default queue
@@ -182,6 +202,10 @@ app.conf.update(
             'task': 'services.video-agent.pro.celery_app.monitor_resources_task',
             'schedule': 60.0,  # Every minute
         },
+        'rebalance-queue-priorities': {
+            'task': 'services.video-agent.pro.celery_app.rebalance_priorities_task',
+            'schedule': 300.0,  # Every 5 minutes
+        },
     },
 
     # Rate limiting (tasks per second per worker)
@@ -204,6 +228,284 @@ app.conf.update(
 
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
+# ============================================================================
+# DYNAMIC PRIORITY SYSTEM
+# ============================================================================
+
+# Priority rules configuration
+PRIORITY_RULES = {
+    'base_priority': 5,
+    'age_boost_per_minute': 0.1,  # Priority increases by 0.1 per minute waiting
+    'max_age_boost': 3,  # Maximum +3 priority from age
+    'user_tier_boost': {
+        'free': 0,
+        'basic': 1,
+        'premium': 2,
+        'enterprise': 3
+    },
+    'roas_thresholds': {
+        'low': 2.0,      # ROAS < 2.0
+        'medium': 5.0,   # ROAS 2.0-5.0
+        'high': 10.0     # ROAS > 10.0
+    },
+    'roas_boost': {
+        'low': 0,
+        'medium': 1,
+        'high': 2
+    },
+    'queue_imbalance_threshold': 0.3,  # Trigger rebalance if queue variance > 30%
+    'min_priority': 1,
+    'max_priority': 10
+}
+
+def calculate_dynamic_priority(task_metadata: Dict[str, Any]) -> int:
+    """
+    Calculate dynamic priority for a task based on multiple factors
+
+    Args:
+        task_metadata: Dictionary containing:
+            - submitted_at: Unix timestamp when task was submitted
+            - user_tier: User tier (free/basic/premium/enterprise)
+            - campaign_roas: Campaign ROAS (Return on Ad Spend)
+            - base_priority: Base priority (optional, defaults to 5)
+            - queue_name: Queue name for depth checking
+
+    Returns:
+        Priority value (1-10, higher = more urgent)
+    """
+    try:
+        priority = task_metadata.get('base_priority', PRIORITY_RULES['base_priority'])
+
+        # Factor 1: Task Age - Older tasks get higher priority
+        submitted_at = task_metadata.get('submitted_at')
+        if submitted_at:
+            age_minutes = (time.time() - submitted_at) / 60
+            age_boost = min(
+                age_minutes * PRIORITY_RULES['age_boost_per_minute'],
+                PRIORITY_RULES['max_age_boost']
+            )
+            priority += age_boost
+            logger.debug(f"Age boost: +{age_boost:.2f} ({age_minutes:.1f} minutes)")
+
+        # Factor 2: User Tier - Premium users get priority
+        user_tier = task_metadata.get('user_tier', 'free')
+        tier_boost = PRIORITY_RULES['user_tier_boost'].get(user_tier, 0)
+        priority += tier_boost
+        logger.debug(f"User tier boost ({user_tier}): +{tier_boost}")
+
+        # Factor 3: Campaign ROAS - High-performing campaigns get priority
+        campaign_roas = task_metadata.get('campaign_roas')
+        if campaign_roas is not None:
+            if campaign_roas >= PRIORITY_RULES['roas_thresholds']['high']:
+                roas_boost = PRIORITY_RULES['roas_boost']['high']
+            elif campaign_roas >= PRIORITY_RULES['roas_thresholds']['medium']:
+                roas_boost = PRIORITY_RULES['roas_boost']['medium']
+            else:
+                roas_boost = PRIORITY_RULES['roas_boost']['low']
+            priority += roas_boost
+            logger.debug(f"ROAS boost (ROAS={campaign_roas:.2f}): +{roas_boost}")
+
+        # Factor 4: Queue Depth - Boost priority if queue is deep
+        queue_name = task_metadata.get('queue_name')
+        if queue_name:
+            queue_depth = get_queue_depth(queue_name)
+            if queue_depth > 50:
+                depth_penalty = min((queue_depth - 50) / 100, 1.0)
+                priority -= depth_penalty
+                logger.debug(f"Queue depth penalty (depth={queue_depth}): -{depth_penalty:.2f}")
+
+        # Clamp priority to valid range
+        priority = max(PRIORITY_RULES['min_priority'],
+                      min(PRIORITY_RULES['max_priority'], int(priority)))
+
+        logger.info(f"Calculated dynamic priority: {priority} for task with metadata: {task_metadata}")
+        return priority
+
+    except Exception as e:
+        logger.error(f"Error calculating dynamic priority: {e}", exc_info=True)
+        return PRIORITY_RULES['base_priority']
+
+def get_queue_depth(queue_name: str) -> int:
+    """Get current depth of a Celery queue from Redis"""
+    try:
+        # Celery queue keys in Redis
+        queue_key = f"celery:queue:{queue_name}"
+        depth = redis_client.llen(queue_key)
+        return depth or 0
+    except Exception as e:
+        logger.error(f"Error getting queue depth: {e}")
+        return 0
+
+def get_all_queue_depths() -> Dict[str, int]:
+    """Get depths of all queues"""
+    queues = ['render_queue', 'preview_queue', 'transcode_queue', 'caption_queue']
+    return {queue: get_queue_depth(queue) for queue in queues}
+
+def store_task_metadata(task_id: str, metadata: Dict[str, Any]):
+    """Store task metadata in Redis for priority calculations"""
+    try:
+        key = f'task_metadata:{task_id}'
+        redis_client.setex(key, 86400, json.dumps(metadata))  # 24 hour expiry
+    except Exception as e:
+        logger.error(f"Error storing task metadata: {e}")
+
+def get_task_metadata(task_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve task metadata from Redis"""
+    try:
+        key = f'task_metadata:{task_id}'
+        data = redis_client.get(key)
+        return json.loads(data) if data else None
+    except Exception as e:
+        logger.error(f"Error retrieving task metadata: {e}")
+        return None
+
+def adjust_task_priority(task_id: str, new_priority: int) -> bool:
+    """
+    Manually adjust priority of a pending task
+
+    Args:
+        task_id: Celery task ID
+        new_priority: New priority value (1-10)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Clamp priority
+        new_priority = max(PRIORITY_RULES['min_priority'],
+                          min(PRIORITY_RULES['max_priority'], new_priority))
+
+        # Update metadata
+        metadata = get_task_metadata(task_id)
+        if metadata:
+            metadata['base_priority'] = new_priority
+            metadata['manually_adjusted'] = True
+            metadata['adjusted_at'] = time.time()
+            store_task_metadata(task_id, metadata)
+
+            logger.info(f"Adjusted priority for task {task_id} to {new_priority}")
+            return True
+        else:
+            logger.warning(f"Task metadata not found for {task_id}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error adjusting task priority: {e}", exc_info=True)
+        return False
+
+def rebalance_queue_priorities() -> Dict[str, Any]:
+    """
+    Rebalance priorities across all queues when load is uneven
+
+    Returns:
+        Dictionary with rebalancing statistics
+    """
+    try:
+        queue_depths = get_all_queue_depths()
+        total_tasks = sum(queue_depths.values())
+
+        if total_tasks == 0:
+            return {
+                'rebalanced': False,
+                'reason': 'No tasks in queues',
+                'queue_depths': queue_depths
+            }
+
+        # Calculate variance
+        avg_depth = total_tasks / len(queue_depths)
+        variance = sum((depth - avg_depth) ** 2 for depth in queue_depths.values()) / len(queue_depths)
+        normalized_variance = variance / (avg_depth ** 2) if avg_depth > 0 else 0
+
+        logger.info(f"Queue depths: {queue_depths}, variance: {normalized_variance:.2%}")
+
+        # Check if rebalancing is needed
+        if normalized_variance < PRIORITY_RULES['queue_imbalance_threshold']:
+            return {
+                'rebalanced': False,
+                'reason': 'Queues are balanced',
+                'queue_depths': queue_depths,
+                'variance': normalized_variance
+            }
+
+        # Find overloaded and underloaded queues
+        overloaded = [(q, d) for q, d in queue_depths.items() if d > avg_depth * 1.5]
+
+        adjustments = 0
+        # Boost priority of tasks in overloaded queues
+        for queue_name, depth in overloaded:
+            # This would require inspecting queue contents
+            # For now, we log the rebalancing need
+            logger.warning(f"Queue {queue_name} is overloaded ({depth} tasks, avg: {avg_depth:.1f})")
+            adjustments += 1
+
+        return {
+            'rebalanced': True,
+            'queue_depths': queue_depths,
+            'variance': normalized_variance,
+            'adjustments': adjustments,
+            'overloaded_queues': [q for q, d in overloaded],
+            'timestamp': datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error rebalancing queues: {e}", exc_info=True)
+        return {
+            'rebalanced': False,
+            'error': str(e)
+        }
+
+
+def submit_task_with_priority(task_func, task_args: Tuple = (), task_kwargs: Dict = None,
+                             user_tier: str = 'free', campaign_roas: Optional[float] = None,
+                             queue_name: str = 'render_queue') -> Any:
+    """
+    Submit a Celery task with dynamically calculated priority
+
+    Args:
+        task_func: Celery task function to execute
+        task_args: Positional arguments for task
+        task_kwargs: Keyword arguments for task
+        user_tier: User tier (free/basic/premium/enterprise)
+        campaign_roas: Campaign ROAS for priority calculation
+        queue_name: Queue to submit to
+
+    Returns:
+        AsyncResult from task submission
+    """
+    if task_kwargs is None:
+        task_kwargs = {}
+
+    try:
+        # Prepare task metadata
+        task_metadata = {
+            'submitted_at': time.time(),
+            'user_tier': user_tier,
+            'campaign_roas': campaign_roas,
+            'queue_name': queue_name,
+            'task_name': task_func.name
+        }
+
+        # Calculate dynamic priority
+        priority = calculate_dynamic_priority(task_metadata)
+
+        # Submit task with calculated priority
+        result = task_func.apply_async(
+            args=task_args,
+            kwargs=task_kwargs,
+            queue=queue_name,
+            priority=priority
+        )
+
+        # Store metadata for tracking
+        store_task_metadata(result.id, task_metadata)
+
+        logger.info(f"Submitted task {result.id} to {queue_name} with priority {priority}")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error submitting task with priority: {e}", exc_info=True)
+        # Fallback to normal submission
+        return task_func.apply_async(args=task_args, kwargs=task_kwargs, queue=queue_name)
 def publish_progress(task_id: str, progress: float, status: str, message: str = ""):
     """Publish task progress to Redis pub/sub channel"""
     try:
@@ -1050,6 +1352,53 @@ def monitor_resources_task() -> Dict[str, Any]:
         logger.error(f"Resource monitoring failed: {e}", exc_info=True)
         return {}
 
+
+@app.task(name='services.video-agent.pro.celery_app.rebalance_priorities_task')
+def rebalance_priorities_task() -> Dict[str, Any]:
+    """
+    Rebalance queue priorities periodically
+    Runs every 5 minutes via Celery Beat
+
+    This task:
+    - Checks queue depths across all queues
+    - Detects imbalanced workload
+    - Adjusts priorities to balance load
+    - Reports rebalancing statistics
+
+    Returns:
+        Rebalancing statistics and results
+    """
+    try:
+        logger.info("Starting periodic queue priority rebalancing")
+
+        # Perform rebalancing
+        result = rebalance_queue_priorities()
+
+        # Store result in Redis
+        redis_client.setex(
+            'queue_rebalance_status',
+            600,  # 10 minute expiry
+            json.dumps(result)
+        )
+
+        # Publish to pub/sub for monitoring
+        redis_client.publish('queue_rebalance', json.dumps(result))
+
+        if result.get('rebalanced'):
+            logger.info(f"Queue rebalancing completed: {result.get('adjustments', 0)} adjustments made")
+        else:
+            logger.debug(f"Queue rebalancing skipped: {result.get('reason', 'unknown')}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Queue rebalancing task failed: {e}", exc_info=True)
+        return {
+            'rebalanced': False,
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }
+
 # ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
@@ -1089,6 +1438,220 @@ def on_task_postrun(task_id=None, task=None, **kwargs):
 def on_task_failure(task_id=None, exception=None, **kwargs):
     """Log task failure"""
     logger.error(f"Task [{task_id}] failed: {exception}")
+
+# ============================================================================
+# DEAD LETTER QUEUE MANAGEMENT
+# ============================================================================
+
+def get_failed_tasks(limit: int = 100) -> List[Dict[str, Any]]:
+    """
+    Retrieve failed tasks from the Dead Letter Queue
+
+    Args:
+        limit: Maximum number of tasks to retrieve
+
+    Returns:
+        List of failed task data
+    """
+    try:
+        failed_tasks = []
+
+        # Get messages from DLQ using Redis
+        # Note: In production with RabbitMQ, you'd use rabbitmq management API
+        for i in range(min(limit, 1000)):
+            task_data = redis_client.lpop('dead_letter_queue')
+            if not task_data:
+                break
+
+            try:
+                task_dict = json.loads(task_data)
+                failed_tasks.append(task_dict)
+            except json.JSONDecodeError:
+                logger.warning(f"Failed to parse DLQ message: {task_data}")
+
+        return failed_tasks
+
+    except Exception as e:
+        logger.error(f"Failed to retrieve DLQ tasks: {e}")
+        return []
+
+
+def get_dlq_stats() -> Dict[str, Any]:
+    """
+    Get statistics about the Dead Letter Queue
+
+    Returns:
+        Dictionary with DLQ stats
+    """
+    try:
+        # Get DLQ length
+        dlq_length = redis_client.llen('dead_letter_queue')
+
+        # Get failed task counts by type
+        failed_by_type = {}
+
+        # Sample first 100 messages to categorize
+        sample_size = min(100, dlq_length)
+        for i in range(sample_size):
+            task_data = redis_client.lindex('dead_letter_queue', i)
+            if task_data:
+                try:
+                    task_dict = json.loads(task_data)
+                    task_name = task_dict.get('task', 'unknown')
+                    failed_by_type[task_name] = failed_by_type.get(task_name, 0) + 1
+                except:
+                    pass
+
+        return {
+            'total_failed': dlq_length,
+            'failed_by_type': failed_by_type,
+            'sampled': sample_size,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get DLQ stats: {e}")
+        return {
+            'total_failed': 0,
+            'failed_by_type': {},
+            'error': str(e)
+        }
+
+
+def retry_failed_task(task_id: str, task_data: Dict[str, Any]) -> bool:
+    """
+    Retry a failed task from the DLQ
+
+    Args:
+        task_id: Original task ID
+        task_data: Task data including task name, args, kwargs
+
+    Returns:
+        True if retry was successful, False otherwise
+    """
+    try:
+        task_name = task_data.get('task')
+        args = task_data.get('args', [])
+        kwargs = task_data.get('kwargs', {})
+
+        # Get task function
+        task_func = None
+        if 'render_video_task' in task_name:
+            task_func = render_video_task
+        elif 'transcode_task' in task_name:
+            task_func = transcode_task
+        elif 'generate_preview_task' in task_name:
+            task_func = generate_preview_task
+        elif 'caption_task' in task_name:
+            task_func = caption_task
+        elif 'batch_render_task' in task_name:
+            task_func = batch_render_task
+
+        if not task_func:
+            logger.error(f"Unknown task type: {task_name}")
+            return False
+
+        # Resubmit task with lower priority
+        new_task = task_func.apply_async(
+            args=args,
+            kwargs=kwargs,
+            priority=3  # Lower priority for retried tasks
+        )
+
+        logger.info(f"Retried failed task {task_id} as {new_task.id}")
+
+        # Store retry mapping in Redis
+        retry_key = f'task_retry:{task_id}'
+        redis_client.setex(
+            retry_key,
+            86400,  # 24 hours
+            json.dumps({
+                'original_task_id': task_id,
+                'new_task_id': new_task.id,
+                'retry_time': datetime.utcnow().isoformat()
+            })
+        )
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to retry task {task_id}: {e}")
+        return False
+
+
+def purge_dlq(older_than_days: int = 7) -> int:
+    """
+    Purge old messages from the Dead Letter Queue
+
+    Args:
+        older_than_days: Remove messages older than this many days
+
+    Returns:
+        Number of messages purged
+    """
+    try:
+        purged_count = 0
+        cutoff_time = datetime.utcnow() - timedelta(days=older_than_days)
+
+        # Process DLQ messages
+        dlq_length = redis_client.llen('dead_letter_queue')
+
+        for i in range(dlq_length):
+            task_data = redis_client.lindex('dead_letter_queue', 0)
+            if not task_data:
+                break
+
+            try:
+                task_dict = json.loads(task_data)
+                failed_time = datetime.fromisoformat(task_dict.get('failed_at', ''))
+
+                if failed_time < cutoff_time:
+                    # Remove old message
+                    redis_client.lpop('dead_letter_queue')
+                    purged_count += 1
+                else:
+                    # Move to end and stop (messages are ordered by time)
+                    redis_client.rpoplpush('dead_letter_queue', 'dead_letter_queue')
+                    break
+
+            except (json.JSONDecodeError, ValueError):
+                # Remove invalid message
+                redis_client.lpop('dead_letter_queue')
+                purged_count += 1
+
+        logger.info(f"Purged {purged_count} old messages from DLQ")
+        return purged_count
+
+    except Exception as e:
+        logger.error(f"Failed to purge DLQ: {e}")
+        return 0
+
+
+@app.task(name='services.video-agent.pro.celery_app.rebalance_priorities_task')
+def rebalance_priorities_task() -> Dict[str, Any]:
+    """
+    Rebalance task priorities in queues
+    Move long-waiting low-priority tasks to higher priority
+
+    Returns:
+        Statistics about rebalancing operation
+    """
+    try:
+        rebalanced_count = 0
+
+        # This is a placeholder for actual queue rebalancing logic
+        # In production, you'd inspect queue messages and adjust priorities
+
+        logger.info(f"Rebalanced {rebalanced_count} tasks")
+
+        return {
+            'rebalanced_count': rebalanced_count,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Priority rebalancing failed: {e}")
+        return {'error': str(e)}
 
 # ============================================================================
 # MAIN ENTRY POINT

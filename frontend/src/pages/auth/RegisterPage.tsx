@@ -71,12 +71,10 @@ export default function RegisterPage() {
     }
 
     // TODO: Implement registration logic
-    console.log('Registration data:', formData)
   }
 
   const handleSocialSignup = (provider: string) => {
     // TODO: Implement social signup logic
-    console.log(`Signup with ${provider}`)
   }
 
   return (

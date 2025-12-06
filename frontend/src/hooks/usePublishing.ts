@@ -24,14 +24,15 @@ export const publishKeys = {
  * Get publish job status
  * @param jobId - Publish job ID
  */
-export function usePublishStatus(jobId: string, options?: UseQueryOptions<PublishStatus>) {
+export function usePublishStatus(jobId: string, options?: Omit<UseQueryOptions<PublishStatus>, 'queryKey' | 'queryFn'>) {
   return useQuery({
     queryKey: publishKeys.status(jobId),
     queryFn: () => apiClient.getPublishStatus(jobId),
     enabled: !!jobId,
     staleTime: 5000, // 5 seconds
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Stop polling when job is completed or failed
+      const data = query.state.data;
       if (data?.status === 'completed' || data?.status === 'failed') {
         return false;
       }
@@ -47,7 +48,7 @@ export function usePublishStatus(jobId: string, options?: UseQueryOptions<Publis
  */
 export function useCampaignPublishJobs(
   campaignId: string,
-  options?: UseQueryOptions<PublishStatus[]>
+  options?: Omit<UseQueryOptions<PublishStatus[]>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
     queryKey: publishKeys.campaignJobs(campaignId),

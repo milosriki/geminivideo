@@ -160,12 +160,19 @@ class FaceDetector:
             return self._load_haar_cascade()
 
     def _load_haar_cascade(self) -> bool:
-        """Load Haar Cascade as fallback"""
+        """
+        Load Haar Cascade as fallback.
+
+        WARNING: Haar Cascades are legacy technology (2001) and less accurate than modern
+        deep learning models. This is only used as a fallback when DNN models are unavailable.
+        For production use, prefer modern face detection models (DNN, YOLO, MediaPipe, etc.)
+        """
         try:
+            # NOTE: cv2.CascadeClassifier is legacy technology - consider upgrading to modern detectors
             self.haar_cascade = cv2.CascadeClassifier(
                 cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
             )
-            logger.info("Using Haar Cascade for face detection")
+            logger.warning("Using Haar Cascade for face detection (legacy fallback - consider using modern DNN models)")
             return True
         except Exception as e:
             logger.error(f"Failed to load Haar Cascade: {e}")

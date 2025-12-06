@@ -447,6 +447,13 @@ class EnhancedCTRPredictor:
         if self.model is None:
             raise ValueError("Model not trained. Call train() first.")
 
+        # Input validation
+        if clip_data is None:
+            raise ValueError("clip_data cannot be None")
+
+        if not isinstance(clip_data, dict):
+            raise TypeError(f"clip_data must be a dictionary, got {type(clip_data)}")
+
         # Extract features
         features = self.extract_features(clip_data)
         features = features.reshape(1, -1)

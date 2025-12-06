@@ -72,9 +72,14 @@ app.get('/', (req: Request, res: Response) => {
   res.json({
     service: 'google-ads',
     status: 'running',
-    version: '1.0.0',
+    version: '1.1.0',
     real_sdk_enabled: !!googleAdsManager,
     dry_run_mode: !GOOGLE_CLIENT_ID,
+    features: {
+      oauth_token_refresh: true,
+      campaign_validation: true,
+      error_handling: true
+    },
     endpoints: {
       campaigns: '/api/campaigns',
       ad_groups: '/api/ad-groups',
@@ -82,7 +87,8 @@ app.get('/', (req: Request, res: Response) => {
       video_ads: '/api/video-ads',
       upload_creative: '/api/upload-creative',
       performance: '/api/performance',
-      publish: '/api/publish'
+      publish: '/api/publish',
+      publish_google_alias: '/api/publish/google'
     }
   });
 });
@@ -546,6 +552,15 @@ app.post('/api/publish', async (req: Request, res: Response) => {
       });
     }
 
+    // Agent 95: Validate campaign data
+    const validationErrors = validateCampaignData({ campaignName, budget, adGroupName, cpcBidMicros, headline, finalUrl });
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        validation_errors: validationErrors
+      });
+    }
+
     // Step 1: Create Campaign
     const campaignId = await googleAdsManager.createCampaign({
       name: campaignName,
@@ -590,6 +605,79 @@ app.post('/api/publish', async (req: Request, res: Response) => {
     });
   }
 });
+
+// Agent 95: Alias route for /api/publish/google
+app.post('/api/publish/google', async (req: Request, res: Response) => {
+  // Forward to the main publish endpoint
+  return app._router.handle(
+    Object.assign(req, { url: '/api/publish', originalUrl: '/api/publish/google' }),
+    res,
+    () => {}
+  );
+});
+
+// Agent 95: Helper function to validate campaign data
+function validateCampaignData(data: {
+  campaignName: string;
+  budget: number;
+  adGroupName: string;
+  cpcBidMicros: number;
+  headline: string;
+  finalUrl: string;
+}): string[] {
+  const errors: string[] = [];
+
+  // Campaign name validation
+  if (!data.campaignName || data.campaignName.trim().length === 0) {
+    errors.push('Campaign name cannot be empty');
+  } else if (data.campaignName.length > 255) {
+    errors.push('Campaign name must be 255 characters or less');
+  }
+
+  // Budget validation
+  if (!data.budget || data.budget <= 0) {
+    errors.push('Budget must be greater than 0');
+  } else if (data.budget < 1) {
+    errors.push('Minimum daily budget is $1');
+  }
+
+  // Ad group name validation
+  if (!data.adGroupName || data.adGroupName.trim().length === 0) {
+    errors.push('Ad group name cannot be empty');
+  } else if (data.adGroupName.length > 255) {
+    errors.push('Ad group name must be 255 characters or less');
+  }
+
+  // CPC bid validation
+  if (!data.cpcBidMicros || data.cpcBidMicros <= 0) {
+    errors.push('CPC bid must be greater than 0');
+  } else if (data.cpcBidMicros < 10000) {
+    errors.push('Minimum CPC bid is $0.01 (10000 micros)');
+  }
+
+  // Headline validation
+  if (!data.headline || data.headline.trim().length === 0) {
+    errors.push('Headline cannot be empty');
+  } else if (data.headline.length > 30) {
+    errors.push('Headline must be 30 characters or less');
+  }
+
+  // Final URL validation
+  if (!data.finalUrl || data.finalUrl.trim().length === 0) {
+    errors.push('Final URL cannot be empty');
+  } else {
+    try {
+      const url = new URL(data.finalUrl);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        errors.push('Final URL must use HTTP or HTTPS protocol');
+      }
+    } catch {
+      errors.push('Final URL is not a valid URL');
+    }
+  }
+
+  return errors;
+}
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {

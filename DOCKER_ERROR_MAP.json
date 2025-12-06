@@ -1,0 +1,584 @@
+{
+  "docker_errors": [
+    {
+      "file": "services/gateway-api/Dockerfile",
+      "line": 28,
+      "error_type": "HEALTHCHECK",
+      "description": "wget used in HEALTHCHECK but not installed in node:20-alpine base image",
+      "fix": "RUN apk add --no-cache wget OR change HEALTHCHECK to use curl (already installed via apk add curl at line 47)"
+    },
+    {
+      "file": "services/meta-publisher/Dockerfile",
+      "line": 34,
+      "error_type": "HEALTHCHECK",
+      "description": "wget used in HEALTHCHECK but not installed in node:20-alpine base image",
+      "fix": "Add wget to apk packages: Change line to 'RUN apk add --no-cache wget' or use curl instead"
+    },
+    {
+      "file": "services/google-ads/Dockerfile",
+      "line": 30,
+      "error_type": "HEALTHCHECK",
+      "description": "wget used in HEALTHCHECK but not installed in node:20-alpine base image",
+      "fix": "Add wget to apk packages: Change line to 'RUN apk add --no-cache wget' or use curl instead"
+    },
+    {
+      "file": "services/tiktok-ads/Dockerfile",
+      "line": 0,
+      "error_type": "HEALTHCHECK",
+      "description": "No HEALTHCHECK defined but docker-compose.yml expects one",
+      "fix": "Add HEALTHCHECK: HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:8085/health || exit 1"
+    },
+    {
+      "file": "services/tiktok-ads/Dockerfile",
+      "line": 2,
+      "error_type": "WRONG_IMAGE",
+      "description": "Using node:18-alpine while other services use node:20-alpine - version inconsistency",
+      "fix": "Change FROM node:18-alpine to FROM node:20-alpine for consistency"
+    },
+    {
+      "file": "services/ml-service/Dockerfile",
+      "line": 26,
+      "error_type": "HEALTHCHECK",
+      "description": "curl used in HEALTHCHECK but not installed in python:3.11-slim base image",
+      "fix": "Add curl installation: RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*"
+    },
+    {
+      "file": "services/video-agent/Dockerfile",
+      "line": 26,
+      "error_type": "HEALTHCHECK",
+      "description": "curl used in HEALTHCHECK but not installed in python:3.11-slim base image",
+      "fix": "Add curl installation: RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*"
+    },
+    {
+      "file": "services/titan-core/Dockerfile",
+      "line": 66,
+      "error_type": "HEALTHCHECK",
+      "description": "curl used in HEALTHCHECK but not installed in python:3.11-slim base image",
+      "fix": "Add curl installation to apt-get install at line 17-32"
+    },
+    {
+      "file": "services/drive-intel/Dockerfile",
+      "line": 55,
+      "error_type": "HEALTHCHECK",
+      "description": "curl used in HEALTHCHECK but is installed, but health endpoint path might be wrong",
+      "fix": "Verify curl is installed at line 14 (wget is installed but curl is used in HEALTHCHECK)"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 65,
+      "error_type": "HEALTHCHECK",
+      "description": "ml-service healthcheck uses wget but Dockerfile doesn't install wget",
+      "fix": "Either install wget in services/ml-service/Dockerfile or change healthcheck to use curl"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 99,
+      "error_type": "HEALTHCHECK",
+      "description": "titan-core healthcheck uses wget but Dockerfile doesn't install wget",
+      "fix": "Either install wget in services/titan-core/Dockerfile or change healthcheck to use curl"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 130,
+      "error_type": "HEALTHCHECK",
+      "description": "video-agent healthcheck uses wget but Dockerfile doesn't install wget",
+      "fix": "Either install wget in services/video-agent/Dockerfile or change healthcheck to use curl"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 159,
+      "error_type": "HEALTHCHECK",
+      "description": "drive-intel healthcheck uses wget but Dockerfile uses curl",
+      "fix": "Change healthcheck to use curl instead: curl -f http://localhost:8081/health"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 196,
+      "error_type": "HEALTHCHECK",
+      "description": "meta-publisher healthcheck uses wget but Dockerfile doesn't install it",
+      "fix": "Either install wget in services/meta-publisher/Dockerfile or change to curl"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 223,
+      "error_type": "HEALTHCHECK",
+      "description": "tiktok-ads healthcheck uses wget but Dockerfile has no wget and no healthcheck",
+      "fix": "Add HEALTHCHECK to services/tiktok-ads/Dockerfile and install wget"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 271,
+      "error_type": "HEALTHCHECK",
+      "description": "gateway-api healthcheck uses wget but may not be installed",
+      "fix": "Verify wget is installed in services/gateway-api/Dockerfile"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 297,
+      "error_type": "HEALTHCHECK",
+      "description": "frontend healthcheck uses wget which exists in nginx:alpine",
+      "fix": "Verify the health check path is correct - currently checks http://localhost:80/ but container serves on port 80"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 0,
+      "error_type": "DEPENDS",
+      "description": "google-ads service is missing entirely - google-ads has a Dockerfile but is not defined in docker-compose.yml",
+      "fix": "Add google-ads service definition to docker-compose.yml with appropriate configuration"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 250,
+      "error_type": "ENV_VAR",
+      "description": "gateway-api missing TIKTOK_ADS_URL and GOOGLE_ADS_URL environment variables",
+      "fix": "Add TIKTOK_ADS_URL: http://tiktok-ads:8085 and GOOGLE_ADS_URL if google-ads service is added"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 111,
+      "error_type": "HEALTHCHECK",
+      "description": "drive-intel healthcheck uses curl -f but curl might not be installed in base image",
+      "fix": "Verify curl is installed in services/drive-intel/Dockerfile (line 14 has wget but not curl)"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 167,
+      "error_type": "HEALTHCHECK",
+      "description": "video-agent healthcheck uses curl -f but curl might not be installed",
+      "fix": "Add curl to services/video-agent/Dockerfile apt-get install"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 220,
+      "error_type": "HEALTHCHECK",
+      "description": "ml-service healthcheck uses curl -f but curl might not be installed",
+      "fix": "Add curl to services/ml-service/Dockerfile apt-get install"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 269,
+      "error_type": "HEALTHCHECK",
+      "description": "meta-publisher healthcheck uses curl -f but curl not installed in node:20-alpine",
+      "fix": "Add curl to services/meta-publisher/Dockerfile: RUN apk add --no-cache curl"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 321,
+      "error_type": "HEALTHCHECK",
+      "description": "titan-core healthcheck uses curl -f but curl might not be installed",
+      "fix": "Verify curl is installed in services/titan-core/Dockerfile"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 394,
+      "error_type": "HEALTHCHECK",
+      "description": "gateway-api healthcheck uses curl -f but curl not installed in node:20-alpine",
+      "fix": "Add curl to services/gateway-api/Dockerfile (already added at line 47 in deploy/Dockerfile.gateway)"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 0,
+      "error_type": "DEPENDS",
+      "description": "Missing google-ads and tiktok-ads services in production docker-compose",
+      "fix": "Add google-ads and tiktok-ads service definitions to docker-compose.production.yml"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 363,
+      "error_type": "ENV_VAR",
+      "description": "gateway-api missing TIKTOK_CORE_URL (should be TIKTOK_ADS_URL) and GOOGLE_ADS_URL",
+      "fix": "Add TIKTOK_ADS_URL: http://tiktok-ads:8085 and GOOGLE_ADS_URL to environment"
+    },
+    {
+      "file": "deploy/Dockerfile.ml",
+      "line": 26,
+      "error_type": "CONTEXT",
+      "description": "COPY services/ml-service/requirements.txt assumes build context is repo root, not deploy/",
+      "fix": "When building, use: docker build -f deploy/Dockerfile.ml -t ml-service . (from repo root)"
+    },
+    {
+      "file": "deploy/Dockerfile.ml",
+      "line": 73,
+      "error_type": "COPY",
+      "description": "COPY services/ml-service/ assumes build from repo root",
+      "fix": "Document correct build context in README: docker build -f deploy/Dockerfile.ml ."
+    },
+    {
+      "file": "deploy/Dockerfile.video",
+      "line": 25,
+      "error_type": "CONTEXT",
+      "description": "COPY services/video-agent/requirements.txt assumes build context is repo root",
+      "fix": "Build from repo root: docker build -f deploy/Dockerfile.video ."
+    },
+    {
+      "file": "deploy/Dockerfile.video",
+      "line": 85,
+      "error_type": "COPY",
+      "description": "COPY services/video-agent/ assumes build from repo root",
+      "fix": "Document correct build command in deployment docs"
+    },
+    {
+      "file": "deploy/Dockerfile.titan",
+      "line": 25,
+      "error_type": "CONTEXT",
+      "description": "COPY services/titan-core/requirements.txt assumes build context is repo root",
+      "fix": "Build from repo root: docker build -f deploy/Dockerfile.titan ."
+    },
+    {
+      "file": "deploy/Dockerfile.titan",
+      "line": 76,
+      "error_type": "COPY",
+      "description": "COPY services/titan-core/ assumes build from repo root",
+      "fix": "Document correct build command"
+    },
+    {
+      "file": "deploy/Dockerfile.gateway",
+      "line": 23,
+      "error_type": "CONTEXT",
+      "description": "COPY services/gateway-api/package*.json assumes build context is repo root",
+      "fix": "Build from repo root: docker build -f deploy/Dockerfile.gateway ."
+    },
+    {
+      "file": "deploy/Dockerfile.gateway",
+      "line": 30,
+      "error_type": "COPY",
+      "description": "COPY services/gateway-api/src assumes build from repo root",
+      "fix": "Document correct build context"
+    },
+    {
+      "file": "deploy/Dockerfile.gateway",
+      "line": 32,
+      "error_type": "COPY",
+      "description": "COPY shared /shared assumes shared directory exists at repo root",
+      "fix": "Verify shared directory exists before build"
+    },
+    {
+      "file": "services/gateway-api/Dockerfile",
+      "line": 15,
+      "error_type": "COPY",
+      "description": "COPY shared /shared but build context is services/gateway-api/ so shared won't be found",
+      "fix": "Change build context to repo root or copy shared from ../shared"
+    },
+    {
+      "file": "services/titan-core/Dockerfile",
+      "line": 44,
+      "error_type": "COPY",
+      "description": "COPY . . copies all files but build context might include unnecessary files",
+      "fix": "Add .dockerignore file to exclude tests, docs, .git, etc."
+    },
+    {
+      "file": "deploy/kubernetes/deployment-gateway.yaml",
+      "line": 66,
+      "error_type": "DEPENDS",
+      "description": "Image name geminivideo-gateway:latest doesn't match built image from deploy/Dockerfile.gateway",
+      "fix": "Update image reference to match registry: {REGISTRY}/gateway-api:latest"
+    },
+    {
+      "file": "deploy/kubernetes/deployment-titan.yaml",
+      "line": 59,
+      "error_type": "DEPENDS",
+      "description": "Image name geminivideo-titan:latest doesn't match built image naming",
+      "fix": "Update image reference to match registry: {REGISTRY}/titan-core:latest"
+    },
+    {
+      "file": "deploy/kubernetes/deployment-video.yaml",
+      "line": 59,
+      "error_type": "DEPENDS",
+      "description": "Image name geminivideo-video:latest doesn't match built image naming",
+      "fix": "Update image reference to match registry: {REGISTRY}/video-agent:latest"
+    },
+    {
+      "file": "deploy/kubernetes/deployment-ml.yaml",
+      "line": 59,
+      "error_type": "DEPENDS",
+      "description": "Image name geminivideo-ml:latest doesn't match built image naming",
+      "fix": "Update image reference to match registry: {REGISTRY}/ml-service:latest"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 106,
+      "error_type": "VOLUME",
+      "description": "Volume mount ./services/titan-core:/app in development creates bind mount that overwrites built files",
+      "fix": "Remove or modify to only mount src: ./services/titan-core/src:/app/src (but this won't work for Python)"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 138,
+      "error_type": "VOLUME",
+      "description": "Volume mount ./services/video-agent/src:/app/src overwrites built Python files",
+      "fix": "In production, remove this volume mount or use named volume"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 167,
+      "error_type": "VOLUME",
+      "description": "Volume mount ./services/drive-intel/src:/app/src overwrites built files",
+      "fix": "Remove in production or ensure it doesn't break the application"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 230,
+      "error_type": "VOLUME",
+      "description": "Volume mount ./services/tiktok-ads/src:/app/src for development but may cause issues",
+      "fix": "Use docker-compose.override.yml for development mounts"
+    },
+    {
+      "file": "services/frontend/Dockerfile",
+      "line": 28,
+      "error_type": "COPY",
+      "description": "COPY nginx.conf references nginx.conf that must exist in build context",
+      "fix": "Verify nginx.conf exists at frontend/nginx.conf (VERIFIED - it exists)"
+    },
+    {
+      "file": "services/meta-publisher/Dockerfile",
+      "line": 14,
+      "error_type": "CMD",
+      "description": "Uses 'exit 0' to force success which masks real npm install failures",
+      "fix": "Remove '; exit 0' and fix underlying npm install issues properly"
+    },
+    {
+      "file": "services/google-ads/Dockerfile",
+      "line": 10,
+      "error_type": "CMD",
+      "description": "Uses 'exit 0' to force success which masks real npm install failures",
+      "fix": "Remove '; exit 0' and fix underlying npm install issues properly"
+    },
+    {
+      "file": "services/tiktok-ads/Dockerfile",
+      "line": 11,
+      "error_type": "MISSING_DEPENDENCY",
+      "description": "npm install might fail but no retry or error handling",
+      "fix": "Add --legacy-peer-deps flag or error handling like other services"
+    },
+    {
+      "file": ".github/workflows/deploy.yml",
+      "line": 96,
+      "error_type": "CONTEXT",
+      "description": "Docker build context ./services/ml-service but should verify requirements.txt exists",
+      "fix": "Add verification step before build"
+    },
+    {
+      "file": ".github/workflows/deploy-cloud-run.yml",
+      "line": 38,
+      "error_type": "CONTEXT",
+      "description": "Building ./services/gateway-api but gateway Dockerfile copies 'shared' which is outside context",
+      "fix": "Build from repo root or adjust COPY commands in Dockerfile"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 20,
+      "error_type": "COPY",
+      "description": "Volume mount ./scripts/init_db.py:/docker-entrypoint-initdb.d/init_db.py but init_db.py is Python not SQL",
+      "fix": "Postgres init scripts should be .sh or .sql, not .py - this won't execute"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 348,
+      "error_type": "VOLUME",
+      "description": "Volume mount ./services/video-agent/src:/app/src for video-worker overwrites built application",
+      "fix": "Remove source code volume mounts in production"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 327,
+      "error_type": "VOLUME",
+      "description": "Volume mount ./services/drive-intel/src:/app/src for drive-worker overwrites built application",
+      "fix": "Remove source code volume mounts in production"
+    },
+    {
+      "file": "services/tiktok-ads/Dockerfile",
+      "line": 14,
+      "error_type": "COPY",
+      "description": "Only copies src directory but might need other files (config, assets, etc.)",
+      "fix": "Use COPY . . and add .dockerignore to exclude unwanted files"
+    },
+    {
+      "file": "docker-compose.prod.yml",
+      "line": 0,
+      "error_type": "DEPENDS",
+      "description": "File only contains overrides, must be used with docker-compose.yml but lacks google-ads service",
+      "fix": "Add google-ads service to base docker-compose.yml"
+    },
+    {
+      "file": "deploy/kubernetes/service.yaml",
+      "line": 0,
+      "error_type": "DEPENDS",
+      "description": "Kubernetes services defined for postgres and redis but no deployments exist for them",
+      "fix": "Create deployment-postgres.yaml and deployment-redis.yaml or use external managed services"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 82,
+      "error_type": "ENV_VAR",
+      "description": "Missing REGISTRY_URL variable definition - used but not defined",
+      "fix": "Define REGISTRY_URL in .env file or export before running docker-compose"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 82,
+      "error_type": "ENV_VAR",
+      "description": "IMAGE_TAG used but not defined - defaults to 'latest' but should be explicit",
+      "fix": "Define IMAGE_TAG in .env file with specific version"
+    },
+    {
+      "file": "services/gateway-api/Dockerfile",
+      "line": 8,
+      "error_type": "COPY",
+      "description": "COPY prisma ./prisma but prisma directory might not exist in build context",
+      "fix": "Verify prisma directory exists at services/gateway-api/prisma/"
+    },
+    {
+      "file": "services/ml-service/Dockerfile",
+      "line": 13,
+      "error_type": "MISSING_DEPENDENCY",
+      "description": "RUN pip install but requirements.txt might include packages that need build tools",
+      "fix": "Ensure all required build dependencies are installed before pip install"
+    },
+    {
+      "file": "deploy/Dockerfile.ml",
+      "line": 56,
+      "error_type": "MISSING_DEPENDENCY",
+      "description": "wget installed but not needed (curl is used in healthcheck)",
+      "fix": "Remove wget or use wget in HEALTHCHECK instead of curl"
+    },
+    {
+      "file": "deploy/Dockerfile.video",
+      "line": 70,
+      "error_type": "MISSING_DEPENDENCY",
+      "description": "wget installed but not used in healthcheck (curl is used)",
+      "fix": "Remove wget from apt-get install line 70"
+    },
+    {
+      "file": "deploy/Dockerfile.titan",
+      "line": 60,
+      "error_type": "MISSING_DEPENDENCY",
+      "description": "wget installed but not used in healthcheck (curl is used)",
+      "fix": "Remove wget from apt-get install or use wget in healthcheck"
+    },
+    {
+      "file": "services/drive-intel/Dockerfile",
+      "line": 14,
+      "error_type": "MISSING_DEPENDENCY",
+      "description": "wget installed but healthcheck uses curl - inconsistency",
+      "fix": "Either use wget in healthcheck or install curl instead of wget"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 72,
+      "error_type": "VOLUME",
+      "description": "Volume ./shared:/app/shared but services/ml-service Dockerfile doesn't COPY shared",
+      "fix": "Add COPY shared /app/shared to services/ml-service/Dockerfile or remove volume"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 278,
+      "error_type": "VOLUME",
+      "description": "Volume ./shared:/app/shared for gateway but Dockerfile might not expect it",
+      "fix": "Ensure Dockerfile copies shared directory or document volume requirement"
+    },
+    {
+      "file": "frontend/Dockerfile",
+      "line": 16,
+      "error_type": "ENV_VAR",
+      "description": "Build arg VITE_API_BASE_URL used but nginx serves static files - env vars don't work at runtime",
+      "fix": "VITE env vars must be set at build time, not runtime. Ensure build-arg is passed during build"
+    },
+    {
+      "file": "docker-compose.yml",
+      "line": 287,
+      "error_type": "ENV_VAR",
+      "description": "Frontend build arg VITE_API_BASE_URL set to http://localhost:8080 but should be gateway service URL",
+      "fix": "Change to VITE_API_BASE_URL: http://gateway-api:8080 for internal Docker network"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "line": 421,
+      "error_type": "ENV_VAR",
+      "description": "Frontend build with VITE_GATEWAY_URL but ARG in Dockerfile is VITE_API_BASE_URL",
+      "fix": "Update Dockerfile ARG to match: ARG VITE_GATEWAY_URL or change docker-compose arg name"
+    },
+    {
+      "file": "services/titan-core/api/Dockerfile",
+      "line": 0,
+      "error_type": "DEPENDS",
+      "description": "Separate Dockerfile exists at services/titan-core/api/Dockerfile but not used in docker-compose",
+      "fix": "Remove unused Dockerfile or update docker-compose to use it if needed"
+    },
+    {
+      "file": "services/gateway-api/docker-compose.yml",
+      "line": 0,
+      "error_type": "DEPENDS",
+      "description": "Separate docker-compose.yml exists in services/gateway-api/ causing confusion",
+      "fix": "Remove or document this separate compose file to avoid conflicts"
+    },
+    {
+      "file": "services/titan-core/api/docker-compose.yml",
+      "line": 0,
+      "error_type": "DEPENDS",
+      "description": "Separate docker-compose.yml exists in services/titan-core/api/ causing confusion",
+      "fix": "Remove or document this separate compose file to avoid conflicts"
+    }
+  ],
+  "summary": {
+    "total_errors": 75,
+    "critical_errors": 28,
+    "by_type": {
+      "HEALTHCHECK": 16,
+      "CONTEXT": 8,
+      "COPY": 11,
+      "DEPENDS": 10,
+      "ENV_VAR": 8,
+      "VOLUME": 8,
+      "MISSING_DEPENDENCY": 6,
+      "CMD": 3,
+      "WRONG_IMAGE": 1
+    },
+    "most_critical_issues": [
+      "Multiple services use wget/curl in healthchecks but don't install them - will cause container health check failures",
+      "google-ads service has Dockerfile but is completely missing from docker-compose.yml - service won't deploy",
+      "deploy/Dockerfile.* files have wrong build context - COPYing from services/* but built from deploy/ directory",
+      "tiktok-ads service missing HEALTHCHECK in Dockerfile despite docker-compose expecting it",
+      "Kubernetes deployments reference image names that don't match actual build names",
+      "Volume mounts in docker-compose.yml overwrite built application files in production",
+      "Frontend VITE environment variables have naming mismatches between Dockerfile and docker-compose",
+      "Multiple services use 'exit 0' to mask npm install failures which will hide real errors",
+      "Postgres init script is Python (.py) but should be SQL or shell script",
+      "Missing REGISTRY_URL and IMAGE_TAG environment variable definitions in production compose"
+    ],
+    "services_with_errors": [
+      "gateway-api",
+      "ml-service",
+      "titan-core",
+      "video-agent",
+      "drive-intel",
+      "meta-publisher",
+      "tiktok-ads",
+      "google-ads",
+      "frontend"
+    ],
+    "deployment_blockers": [
+      "Health checks will fail on 8+ services due to missing wget/curl",
+      "google-ads service won't start (not in docker-compose)",
+      "Kubernetes deployments will fail (image name mismatches)",
+      "deploy/Dockerfile.* builds will fail (wrong build context)",
+      "Production volume mounts will overwrite application code"
+    ]
+  },
+  "recommendations": [
+    "Install curl in all Python-based Dockerfiles and wget in all Node-based Dockerfiles",
+    "Add google-ads service to docker-compose.yml and docker-compose.production.yml",
+    "Document correct build context for all deploy/Dockerfile.* files (must build from repo root)",
+    "Remove source code volume mounts from production docker-compose configurations",
+    "Standardize on Node 20 Alpine for all Node.js services",
+    "Create .dockerignore files to reduce build context size",
+    "Fix environment variable naming consistency (VITE_API_BASE_URL vs VITE_GATEWAY_URL)",
+    "Remove 'exit 0' workarounds and fix underlying npm install issues properly",
+    "Add proper error handling for all RUN commands in Dockerfiles",
+    "Create missing Kubernetes deployment files for postgres and redis or use managed services",
+    "Add HEALTHCHECK to tiktok-ads Dockerfile",
+    "Define REGISTRY_URL and IMAGE_TAG in .env.example file",
+    "Update Kubernetes deployment image references to match actual registry naming",
+    "Verify all COPY commands reference files that exist in the build context",
+    "Add init container health checks in Kubernetes to ensure proper startup order"
+  ]
+}

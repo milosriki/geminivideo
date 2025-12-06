@@ -1,0 +1,16 @@
+# Precision Audio-Visual Sync System Dependencies
+# For AGENT 101: Audio-Visual Sync (0.1s precision)
+
+# Core scientific computing
+numpy>=1.21.0
+scipy>=1.7.0
+
+# Audio analysis
+librosa>=0.10.0
+soundfile>=0.12.0
+
+# Video processing
+opencv-python>=4.8.0
+
+# FFmpeg wrapper (for audio extraction)
+ffmpeg-python>=0.2.0

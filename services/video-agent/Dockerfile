@@ -3,12 +3,13 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies including FFmpeg
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsm6 \
     libxext6 \
     libxrender-dev \
     libass-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies

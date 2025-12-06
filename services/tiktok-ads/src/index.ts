@@ -1,10 +1,30 @@
 /**
  * TikTok Ads Publisher Service - Placeholder for Future Implementation
  * Agent 19: Multi-Platform Publishing Infrastructure
+ * Agent 95: Enhanced error handling and endpoint structure
  *
+ * TODO: Production Implementation Required
  * This is a placeholder service structure for TikTok Ads integration.
  * Currently returns mock success responses for development.
- * Production implementation would integrate with TikTok Business API.
+ *
+ * INTEGRATION STEPS FOR PRODUCTION:
+ * 1. Install TikTok Business SDK: npm install tiktok-business-api
+ * 2. Implement TikTokAdsManager class similar to MetaAdsManager and GoogleAdsManager
+ * 3. Add OAuth flow for TikTok Business API
+ * 4. Implement real video upload to TikTok
+ * 5. Implement campaign, ad group, and ad creation
+ * 6. Add performance metrics fetching
+ * 7. Implement webhook handlers for ad status updates
+ *
+ * REQUIRED ENVIRONMENT VARIABLES:
+ * - TIKTOK_ACCESS_TOKEN: OAuth access token
+ * - TIKTOK_ADVERTISER_ID: TikTok advertiser account ID
+ * - TIKTOK_APP_ID: TikTok app ID
+ * - TIKTOK_SECRET: TikTok app secret
+ *
+ * API DOCUMENTATION:
+ * - https://business-api.tiktok.com/portal/docs
+ * - https://ads.tiktok.com/marketing_api/docs
  */
 
 import express, { Request, Response } from 'express';
@@ -53,27 +73,86 @@ app.use(express.json());
 // TikTok API configuration (placeholder)
 const TIKTOK_ACCESS_TOKEN = process.env.TIKTOK_ACCESS_TOKEN || '';
 const TIKTOK_ADVERTISER_ID = process.env.TIKTOK_ADVERTISER_ID || '';
+const TIKTOK_APP_ID = process.env.TIKTOK_APP_ID || '';
+const TIKTOK_SECRET = process.env.TIKTOK_SECRET || '';
+
+/**
+ * Agent 95: Error handler with proper status codes
+ */
+function handleError(error: any, res: Response, operation: string): void {
+  console.error(`[TIKTOK ERROR] ${operation}:`, error);
+
+  const statusCode = error.statusCode || error.status || 500;
+  const errorResponse = {
+    error: error.message || 'Internal server error',
+    operation,
+    timestamp: new Date().toISOString(),
+    placeholder_mode: true
+  };
+
+  // Add error details if available
+  if (error.code) {
+    (errorResponse as any).code = error.code;
+  }
+  if (error.details) {
+    (errorResponse as any).details = error.details;
+  }
+
+  res.status(statusCode).json(errorResponse);
+}
+
+/**
+ * Agent 95: Validate required fields
+ */
+function validateRequiredFields(fields: Record<string, any>, requiredFields: string[]): string[] {
+  const missing: string[] = [];
+
+  for (const field of requiredFields) {
+    if (!fields[field] || (typeof fields[field] === 'string' && fields[field].trim() === '')) {
+      missing.push(field);
+    }
+  }
+
+  return missing;
+}
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
   res.json({
     service: 'tiktok-ads',
     status: 'running',
-    version: '1.0.0-placeholder',
+    version: '1.1.0-placeholder',
     real_sdk_enabled: false,
     placeholder_mode: true,
     message: 'This is a placeholder service for TikTok Ads API integration',
+    features: {
+      error_handling: true,
+      field_validation: true,
+      structured_responses: true,
+      todo_comments: 'See source code for production implementation steps'
+    },
     endpoints: {
       campaigns: '/api/campaigns',
       ad_groups: '/api/ad-groups',
       ads: '/api/ads',
       video_ads: '/api/video-ads',
       performance: '/api/performance',
-      publish: '/api/publish'
+      publish: '/api/publish',
+      publish_tiktok_alias: '/api/publish/tiktok'
     },
     documentation: {
       tiktok_business_api: 'https://business-api.tiktok.com/portal/docs',
-      integration_guide: 'https://ads.tiktok.com/marketing_api/docs'
+      integration_guide: 'https://ads.tiktok.com/marketing_api/docs',
+      sdk_reference: 'https://ads.tiktok.com/marketing_api/docs?id=1739593056724993'
+    },
+    production_todo: {
+      step1: 'Install TikTok Business SDK',
+      step2: 'Implement TikTokAdsManager class',
+      step3: 'Add OAuth authentication flow',
+      step4: 'Implement video upload API',
+      step5: 'Add campaign and ad management',
+      step6: 'Implement performance metrics',
+      step7: 'Add webhook handlers'
     }
   });
 });
@@ -93,6 +172,20 @@ app.post('/api/campaigns', async (req: Request, res: Response) => {
   try {
     const { name, objective, budget, status } = req.body;
 
+    // Agent 95: Validate required fields
+    const missing = validateRequiredFields(req.body, ['name', 'objective', 'budget']);
+    if (missing.length > 0) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        missing_fields: missing,
+        placeholder: true
+      });
+    }
+
+    // TODO: Real TikTok API Implementation
+    // const tiktokAdsManager = new TikTokAdsManager(config);
+    // const campaignId = await tiktokAdsManager.createCampaign({ name, objective, budget, status });
+
     console.log('[TIKTOK PLACEHOLDER] Create campaign:', { name, objective, budget, status });
 
     // Return mock success response
@@ -106,7 +199,7 @@ app.post('/api/campaigns', async (req: Request, res: Response) => {
       note: 'This is a mock response. Real TikTok API integration pending.'
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    handleError(error, res, 'Create Campaign');
   }
 });
 
@@ -347,6 +440,22 @@ app.post('/api/publish', async (req: Request, res: Response) => {
       callToAction
     } = req.body;
 
+    // Agent 95: Validate required fields
+    const missing = validateRequiredFields(req.body, ['videoPath', 'campaignName', 'budget', 'objective', 'adGroupName']);
+    if (missing.length > 0) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        missing_fields: missing,
+        placeholder: true
+      });
+    }
+
+    // TODO: Real TikTok API Implementation
+    // const tiktokAdsManager = new TikTokAdsManager(config);
+    // const result = await tiktokAdsManager.publishCompleteWorkflow({
+    //   videoPath, campaignName, budget, objective, targeting, adGroupName, text, callToAction
+    // });
+
     console.log('[TIKTOK PLACEHOLDER] Publish workflow:', {
       campaignName,
       budget,
@@ -380,18 +489,50 @@ app.post('/api/publish', async (req: Request, res: Response) => {
       }
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    handleError(error, res, 'Publish Workflow');
   }
+});
+
+// Agent 95: Alias route for /api/publish/tiktok
+app.post('/api/publish/tiktok', async (req: Request, res: Response) => {
+  // Forward to the main publish endpoint
+  return app._router.handle(
+    Object.assign(req, { url: '/api/publish', originalUrl: '/api/publish/tiktok' }),
+    res,
+    () => {}
+  );
 });
 
 app.listen(PORT, () => {
   console.log(`TikTok Ads Publisher (Placeholder) listening on port ${PORT}`);
   console.log('⚠️  Running in PLACEHOLDER mode - returns mock responses');
+  console.log('');
+  console.log('🔧 AGENT 95 NOTES:');
+  console.log('   ✅ Enhanced error handling implemented');
+  console.log('   ✅ Field validation added');
+  console.log('   ✅ /api/publish/tiktok alias created');
+  console.log('   ⚠️  TODO comments added for production implementation');
+  console.log('');
   console.log('📝 For production: Integrate with TikTok Business API');
   console.log('🔗 Docs: https://business-api.tiktok.com/portal/docs');
+  console.log('📚 SDK: https://ads.tiktok.com/marketing_api/docs?id=1739593056724993');
+  console.log('');
+  console.log('🚀 PRODUCTION IMPLEMENTATION CHECKLIST:');
+  console.log('   [ ] Install TikTok Business SDK');
+  console.log('   [ ] Implement TikTokAdsManager class');
+  console.log('   [ ] Add OAuth authentication flow');
+  console.log('   [ ] Implement video upload API');
+  console.log('   [ ] Add campaign and ad management');
+  console.log('   [ ] Implement performance metrics');
+  console.log('   [ ] Add webhook handlers');
+  console.log('');
 
   if (!TIKTOK_ACCESS_TOKEN) {
-    console.log('ℹ️  Set TIKTOK_ACCESS_TOKEN for real API integration');
+    console.log('ℹ️  Required env vars for production:');
+    console.log('   - TIKTOK_ACCESS_TOKEN');
+    console.log('   - TIKTOK_ADVERTISER_ID');
+    console.log('   - TIKTOK_APP_ID');
+    console.log('   - TIKTOK_SECRET');
   }
 });
 

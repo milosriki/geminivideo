@@ -151,10 +151,6 @@ export function useWebSocket(
         // Attempt reconnection
         if (reconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current++;
-          console.log(
-            `WebSocket reconnecting... (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`
-          );
-
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, reconnectInterval);

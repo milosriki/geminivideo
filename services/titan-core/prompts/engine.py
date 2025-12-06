@@ -70,6 +70,7 @@ class PromptEngine:
             "psychology_used": "Explanation of why this works"
         }}
         """
+        return base_prompt
 
     @staticmethod
     def get_critic_system_message(niche: str = "fitness") -> str:
@@ -82,15 +83,22 @@ class PromptEngine:
         1. Does the first 3 seconds break a pattern? (Visual Shock)
         2. Is the pain point visceral? (Does it hurt?)
         3. Is the solution credible?
-        
+
         OUTPUT FORMAT:
+        {{
+            "score": 85,
+            "feedback": "Detailed critique of the script",
+            "improvements": ["suggestion 1", "suggestion 2"]
+        }}
+        """
+        return base_prompt
     @staticmethod
     def get_reflection_prompt(critique: str) -> str:
         """
         Prompt for the agent to reflect on WHY it failed.
         """
         return f"""
-        🛑 STOP. The Council REJECTED your script.
+        [STOP] The Council REJECTED your script.
         
         CRITIQUE:
         "{critique}"

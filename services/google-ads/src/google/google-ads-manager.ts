@@ -1,6 +1,7 @@
 /**
  * Google Ads Manager - Real Google Ads API Integration
  * Agent 13: Campaign, Ad Group, Ad creation, Creative upload, and Performance metrics
+ * Agent 95: Enhanced with OAuth token refresh and credential handling
  */
 import { GoogleAdsApi, Customer, enums } from 'google-ads-api';
 import * as fs from 'fs';
@@ -60,6 +61,8 @@ export class GoogleAdsManager {
   private client: GoogleAdsApi;
   private customer: Customer;
   private config: GoogleAdsConfig;
+  private accessToken: string | null = null;
+  private tokenExpiry: number = 0;
 
   constructor(config: GoogleAdsConfig) {
     this.config = config;
@@ -78,6 +81,46 @@ export class GoogleAdsManager {
     });
 
     console.log(`Google Ads Manager initialized for customer: ${config.customerId}`);
+  }
+
+  /**
+   * Agent 95: Refresh OAuth access token if expired
+   */
+  private async refreshAccessTokenIfNeeded(): Promise<void> {
+    const now = Date.now();
+
+    // Check if token is still valid (with 5 minute buffer)
+    if (this.accessToken && this.tokenExpiry > now + 5 * 60 * 1000) {
+      return;
+    }
+
+    try {
+      console.log('Refreshing Google OAuth access token...');
+
+      const response = await axios.post('https://oauth2.googleapis.com/token', {
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret,
+        refresh_token: this.config.refreshToken,
+        grant_type: 'refresh_token'
+      });
+
+      this.accessToken = response.data.access_token;
+      // Set expiry (typically 3600 seconds = 1 hour)
+      this.tokenExpiry = now + (response.data.expires_in * 1000);
+
+      console.log('OAuth token refreshed successfully');
+    } catch (error: any) {
+      console.error('Error refreshing OAuth token:', error);
+      throw new Error(`Failed to refresh OAuth token: ${error.message}`);
+    }
+  }
+
+  /**
+   * Agent 95: Get valid access token (refreshing if necessary)
+   */
+  private async getValidAccessToken(): Promise<string> {
+    await this.refreshAccessTokenIfNeeded();
+    return this.accessToken!;
   }
 
   /**

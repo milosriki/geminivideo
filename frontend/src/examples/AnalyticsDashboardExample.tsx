@@ -97,7 +97,7 @@ export const AnalyticsDashboardExample: React.FC = () => {
           <MetricCard
             title="Clicks"
             value={overview.data?.clicks.toLocaleString() || 0}
-            subtitle={`${(overview.data?.ctr * 100).toFixed(2)}% CTR`}
+            subtitle={`${((overview.data?.ctr || 0) * 100).toFixed(2)}% CTR`}
           />
           <MetricCard
             title="Conversions"

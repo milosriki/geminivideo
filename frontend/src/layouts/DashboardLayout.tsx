@@ -11,6 +11,7 @@ import {
   PlusCircleIcon,
   QuestionMarkCircleIcon,
   BookOpenIcon,
+  RocketLaunchIcon,
 } from '@heroicons/react/24/outline'
 import { SidebarLayout } from '@/components/catalyst/sidebar-layout'
 import { Sidebar, SidebarBody, SidebarHeader, SidebarItem, SidebarLabel, SidebarSection, SidebarFooter } from '@/components/catalyst/sidebar'
@@ -25,6 +26,7 @@ const navigation = [
   { name: 'Projects', href: '/projects', icon: FolderIcon },
   { name: 'Assets', href: '/assets', icon: FilmIcon },
   { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
+  { name: 'Discovery', href: '/discovery', icon: RocketLaunchIcon },
   { name: 'Ad Spy', href: '/spy', icon: MagnifyingGlassIcon },
   { name: 'AI Studio', href: '/studio', icon: SparklesIcon },
 ]

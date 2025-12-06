@@ -365,7 +365,8 @@ const ABTestingDashboard: React.FC = () => {
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold">{variant.name}</span>
                                 {isWinner && <Trophy className="text-yellow-400" size={16} />}
-                              </td>
+                              </div>
+                            </td>
                             <td className="text-right py-3 px-2 text-purple-200">
                               {variant.impressions.toLocaleString()}
                             </td>

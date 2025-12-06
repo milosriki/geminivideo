@@ -1,0 +1,320 @@
+{
+  "deployment_readiness": "CRITICAL FAILURES DETECTED",
+  "total_errors": 27,
+  "severity_breakdown": {
+    "critical": 12,
+    "high": 8,
+    "medium": 7
+  },
+  "errors": [
+    {
+      "category": "docker",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/services/gateway-api/Dockerfile",
+      "line": 28,
+      "error": "wget not installed but used in HEALTHCHECK",
+      "what_breaks": "Container health checks will fail, causing Kubernetes/Cloud Run to kill the container",
+      "current_state": "HEALTHCHECK uses wget but node:20-alpine base image doesn't include wget",
+      "fix": "Add to Dockerfile after WORKDIR:\nRUN apk add --no-cache wget"
+    },
+    {
+      "category": "docker",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/services/meta-publisher/Dockerfile",
+      "line": 34,
+      "error": "wget not installed but used in HEALTHCHECK",
+      "what_breaks": "Container health checks will fail, service will be marked unhealthy and killed",
+      "current_state": "HEALTHCHECK uses wget but node:20-alpine doesn't include it",
+      "fix": "Add to Dockerfile after WORKDIR:\nRUN apk add --no-cache wget"
+    },
+    {
+      "category": "docker",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/services/google-ads/Dockerfile",
+      "line": 30,
+      "error": "wget not installed but used in HEALTHCHECK",
+      "what_breaks": "Health checks fail, container restarts in production",
+      "current_state": "node:20-alpine base without wget package",
+      "fix": "Add after FROM:\nRUN apk add --no-cache wget"
+    },
+    {
+      "category": "docker",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/services/ml-service/Dockerfile",
+      "line": 26,
+      "error": "curl not installed in slim image",
+      "what_breaks": "Health check will fail with 'curl: command not found'",
+      "current_state": "Uses python:3.11-slim which doesn't include curl",
+      "fix": "Add curl to RUN apt-get install line:\nRUN apt-get update && apt-get install -y \\\n    libgomp1 \\\n    curl \\\n    && rm -rf /var/lib/apt/lists/*"
+    },
+    {
+      "category": "docker",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/services/video-agent/Dockerfile",
+      "line": 26,
+      "error": "curl not installed",
+      "what_breaks": "HEALTHCHECK fails, Cloud Run marks service unhealthy",
+      "current_state": "python:3.11-slim base without curl",
+      "fix": "Add to existing apt-get install:\nRUN apt-get update && apt-get install -y \\\n    ffmpeg \\\n    libsm6 \\\n    libxext6 \\\n    libxrender-dev \\\n    libass-dev \\\n    curl \\\n    && rm -rf /var/lib/apt/lists/*"
+    },
+    {
+      "category": "docker",
+      "severity": "high",
+      "file": "/home/user/geminivideo/services/gateway-api/Dockerfile",
+      "line": 15,
+      "error": "COPY shared /shared - wrong source path",
+      "what_breaks": "Build fails: COPY failed: file not found in build context",
+      "current_state": "Copies from ./shared but build context is ./services/gateway-api",
+      "fix": "Change to:\nCOPY ../../shared /shared\nOR set build context to repo root in docker-compose.yml"
+    },
+    {
+      "category": "docker",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/services/titan-core/Dockerfile",
+      "line": 70,
+      "error": "CMD changes working directory at runtime",
+      "what_breaks": "If api directory doesn't exist or main.py not found, container exits immediately",
+      "current_state": "CMD [\"sh\", \"-c\", \"cd api && uvicorn main:app...\"]",
+      "fix": "Add before CMD:\nWORKDIR /app/api\nThen simplify CMD:\nCMD [\"uvicorn\", \"main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]"
+    },
+    {
+      "category": "docker",
+      "severity": "medium",
+      "file": "/home/user/geminivideo/services/tiktok-ads/Dockerfile",
+      "line": 2,
+      "error": "Node version mismatch",
+      "what_breaks": "Uses node:18-alpine while others use node:20-alpine - potential compatibility issues",
+      "current_state": "FROM node:18-alpine",
+      "fix": "Update to:\nFROM node:20-alpine"
+    },
+    {
+      "category": "environment",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/.env.example",
+      "line": null,
+      "error": "Missing FIREBASE_SERVICE_ACCOUNT_PATH",
+      "what_breaks": "Firebase Auth in gateway-api will fail to initialize, blocking all authenticated requests",
+      "current_state": "gateway-api/src/services/firebase-auth.ts requires it but not in .env.example",
+      "fix": "Add to .env.example:\nFIREBASE_SERVICE_ACCOUNT_PATH=/path/to/firebase-service-account.json\nFIREBASE_PROJECT_ID=your-project-id\nFIREBASE_CLIENT_EMAIL=firebase-adminsdk@your-project.iam.gserviceaccount.com\nFIREBASE_PRIVATE_KEY=\"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\""
+    },
+    {
+      "category": "environment",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/.env.example",
+      "line": null,
+      "error": "Missing VITE_WS_URL for frontend WebSocket",
+      "what_breaks": "Real-time features (streaming, live updates) will fail in production",
+      "current_state": "frontend/src uses import.meta.env.VITE_WS_URL but not defined",
+      "fix": "Add to .env.example:\nVITE_WS_URL=ws://localhost:8080\n# Production:\n# VITE_WS_URL=wss://api.your-domain.com"
+    },
+    {
+      "category": "environment",
+      "severity": "high",
+      "file": "/home/user/geminivideo/.env.example",
+      "line": null,
+      "error": "Missing VITE_META_PIXEL_ID",
+      "what_breaks": "Meta Pixel tracking won't work, no conversion data to Meta Ads",
+      "current_state": "Frontend code references it but not in .env.example",
+      "fix": "Add to .env.example:\nVITE_META_PIXEL_ID=1234567890123456"
+    },
+    {
+      "category": "environment",
+      "severity": "high",
+      "file": "/home/user/geminivideo/.env.example",
+      "line": 59,
+      "error": "GATEWAY_API_URL vs VITE_API_BASE_URL confusion",
+      "what_breaks": "Frontend uses VITE_API_BASE_URL but backend might use GATEWAY_API_URL",
+      "current_state": "Multiple variables for same service",
+      "fix": "Standardize:\n# Backend to backend:\nGATEWAY_API_URL=http://gateway-api:8080\n# Frontend to backend:\nVITE_API_BASE_URL=http://localhost:8080"
+    },
+    {
+      "category": "environment",
+      "severity": "medium",
+      "file": "/home/user/geminivideo/.env.example",
+      "line": null,
+      "error": "Missing GCS_BUCKET for gateway-api",
+      "what_breaks": "File uploads will fail, no storage backend configured",
+      "current_state": "gateway-api/src/index.ts uses process.env.GCS_BUCKET",
+      "fix": "Add to .env.example:\nGCS_BUCKET=your-gcs-bucket-name\nGCP_PROJECT_ID=your-gcp-project-id"
+    },
+    {
+      "category": "environment",
+      "severity": "medium",
+      "file": "/home/user/geminivideo/.env.example",
+      "line": null,
+      "error": "Missing PROJECT_ID environment variable",
+      "what_breaks": "GCP services may fail without project context",
+      "current_state": "Used in gateway-api but not documented",
+      "fix": "Add to .env.example:\nPROJECT_ID=your-gcp-project-id\n# Or use GCP_PROJECT_ID (standardize)"
+    },
+    {
+      "category": "environment",
+      "severity": "high",
+      "file": "/home/user/geminivideo/.env.example",
+      "line": null,
+      "error": "Missing ENVIRONMENT variable",
+      "what_breaks": "ml-service and video-agent use os.getenv('ENVIRONMENT') for conditional logic",
+      "current_state": "Not defined anywhere, will default to None causing unexpected behavior",
+      "fix": "Add to .env.example:\nENVIRONMENT=development\n# Production: ENVIRONMENT=production"
+    },
+    {
+      "category": "environment",
+      "severity": "medium",
+      "file": "/home/user/geminivideo/docker-compose.yml",
+      "line": 139,
+      "error": "GOOGLE_ADS_URL points to wrong port",
+      "what_breaks": "Gateway can't reach Google Ads service",
+      "current_state": "GOOGLE_ADS_URL: http://localhost:8084 but no google-ads service defined in docker-compose",
+      "fix": "Either:\n1. Remove GOOGLE_ADS_URL if service doesn't exist\n2. Add google-ads service to docker-compose.yml\n3. Update port to match actual service"
+    },
+    {
+      "category": "database",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/services/gateway-api/prisma/schema.prisma",
+      "line": null,
+      "error": "Prisma schema vs SQL migrations mismatch",
+      "what_breaks": "Prisma migrations in gateway-api conflict with manual SQL in database_migrations/",
+      "current_state": "Two different migration systems - Prisma and raw SQL",
+      "fix": "Choose ONE approach:\nOption 1: Use only Prisma - delete database_migrations/, run 'prisma migrate dev'\nOption 2: Use only SQL - remove Prisma, use pg driver directly"
+    },
+    {
+      "category": "database",
+      "severity": "high",
+      "file": "/home/user/geminivideo/database_schema.sql",
+      "line": null,
+      "error": "Schema mismatch with Prisma models",
+      "what_breaks": "Manual SQL schema has different tables than Prisma schema",
+      "current_state": "database_schema.sql defines: users, campaigns, blueprints, render_jobs, videos\nPrisma defines: User, Asset, Clip, Campaign, Experiment, Prediction, Conversion, KnowledgeDocument",
+      "fix": "Synchronize schemas:\n1. Generate Prisma schema from database: prisma db pull\n2. OR migrate database to Prisma schema: prisma migrate deploy"
+    },
+    {
+      "category": "database",
+      "severity": "high",
+      "file": "/home/user/geminivideo/docker-compose.yml",
+      "line": 99,
+      "error": "DATABASE_URL not set for gateway-api",
+      "what_breaks": "Prisma can't connect to database, all DB operations fail",
+      "current_state": "Gateway-api needs DATABASE_URL but only gets it from .env, not docker-compose",
+      "fix": "Add to gateway-api service in docker-compose.yml:\nenvironment:\n  DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo"
+    },
+    {
+      "category": "service_dependencies",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/docker-compose.yml",
+      "line": 260,
+      "error": "gateway-api depends on ml-service but ml-service might not be ready",
+      "what_breaks": "Gateway starts before ML service is ready to accept requests",
+      "current_state": "depends_on uses service_healthy but ml-service has long startup (90s)",
+      "fix": "Increase gateway-api start_period:\nhealthcheck:\n  start_period: 120s  # Wait for dependencies"
+    },
+    {
+      "category": "service_dependencies",
+      "severity": "high",
+      "file": "/home/user/geminivideo/docker-compose.yml",
+      "line": 182,
+      "error": "meta-publisher GATEWAY_URL mismatch",
+      "what_breaks": "Meta-publisher tries to call gateway at wrong URL",
+      "current_state": "GATEWAY_URL: http://gateway-api:8080 but internal service might expect different name",
+      "fix": "Verify service can resolve gateway-api hostname or use:\nGATEWAY_URL: http://gateway-api:8080"
+    },
+    {
+      "category": "service_dependencies",
+      "severity": "medium",
+      "file": "/home/user/geminivideo/docker-compose.yml",
+      "line": null,
+      "error": "Missing google-ads service definition",
+      "what_breaks": "Gateway configured to call google-ads:8086 but service doesn't exist",
+      "current_state": "GOOGLE_ADS_URL env var set but no google-ads container",
+      "fix": "Either:\n1. Add google-ads service to docker-compose.yml\n2. Remove GOOGLE_ADS_URL from gateway environment"
+    },
+    {
+      "category": "build",
+      "severity": "high",
+      "file": "/home/user/geminivideo/frontend/vite.config.ts",
+      "line": 11,
+      "error": "Vite proxy uses VITE_API_URL but Dockerfile uses VITE_API_BASE_URL",
+      "what_breaks": "Development proxy might not work, builds might have wrong API URL",
+      "current_state": "Inconsistent env var naming between dev and build",
+      "fix": "Standardize to VITE_API_BASE_URL everywhere:\nvite.config.ts:\ntarget: process.env.VITE_API_BASE_URL || 'http://localhost:8080'"
+    },
+    {
+      "category": "build",
+      "severity": "medium",
+      "file": "/home/user/geminivideo/frontend/Dockerfile",
+      "line": 16,
+      "error": "VITE_API_BASE_URL build arg not passed at build time",
+      "what_breaks": "Frontend built with wrong API URL, API calls fail in production",
+      "current_state": "ARG defined but docker-compose.yml doesn't pass it",
+      "fix": "In docker-compose.yml frontend service:\nargs:\n  VITE_API_BASE_URL: http://localhost:8080"
+    },
+    {
+      "category": "build",
+      "severity": "critical",
+      "file": "/home/user/geminivideo/services/gateway-api/package.json",
+      "line": 17,
+      "error": "postinstall runs prisma generate but prisma folder might not exist during npm install",
+      "what_breaks": "npm install fails in Docker build if prisma folder not copied yet",
+      "current_state": "Dockerfile copies package.json, runs npm install, THEN copies prisma folder",
+      "fix": "In Dockerfile, copy prisma BEFORE npm install:\nCOPY package*.json ./\nCOPY tsconfig.json ./\nCOPY prisma ./prisma\nRUN npm install"
+    },
+    {
+      "category": "build",
+      "severity": "high",
+      "file": "/home/user/geminivideo/services/gateway-api/Dockerfile",
+      "line": 8,
+      "error": "prisma folder copied but postinstall hook may run too early",
+      "what_breaks": "Race condition: prisma generate runs before prisma schema is available",
+      "current_state": "Line 8 copies prisma but npm install on line 11 triggers postinstall",
+      "fix": "Already correct in Dockerfile but verify copy order:\nCOPY package*.json ./\nCOPY tsconfig.json ./\nCOPY prisma ./prisma  # BEFORE npm install\nRUN npm install"
+    }
+  ],
+  "additional_warnings": [
+    {
+      "category": "security",
+      "severity": "high",
+      "issue": "Hardcoded database credentials in docker-compose.yml",
+      "file": "/home/user/geminivideo/docker-compose.yml",
+      "line": "12-14",
+      "recommendation": "Use Docker secrets or .env file for sensitive values"
+    },
+    {
+      "category": "performance",
+      "severity": "medium",
+      "issue": "No connection pooling configured for database",
+      "recommendation": "Add DATABASE_POOL_MIN, DATABASE_POOL_MAX environment variables"
+    },
+    {
+      "category": "reliability",
+      "severity": "medium",
+      "issue": "No retry logic for service-to-service calls",
+      "recommendation": "Implement circuit breakers and retries in gateway-api"
+    }
+  ],
+  "deployment_blockers": [
+    "wget/curl not installed in healthchecks - containers will be killed",
+    "Firebase auth missing env vars - authentication won't work",
+    "Database schema mismatch - Prisma vs SQL migrations",
+    "Shared folder COPY path wrong - Docker builds will fail",
+    "Missing VITE_WS_URL - real-time features broken"
+  ],
+  "immediate_fixes_required": [
+    "1. Add wget to all node:20-alpine Dockerfiles",
+    "2. Add curl to all python:3.11-slim Dockerfiles",
+    "3. Add Firebase env vars to .env.example and docker-compose",
+    "4. Fix shared directory COPY path in Dockerfiles",
+    "5. Add VITE_WS_URL and VITE_META_PIXEL_ID to .env.example",
+    "6. Resolve Prisma vs SQL migration conflict",
+    "7. Add DATABASE_URL to gateway-api in docker-compose.yml",
+    "8. Fix titan-core WORKDIR issue before CMD"
+  ],
+  "testing_required_after_fixes": [
+    "docker-compose build --no-cache (verify all builds succeed)",
+    "docker-compose up -d (verify all containers start)",
+    "curl http://localhost:8080/health (verify gateway health)",
+    "docker-compose logs gateway-api (check for Firebase auth errors)",
+    "Verify frontend can connect to backend API",
+    "Test WebSocket connection for real-time features",
+    "Verify Prisma migrations run successfully",
+    "Test Meta Pixel tracking in frontend"
+  ]
+}

@@ -95,15 +95,23 @@ app.get('/', (req: Request, res: Response) => {
   res.json({
     service: 'meta-publisher',
     status: 'running',
-    version: '2.0.0',
+    version: '2.1.0',
     real_sdk_enabled: !!metaAdsManager,
     dry_run_mode: !META_ACCESS_TOKEN,
+    features: {
+      retry_logic: true,
+      conversion_api: true,
+      event_deduplication: true,
+      error_handling: true
+    },
     endpoints: {
       campaigns: '/api/campaigns',
       adsets: '/api/adsets',
       ads: '/api/ads',
       video_ads: '/api/video-ads',
       insights: '/api/insights',
+      conversion_events: '/api/conversion-events',
+      batch_conversion_events: '/api/conversion-events/batch',
       legacy_publish: '/publish/meta (deprecated)',
       legacy_insights: '/insights (deprecated)'
     }
@@ -619,6 +627,127 @@ app.post('/insights/link-prediction', async (req: Request, res: Response) => {
 
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== CONVERSION API (CAPI) ====================
+// Agent 95: Meta Conversion API Integration
+// Send server-side conversion events with deduplication
+// ================================================================
+
+/**
+ * Send Conversion Event via Meta Conversion API
+ * Supports event deduplication using event_id
+ */
+app.post('/api/conversion-events', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured',
+        message: 'Set META_ACCESS_TOKEN, META_AD_ACCOUNT_ID, and META_PAGE_ID'
+      });
+    }
+
+    const {
+      eventName,
+      eventTime,
+      userData,
+      customData,
+      eventSourceUrl,
+      actionSource,
+      pixelId
+    } = req.body;
+
+    // Validate required fields
+    if (!eventName || !eventTime || !userData || !actionSource) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'eventName, eventTime, userData, and actionSource are required'
+      });
+    }
+
+    // Send conversion event
+    await metaAdsManager.sendConversionEvent({
+      eventName,
+      eventTime,
+      userData,
+      customData,
+      eventSourceUrl,
+      actionSource
+    }, pixelId);
+
+    res.json({
+      status: 'success',
+      message: 'Conversion event sent successfully',
+      event_name: eventName
+    });
+
+  } catch (error: any) {
+    console.error('Error sending conversion event:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to send conversion event',
+      code: (error as any).code,
+      type: (error as any).type,
+      fbtrace_id: (error as any).fbtrace_id
+    });
+  }
+});
+
+/**
+ * Batch send multiple conversion events
+ */
+app.post('/api/conversion-events/batch', async (req: Request, res: Response) => {
+  try {
+    if (!metaAdsManager) {
+      return res.status(400).json({
+        error: 'Meta SDK not configured'
+      });
+    }
+
+    const { events, pixelId } = req.body;
+
+    if (!events || !Array.isArray(events) || events.length === 0) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'events array is required'
+      });
+    }
+
+    const results = [];
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const event of events) {
+      try {
+        await metaAdsManager.sendConversionEvent(event, pixelId);
+        results.push({
+          eventName: event.eventName,
+          status: 'success'
+        });
+        successCount++;
+      } catch (error: any) {
+        results.push({
+          eventName: event.eventName,
+          status: 'failed',
+          error: error.message
+        });
+        failCount++;
+      }
+    }
+
+    res.json({
+      status: 'completed',
+      total: events.length,
+      success: successCount,
+      failed: failCount,
+      results
+    });
+
+  } catch (error: any) {
+    console.error('Error in batch conversion events:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to process batch conversion events'
+    });
   }
 });
 

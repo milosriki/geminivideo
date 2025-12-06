@@ -160,6 +160,13 @@ class CTRPredictor:
         if self.model is None:
             raise ValueError("Model not trained or loaded. Call train() or load_model() first.")
 
+        # Input validation
+        if X is None or len(X) == 0:
+            raise ValueError("Input features cannot be None or empty")
+
+        if not isinstance(X, np.ndarray):
+            raise TypeError(f"Input must be numpy array, got {type(X)}")
+
         predictions = self.model.predict(X)
 
         # Clip predictions to valid CTR range [0, 1]

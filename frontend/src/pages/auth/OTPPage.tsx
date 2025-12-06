@@ -157,7 +157,6 @@ export default function OTPPage() {
 
     try {
       // TODO: Implement actual verification logic
-      console.log('Verifying OTP:', otp);
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Navigate to dashboard on success

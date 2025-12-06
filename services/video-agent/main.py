@@ -39,6 +39,32 @@ from pro.preview_generator import PreviewGenerator, ProxyQuality
 from pro.asset_library import AssetLibrary, AssetType, AssetCategory
 from pro.voice_generator import VoiceGenerator, VoiceProvider, OpenAIVoice, VoiceSettings, VoiceCloneConfig
 
+# CELERY TASK QUEUE - Distributed Video Processing
+from pro.celery_app import (
+    app as celery_app,
+    render_video_task,
+    transcode_task,
+    generate_preview_task,
+    caption_task,
+    batch_render_task,
+    cleanup_task,
+    redis_client as celery_redis,
+    get_failed_tasks,
+    get_dlq_stats,
+    retry_failed_task,
+    purge_dlq
+)
+
+# Quick Win #4: Import PrecisionAVSync for beat sync analysis
+try:
+    from pro.precision_av_sync import PrecisionAVSync, AudioPeak, VisualPeak, SyncPoint
+    precision_av_sync = PrecisionAVSync()
+    PRECISION_AV_SYNC_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: PrecisionAVSync not available: {e}")
+    precision_av_sync = None
+    PRECISION_AV_SYNC_AVAILABLE = False
+
 app = FastAPI(title="Video Agent Service", version="1.0.0")
 
 # Production safety check - prevent debug mode in production
@@ -413,6 +439,212 @@ async def health_check():
         "jobs_count": len(render_jobs)
     }
 
+
+
+# ==================== TASK PRIORITY MANAGEMENT ====================
+# Dynamic priority adjustment for Celery queue
+# ================================================================
+
+@app.post("/api/tasks/priority/adjust")
+async def adjust_task_priority(request: Dict[str, Any]):
+    """
+    Manually adjust priority of a pending task
+
+    Body:
+    - task_id: str (required) - Celery task ID
+    - priority: int (required) - New priority value (1-10, higher = more urgent)
+
+    Returns:
+    - {status: "success", task_id: str, new_priority: int}
+    """
+    try:
+        # Import from celery_app
+        from services.video_agent.pro.celery_app import adjust_task_priority as celery_adjust_priority
+
+        task_id = request.get("task_id")
+        if not task_id:
+            raise HTTPException(status_code=400, detail="task_id required")
+
+        priority = request.get("priority")
+        if priority is None:
+            raise HTTPException(status_code=400, detail="priority required")
+
+        try:
+            priority = int(priority)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="priority must be an integer")
+
+        if priority < 1 or priority > 10:
+            raise HTTPException(status_code=400, detail="priority must be between 1 and 10")
+
+        # Adjust priority
+        success = celery_adjust_priority(task_id, priority)
+
+        if success:
+            return {
+                "status": "success",
+                "task_id": task_id,
+                "new_priority": priority,
+                "message": f"Task priority adjusted to {priority}"
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Task not found or already completed")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tasks/priority/rules")
+async def get_priority_rules():
+    """
+    Get current priority calculation rules
+
+    Returns:
+    - Priority rules configuration
+    - Queue depth statistics
+    - Recent rebalancing status
+    """
+    try:
+        # Import from celery_app
+        from services.video_agent.pro.celery_app import (
+            PRIORITY_RULES,
+            get_all_queue_depths,
+            redis_client
+        )
+
+        # Get queue depths
+        queue_depths = get_all_queue_depths()
+
+        # Get recent rebalance status from Redis
+        rebalance_status = None
+        try:
+            status_data = redis_client.get('queue_rebalance_status')
+            if status_data:
+                rebalance_status = json.loads(status_data)
+        except:
+            pass
+
+        return {
+            "status": "success",
+            "priority_rules": {
+                "base_priority": PRIORITY_RULES['base_priority'],
+                "priority_range": {
+                    "min": PRIORITY_RULES['min_priority'],
+                    "max": PRIORITY_RULES['max_priority']
+                },
+                "age_boost": {
+                    "per_minute": PRIORITY_RULES['age_boost_per_minute'],
+                    "max_boost": PRIORITY_RULES['max_age_boost'],
+                    "description": "Tasks gain priority as they wait in queue"
+                },
+                "user_tier_boost": PRIORITY_RULES['user_tier_boost'],
+                "roas_boost": {
+                    "thresholds": PRIORITY_RULES['roas_thresholds'],
+                    "boost_values": PRIORITY_RULES['roas_boost'],
+                    "description": "High-performing campaigns get priority"
+                },
+                "queue_rebalancing": {
+                    "imbalance_threshold": PRIORITY_RULES['queue_imbalance_threshold'],
+                    "description": "Rebalance when queue variance exceeds threshold"
+                }
+            },
+            "queue_status": {
+                "depths": queue_depths,
+                "total_pending": sum(queue_depths.values())
+            },
+            "last_rebalance": rebalance_status,
+            "documentation": {
+                "priority_factors": [
+                    "Task age (older tasks get higher priority)",
+                    "User tier (premium/enterprise users get priority)",
+                    "Campaign ROAS (high-performing campaigns prioritized)",
+                    "Queue depth (penalties for overloaded queues)"
+                ],
+                "examples": {
+                    "free_user_new_task": "Priority 5 (base)",
+                    "premium_user_new_task": "Priority 7 (base + tier boost)",
+                    "enterprise_user_high_roas": "Priority 10 (base + tier + ROAS)",
+                    "free_user_waiting_30min": "Priority 8 (base + age boost)"
+                }
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tasks/priority/queue-status")
+async def get_queue_status():
+    """
+    Get detailed status of all Celery queues
+
+    Returns:
+    - Queue depths
+    - Pending task counts
+    - Queue health metrics
+    """
+    try:
+        from services.video_agent.pro.celery_app import (
+            get_all_queue_depths,
+            redis_client
+        )
+
+        # Get queue depths
+        queue_depths = get_all_queue_depths()
+        total_pending = sum(queue_depths.values())
+
+        # Calculate queue statistics
+        if total_pending > 0:
+            avg_depth = total_pending / len(queue_depths)
+            variance = sum((depth - avg_depth) ** 2 for depth in queue_depths.values()) / len(queue_depths)
+            normalized_variance = variance / (avg_depth ** 2) if avg_depth > 0 else 0
+        else:
+            avg_depth = 0
+            variance = 0
+            normalized_variance = 0
+
+        # Get system resources
+        try:
+            resources_data = redis_client.get('system_resources')
+            resources = json.loads(resources_data) if resources_data else None
+        except:
+            resources = None
+
+        return {
+            "status": "success",
+            "queues": {
+                "render_queue": {
+                    "depth": queue_depths.get('render_queue', 0),
+                    "description": "Main video rendering tasks"
+                },
+                "preview_queue": {
+                    "depth": queue_depths.get('preview_queue', 0),
+                    "description": "Preview generation tasks"
+                },
+                "transcode_queue": {
+                    "depth": queue_depths.get('transcode_queue', 0),
+                    "description": "Video transcoding tasks"
+                },
+                "caption_queue": {
+                    "depth": queue_depths.get('caption_queue', 0),
+                    "description": "Caption generation tasks"
+                }
+            },
+            "statistics": {
+                "total_pending": total_pending,
+                "average_depth": round(avg_depth, 2),
+                "variance": round(variance, 2),
+                "normalized_variance": round(normalized_variance, 4),
+                "is_balanced": normalized_variance < 0.3
+            },
+            "system_resources": resources,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== DCO VARIANT GENERATION ====================
 # Dynamic Creative Optimization for Meta Ad Formats
@@ -1822,6 +2054,837 @@ async def beat_sync_render(request: Dict[str, Any], background_tasks: Background
 
 
 # ============================================================================
+# PRECISION AV SYNC ANALYSIS (Quick Win #4)
+# Analyze audio-visual synchronization with 0.1s precision
+# ============================================================================
+
+@app.post("/api/video/analyze-sync")
+async def analyze_av_sync(request: Dict[str, Any]):
+    """
+    Analyze audio-visual synchronization quality (Quick Win #4)
+
+    Extracts audio peaks (beats, onsets, drops) and visual peaks (cuts, motion spikes)
+    then measures how well they align within 0.1 second tolerance.
+
+    Critical for ad performance:
+    - Beat drops should hit on visual transitions
+    - Emotional peaks in voice should match face closeups
+    - Music energy should match motion energy
+
+    Body:
+    - video_path: str (required) - Path to video file
+    - audio_path: str (optional) - Separate audio path (if not using video audio)
+
+    Returns:
+    - total_audio_peaks: int - Number of detected audio peaks
+    - total_visual_peaks: int - Number of detected visual peaks
+    - sync_points_found: int - Number of matching points
+    - synced_within_tolerance: int - Points within 0.1s tolerance
+    - sync_percentage: float - Percentage of synced points
+    - average_offset_seconds: float - Average timing offset
+    - average_sync_score: float - 0-1 sync quality score
+    - recommendation: str - Human-readable sync assessment
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available - check dependencies (librosa, cv2)")
+
+    try:
+        video_path = request.get("video_path")
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=400, detail="Invalid video_path")
+
+        audio_path = request.get("audio_path")  # Optional separate audio
+
+        # Analyze sync quality
+        result = precision_av_sync.analyze_sync_quality(video_path, audio_path)
+
+        return {
+            "status": "success",
+            "video_path": video_path,
+            "analysis": result
+        }
+
+    except Exception as e:
+        logger.error(f"AV sync analysis error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/video/extract-audio-peaks")
+async def extract_audio_peaks(request: Dict[str, Any]):
+    """
+    Extract audio peaks from audio/video file (Quick Win #4)
+
+    Detects:
+    - Beats (rhythm markers)
+    - Onsets (sudden sounds)
+    - Drops (energy peaks)
+    - Vocals (if present)
+
+    Body:
+    - audio_path: str (required) - Path to audio file
+
+    Returns:
+    - peaks: List of {timestamp, energy, peak_type}
+    - total_peaks: int
+    - tempo_bpm: float (estimated)
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        audio_path = request.get("audio_path")
+        if not audio_path or not os.path.exists(audio_path):
+            raise HTTPException(status_code=400, detail="Invalid audio_path")
+
+        peaks = precision_av_sync.extract_audio_peaks(audio_path)
+
+        # Convert to dict format
+        peaks_data = [
+            {
+                "timestamp": p.timestamp,
+                "energy": p.energy,
+                "peak_type": p.peak_type
+            }
+            for p in peaks
+        ]
+
+        # Get tempo using librosa
+        import librosa
+        y, sr = librosa.load(audio_path)
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+
+        return {
+            "status": "success",
+            "peaks": peaks_data,
+            "total_peaks": len(peaks),
+            "tempo_bpm": float(tempo),
+            "peak_types": {
+                "beat": len([p for p in peaks if p.peak_type == 'beat']),
+                "onset": len([p for p in peaks if p.peak_type == 'onset']),
+                "drop": len([p for p in peaks if p.peak_type == 'drop'])
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Extract audio peaks error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/video/extract-visual-peaks")
+async def extract_visual_peaks(request: Dict[str, Any]):
+    """
+    Extract visual peaks from video file (Quick Win #4)
+
+    Detects:
+    - Cuts (scene changes)
+    - Motion spikes (high activity moments)
+    - Transitions (gradual changes)
+
+    Body:
+    - video_path: str (required) - Path to video file
+
+    Returns:
+    - peaks: List of {timestamp, motion_energy, peak_type}
+    - total_peaks: int
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        video_path = request.get("video_path")
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=400, detail="Invalid video_path")
+
+        peaks = precision_av_sync.extract_visual_peaks(video_path)
+
+        # Convert to dict format
+        peaks_data = [
+            {
+                "timestamp": p.timestamp,
+                "motion_energy": p.motion_energy,
+                "peak_type": p.peak_type
+            }
+            for p in peaks
+        ]
+
+        return {
+            "status": "success",
+            "peaks": peaks_data,
+            "total_peaks": len(peaks),
+            "peak_types": {
+                "cut": len([p for p in peaks if p.peak_type == 'cut']),
+                "motion": len([p for p in peaks if p.peak_type == 'motion'])
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Extract visual peaks error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/video/suggest-cut-adjustments")
+async def suggest_cut_adjustments(request: Dict[str, Any]):
+    """
+    Suggest timing adjustments for out-of-sync cuts (Quick Win #4)
+
+    Analyzes current sync and suggests exactly where to move cuts
+    to align with audio beats.
+
+    Body:
+    - video_path: str (required) - Path to video file
+    - audio_path: str (optional) - Separate audio path
+
+    Returns:
+    - adjustments: List of suggested timing changes
+    - each adjustment contains:
+      - current_visual_time: Current cut position
+      - target_audio_time: Where it should be to match beat
+      - adjustment_needed: Seconds to shift
+      - direction: 'earlier' or 'later'
+      - priority: 'high' (beat) or 'medium' (onset)
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        video_path = request.get("video_path")
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=400, detail="Invalid video_path")
+
+        audio_path = request.get("audio_path")
+
+        # Extract audio from video if not provided
+        if audio_path is None:
+            import subprocess
+            import tempfile
+            audio_path = tempfile.mktemp(suffix='.wav')
+            subprocess.run([
+                'ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le',
+                '-ar', '22050', '-ac', '1', audio_path, '-y'
+            ], capture_output=True)
+
+        # Get peaks and sync points
+        audio_peaks = precision_av_sync.extract_audio_peaks(audio_path)
+        visual_peaks = precision_av_sync.extract_visual_peaks(video_path)
+        sync_points = precision_av_sync.find_sync_points(audio_peaks, visual_peaks)
+
+        # Get suggested adjustments
+        adjustments = precision_av_sync.suggest_cut_adjustments(sync_points)
+
+        return {
+            "status": "success",
+            "adjustments": adjustments,
+            "total_adjustments": len(adjustments),
+            "sync_summary": {
+                "total_sync_points": len(sync_points),
+                "synced_count": len([sp for sp in sync_points if sp.is_synced]),
+                "out_of_sync_count": len([sp for sp in sync_points if not sp.is_synced])
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Suggest cut adjustments error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# NEW BEAT SYNC API ENDPOINTS (TASK 1)
+# ============================================================================
+
+@app.post("/api/video/detect-beats")
+async def detect_beats(request: Dict[str, Any]):
+    """
+    Detect beats from audio file
+
+    Simple endpoint focused on beat detection for music synchronization.
+
+    Body:
+    - audio_path: str (required) - Path to audio file
+    - return_tempo: bool (optional) - Include tempo/BPM analysis (default: true)
+
+    Returns:
+    - beats: List of beat timestamps in seconds
+    - tempo_bpm: Estimated tempo in beats per minute
+    - beat_count: Total number of beats detected
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        audio_path = request.get("audio_path")
+        if not audio_path or not os.path.exists(audio_path):
+            raise HTTPException(status_code=400, detail="Invalid audio_path")
+
+        return_tempo = request.get("return_tempo", True)
+
+        # Extract audio peaks
+        audio_peaks = precision_av_sync.extract_audio_peaks(audio_path)
+
+        # Filter only beat-type peaks
+        beats = [p for p in audio_peaks if p.peak_type == 'beat']
+        beat_times = [b.timestamp for b in beats]
+
+        response = {
+            "status": "success",
+            "beats": beat_times,
+            "beat_count": len(beats)
+        }
+
+        if return_tempo:
+            # Calculate tempo using librosa
+            import librosa
+            y, sr = librosa.load(audio_path)
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            response["tempo_bpm"] = float(tempo)
+            response["audio_duration"] = float(len(y) / sr)
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Detect beats error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/video/generate-sync-points")
+async def generate_sync_points(request: Dict[str, Any]):
+    """
+    Generate sync points between audio and video
+
+    Analyzes both audio (beats, onsets) and video (cuts, motion) to create
+    synchronization points that can be used for beat-matched editing.
+
+    Body:
+    - video_path: str (required) - Path to video file
+    - audio_path: str (optional) - Separate audio path (uses video audio if not provided)
+    - tolerance: float (optional) - Sync tolerance in seconds (default: 0.1)
+
+    Returns:
+    - sync_points: List of sync point objects with:
+      - audio_timestamp: Audio peak timestamp
+      - audio_type: Type of audio peak (beat/onset/drop)
+      - audio_energy: Peak energy level
+      - visual_timestamp: Closest visual peak timestamp
+      - visual_type: Type of visual peak (cut/motion)
+      - offset: Time difference between audio and visual
+      - is_synced: Whether within tolerance
+      - sync_score: Quality score 0-1
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        video_path = request.get("video_path")
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=400, detail="Invalid video_path")
+
+        audio_path = request.get("audio_path")
+        tolerance = float(request.get("tolerance", 0.1))
+
+        # Extract audio from video if not provided
+        if audio_path is None:
+            import subprocess
+            import tempfile
+            audio_path = tempfile.mktemp(suffix='.wav')
+            subprocess.run([
+                'ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le',
+                '-ar', '22050', '-ac', '1', audio_path, '-y'
+            ], capture_output=True)
+
+        # Extract peaks
+        audio_peaks = precision_av_sync.extract_audio_peaks(audio_path)
+        visual_peaks = precision_av_sync.extract_visual_peaks(video_path)
+
+        # Generate sync points
+        sync_points = precision_av_sync.find_sync_points(audio_peaks, visual_peaks)
+
+        # Convert to dict format
+        sync_points_data = [
+            {
+                "audio_timestamp": sp.audio_peak.timestamp,
+                "audio_type": sp.audio_peak.peak_type,
+                "audio_energy": sp.audio_peak.energy,
+                "visual_timestamp": sp.visual_peak.timestamp,
+                "visual_type": sp.visual_peak.peak_type,
+                "visual_energy": sp.visual_peak.motion_energy,
+                "offset": sp.offset,
+                "is_synced": sp.is_synced,
+                "sync_score": sp.sync_score
+            }
+            for sp in sync_points
+        ]
+
+        # Calculate statistics
+        synced_count = len([sp for sp in sync_points if sp.is_synced])
+        avg_offset = sum(sp.offset for sp in sync_points) / len(sync_points) if sync_points else 0
+        avg_score = sum(sp.sync_score for sp in sync_points) / len(sync_points) if sync_points else 0
+
+        return {
+            "status": "success",
+            "sync_points": sync_points_data,
+            "total_sync_points": len(sync_points),
+            "synced_within_tolerance": synced_count,
+            "sync_percentage": (synced_count / len(sync_points) * 100) if sync_points else 0,
+            "average_offset": avg_offset,
+            "average_sync_score": avg_score,
+            "tolerance_used": tolerance,
+            "audio_peaks_count": len(audio_peaks),
+            "visual_peaks_count": len(visual_peaks)
+        }
+
+    except Exception as e:
+        logger.error(f"Generate sync points error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/video/phase-analysis")
+async def phase_analysis(request: Dict[str, Any]):
+    """
+    Analyze audio phase for effect timing
+
+    Analyzes the phase characteristics of audio to determine optimal timing
+    for visual effects, transitions, and motion graphics.
+
+    Body:
+    - audio_path: str (required) - Path to audio file
+    - effect_type: str (optional) - Type of effect to optimize for (transition/motion/text)
+
+    Returns:
+    - phase_points: List of optimal timing points for effects
+    - energy_curve: Audio energy over time
+    - recommendations: Suggested effect timings
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        audio_path = request.get("audio_path")
+        if not audio_path or not os.path.exists(audio_path):
+            raise HTTPException(status_code=400, detail="Invalid audio_path")
+
+        effect_type = request.get("effect_type", "transition")
+
+        # Load audio
+        import librosa
+        import numpy as np
+        y, sr = librosa.load(audio_path, sr=22050)
+
+        # Extract phase and energy information
+        # RMS energy
+        rms = librosa.feature.rms(y=y)[0]
+        rms_times = librosa.frames_to_time(range(len(rms)), sr=sr)
+
+        # Spectral centroid (brightness)
+        spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
+
+        # Zero crossing rate (percussiveness)
+        zcr = librosa.feature.zero_crossing_rate(y=y)[0]
+
+        # Onset strength
+        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+
+        # Find optimal phase points based on effect type
+        phase_points = []
+
+        if effect_type == "transition":
+            # For transitions, use onset peaks with high energy
+            from scipy.signal import find_peaks
+            peaks, properties = find_peaks(
+                onset_env,
+                height=np.mean(onset_env) * 1.5,
+                distance=sr // 8  # At least 1/8 second apart
+            )
+
+            for peak in peaks:
+                timestamp = librosa.frames_to_time(peak, sr=sr)
+                phase_points.append({
+                    "timestamp": float(timestamp),
+                    "type": "transition_point",
+                    "energy": float(onset_env[peak]),
+                    "confidence": float(properties['peak_heights'][list(peaks).index(peak)] / max(onset_env))
+                })
+
+        elif effect_type == "motion":
+            # For motion graphics, use rhythm and energy changes
+            # Detect tempo and beats
+            tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+            beat_times = librosa.frames_to_time(beats, sr=sr)
+
+            for i, beat_time in enumerate(beat_times):
+                beat_idx = int(beat_time * sr / 512)  # Convert to frame index
+                if beat_idx < len(rms):
+                    phase_points.append({
+                        "timestamp": float(beat_time),
+                        "type": "motion_point",
+                        "energy": float(rms[min(beat_idx, len(rms) - 1)]),
+                        "beat_strength": 1.0
+                    })
+
+        elif effect_type == "text":
+            # For text effects, use lower energy points (pauses)
+            # Find valleys in RMS energy
+            from scipy.signal import find_peaks
+            inverted_rms = -rms
+            valleys, _ = find_peaks(
+                inverted_rms,
+                height=-np.mean(rms) * 0.8,
+                distance=sr // 4
+            )
+
+            for valley in valleys:
+                timestamp = rms_times[valley]
+                phase_points.append({
+                    "timestamp": float(timestamp),
+                    "type": "text_point",
+                    "energy": float(rms[valley]),
+                    "clarity": 1.0 - (rms[valley] / max(rms))
+                })
+
+        # Build energy curve (sampled at 10 Hz for response size)
+        sample_rate = 10  # Hz
+        duration = len(y) / sr
+        sample_times = np.arange(0, duration, 1.0 / sample_rate)
+
+        energy_curve = []
+        for t in sample_times[:200]:  # Limit to first 20 seconds for response size
+            frame_idx = int(t * len(rms) / duration)
+            if frame_idx < len(rms):
+                energy_curve.append({
+                    "time": float(t),
+                    "energy": float(rms[frame_idx])
+                })
+
+        # Generate recommendations
+        recommendations = []
+        if phase_points:
+            recommendations.append({
+                "effect": effect_type,
+                "optimal_points": len(phase_points),
+                "average_spacing": float(np.mean(np.diff([p["timestamp"] for p in phase_points]))) if len(phase_points) > 1 else 0,
+                "suggestion": f"Place {effect_type} effects at {len(phase_points)} optimal timing points"
+            })
+
+        return {
+            "status": "success",
+            "effect_type": effect_type,
+            "phase_points": phase_points[:50],  # Limit response size
+            "total_phase_points": len(phase_points),
+            "energy_curve": energy_curve,
+            "recommendations": recommendations,
+            "audio_duration": float(duration),
+            "analysis": {
+                "average_energy": float(np.mean(rms)),
+                "peak_energy": float(np.max(rms)),
+                "energy_variance": float(np.var(rms))
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Phase analysis error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# BEAT-SYNCED TIMELINE RENDERING (TASK 2)
+# Integration with Timeline Engine for beat-matched editing
+# ============================================================================
+
+@app.post("/api/video/render-beat-synced")
+async def render_beat_synced(request: Dict[str, Any], background_tasks: BackgroundTasks):
+    """
+    Render video with beat-synced transitions using Timeline Engine
+
+    This endpoint integrates precision_av_sync with timeline_engine to create
+    beat-synchronized videos. It analyzes audio/video sync points and aligns
+    cuts and transitions to beat positions.
+
+    Body:
+    - video_path: str (required) - Path to source video
+    - audio_path: str (optional) - Separate audio path (uses video audio if not provided)
+    - clips: List[Dict] (optional) - Predefined clips to use, each with:
+      - source: str - Clip source path
+      - start_time: float - Timeline position
+      - duration: float - Clip duration
+      - in_point: float (optional) - Trim start
+      - out_point: float (optional) - Trim end
+    - output_path: str (optional) - Custom output path
+    - snap_tolerance: float (optional) - Beat snap tolerance in seconds (default: 0.05)
+    - add_transitions: bool (optional) - Add transitions at beat points (default: true)
+    - transition_duration: float (optional) - Transition duration (default: 0.5s)
+    - async_mode: bool (optional) - Process asynchronously (default: true)
+
+    Returns:
+    - Async mode: {status: "queued", job_id: str, timeline_id: str}
+    - Sync mode: {status: "success", output_path: str, sync_report: Dict}
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        video_path = request.get("video_path")
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=400, detail="Invalid video_path")
+
+        audio_path = request.get("audio_path")
+        clips = request.get("clips", [])
+        output_path = request.get("output_path")
+        snap_tolerance = float(request.get("snap_tolerance", 0.05))
+        add_transitions = request.get("add_transitions", True)
+        transition_duration = float(request.get("transition_duration", 0.5))
+        async_mode = request.get("async_mode", True)
+
+        # Generate output path if not provided
+        job_id = str(uuid.uuid4())
+        if not output_path:
+            output_dir = os.getenv("OUTPUT_DIR", "/tmp/outputs")
+            os.makedirs(output_dir, exist_ok=True)
+            output_path = os.path.join(output_dir, f"beat_synced_{job_id}.mp4")
+
+        # Extract audio from video if not provided
+        if audio_path is None:
+            import subprocess
+            import tempfile
+            audio_path = tempfile.mktemp(suffix='.wav')
+            subprocess.run([
+                'ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le',
+                '-ar', '22050', '-ac', '1', audio_path, '-y'
+            ], capture_output=True, check=False)
+
+        if async_mode:
+            # Asynchronous processing
+            async def process_beat_sync_timeline():
+                try:
+                    pro_jobs[job_id] = {
+                        "status": "processing",
+                        "type": "beat_synced_timeline",
+                        "progress": 10,
+                        "message": "Analyzing audio peaks..."
+                    }
+
+                    # Step 1: Extract sync points
+                    audio_peaks = precision_av_sync.extract_audio_peaks(audio_path)
+                    visual_peaks = precision_av_sync.extract_visual_peaks(video_path)
+                    sync_points = precision_av_sync.find_sync_points(audio_peaks, visual_peaks)
+
+                    pro_jobs[job_id]["progress"] = 30
+                    pro_jobs[job_id]["message"] = "Creating timeline..."
+
+                    # Step 2: Create timeline
+                    timeline = Timeline(
+                        name=f"Beat Synced - {job_id}",
+                        frame_rate=30.0,
+                        resolution=(1920, 1080),
+                        sample_rate=48000
+                    )
+
+                    # Create video and audio tracks
+                    video_track = timeline.add_track(TrackType.VIDEO, "Video 1")
+                    audio_track = timeline.add_track(TrackType.AUDIO, "Audio 1")
+
+                    pro_jobs[job_id]["progress"] = 40
+                    pro_jobs[job_id]["message"] = "Adding clips to timeline..."
+
+                    # Step 3: Add clips to timeline
+                    if clips:
+                        # Use provided clips
+                        for clip_data in clips:
+                            timeline.add_clip(
+                                track_id=video_track.id,
+                                source=clip_data.get("source", video_path),
+                                start_time=clip_data.get("start_time", 0),
+                                duration=clip_data.get("duration", 5),
+                                in_point=clip_data.get("in_point", 0),
+                                out_point=clip_data.get("out_point"),
+                                overlap_strategy=OverlapStrategy.LAYER
+                            )
+                    else:
+                        # Create default clip from source video
+                        timeline.add_clip(
+                            track_id=video_track.id,
+                            source=video_path,
+                            start_time=0.0,
+                            duration=30.0,  # Default 30 seconds
+                            overlap_strategy=OverlapStrategy.LAYER
+                        )
+
+                    pro_jobs[job_id]["progress"] = 60
+                    pro_jobs[job_id]["message"] = "Applying beat synchronization..."
+
+                    # Step 4: Apply beat sync
+                    sync_result = timeline.apply_beat_sync(
+                        sync_points=sync_points,
+                        track_id=video_track.id,
+                        snap_tolerance=snap_tolerance,
+                        add_transitions=add_transitions,
+                        transition_duration=transition_duration
+                    )
+
+                    pro_jobs[job_id]["progress"] = 80
+                    pro_jobs[job_id]["message"] = "Rendering video..."
+
+                    # Step 5: Generate FFmpeg command and render
+                    ffmpeg_cmd = timeline.to_ffmpeg_command(output_path)
+
+                    # Execute FFmpeg command
+                    import subprocess
+                    result = subprocess.run(
+                        ffmpeg_cmd,
+                        shell=True,
+                        capture_output=True,
+                        text=True
+                    )
+
+                    if result.returncode == 0:
+                        pro_jobs[job_id] = {
+                            "status": "completed",
+                            "type": "beat_synced_timeline",
+                            "output_path": output_path,
+                            "progress": 100,
+                            "message": "Beat-synced render completed",
+                            "sync_report": {
+                                "adjusted_clips": sync_result.get("adjusted_clips", 0),
+                                "snapped_to_beats": sync_result.get("snapped_to_beats", 0),
+                                "transitions_added": sync_result.get("transitions_added", 0),
+                                "sync_quality": sync_result.get("sync_quality", 0),
+                                "total_beats": sync_result.get("total_beats_available", 0),
+                                "total_sync_points": len(sync_points)
+                            },
+                            "timeline": {
+                                "duration": timeline.get_duration(),
+                                "frame_count": timeline.get_frame_count(),
+                                "tracks": len(timeline.tracks),
+                                "clips": sum(len(t.clips) for t in timeline.tracks)
+                            }
+                        }
+                    else:
+                        pro_jobs[job_id] = {
+                            "status": "failed",
+                            "type": "beat_synced_timeline",
+                            "error": f"FFmpeg rendering failed: {result.stderr[:500]}",
+                            "progress": 80
+                        }
+
+                except Exception as e:
+                    logger.error(f"Beat-synced timeline render failed: {e}", exc_info=True)
+                    pro_jobs[job_id] = {
+                        "status": "failed",
+                        "type": "beat_synced_timeline",
+                        "error": str(e),
+                        "progress": 0
+                    }
+
+            # Queue background task
+            background_tasks.add_task(process_beat_sync_timeline)
+
+            # Store timeline ID for reference
+            timeline_id = f"timeline_{job_id}"
+            pro_jobs[job_id] = {
+                "status": "queued",
+                "type": "beat_synced_timeline",
+                "progress": 0,
+                "message": "Queued for beat-sync timeline rendering"
+            }
+
+            return {
+                "status": "queued",
+                "job_id": job_id,
+                "timeline_id": timeline_id,
+                "message": "Beat-synced timeline rendering queued",
+                "status_url": f"/api/pro/job/{job_id}"
+            }
+
+        else:
+            # Synchronous processing
+            # Step 1: Extract sync points
+            audio_peaks = precision_av_sync.extract_audio_peaks(audio_path)
+            visual_peaks = precision_av_sync.extract_visual_peaks(video_path)
+            sync_points = precision_av_sync.find_sync_points(audio_peaks, visual_peaks)
+
+            # Step 2: Create timeline
+            timeline = Timeline(
+                name=f"Beat Synced - {job_id}",
+                frame_rate=30.0,
+                resolution=(1920, 1080),
+                sample_rate=48000
+            )
+
+            # Create tracks
+            video_track = timeline.add_track(TrackType.VIDEO, "Video 1")
+            audio_track = timeline.add_track(TrackType.AUDIO, "Audio 1")
+
+            # Step 3: Add clips
+            if clips:
+                for clip_data in clips:
+                    timeline.add_clip(
+                        track_id=video_track.id,
+                        source=clip_data.get("source", video_path),
+                        start_time=clip_data.get("start_time", 0),
+                        duration=clip_data.get("duration", 5),
+                        in_point=clip_data.get("in_point", 0),
+                        out_point=clip_data.get("out_point"),
+                        overlap_strategy=OverlapStrategy.LAYER
+                    )
+            else:
+                timeline.add_clip(
+                    track_id=video_track.id,
+                    source=video_path,
+                    start_time=0.0,
+                    duration=30.0,
+                    overlap_strategy=OverlapStrategy.LAYER
+                )
+
+            # Step 4: Apply beat sync
+            sync_result = timeline.apply_beat_sync(
+                sync_points=sync_points,
+                track_id=video_track.id,
+                snap_tolerance=snap_tolerance,
+                add_transitions=add_transitions,
+                transition_duration=transition_duration
+            )
+
+            # Step 5: Generate and execute FFmpeg command
+            ffmpeg_cmd = timeline.to_ffmpeg_command(output_path)
+
+            import subprocess
+            result = subprocess.run(
+                ffmpeg_cmd,
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"FFmpeg rendering failed: {result.stderr[:500]}"
+                )
+
+            return {
+                "status": "success",
+                "output_path": output_path,
+                "sync_report": {
+                    "adjusted_clips": sync_result.get("adjusted_clips", 0),
+                    "snapped_to_beats": sync_result.get("snapped_to_beats", 0),
+                    "transitions_added": sync_result.get("transitions_added", 0),
+                    "sync_quality": sync_result.get("sync_quality", 0),
+                    "total_beats": sync_result.get("total_beats_available", 0),
+                    "total_sync_points": len(sync_points)
+                },
+                "timeline": {
+                    "duration": timeline.get_duration(),
+                    "frame_count": timeline.get_frame_count(),
+                    "tracks": len(timeline.tracks),
+                    "clips": sum(len(t.clips) for t in timeline.tracks)
+                }
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Render beat-synced error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # VOICE GENERATION ENDPOINTS - ElevenLabs + OpenAI TTS
 # ============================================================================
 
@@ -2258,6 +3321,402 @@ async def generate_multilingual_voiceover(request: Dict[str, Any], background_ta
         raise
     except Exception as e:
         logger.error(f"Multilingual voiceover error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# CELERY TASK QUEUE API ENDPOINTS
+# Distributed video processing with priority queues
+# ============================================================================
+
+@app.post("/api/tasks/render")
+async def submit_render_task(request: Dict[str, Any]):
+    """
+    Submit video render task to Celery queue
+
+    Body:
+    - scenes: List[Dict] (required) - Scene data with video paths, timing
+    - output_format: Dict (optional) - Format specs (width, height, fps)
+    - transitions: bool (default: true) - Enable transitions
+    - overlays: List[str] (optional) - Overlay paths
+    - subtitles: str (optional) - Subtitle file path
+    - use_gpu: bool (default: false) - Use GPU acceleration
+    - priority: int (1-10, default: 5) - Task priority
+
+    Returns:
+    - task_id: str - Celery task ID
+    - status: str - Task status
+    - queue: str - Queue name
+    """
+    try:
+        scenes = request.get("scenes", [])
+        if not scenes:
+            raise HTTPException(status_code=400, detail="scenes required")
+
+        # Build job data
+        job_data = {
+            "scenes": scenes,
+            "output_format": request.get("output_format", {
+                "width": 1920,
+                "height": 1080,
+                "fps": 30
+            }),
+            "transitions": request.get("transitions", True),
+            "overlays": request.get("overlays"),
+            "subtitles": request.get("subtitles"),
+            "use_gpu": request.get("use_gpu", False)
+        }
+
+        # Submit to Celery
+        priority = request.get("priority", 5)
+        task = render_video_task.apply_async(
+            args=[job_data],
+            priority=priority
+        )
+
+        return {
+            "status": "queued",
+            "task_id": task.id,
+            "queue": "render_queue",
+            "priority": priority,
+            "message": "Render task submitted to queue"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tasks/transcode")
+async def submit_transcode_task(request: Dict[str, Any]):
+    """
+    Submit video transcode task to Celery queue
+
+    Body:
+    - input_path: str (required) - Source video path
+    - output_format: Dict (required) - Target format:
+        - codec: str (h264/h265/vp9/av1)
+        - container: str (mp4/webm/mkv)
+        - width: int (optional)
+        - height: int (optional)
+        - bitrate: str (optional, e.g., "5M")
+    - priority: int (1-10, default: 7) - Task priority
+
+    Returns:
+    - task_id: str - Celery task ID
+    - status: str - Task status
+    """
+    try:
+        input_path = request.get("input_path")
+        if not input_path or not os.path.exists(input_path):
+            raise HTTPException(status_code=400, detail="Invalid input_path")
+
+        output_format = request.get("output_format")
+        if not output_format:
+            raise HTTPException(status_code=400, detail="output_format required")
+
+        # Submit to Celery
+        priority = request.get("priority", 7)
+        task = transcode_task.apply_async(
+            args=[input_path, output_format],
+            priority=priority
+        )
+
+        return {
+            "status": "queued",
+            "task_id": task.id,
+            "queue": "transcode_queue",
+            "priority": priority,
+            "input_path": input_path,
+            "output_format": output_format,
+            "message": "Transcode task submitted to queue"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tasks/{task_id}/status")
+async def get_task_status(task_id: str):
+    """
+    Get status of a Celery task
+
+    Path params:
+    - task_id: str - Celery task ID
+
+    Returns:
+    - task_id: str
+    - state: str (PENDING/STARTED/SUCCESS/FAILURE/RETRY)
+    - progress: float (0-100)
+    - result: Any (if completed)
+    - error: str (if failed)
+    - traceback: str (if failed)
+    """
+    try:
+        from celery.result import AsyncResult
+
+        # Get task result
+        task_result = AsyncResult(task_id, app=celery_app)
+
+        # Get progress from Redis if available
+        progress_data = None
+        if celery_redis:
+            try:
+                progress_json = celery_redis.get(f'task_status:{task_id}')
+                if progress_json:
+                    progress_data = json.loads(progress_json)
+            except Exception as e:
+                logger.warning(f"Failed to get progress from Redis: {e}")
+
+        # Build response
+        response = {
+            "task_id": task_id,
+            "state": task_result.state,
+            "ready": task_result.ready(),
+            "successful": task_result.successful() if task_result.ready() else None,
+            "failed": task_result.failed() if task_result.ready() else None
+        }
+
+        # Add progress data if available
+        if progress_data:
+            response["progress"] = progress_data.get("progress", 0)
+            response["status"] = progress_data.get("status", "unknown")
+            response["message"] = progress_data.get("message", "")
+            response["timestamp"] = progress_data.get("timestamp")
+
+        # Add result or error
+        if task_result.ready():
+            if task_result.successful():
+                response["result"] = task_result.result
+            elif task_result.failed():
+                response["error"] = str(task_result.info)
+                response["traceback"] = task_result.traceback
+
+        return response
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tasks/queue/stats")
+async def get_queue_stats():
+    """
+    Get queue statistics from Celery
+
+    Returns:
+    - active: int - Active tasks
+    - scheduled: int - Scheduled tasks
+    - reserved: int - Reserved tasks
+    - queues: Dict - Per-queue statistics
+    - workers: Dict - Worker information
+    """
+    try:
+        # Get active tasks
+        inspect = celery_app.control.inspect()
+
+        active_tasks = inspect.active()
+        scheduled_tasks = inspect.scheduled()
+        reserved_tasks = inspect.reserved()
+        stats = inspect.stats()
+
+        # Count tasks
+        total_active = sum(len(tasks) for tasks in (active_tasks or {}).values())
+        total_scheduled = sum(len(tasks) for tasks in (scheduled_tasks or {}).values())
+        total_reserved = sum(len(tasks) for tasks in (reserved_tasks or {}).values())
+
+        # Get queue lengths from Redis
+        queue_lengths = {}
+        if celery_redis:
+            try:
+                for queue_name in ['render_queue', 'preview_queue', 'transcode_queue', 'caption_queue']:
+                    length = celery_redis.llen(queue_name)
+                    queue_lengths[queue_name] = length
+            except Exception as e:
+                logger.warning(f"Failed to get queue lengths: {e}")
+
+        return {
+            "status": "success",
+            "active": total_active,
+            "scheduled": total_scheduled,
+            "reserved": total_reserved,
+            "queue_lengths": queue_lengths,
+            "workers": stats or {},
+            "active_tasks": active_tasks or {},
+            "scheduled_tasks": scheduled_tasks or {},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.warning(f"Queue stats error: {e}")
+        return {
+            "status": "degraded",
+            "error": str(e),
+            "message": "Failed to retrieve complete queue statistics"
+        }
+
+
+@app.post("/api/tasks/{task_id}/cancel")
+async def cancel_task(task_id: str):
+    """
+    Cancel a running or queued Celery task
+
+    Path params:
+    - task_id: str - Celery task ID
+
+    Returns:
+    - status: str - Cancellation status
+    - message: str
+    """
+    try:
+        from celery.result import AsyncResult
+
+        # Get task result
+        task_result = AsyncResult(task_id, app=celery_app)
+
+        # Check if task is already done
+        if task_result.ready():
+            return {
+                "status": "already_completed",
+                "task_id": task_id,
+                "state": task_result.state,
+                "message": f"Task already {task_result.state}"
+            }
+
+        # Revoke task
+        celery_app.control.revoke(task_id, terminate=True, signal='SIGKILL')
+
+        return {
+            "status": "cancelled",
+            "task_id": task_id,
+            "message": "Task cancellation requested"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# DEAD LETTER QUEUE (DLQ) API ENDPOINTS
+# Manage permanently failed tasks
+# ============================================================================
+
+@app.get("/api/tasks/dlq")
+async def get_dlq_tasks(limit: int = 100):
+    """
+    Retrieve failed tasks from the Dead Letter Queue
+
+    Query params:
+    - limit: int (default: 100) - Maximum number of tasks to retrieve
+
+    Returns:
+    - tasks: List of failed task data
+    - total: int - Total number of failed tasks
+    """
+    try:
+        failed_tasks = get_failed_tasks(limit=limit)
+
+        return {
+            "status": "success",
+            "tasks": failed_tasks,
+            "total": len(failed_tasks),
+            "limit": limit,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tasks/dlq/stats")
+async def get_dlq_statistics():
+    """
+    Get statistics about the Dead Letter Queue
+
+    Returns:
+    - total_failed: int - Total number of failed tasks
+    - failed_by_type: Dict - Count of failed tasks by type
+    - sampled: int - Number of tasks sampled for statistics
+    """
+    try:
+        stats = get_dlq_stats()
+
+        return {
+            "status": "success",
+            "stats": stats
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tasks/dlq/{task_id}/retry")
+async def retry_dlq_task(task_id: str, request: Dict[str, Any]):
+    """
+    Retry a failed task from the DLQ
+
+    Path params:
+    - task_id: str - Original task ID
+
+    Body:
+    - task_data: Dict - Task data including task name, args, kwargs
+
+    Returns:
+    - status: str - Retry status
+    - new_task_id: str - New task ID (if successful)
+    """
+    try:
+        task_data = request.get("task_data")
+        if not task_data:
+            raise HTTPException(status_code=400, detail="task_data required")
+
+        success = retry_failed_task(task_id, task_data)
+
+        if success:
+            # Get new task ID from Redis
+            retry_key = f'task_retry:{task_id}'
+            retry_info_json = celery_redis.get(retry_key) if celery_redis else None
+
+            retry_info = {}
+            if retry_info_json:
+                retry_info = json.loads(retry_info_json)
+
+            return {
+                "status": "success",
+                "message": "Task retried successfully",
+                "original_task_id": task_id,
+                "new_task_id": retry_info.get("new_task_id"),
+                "retry_time": retry_info.get("retry_time")
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to retry task")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tasks/dlq/purge")
+async def purge_dlq_tasks(older_than_days: int = 7):
+    """
+    Purge old messages from the Dead Letter Queue
+
+    Query params:
+    - older_than_days: int (default: 7) - Remove messages older than this
+
+    Returns:
+    - purged_count: int - Number of messages purged
+    """
+    try:
+        purged_count = purge_dlq(older_than_days=older_than_days)
+
+        return {
+            "status": "success",
+            "purged_count": purged_count,
+            "older_than_days": older_than_days,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -184,7 +184,7 @@ export interface Channel {
 }
 
 export function getChannelName(channel: Channel): string {
-  const parts = [channel.type];
+  const parts: string[] = [channel.type];
   if (channel.id) parts.push(channel.id);
   if (channel.userId) parts.push(channel.userId);
   return parts.join(':');

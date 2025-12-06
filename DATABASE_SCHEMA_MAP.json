@@ -1,0 +1,566 @@
+{
+  "schema_analysis_date": "2025-12-05",
+  "agent": "AGENT 86: DATABASE SCHEMA MISMATCH DETECTOR",
+  "sources_analyzed": [
+    "/home/user/geminivideo/database_schema.sql",
+    "/home/user/geminivideo/services/gateway-api/prisma/schema.prisma",
+    "/home/user/geminivideo/shared/db/models.py",
+    "/home/user/geminivideo/services/ml-service/shared/db/models.py",
+    "/home/user/geminivideo/scripts/migrations/001_initial_schema.sql",
+    "/home/user/geminivideo/scripts/migrations/002_add_predictions.sql",
+    "/home/user/geminivideo/scripts/migrations/003_add_pgvector.sql",
+    "/home/user/geminivideo/scripts/migrations/004_add_semantic_cache.sql",
+    "/home/user/geminivideo/scripts/migrations/005_add_creative_dna.sql",
+    "/home/user/geminivideo/scripts/migrations/006_add_cross_learning.sql",
+    "/home/user/geminivideo/scripts/migrations/007_add_compound_learning.sql",
+    "/home/user/geminivideo/scripts/migrations/008_add_indexes.sql"
+  ],
+  "schema_mismatches": [
+    {
+      "table": "users",
+      "issue_type": "COLUMN_MISMATCH",
+      "source1": "database_schema.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "database_schema.sql has 'full_name' but Prisma has 'name'. Missing columns in Prisma: avatar_url. Prisma has extra columns: role, passwordHash, apiKey, settings, updatedAt, deletedAt",
+      "severity": "HIGH",
+      "fix": "Align column names: full_name -> name. Add missing columns to Prisma or SQL schema"
+    },
+    {
+      "table": "users",
+      "issue_type": "COLUMN_MISMATCH",
+      "source1": "migrations/001_initial_schema.sql",
+      "source2": "database_schema.sql",
+      "description": "Migration 001 has comprehensive user schema (company_name, role, meta_access_token, meta_ad_account_id, settings) but database_schema.sql only has basic fields",
+      "severity": "HIGH",
+      "fix": "database_schema.sql is outdated - should use migration 001 schema"
+    },
+    {
+      "table": "campaigns",
+      "issue_type": "COLUMN_MISMATCH",
+      "source1": "database_schema.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "database_schema.sql has product_name, offer, target_avatar, pain_points, desires, total_generated, approved_count, rejected_count. Prisma has description, objective, budget, dailyBudget, currency, metaCampaignId, metaAdSetId, metaAccountId, targetAudience, targetLocations, targetAgeRange, startDate, endDate, totalSpend, totalImpressions, totalClicks, totalConversions, deletedAt",
+      "severity": "CRITICAL",
+      "fix": "Two completely different schemas for campaigns - need to merge or choose canonical version"
+    },
+    {
+      "table": "campaigns",
+      "issue_type": "TYPE_MISMATCH",
+      "source1": "migrations/001_initial_schema.sql",
+      "source2": "shared/db/models.py",
+      "description": "Migration has budget_daily as DECIMAL(12,2), Python models have Numeric(10,2)",
+      "severity": "MEDIUM",
+      "fix": "Align decimal precision - use DECIMAL(12,2) everywhere"
+    },
+    {
+      "table": "campaigns",
+      "issue_type": "COLUMN_MISMATCH",
+      "source1": "shared/db/models.py",
+      "source2": "migrations/001_initial_schema.sql",
+      "description": "Python models missing columns: user_id, product_name, offer, target_avatar, pain_points, desires, budget_daily, spend, revenue, roas, conversions, total_generated, approved_count, rejected_count, target_audience",
+      "severity": "CRITICAL",
+      "fix": "Python models are severely incomplete - missing 15+ critical columns"
+    },
+    {
+      "table": "blueprints",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/001_initial_schema.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "blueprints table exists in SQL migrations and database_schema.sql but completely missing from Prisma schema",
+      "severity": "CRITICAL",
+      "fix": "Add blueprints model to Prisma schema"
+    },
+    {
+      "table": "blueprints",
+      "issue_type": "TYPE_MISMATCH",
+      "source1": "database_schema.sql",
+      "source2": "migrations/001_initial_schema.sql",
+      "description": "database_schema.sql uses FLOAT for council_score, predicted_roas, confidence. Migration uses DECIMAL(5,2), DECIMAL(10,2), DECIMAL(5,2)",
+      "severity": "HIGH",
+      "fix": "Use DECIMAL for financial/scoring fields - FLOAT is imprecise"
+    },
+    {
+      "table": "videos",
+      "issue_type": "COLUMN_MISMATCH",
+      "source1": "database_schema.sql",
+      "source2": "migrations/001_initial_schema.sql",
+      "description": "database_schema.sql missing columns: title, description, script_content, thumbnail_url, resolution, format, file_size_bytes, status, meta_platform_id, updated_at",
+      "severity": "HIGH",
+      "fix": "database_schema.sql is outdated - use migration 001 schema"
+    },
+    {
+      "table": "videos",
+      "issue_type": "COLUMN_MISMATCH",
+      "source1": "database_schema.sql",
+      "source2": "shared/db/models.py",
+      "description": "database_schema.sql has render_job_id, storage_path, storage_url, actual_roas, impressions, clicks, conversions. Python models missing all these columns",
+      "severity": "HIGH",
+      "fix": "Python models need to add missing columns from SQL schema"
+    },
+    {
+      "table": "render_jobs",
+      "issue_type": "TYPE_MISMATCH",
+      "source1": "database_schema.sql",
+      "source2": "shared/db/models.py",
+      "description": "database_schema.sql has UUID primary key, Python models use String primary key (job_id)",
+      "severity": "HIGH",
+      "fix": "Align primary key types - should be UUID"
+    },
+    {
+      "table": "render_jobs",
+      "issue_type": "COLUMN_MISMATCH",
+      "source1": "shared/db/models.py",
+      "source2": "migrations/001_initial_schema.sql",
+      "description": "Python models have job_id, storyboard, output_format, resolution, fps, output_path, error, completed_at, updated_at. Migration has id, blueprint_id, campaign_id, platform, quality, status, progress, current_stage, error, started_at, completed_at",
+      "severity": "CRITICAL",
+      "fix": "Two completely different schemas - need to reconcile"
+    },
+    {
+      "table": "assets",
+      "issue_type": "TABLE_MISSING",
+      "source1": "prisma/schema.prisma",
+      "source2": "migrations/001_initial_schema.sql",
+      "description": "assets table exists in Prisma but not in any SQL migrations",
+      "severity": "CRITICAL",
+      "fix": "Create migration for assets table or remove from Prisma"
+    },
+    {
+      "table": "clips",
+      "issue_type": "TABLE_MISSING",
+      "source1": "prisma/schema.prisma",
+      "source2": "shared/db/models.py",
+      "description": "clips table defined in Prisma and migrations/001 but not in Python models",
+      "severity": "HIGH",
+      "fix": "Add Clip model to Python models or document why it's TypeScript-only"
+    },
+    {
+      "table": "clips",
+      "issue_type": "COLUMN_MISMATCH",
+      "source1": "prisma/schema.prisma",
+      "source2": "migrations/001_initial_schema.sql",
+      "description": "Prisma has assetId, clipUrl, features, faceCount, hasText, hasSpeech, hasMusic, score, viralScore, engagementScore, brandSafetyScore, rank, status. Migration has clip_id, video_id, asset_id, name, transcript, scene_type, emotions, visual_elements, engagement_score, ctr_score, scene_score, storage_path, thumbnail_path, features",
+      "severity": "CRITICAL",
+      "fix": "Two very different clip schemas - need to merge into single canonical version"
+    },
+    {
+      "table": "predictions",
+      "issue_type": "TYPE_MISMATCH",
+      "source1": "prisma/schema.prisma",
+      "source2": "migrations/002_add_predictions.sql",
+      "description": "Prisma uses String for id, migration uses VARCHAR(255). Prisma uses clipId, migration uses video_id and ad_id",
+      "severity": "HIGH",
+      "fix": "Prisma predictions are for clips, SQL predictions are for videos/ads - different use cases, needs documentation"
+    },
+    {
+      "table": "predictions",
+      "issue_type": "COLUMN_MISMATCH",
+      "source1": "ml-service/models.py",
+      "source2": "migrations/002_add_predictions.sql",
+      "description": "Migration has predicted_conversion, actual_conversion, council_score, hook_type, template_type. ML service predictions table doesn't match",
+      "severity": "HIGH",
+      "fix": "Use migration schema as canonical - update ml-service models"
+    },
+    {
+      "table": "experiments",
+      "issue_type": "TABLE_MISSING",
+      "source1": "prisma/schema.prisma",
+      "source2": "migrations/*.sql",
+      "description": "experiments table exists in Prisma but no SQL migration",
+      "severity": "HIGH",
+      "fix": "Create migration for experiments table"
+    },
+    {
+      "table": "conversions",
+      "issue_type": "TABLE_MISSING",
+      "source1": "prisma/schema.prisma",
+      "source2": "migrations/*.sql",
+      "description": "conversions table exists in Prisma but no SQL migration. ML-service has unified_conversions instead",
+      "severity": "HIGH",
+      "fix": "Create migration for conversions table or reconcile with unified_conversions"
+    },
+    {
+      "table": "knowledge_documents",
+      "issue_type": "TABLE_MISSING",
+      "source1": "prisma/schema.prisma",
+      "source2": "migrations/*.sql",
+      "description": "knowledge_documents table in Prisma with embedding Float[] but no SQL migration",
+      "severity": "HIGH",
+      "fix": "Create migration or use knowledge_base_vectors from shared models"
+    },
+    {
+      "table": "ads",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/001_initial_schema.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "ads table exists in migration 001 but completely missing from Prisma schema",
+      "severity": "CRITICAL",
+      "fix": "Add ads model to Prisma schema"
+    },
+    {
+      "table": "emotions",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/001_initial_schema.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "emotions table exists in migration 001 but missing from Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add emotions model to Prisma or document as Python-only"
+    },
+    {
+      "table": "daily_analytics",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/001_initial_schema.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "daily_analytics table exists in migration but missing from Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add daily_analytics model to Prisma or document as backend-only"
+    },
+    {
+      "table": "jobs",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/001_initial_schema.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "jobs table exists in migration but missing from Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add jobs model to Prisma for job queue visibility"
+    },
+    {
+      "table": "scenes",
+      "issue_type": "TABLE_MISSING",
+      "source1": "shared/db/models.py",
+      "source2": "migrations/001_initial_schema.sql",
+      "description": "scenes table in Python models but not in migrations",
+      "severity": "MEDIUM",
+      "fix": "Create migration for scenes table"
+    },
+    {
+      "table": "video_embeddings",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/003_add_pgvector.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "video_embeddings table in migration 003 but not in Prisma",
+      "severity": "HIGH",
+      "fix": "Add to Prisma or document as Python-only for ML operations"
+    },
+    {
+      "table": "script_embeddings",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/003_add_pgvector.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "script_embeddings table in migration 003 but not in Prisma",
+      "severity": "HIGH",
+      "fix": "Add to Prisma or document as Python-only"
+    },
+    {
+      "table": "ad_creative_embeddings",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/003_add_pgvector.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "ad_creative_embeddings table in migration 003 but not in Prisma",
+      "severity": "HIGH",
+      "fix": "Add to Prisma or document as Python-only"
+    },
+    {
+      "table": "winning_ad_patterns",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/003_add_pgvector.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "winning_ad_patterns table in migration 003 but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "semantic_cache_entries",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/004_add_semantic_cache.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "semantic_cache_entries in migration 004 and shared models but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma for cache monitoring or keep as Python-only"
+    },
+    {
+      "table": "creative_formulas",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/005_add_creative_dna.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "creative_formulas table in migration 005 and ml-service models but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "creative_dna_extractions",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/005_add_creative_dna.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "creative_dna_extractions in migration 005 and ml-service models but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "dna_applications",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/005_add_creative_dna.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "dna_applications in migration 005 and ml-service models but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "cross_account_patterns",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/006_add_cross_learning.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "cross_account_patterns in migration 006 but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "pattern_contributions",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/006_add_cross_learning.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "pattern_contributions in migration 006 but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "pattern_applications",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/006_add_cross_learning.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "pattern_applications in migration 006 but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "industry_benchmarks",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/006_add_cross_learning.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "industry_benchmarks in migration 006 but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "learning_cycles",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/007_add_compound_learning.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "learning_cycles in migration 007 but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "feedback_loops",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/007_add_compound_learning.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "feedback_loops in migration 007 but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "compound_learnings",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/007_add_compound_learning.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "compound_learnings in migration 007 but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    },
+    {
+      "table": "improvement_trajectory",
+      "issue_type": "TABLE_MISSING",
+      "source1": "migrations/007_add_compound_learning.sql",
+      "source2": "prisma/schema.prisma",
+      "description": "improvement_trajectory in migration 007 but not in Prisma",
+      "severity": "MEDIUM",
+      "fix": "Add to Prisma or document as ML-only"
+    }
+  ],
+  "code_query_issues": [
+    {
+      "issue_type": "POTENTIAL_RUNTIME_ERROR",
+      "description": "Code querying 'product_name', 'offer', 'target_avatar' columns in campaigns table that don't exist in Python models",
+      "files_affected": [
+        "services/video-agent/pro/creative_dna_v2.py",
+        "tests/e2e/test_full_flow.py",
+        "scripts/seed-demo.py",
+        "services/video-agent/main.py",
+        "services/video-agent/pro/ai_campaign_integration.py"
+      ],
+      "severity": "HIGH",
+      "fix": "Add missing columns to Python Campaign model"
+    },
+    {
+      "issue_type": "POTENTIAL_RUNTIME_ERROR",
+      "description": "Prisma queries expecting 'name' field but database_schema.sql has 'full_name'",
+      "severity": "HIGH",
+      "fix": "Standardize on 'name' in SQL or update Prisma schema"
+    },
+    {
+      "issue_type": "SERVICE_ISOLATION_ISSUE",
+      "description": "Multiple services have identical models.py files (80 lines each) suggesting copy-paste rather than shared module",
+      "files_affected": [
+        "services/drive-intel/shared/db/models.py",
+        "services/video-agent/shared/db/models.py",
+        "services/titan-core/shared/db/models.py",
+        "services/gateway-api/shared/db/models.py",
+        "services/meta-publisher/shared/db/models.py"
+      ],
+      "severity": "MEDIUM",
+      "fix": "Use single shared models module to avoid drift"
+    }
+  ],
+  "missing_migrations": [
+    {
+      "table": "assets",
+      "description": "Defined in Prisma but no SQL migration exists",
+      "severity": "CRITICAL"
+    },
+    {
+      "table": "experiments",
+      "description": "Defined in Prisma but no SQL migration exists",
+      "severity": "HIGH"
+    },
+    {
+      "table": "conversions",
+      "description": "Defined in Prisma but no SQL migration exists (may conflict with unified_conversions)",
+      "severity": "HIGH"
+    },
+    {
+      "table": "knowledge_documents",
+      "description": "Defined in Prisma but no SQL migration exists (may conflict with knowledge_base_vectors)",
+      "severity": "MEDIUM"
+    },
+    {
+      "table": "scenes",
+      "description": "Defined in Python models but no SQL migration exists",
+      "severity": "MEDIUM"
+    }
+  ],
+  "orphaned_tables": [
+    {
+      "table": "unified_conversions",
+      "source": "shared/db/models.py",
+      "description": "Only in Python models, no SQL migration or Prisma equivalent",
+      "severity": "MEDIUM"
+    },
+    {
+      "table": "prediction_records",
+      "source": "shared/db/models.py",
+      "description": "Only in Python models, different from predictions table in migrations",
+      "severity": "MEDIUM"
+    },
+    {
+      "table": "model_performance_history",
+      "source": "shared/db/models.py",
+      "description": "Only in Python models, no SQL migration",
+      "severity": "LOW"
+    },
+    {
+      "table": "drift_reports",
+      "source": "shared/db/models.py",
+      "description": "Only in Python models, no SQL migration",
+      "severity": "LOW"
+    },
+    {
+      "table": "ab_tests",
+      "source": "shared/db/models.py",
+      "description": "Only in Python models, no SQL migration (different from experiments)",
+      "severity": "MEDIUM"
+    },
+    {
+      "table": "embedding_metadata",
+      "source": "shared/db/models.py",
+      "description": "Only in Python models, legacy FAISS metadata",
+      "severity": "LOW"
+    }
+  ],
+  "index_issues": [
+    {
+      "table": "campaigns",
+      "issue": "Python models don't define indexes but SQL has 5+ indexes",
+      "severity": "LOW",
+      "fix": "Document that SQLAlchemy doesn't manage indexes"
+    },
+    {
+      "table": "predictions",
+      "issue": "Migration 002 has 11 indexes but Python models don't define any",
+      "severity": "LOW",
+      "fix": "Document index management approach"
+    }
+  ],
+  "foreign_key_issues": [
+    {
+      "table": "videos",
+      "issue": "database_schema.sql has render_job_id FK but migrations don't",
+      "severity": "MEDIUM",
+      "fix": "Remove from database_schema.sql or add to migrations"
+    },
+    {
+      "table": "clips",
+      "issue": "Prisma has assetId FK, migrations have video_id FK - different relationships",
+      "severity": "HIGH",
+      "fix": "Clarify if clips belong to assets or videos"
+    }
+  ],
+  "data_type_inconsistencies": [
+    {
+      "issue": "Float vs Decimal for financial data",
+      "tables": ["blueprints", "campaigns", "predictions"],
+      "description": "Some schemas use FLOAT, others use DECIMAL for ROAS, CTR, spend",
+      "severity": "HIGH",
+      "fix": "Always use DECIMAL for financial data to avoid floating point errors"
+    },
+    {
+      "issue": "String vs UUID for primary keys",
+      "tables": ["predictions", "render_jobs", "creative_formulas"],
+      "description": "Inconsistent PK types across tables",
+      "severity": "MEDIUM",
+      "fix": "Standardize on UUID for all primary keys"
+    },
+    {
+      "issue": "JSON vs JSONB",
+      "tables": ["campaigns", "blueprints", "videos"],
+      "description": "Python models use JSON, SQL migrations use JSONB",
+      "severity": "LOW",
+      "fix": "JSONB is correct for PostgreSQL - Python models should specify dialect"
+    }
+  ],
+  "critical_fixes_needed": [
+    "Reconcile campaigns table schema - currently has 3 different incompatible versions",
+    "Add blueprints table to Prisma schema",
+    "Add ads table to Prisma schema",
+    "Fix Python Campaign model - missing 15+ critical columns",
+    "Create migrations for Prisma-only tables: assets, experiments, conversions",
+    "Reconcile clips table - completely different schemas in Prisma vs migrations",
+    "Fix render_jobs schema mismatch between Python and SQL",
+    "Standardize user table: full_name vs name column",
+    "Replace FLOAT with DECIMAL for all financial fields",
+    "Document which tables are Python-only vs TypeScript-only vs shared"
+  ],
+  "summary": {
+    "total_tables_in_migrations": 45,
+    "total_tables_in_prisma": 11,
+    "total_tables_in_python": 30,
+    "critical_mismatches": 8,
+    "high_severity_mismatches": 15,
+    "medium_severity_mismatches": 20,
+    "tables_only_in_migrations": 34,
+    "tables_only_in_prisma": 4,
+    "tables_only_in_python": 6,
+    "schema_health_score": "35/100 - CRITICAL ISSUES DETECTED"
+  },
+  "recommendations": [
+    "IMMEDIATE: Update database_schema.sql to match migration 001 - it's outdated",
+    "IMMEDIATE: Fix campaigns table - choose migration 001 as canonical and update all other sources",
+    "IMMEDIATE: Add missing Prisma models for core tables: blueprints, ads, render_jobs",
+    "HIGH: Create migrations for Prisma-only tables or remove from Prisma",
+    "HIGH: Update Python Campaign model with all missing columns",
+    "HIGH: Reconcile clips table schema - currently incompatible",
+    "MEDIUM: Consolidate duplicate models.py files across services to use shared module",
+    "MEDIUM: Document which tables are managed by which ORM (Prisma vs SQLAlchemy)",
+    "MEDIUM: Replace all FLOAT types with DECIMAL for financial data",
+    "LOW: Add comprehensive schema documentation showing table ownership by service"
+  ]
+}

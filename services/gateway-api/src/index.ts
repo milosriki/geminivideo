@@ -2018,8 +2018,9 @@ app.get('/api/platforms/specs',
   async (req: Request, res: Response) => {
     try {
       const platformsQuery = req.query.platforms as string;
-      const platforms = platformsQuery
-        ? (platformsQuery.split(',') as ('meta' | 'google' | 'tiktok')[])
+      const platforms: ('meta' | 'google' | 'tiktok')[] = platformsQuery
+        ? platformsQuery.split(',').filter((p): p is 'meta' | 'google' | 'tiktok' =>
+            ['meta', 'google', 'tiktok'].includes(p))
         : ['meta', 'google', 'tiktok'];
 
       const specs = multiPlatformPublisher.getPlatformSpecs(platforms);
@@ -2170,6 +2171,11 @@ import { createPredictionsRouter } from './routes/predictions';
 const predictionsRouter = createPredictionsRouter(pgPool);
 app.use('/api/predictions', predictionsRouter);
 
+// Creatives Routes
+import { createCreativesRouter } from './routes/creatives';
+const creativesRouter = createCreativesRouter(pgPool);
+app.use('/api/creatives', creativesRouter);
+
 // ============================================================================
 // ONBOARDING ENDPOINTS
 // ============================================================================
@@ -2246,6 +2252,79 @@ app.get('/api/realtime/stats', (req: Request, res: Response) => {
     channels: channelManager.getStats(),
     timestamp: new Date().toISOString()
   });
+});
+
+// ============================================================================
+// ADINTEL API PROXY - Ad Intelligence Platform (Foreplay Alternative)
+// ============================================================================
+const INTEL_API_URL = process.env.INTEL_API_URL || 'http://intel-api:8090';
+
+// Proxy all /api/intel/* requests to intel-api service
+app.all('/api/intel/*', async (req: Request, res: Response) => {
+  try {
+    const targetPath = req.path.replace('/api/intel', '/api/v1');
+    const response = await axios({
+      method: req.method as any,
+      url: `${INTEL_API_URL}${targetPath}`,
+      data: req.body,
+      params: req.query,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.authorization || '',
+      },
+      validateStatus: () => true, // Don't throw on non-2xx
+    });
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error('Intel API proxy error:', error.message);
+    res.status(500).json({ error: 'Intel service unavailable', details: error.message });
+  }
+});
+
+// Quick shortcuts for common intel operations
+app.post('/api/intel/search', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.post(`${INTEL_API_URL}/api/v1/discovery/search`, req.body, {
+      headers: { 'Authorization': req.headers.authorization || '' }
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/intel/winners', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(`${INTEL_API_URL}/api/v1/discovery/winners`, {
+      params: req.query,
+      headers: { 'Authorization': req.headers.authorization || '' }
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/intel/track-brand', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.post(`${INTEL_API_URL}/api/v1/spyder/track`, req.body, {
+      headers: { 'Authorization': req.headers.authorization || '' }
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/intel/trends', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(`${INTEL_API_URL}/api/v1/analytics/trends`, {
+      headers: { 'Authorization': req.headers.authorization || '' }
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 const server = app.listen(PORT, async () => {

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, DateTime, JSON, Boolean, Text, ForeignKey, Date, Numeric
+from sqlalchemy import Column, String, Float, Integer, DateTime, JSON, Boolean, Text, ForeignKey, Date, Numeric, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -156,8 +156,11 @@ class AccountInsight(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    @@index(['niche', 'opted_in'])
-    @@index(['account_id', 'extracted_at'])
+    # Indexes for performance
+    __table_args__ = (
+        Index('idx_account_insights_niche_opted_in', 'niche', 'opted_in'),
+        Index('idx_account_insights_account_extracted', 'account_id', 'extracted_at'),
+    )
 
 
 class NichePattern(Base):
@@ -192,7 +195,10 @@ class NichePattern(Base):
     last_updated = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    @@index(['niche', 'sample_size'])
+    # Index for performance
+    __table_args__ = (
+        Index('idx_niche_pattern_niche_sample', 'niche', 'sample_size'),
+    )
 
 
 class CrossLearningEvent(Base):
@@ -215,8 +221,11 @@ class CrossLearningEvent(Base):
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    @@index(['account_id', 'created_at'])
-    @@index(['niche', 'event_type'])
+    # Indexes for performance
+    __table_args__ = (
+        Index('idx_cross_learning_account_created', 'account_id', 'created_at'),
+        Index('idx_cross_learning_niche_event', 'niche', 'event_type'),
+    )
 
 
 class CreativeFormula(Base):

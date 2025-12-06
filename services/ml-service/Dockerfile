@@ -4,8 +4,10 @@ WORKDIR /app
 
 # Install system dependencies
 # libgomp1: OpenMP library for parallel processing in ML libraries (XGBoost, LightGBM)
-RUN apt-get update && apt-get install -y \
+# curl: for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies

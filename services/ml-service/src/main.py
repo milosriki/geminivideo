@@ -60,6 +60,24 @@ except ImportError:
     logger.warning("Creative DNA API not available - check dependencies")
     DNA_API_AVAILABLE = False
 
+# Import CAPI Webhook Handler (Quick Win #2)
+try:
+    from src.capi_webhook_handler import router as capi_webhook_router
+    CAPI_WEBHOOK_AVAILABLE = True
+except ImportError:
+    logger.warning("CAPI Webhook Handler not available - check dependencies")
+    CAPI_WEBHOOK_AVAILABLE = False
+
+# Import Auto-Retrain Pipeline (Quick Win #3)
+try:
+    from src.auto_retrain_pipeline import AutoRetrainPipeline, RetrainTrigger
+    auto_retrain_pipeline = AutoRetrainPipeline()
+    AUTO_RETRAIN_AVAILABLE = True
+except ImportError:
+    logger.warning("Auto-Retrain Pipeline not available - check dependencies")
+    AUTO_RETRAIN_AVAILABLE = False
+    auto_retrain_pipeline = None
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -102,6 +120,11 @@ if AUTO_SCALER_AVAILABLE:
 if DNA_API_AVAILABLE:
     app.include_router(dna_router)
     logger.info("✅ Creative DNA API endpoints enabled at /api/dna/*")
+
+# Include CAPI Webhook Handler router (Quick Win #2)
+if CAPI_WEBHOOK_AVAILABLE:
+    app.include_router(capi_webhook_router)
+    logger.info("✅ CAPI Webhook endpoints enabled at /webhooks/capi")
 
 # Pydantic models
 class CTRPredictionRequest(BaseModel):
@@ -1000,6 +1023,100 @@ async def get_feedback_stats():
     except Exception as e:
         logger.error(f"Error getting feedback stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/thompson/optimize")
+async def run_thompson_optimization(total_budget: float = 10000.0):
+    """
+    Run Thompson Sampling optimization (100% Thompson Integration)
+
+    This automatically:
+    1. Analyzes all variant performance from CAPI data
+    2. Reallocates budget to winners using Thompson Sampling
+    3. Identifies and flags losers for kill switch
+
+    Call daily or after significant data collection.
+    """
+    try:
+        from src.capi_feedback_loop import daily_thompson_optimization_job
+        result = await daily_thompson_optimization_job(total_budget)
+        return result
+    except Exception as e:
+        logger.error(f"Thompson optimization error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/thompson/status")
+async def get_thompson_status():
+    """
+    Get full Thompson Sampling status (100% Thompson Integration)
+
+    Returns:
+    - All variant stats with confidence intervals
+    - Best/worst performers
+    - Learning progress
+    - Budget allocation recommendations
+    """
+    try:
+        all_variants = thompson_optimizer.get_all_variants_stats()
+
+        if not all_variants:
+            return {
+                "status": "no_variants",
+                "message": "No variants registered. Variants are auto-registered from CAPI events.",
+                "variants": []
+            }
+
+        best = thompson_optimizer.get_best_variant()
+
+        # Calculate learning progress
+        total_events = sum(v.get('total_events', 0) for v in all_variants)
+        avg_confidence = sum(
+            1 - (v['ctr_ci_upper'] - v['ctr_ci_lower'])
+            for v in all_variants
+        ) / len(all_variants)
+
+        return {
+            "status": "active",
+            "total_variants": len(all_variants),
+            "total_events": total_events,
+            "learning_progress": {
+                "events_collected": total_events,
+                "avg_confidence": avg_confidence,
+                "ready_for_decision": total_events >= 100 and avg_confidence >= 0.7
+            },
+            "best_variant": {
+                "id": best['id'],
+                "estimated_ctr": best['estimated_ctr'],
+                "confidence_interval": [best['ctr_ci_lower'], best['ctr_ci_upper']],
+                "total_events": best['total_events']
+            },
+            "all_variants": all_variants,
+            "recommendation": _get_thompson_recommendation(all_variants, best)
+        }
+
+    except Exception as e:
+        logger.error(f"Thompson status error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _get_thompson_recommendation(variants: list, best: dict) -> str:
+    """Generate human-readable recommendation based on Thompson state"""
+    total_events = sum(v.get('total_events', 0) for v in variants)
+
+    if total_events < 50:
+        return f"Collecting data ({total_events}/50 events). Keep all variants active."
+    elif total_events < 100:
+        return f"Learning phase ({total_events}/100 events). Thompson is exploring."
+    else:
+        # Check if best is statistically significant
+        best_lower = best['ctr_ci_lower']
+        losers = [v for v in variants if v['ctr_ci_upper'] < best_lower]
+
+        if losers:
+            return f"RECOMMENDATION: Kill {len(losers)} loser(s) and reallocate budget to '{best['id']}'"
+        else:
+            return f"No clear winner yet. Best is '{best['id']}' but confidence intervals overlap."
 
 
 @app.post("/api/ml/check-retrain")
@@ -2564,6 +2681,191 @@ async def get_cross_learning_stats():
 
 # ============================================================
 # END CROSS-ACCOUNT LEARNING ENDPOINTS
+# ============================================================
+
+
+# ============================================================
+# AUTO-RETRAIN PIPELINE ENDPOINTS (Quick Win #3)
+# Automatic model retraining based on performance
+# ============================================================
+
+class ManualRetrainRequest(BaseModel):
+    """Request model for manual retraining"""
+    model_type: str
+    config: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/retrain/check", tags=["Auto-Retrain"])
+async def check_retrain_needed(model_type: str = "ctr_predictor"):
+    """
+    Check if model needs retraining (Quick Win #3)
+
+    Checks:
+    - Accuracy drop below threshold
+    - New data accumulation
+    - Scheduled time
+    - Concept drift
+
+    Args:
+        model_type: Type of model to check
+
+    Returns:
+        Whether retrain is needed and why
+    """
+    if not AUTO_RETRAIN_AVAILABLE or not auto_retrain_pipeline:
+        raise HTTPException(status_code=503, detail="Auto-retrain pipeline not available")
+
+    try:
+        should_retrain, trigger, reason = await auto_retrain_pipeline.check_retrain_needed(
+            model_type,
+            accuracy_tracker=accuracy_tracker
+        )
+
+        return {
+            "model_type": model_type,
+            "should_retrain": should_retrain,
+            "trigger": trigger.value,
+            "reason": reason,
+            "checked_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error checking retrain: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/retrain/start", tags=["Auto-Retrain"])
+async def start_manual_retrain(request: ManualRetrainRequest):
+    """
+    Manually trigger model retraining (Quick Win #3)
+
+    Args:
+        request: Model type and optional config
+
+    Returns:
+        Retrain job details
+    """
+    if not AUTO_RETRAIN_AVAILABLE or not auto_retrain_pipeline:
+        raise HTTPException(status_code=503, detail="Auto-retrain pipeline not available")
+
+    try:
+        job = await auto_retrain_pipeline.start_retrain(
+            model_type=request.model_type,
+            trigger=RetrainTrigger.MANUAL,
+            config=request.config
+        )
+
+        return {
+            "success": True,
+            "job_id": job.job_id,
+            "model_type": job.model_type,
+            "status": job.status.value,
+            "message": f"Retrain job started for {request.model_type}"
+        }
+    except Exception as e:
+        logger.error(f"Error starting retrain: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/retrain/job/{job_id}", tags=["Auto-Retrain"])
+async def get_retrain_job_status(job_id: str):
+    """
+    Get status of a retrain job (Quick Win #3)
+
+    Args:
+        job_id: Job identifier
+
+    Returns:
+        Job status and metrics
+    """
+    if not AUTO_RETRAIN_AVAILABLE or not auto_retrain_pipeline:
+        raise HTTPException(status_code=503, detail="Auto-retrain pipeline not available")
+
+    job = auto_retrain_pipeline.get_job_status(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+    return {
+        "job_id": job.job_id,
+        "model_type": job.model_type,
+        "trigger": job.trigger.value,
+        "status": job.status.value,
+        "old_accuracy": job.old_accuracy,
+        "new_accuracy": job.new_accuracy,
+        "improvement": job.improvement,
+        "training_samples": job.training_samples,
+        "validation_samples": job.validation_samples,
+        "error": job.error,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None
+    }
+
+
+@app.get("/api/retrain/history", tags=["Auto-Retrain"])
+async def get_retrain_history(model_type: Optional[str] = None, limit: int = 10):
+    """
+    Get retraining history (Quick Win #3)
+
+    Args:
+        model_type: Filter by model type
+        limit: Maximum number of jobs to return
+
+    Returns:
+        List of historical retrain jobs
+    """
+    if not AUTO_RETRAIN_AVAILABLE or not auto_retrain_pipeline:
+        raise HTTPException(status_code=503, detail="Auto-retrain pipeline not available")
+
+    history = auto_retrain_pipeline.get_training_history(model_type, limit)
+
+    return {
+        "history": history,
+        "count": len(history)
+    }
+
+
+@app.get("/api/retrain/status", tags=["Auto-Retrain"])
+async def get_retrain_pipeline_status():
+    """
+    Get overall pipeline status (Quick Win #3)
+
+    Returns:
+        Pipeline status including active jobs, versions, config
+    """
+    if not AUTO_RETRAIN_AVAILABLE or not auto_retrain_pipeline:
+        raise HTTPException(status_code=503, detail="Auto-retrain pipeline not available")
+
+    return auto_retrain_pipeline.get_pipeline_status()
+
+
+@app.post("/api/retrain/scheduled-check", tags=["Auto-Retrain"])
+async def run_scheduled_retrain_check():
+    """
+    Run scheduled check for all models (Quick Win #3)
+
+    Checks all registered models and triggers retraining if needed.
+    Should be called by cron/scheduler.
+
+    Returns:
+        Check results for all models
+    """
+    if not AUTO_RETRAIN_AVAILABLE or not auto_retrain_pipeline:
+        raise HTTPException(status_code=503, detail="Auto-retrain pipeline not available")
+
+    try:
+        await auto_retrain_pipeline.run_scheduled_check()
+        return {
+            "success": True,
+            "message": "Scheduled check completed",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error in scheduled check: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# END AUTO-RETRAIN PIPELINE ENDPOINTS
 # ============================================================
 
 

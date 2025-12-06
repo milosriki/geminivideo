@@ -1,0 +1,596 @@
+{
+  "python_errors": [
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/api.py",
+      "line": 89,
+      "error_type": "HARDCODED",
+      "code_snippet": "allow_origins=[\"*\"],  # Configure appropriately for production",
+      "description": "CORS wildcard allows any origin, security vulnerability in production",
+      "fix": "Use specific allowed origins from config: allow_origins=os.getenv('ALLOWED_ORIGINS', '').split(',')",
+      "severity": "CRITICAL"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/api.py",
+      "line": 461,
+      "error_type": "ASYNC",
+      "code_snippet": "def sync_wrapper(category, new_version, old_version):\n    import asyncio\n    try:\n        loop = asyncio.get_event_loop()\n    except RuntimeError:\n        loop = asyncio.new_event_loop()\n        asyncio.set_event_loop(loop)\n    loop.create_task(webhook_callback(category, new_version, old_version))",
+      "description": "Improper async/await handling - creating tasks without awaiting them, event loop management issues",
+      "fix": "Use asyncio.run() or properly manage event loop lifecycle. Consider using background tasks.",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/meta/ads_library_scraper.py",
+      "line": 298,
+      "error_type": "DIVISION",
+      "code_snippet": "avg_copy_length = sum(copy_lengths) / len(copy_lengths) if copy_lengths else 0",
+      "description": "Division by zero risk if copy_lengths is empty list",
+      "fix": "Already has conditional check, but use explicit check: if len(copy_lengths) > 0 else 0",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/meta/ads_library_scraper.py",
+      "line": 308,
+      "error_type": "DIVISION",
+      "code_snippet": "avg_duration = sum(durations) / len(durations) if durations else None",
+      "description": "Division by zero risk if durations is empty",
+      "fix": "Already has conditional, but should be more explicit",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/src/actuals_fetcher.py",
+      "line": 271,
+      "error_type": "DIVISION",
+      "code_snippet": "actual_ctr = (clicks / impressions) * 100",
+      "description": "Division by zero if impressions is 0, despite check on line 270",
+      "fix": "Move calculation inside the if block: if impressions > 0: actual_ctr = (clicks / impressions) * 100",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/src/actuals_fetcher.py",
+      "line": 296,
+      "error_type": "DIVISION",
+      "code_snippet": "actual_roas = revenue / spend if spend > 0 else 0.0",
+      "description": "Conditional division, but should validate spend is not None first",
+      "fix": "Add None check: actual_roas = revenue / spend if spend and spend > 0 else 0.0",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/src/actuals_fetcher.py",
+      "line": 509,
+      "error_type": "DIVISION",
+      "code_snippet": "ctr_error = ((actuals.actual_ctr - predicted_ctr) / actuals.actual_ctr) * 100",
+      "description": "Division by zero if actuals.actual_ctr is 0, check on line 508 doesn't prevent this",
+      "fix": "Check should be: if predicted_ctr is not None and actuals.actual_ctr > 0:",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/src/actuals_fetcher.py",
+      "line": 515,
+      "error_type": "DIVISION",
+      "code_snippet": "roas_error = ((actuals.actual_roas - predicted_roas) / actuals.actual_roas) * 100",
+      "description": "Division by zero if actuals.actual_roas is 0",
+      "fix": "Check should be: if predicted_roas is not None and actuals.actual_roas > 0:",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/src/actuals_fetcher.py",
+      "line": 658,
+      "error_type": "DIVISION",
+      "code_snippet": "success_rate = (self.stats['successful_fetches'] / self.stats['total_fetches']) * 100",
+      "description": "Division by zero if total_fetches is 0, check on line 657 doesn't prevent assignment",
+      "fix": "Move calculation inside if block or use: success_rate = ... if self.stats['total_fetches'] > 0 else 0.0",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/roas_predictor.py",
+      "line": 313,
+      "error_type": "DIVISION",
+      "code_snippet": "avg_importance = (xgb_importance + lgb_importance) / 2",
+      "description": "Array division, safe but could validate arrays are same length",
+      "fix": "Add assertion: assert len(xgb_importance) == len(lgb_importance)",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/roas_predictor.py",
+      "line": 549,
+      "error_type": "DIVISION",
+      "code_snippet": "uncertainty = (conf_high - conf_low) / (2 * prediction.predicted_roas)",
+      "description": "Division by zero if predicted_roas is 0, check on line 545 prevents this but unclear",
+      "fix": "Already checked, but make more explicit with elif block",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/roas_predictor.py",
+      "line": 562,
+      "error_type": "DIVISION",
+      "code_snippet": "agreement = 1 - abs(xgb_pred - lgb_pred) / max(abs(xgb_pred), abs(lgb_pred), 1.0)",
+      "description": "Division by max value which includes 1.0 fallback - safe",
+      "fix": "No fix needed, properly handled",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/src/ctr_model.py",
+      "line": 201,
+      "error_type": "DIVISION",
+      "code_snippet": "confidence = 1.0 - np.minimum(test_rmse * 10, 0.5)",
+      "description": "Mathematical operation, not a division error but could be clearer",
+      "fix": "No fix needed, safe operation",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/smart_crop.py",
+      "line": 45,
+      "error_type": "DIVISION",
+      "code_snippet": "return self.value[0] / self.value[1]",
+      "description": "Division by zero if aspect ratio has 0 as denominator",
+      "fix": "Validate AspectRatio enum values during initialization",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/smart_crop.py",
+      "line": 654,
+      "error_type": "DIVISION",
+      "code_snippet": "source_ratio = source_w / source_h",
+      "description": "Division by zero if source_h is 0",
+      "fix": "Add validation: if source_h == 0: raise ValueError('Invalid source height')",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/smart_crop.py",
+      "line": 659,
+      "error_type": "DIVISION",
+      "code_snippet": "target_h = int(source_w / target_ratio)",
+      "description": "Division by zero if target_ratio is 0",
+      "fix": "Validate target_ratio before calculation",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/smart_crop.py",
+      "line": 720,
+      "error_type": "DIVISION",
+      "code_snippet": "return (total_x // n, total_y // n)",
+      "description": "Division by zero if n (len(boxes)) is 0",
+      "fix": "Add check: if n == 0: raise ValueError('Cannot get center of empty box list')",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/smart_crop.py",
+      "line": 881,
+      "error_type": "DIVISION",
+      "code_snippet": "avg_x = sum(cr.x for cr in crop_regions) // len(crop_regions)",
+      "description": "Division by zero if crop_regions is empty (already checked on line 877)",
+      "fix": "Safe due to check, but could move calculation into if block",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/seed-demo.py",
+      "line": 522,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    pass",
+      "description": "Bare except clause swallows all exceptions including KeyboardInterrupt",
+      "fix": "Use: except Exception as e: logger.error(f'Error: {e}')",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/test_batch_processor.py",
+      "line": 165,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    pass",
+      "description": "Bare except clause in test code suppresses all errors",
+      "fix": "Use specific exception: except Exception: pass",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/db-health.py",
+      "line": 166,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    return False",
+      "description": "Bare except clause without logging",
+      "fix": "Log the exception: except Exception as e: logger.error(f'Health check failed: {e}'); return False",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/db-health.py",
+      "line": 197,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    return 0",
+      "description": "Bare except returning default value without logging",
+      "fix": "except Exception as e: logger.warning(f'Count failed: {e}'); return 0",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/db-health.py",
+      "line": 208,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    return 0",
+      "description": "Bare except returning default value",
+      "fix": "except Exception as e: logger.warning(f'Count failed: {e}'); return 0",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/db-health.py",
+      "line": 297,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    return []",
+      "description": "Bare except returning empty list",
+      "fix": "except Exception as e: logger.error(f'Query failed: {e}'); return []",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/self_learning.py",
+      "line": 1064,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    return None",
+      "description": "Bare except clause without error handling",
+      "fix": "except Exception as e: logger.error(f'Error: {e}'); return None",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/migrate.py",
+      "line": 209,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    pass",
+      "description": "Bare except in migration script - dangerous",
+      "fix": "except Exception as e: logger.error(f'Migration step failed: {e}'); raise",
+      "severity": "CRITICAL"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/api/websocket.py",
+      "line": 562,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    pass",
+      "description": "Bare except in websocket handler",
+      "fix": "except Exception as e: logger.error(f'Websocket error: {e}')",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/src/batch_api.py",
+      "line": 534,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except:\n    pass",
+      "description": "Bare except suppressing batch processing errors",
+      "fix": "except Exception as e: logger.error(f'Batch item failed: {e}')",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/orchestrator.py",
+      "line": 155,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except: pass",
+      "description": "Bare except on same line - suppresses errors",
+      "fix": "except Exception as e: logger.warning(f'Cleanup failed: {e}')",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/orchestrator.py",
+      "line": 196,
+      "error_type": "EXCEPTION",
+      "code_snippet": "except: pass",
+      "description": "Bare except suppressing cleanup errors",
+      "fix": "except Exception as e: logger.debug(f'Resource cleanup: {e}')",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/manager.py",
+      "line": 52,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "def save(self, path: str, data: bytes) -> bool:\n    raise NotImplementedError",
+      "description": "Abstract method not implemented in base class StorageBackend",
+      "fix": "This is correct for abstract base class - subclasses must implement",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/manager.py",
+      "line": 55,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "def load(self, path: str) -> Optional[bytes]:\n    raise NotImplementedError",
+      "description": "Abstract method - correct pattern",
+      "fix": "No fix needed - proper abstract class design",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/manager.py",
+      "line": 58,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "def delete(self, path: str) -> bool:\n    raise NotImplementedError",
+      "description": "Abstract method - correct pattern",
+      "fix": "No fix needed - proper abstract class design",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/manager.py",
+      "line": 61,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "def list_files(self, prefix: str) -> List[str]:\n    raise NotImplementedError",
+      "description": "Abstract method - correct pattern",
+      "fix": "No fix needed - proper abstract class design",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/manager.py",
+      "line": 64,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "def exists(self, path: str) -> bool:\n    raise NotImplementedError",
+      "description": "Abstract method - correct pattern",
+      "fix": "No fix needed - proper abstract class design",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/motion_graphics.py",
+      "line": 194,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "raise NotImplementedError(\"Subclasses must implement to_ffmpeg_filter\")",
+      "description": "Abstract method for subclasses - correct design",
+      "fix": "No fix needed",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/motion_graphics.py",
+      "line": 198,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "raise NotImplementedError(\"Subclasses must implement to_svg_animation\")",
+      "description": "Abstract method for subclasses - correct design",
+      "fix": "No fix needed",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/meta_ads_library_pattern_miner.py",
+      "line": 332,
+      "error_type": "SYNTAX",
+      "code_snippet": ">>>>>>> origin/claude/plan-video-editing-solution-01K1NVwMYwFHsZECx5H2RVTT",
+      "description": "Git merge conflict marker left in code",
+      "fix": "Resolve merge conflict and remove conflict markers",
+      "severity": "CRITICAL"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/meta_ads_library_pattern_miner.py",
+      "line": 646,
+      "error_type": "SYNTAX",
+      "code_snippet": ">>>>>>> origin/claude/plan-video-editing-solution-01K1NVwMYwFHsZECx5H2RVTT",
+      "description": "Git merge conflict marker left in code",
+      "fix": "Resolve merge conflict and remove conflict markers",
+      "severity": "CRITICAL"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/init_db.py",
+      "line": 145,
+      "error_type": "HARDCODED",
+      "code_snippet": "db_url = os.getenv(\"DATABASE_URL\", \"postgresql://geminivideo:geminivideo@localhost:5432/geminivideo\")",
+      "description": "Hardcoded database credentials in default value",
+      "fix": "Remove default or use safer default without credentials",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/shared/db.py",
+      "line": 17,
+      "error_type": "HARDCODED",
+      "code_snippet": "\"postgresql://geminivideo:geminivideo@localhost:5432/geminivideo\"",
+      "description": "Hardcoded database credentials",
+      "fix": "Remove hardcoded credentials, require environment variable",
+      "severity": "CRITICAL"
+    },
+    {
+      "file": "/home/user/geminivideo/shared/legacy_db.py",
+      "line": 17,
+      "error_type": "HARDCODED",
+      "code_snippet": "\"postgresql://geminivideo:geminivideo@localhost:5432/geminivideo\"",
+      "description": "Hardcoded database credentials in legacy file",
+      "fix": "Remove hardcoded credentials",
+      "severity": "CRITICAL"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/api.py",
+      "line": 489,
+      "error_type": "HARDCODED",
+      "code_snippet": "port=8004",
+      "description": "Hardcoded port number",
+      "fix": "Use environment variable: port=int(os.getenv('PORT', 8004))",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/gcs_example.py",
+      "line": 58,
+      "error_type": "HARDCODED",
+      "code_snippet": "PROJECT_ID = \"your-gcp-project-id\"  # Replace with your project ID",
+      "description": "Placeholder project ID that will cause errors if not replaced",
+      "fix": "Use environment variable: PROJECT_ID = os.getenv('GCP_PROJECT_ID')",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/gcs_example.py",
+      "line": 188,
+      "error_type": "HARDCODED",
+      "code_snippet": "PROJECT_ID = \"your-gcp-project-id\"",
+      "description": "Duplicate placeholder project ID",
+      "fix": "Use environment variable",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/knowledge/core.py",
+      "line": 359,
+      "error_type": "NULL",
+      "code_snippet": "titan_knowledge = None\nraise",
+      "description": "Setting singleton to None then raising exception - consumers will get None",
+      "fix": "Don't set to None, just raise the exception",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/supabase_connector.py",
+      "line": 69,
+      "error_type": "NULL",
+      "code_snippet": "analysis_result.get('visual_score') or analysis_result.get('deep_ad_score', 0)",
+      "description": "Using 'or' with get() can cause issues if first value is 0 or False",
+      "fix": "Use: analysis_result.get('visual_score') if 'visual_score' in analysis_result else analysis_result.get('deep_ad_score', 0)",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/ml-service/src/actuals_fetcher.py",
+      "line": 30,
+      "error_type": "IMPORT",
+      "code_snippet": "sys.path.append('/home/user/geminivideo/services/titan-core')",
+      "description": "Hardcoded absolute path for import - will break in different environments",
+      "fix": "Use relative imports or proper package structure",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/init_db.py",
+      "line": 12,
+      "error_type": "IMPORT",
+      "code_snippet": "sys.path.insert(0, str(Path(__file__).parent.parent / \"shared\"))",
+      "description": "Manipulating sys.path for imports - fragile approach",
+      "fix": "Use proper package installation with setup.py or use PYTHONPATH",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/ai_video_generator.py",
+      "line": 130,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "pass  # Image to video using Runway Gen-3",
+      "description": "Unimplemented image-to-video function",
+      "fix": "Implement Runway Gen-3 integration or raise NotImplementedError",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/ai_video_generator.py",
+      "line": 141,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "pass  # Text to video using Runway Gen-3",
+      "description": "Unimplemented text-to-video function",
+      "fix": "Implement or raise NotImplementedError",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/ai_video_generator.py",
+      "line": 146,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "pass  # Video extension",
+      "description": "Unimplemented video extension function",
+      "fix": "Implement or raise NotImplementedError",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/video-agent/pro/ai_video_generator.py",
+      "line": 151,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "pass  # Upscale video to 4K",
+      "description": "Unimplemented upscaling function",
+      "fix": "Implement or raise NotImplementedError",
+      "severity": "HIGH"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/meta/marketing_api.py",
+      "line": 60,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "class MetaAPIError(Exception):\n    pass",
+      "description": "Empty exception class - should have proper message handling",
+      "fix": "Add __init__ method to handle error messages properly",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/services/titan-core/meta/marketing_api.py",
+      "line": 65,
+      "error_type": "UNIMPLEMENTED",
+      "code_snippet": "class MetaRateLimitError(MetaAPIError):\n    pass",
+      "description": "Empty exception class",
+      "fix": "Add proper error message handling",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/list_all_transitions.py",
+      "line": 48,
+      "error_type": "DIVISION",
+      "code_snippet": "stats['total_transitions'] / len(stats['categories']):.1f}",
+      "description": "Division by zero if no categories",
+      "fix": "Check: if len(stats['categories']) > 0 else 0",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/meta_ads_library_pattern_miner.py",
+      "line": 153,
+      "error_type": "DIVISION",
+      "code_snippet": "avg_engagement = sum(engagements) / len(engagements) if engagements else 0",
+      "description": "Safe division with conditional check",
+      "fix": "No fix needed - properly handled",
+      "severity": "LOW"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/meta_ads_library_pattern_miner.py",
+      "line": 156,
+      "error_type": "DIVISION",
+      "code_snippet": "\"percentage\": round(hook_types[htype] / total_ads * 100, 2)",
+      "description": "Division by total_ads without checking if it's zero",
+      "fix": "Add check: if total_ads > 0 else 0",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/meta_ads_library_pattern_miner.py",
+      "line": 353,
+      "error_type": "DIVISION",
+      "code_snippet": "\"median_engagement\": sorted_engagements[n // 2]",
+      "description": "Index access without checking if list is empty",
+      "fix": "Check: if n > 0 else 0",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/meta_ads_library_pattern_miner.py",
+      "line": 380,
+      "error_type": "DIVISION",
+      "code_snippet": "avg_eng = sum(platform_engagement[platform]) / len(platform_engagement[platform])",
+      "description": "Division without checking list length",
+      "fix": "Add check: if len(platform_engagement[platform]) > 0 else 0",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "/home/user/geminivideo/scripts/meta_ads_library_pattern_miner.py",
+      "line": 411,
+      "error_type": "DIVISION",
+      "code_snippet": "avg_eng = sum(brand_engagement[brand]) / len(brand_engagement[brand])",
+      "description": "Division without length check",
+      "fix": "Check list length before division",
+      "severity": "MEDIUM"
+    }
+  ],
+  "summary": {
+    "total_errors": 64,
+    "by_severity": {
+      "CRITICAL": 6,
+      "HIGH": 13,
+      "MEDIUM": 25,
+      "LOW": 20
+    },
+    "by_type": {
+      "DIVISION": 21,
+      "EXCEPTION": 15,
+      "HARDCODED": 8,
+      "UNIMPLEMENTED": 12,
+      "NULL": 2,
+      "IMPORT": 2,
+      "SYNTAX": 2,
+      "ASYNC": 1,
+      "TYPE": 0,
+      "LOGIC": 0
+    },
+    "most_problematic_files": [
+      "/home/user/geminivideo/scripts/meta_ads_library_pattern_miner.py",
+      "/home/user/geminivideo/services/ml-service/src/actuals_fetcher.py",
+      "/home/user/geminivideo/services/video-agent/pro/smart_crop.py",
+      "/home/user/geminivideo/services/titan-core/knowledge/api.py",
+      "/home/user/geminivideo/scripts/db-health.py"
+    ],
+    "scan_date": "2025-12-05",
+    "scanned_directories": [
+      "/home/user/geminivideo/services/titan-core/",
+      "/home/user/geminivideo/services/ml-service/",
+      "/home/user/geminivideo/services/video-agent/",
+      "/home/user/geminivideo/services/meta-publisher/",
+      "/home/user/geminivideo/scripts/"
+    ],
+    "critical_issues_requiring_immediate_attention": [
+      "Git merge conflict markers in meta_ads_library_pattern_miner.py (lines 332, 646)",
+      "Hardcoded database credentials in shared/db.py and shared/legacy_db.py",
+      "CORS wildcard in production API (knowledge/api.py line 89)",
+      "Bare except in migration script (scripts/migrate.py line 209)",
+      "Division by zero risks in actuals_fetcher.py (lines 509, 515)"
+    ]
+  }
+}
