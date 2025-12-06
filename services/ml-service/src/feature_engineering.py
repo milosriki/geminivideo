@@ -106,6 +106,15 @@ class FeatureExtractor:
         features.append(clip_data.get('keyword_density', 0))
         features.append(clip_data.get('call_to_action_present', 0))
 
+        # Advanced features (Agent 2 - Visual Density)
+        duration = max(clip_data.get('duration_seconds', 30), 1)
+        scene_count = clip_data.get('scene_count', 1)
+        features.append(scene_count / duration)  # scene_change_rate
+
+        total_objects = clip_data.get('total_objects', 0)
+        frame_count = clip_data.get('frame_count', duration * 30) # Assume 30fps if missing
+        features.append(total_objects / max(frame_count, 1)) # object_density
+
         return np.array(features, dtype=np.float32)
 
     def extract_batch_features(self, clip_data_list: List[Dict[str, Any]]) -> np.ndarray:
@@ -205,7 +214,12 @@ class FeatureExtractor:
             # Text features (3 features)
             'text_length_normalized',
             'keyword_density',
-            'call_to_action_present'
+            'keyword_density',
+            'call_to_action_present',
+
+            # Advanced features
+            'scene_change_rate',
+            'object_density'
         ]
 
     def get_feature_count(self) -> int:

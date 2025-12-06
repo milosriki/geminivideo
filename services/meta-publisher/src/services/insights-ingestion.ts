@@ -118,6 +118,7 @@ export class InsightsIngestionService {
                         impressions: Number(insight.impressions),
                         clicks: Number(insight.clicks),
                         conversions: Number(insight.actions?.length || 0),
+                        spend: Number(insight.spend || 0),
                         revenue: revenue
                     })
                 });
