@@ -28,6 +28,7 @@ const ProjectsPage = lazy(() => import('@/pages/ProjectsPage'))
 const AssetsPage = lazy(() => import('@/pages/AssetsPage'))
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
 const AdSpyPage = lazy(() => import('@/pages/AdSpyPage'))
+const DiscoveryPage = lazy(() => import('@/pages/DiscoveryPage'))
 const StudioPage = lazy(() => import('@/pages/studio/StudioPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const HelpPage = lazy(() => import('@/pages/HelpPage'))
@@ -309,6 +310,16 @@ function App() {
                 element={
                   <Suspense fallback={<PageLoader />}>
                     <AdSpyPage />
+                  </Suspense>
+                }
+              />
+
+              {/* AdIntel Discovery (Foreplay Alternative) */}
+              <Route
+                path="discovery"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <DiscoveryPage />
                   </Suspense>
                 }
               />
