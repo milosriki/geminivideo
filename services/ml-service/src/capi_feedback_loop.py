@@ -384,12 +384,12 @@ async def daily_retrain_job(db_session):
 
 async def daily_thompson_optimization_job(total_budget: float = 10000.0):
     """
-    Run daily to optimize budget allocation using Thompson Sampling.
+    Run daily to analyze Thompson Sampling and detect losers.
 
-    This automatically:
-    1. Analyzes all variant performance
-    2. Reallocates budget to winners
-    3. Identifies and flags losers for kill switch
+    This provides SUGGESTIONS (not auto-reallocation):
+    1. Identifies losers wasting budget (ROAS killers)
+    2. Suggests budget reallocation
+    3. Flags variants for kill switch
 
     Schedule with cron:
     0 3 * * * python -c "from capi_feedback_loop import daily_thompson_optimization_job; asyncio.run(daily_thompson_optimization_job(10000))"
@@ -406,39 +406,104 @@ async def daily_thompson_optimization_job(total_budget: float = 10000.0):
             logger.info("No variants to optimize")
             return {'status': 'skipped', 'reason': 'no_variants'}
 
-        # Reallocate budget based on Thompson Sampling scores
-        allocations = thompson_optimizer.reallocate_budget(
-            total_budget=total_budget,
-            min_budget_per_variant=total_budget * 0.05  # 5% minimum per variant
-        )
-
-        # Get best and worst performers
+        # Get best performer
         best_variant = thompson_optimizer.get_best_variant()
+        best_ctr = best_variant['estimated_ctr']
 
-        # Identify losers (variants with low probability of being best)
+        # LOSER DETECTION - Critical for ROAS, cut the waste
         losers = []
+        winners = []
         for variant in all_variants:
-            # If expected CTR < 50% of best, flag as loser
-            best_ctr = best_variant['estimated_ctr']
-            if variant['estimated_ctr'] < best_ctr * 0.5:
+            variant_ctr = variant['estimated_ctr']
+            spend = variant.get('spend', 0)
+            revenue = variant.get('revenue', 0)
+            roas = revenue / spend if spend > 0 else 0
+
+            # Loser criteria:
+            # 1. CTR < 50% of best
+            # 2. OR ROAS < 1.0 (losing money)
+            # 3. AND has enough data (> 20 events)
+            has_enough_data = variant.get('total_events', 0) >= 20
+
+            is_loser = False
+            loser_reason = []
+
+            if has_enough_data:
+                if variant_ctr < best_ctr * 0.5:
+                    is_loser = True
+                    loser_reason.append(f"CTR {variant_ctr:.2%} < 50% of best ({best_ctr:.2%})")
+
+                if spend > 0 and roas < 1.0:
+                    is_loser = True
+                    loser_reason.append(f"ROAS {roas:.2f} < 1.0 (losing money)")
+
+                # Statistical significance check
+                # If upper confidence interval is below best's lower, definitely a loser
+                if variant['ctr_ci_upper'] < best_variant['ctr_ci_lower']:
+                    is_loser = True
+                    loser_reason.append("Statistically significantly worse than best")
+
+            if is_loser:
                 losers.append({
                     'variant_id': variant['id'],
-                    'estimated_ctr': variant['estimated_ctr'],
-                    'reason': f"CTR {variant['estimated_ctr']:.2%} < 50% of best ({best_ctr:.2%})"
+                    'estimated_ctr': variant_ctr,
+                    'roas': roas,
+                    'spend': spend,
+                    'revenue': revenue,
+                    'wasted_budget': max(0, spend - revenue),  # Money lost
+                    'reasons': loser_reason,
+                    'recommendation': 'KILL - Stop spending immediately',
+                    'confidence': variant['ctr_ci_lower']
+                })
+            elif has_enough_data and variant_ctr >= best_ctr * 0.8:
+                winners.append({
+                    'variant_id': variant['id'],
+                    'estimated_ctr': variant_ctr,
+                    'roas': roas,
+                    'recommendation': 'SCALE - Increase budget'
                 })
 
-        logger.info(f"Thompson optimization complete: {len(allocations)} variants, {len(losers)} losers")
+        # Calculate total waste
+        total_wasted = sum(l['wasted_budget'] for l in losers)
+
+        # BUDGET SUGGESTIONS (not auto-reallocation)
+        budget_suggestions = []
+        if losers:
+            # Calculate how much to reallocate from losers
+            loser_budget = sum(l['spend'] for l in losers)
+            budget_suggestions.append({
+                'action': 'KILL_LOSERS',
+                'description': f"Stop {len(losers)} losing variant(s)",
+                'budget_freed': loser_budget,
+                'variants': [l['variant_id'] for l in losers]
+            })
+
+        if winners:
+            budget_suggestions.append({
+                'action': 'SCALE_WINNERS',
+                'description': f"Increase budget for {len(winners)} winner(s)",
+                'variants': [w['variant_id'] for w in winners],
+                'suggested_increase': f"{len(losers) * 20}%" if losers else "20%"
+            })
+
+        logger.info(f"Thompson analysis: {len(losers)} losers (${total_wasted:.2f} wasted), {len(winners)} winners")
 
         return {
             'status': 'success',
-            'total_variants': len(all_variants),
-            'budget_allocations': allocations,
+            'summary': {
+                'total_variants': len(all_variants),
+                'losers_count': len(losers),
+                'winners_count': len(winners),
+                'total_wasted_budget': total_wasted
+            },
             'best_variant': {
                 'id': best_variant['id'],
                 'estimated_ctr': best_variant['estimated_ctr'],
-                'allocated_budget': allocations.get(best_variant['id'], 0)
+                'roas': best_variant.get('roas', 0)
             },
-            'losers_flagged': losers,
+            'losers': losers,  # KILL THESE - cut the waste
+            'winners': winners,  # SCALE THESE
+            'budget_suggestions': budget_suggestions,  # SUGGESTIONS not auto
             'timestamp': datetime.now().isoformat()
         }
 
