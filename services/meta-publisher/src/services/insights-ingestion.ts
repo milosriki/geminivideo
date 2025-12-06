@@ -101,6 +101,36 @@ export class InsightsIngestionService {
                 `%${insight.ad_id}%`
             ]);
 
+            // =================================================================
+            // CLOSE THE LOOP: Send Feedback to ML Service (Thompson Sampling)
+            // =================================================================
+            const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://ml-service:8003';
+
+            try {
+                // Use fetch (Node 18+) or axios if available. 
+                // Since we are in a modern Node env, global fetch should work.
+                const feedbackResponse = await fetch(`${ML_SERVICE_URL}/api/ml/feedback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ad_id: insight.ad_id,
+                        variant_id: insight.ad_id, // Assuming 1:1 mapping for now
+                        impressions: Number(insight.impressions),
+                        clicks: Number(insight.clicks),
+                        conversions: Number(insight.actions?.length || 0),
+                        revenue: revenue
+                    })
+                });
+
+                if (!feedbackResponse.ok) {
+                    console.warn(`⚠️ Failed to send feedback to ML Service: ${feedbackResponse.statusText}`);
+                } else {
+                    console.log(`✅ Feedback sent to ML Service for ad ${insight.ad_id}`);
+                }
+            } catch (mlError) {
+                console.error('❌ Error sending feedback to ML Service:', mlError);
+            }
+
         } catch (err) {
             console.error(`Failed to update metrics for ad ${insight.ad_id}`, err);
         }

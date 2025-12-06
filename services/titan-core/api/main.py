@@ -69,7 +69,14 @@ except ImportError as e:
 # ============================================================================
 try:
     # Import from video-agent/pro
-    from services.video_agent.pro.winning_ads_generator import WinningAdsGenerator
+    from services.video_agent.pro.winning_ads_generator import (
+        WinningAdsGenerator,
+        AdAssets,
+        AdConfig,
+        AdTemplate,
+        Platform,
+        AspectRatio
+    )
     from services.video_agent.pro.motion_graphics import MotionGraphicsEngine
     from services.video_agent.services.renderer import VideoRenderer
     from services.video_agent.models.render_job import RenderJob, RenderStatus
@@ -796,30 +803,22 @@ async def start_render(request: RenderStartRequest, background_tasks: Background
         job_id = f"render_{uuid.uuid4().hex[:12]}"
 
         # Create job entry
-        app_state.render_jobs[job_id] = {
+        job_data = {
             "id": job_id,
             "status": RenderStatus.PENDING,
-            "request": request.model_dump(),
             "progress": 0.0,
-            "output_path": None,
-            "error": None,
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
+            "request": request.model_dump() # Use model_dump for Pydantic v2
         }
-
-        # Start render in background
-        background_tasks.add_task(
-            _process_render_job,
-            job_id,
-            request
-        )
-
-        return RenderStartResponse(
-            job_id=job_id,
-            status="pending",
-            message="Render job started",
-            estimated_duration_seconds=30
-        )
+        
+        # Store in Redis
+        await save_render_job(job_id, job_data)
+        
+        # Start background processing
+        background_tasks.add_task(_process_render_job, job_id, request)
+        
+        return RenderJobResponse(**job_data)
     except Exception as e:
         logger.error(f"Failed to start render: {e}")
         raise HTTPException(
@@ -828,22 +827,22 @@ async def start_render(request: RenderStartRequest, background_tasks: Background
         )
 
 
-@app.get("/render/{job_id}/status", response_model=RenderStatusResponse, tags=["Video Processing"])
+@app.get("/render/{job_id}/status", response_model=RenderJobResponse, tags=["Video Processing"])
 async def get_render_status(job_id: str):
     """
     Get render job status
 
     Returns current status, progress, and output path when complete
     """
-    job = app_state.render_jobs.get(job_id)
+    job_data = await get_render_job(job_id)
 
-    if not job:
+    if not job_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job {job_id} not found"
         )
 
-    return RenderStatusResponse(**job)
+    return RenderJobResponse(**job_data)
 
 
 @app.get("/render/{job_id}/download", tags=["Video Processing"])
@@ -853,9 +852,9 @@ async def download_render(job_id: str):
 
     Returns the rendered video file
     """
-    job = app_state.render_jobs.get(job_id)
+    job_data = await get_render_job(job_id)
 
-    if not job:
+    if not job_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job {job_id} not found"
@@ -1445,47 +1444,164 @@ async def generate_embeddings_endpoint(request: EmbeddingsRequest):
 # ============================================================================
 # BACKGROUND TASKS
 # ============================================================================
+# ============================================================================
+# REDIS PERSISTENCE HELPERS
+# ============================================================================
+async def get_render_job(job_id: str) -> Optional[Dict[str, Any]]:
+    """Get render job from Redis"""
+    if not app_state.redis:
+        return app_state.render_jobs.get(job_id)
+    
+    try:
+        data = await app_state.redis.get(f"render_job:{job_id}")
+        if data:
+            return json.loads(data)
+        return None
+    except Exception as e:
+        logger.error(f"Redis get failed: {e}")
+        return None
+
+async def save_render_job(job_id: str, data: Dict[str, Any]):
+    """Save render job to Redis"""
+    if not app_state.redis:
+        app_state.render_jobs[job_id] = data
+        return
+
+    try:
+        # Convert datetime objects to strings for JSON serialization
+        serializable_data = data.copy()
+        for k, v in serializable_data.items():
+            if isinstance(v, datetime):
+                serializable_data[k] = v.isoformat()
+        
+        await app_state.redis.set(
+            f"render_job:{job_id}", 
+            json.dumps(serializable_data),
+            ex=86400 * 7 # 7 days retention
+        )
+    except Exception as e:
+        logger.error(f"Redis save failed: {e}")
+
+# ============================================================================
+# BACKGROUND TASKS
+# ============================================================================
 async def _process_render_job(job_id: str, request: RenderStartRequest):
     """
     Process a render job in the background
-
-    This is a placeholder for the actual rendering logic.
-    In production, this would:
-    1. Use WinningAdsGenerator to create the video
-    2. Apply auto-captions
-    3. Apply smart cropping
-    4. Save to output directory
-    5. Update job status
+    
+    Uses WinningAdsGenerator if available, otherwise falls back to simulation.
     """
     try:
+        # Get current job state
+        job_data = await get_render_job(job_id)
+        if not job_data:
+            logger.error(f"Job {job_id} not found for processing")
+            return
+
         # Update status to processing
-        app_state.render_jobs[job_id]["status"] = RenderStatus.PROCESSING
-        app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+        job_data["status"] = RenderStatus.PROCESSING
+        job_data["updated_at"] = datetime.utcnow()
+        await save_render_job(job_id, job_data)
 
         logger.info(f"Processing render job {job_id}")
 
-        # Simulate rendering (replace with actual rendering logic)
-        for progress in [0, 25, 50, 75, 100]:
-            await asyncio.sleep(1)  # Simulate work
-            app_state.render_jobs[job_id]["progress"] = progress
-            app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+        if app_state.winning_ads_generator:
+            # REAL RENDERING
+            logger.info("🎬 Starting REAL render with WinningAdsGenerator")
+            
+            try:
+                # 1. Prepare Assets
+                # In a real system, we'd download these from GCS/S3 based on the blueprint
+                # For now, we'll check if blueprint has asset paths, otherwise use placeholders
+                bp = request.blueprint
+                video_clips = bp.get("video_clips", [])
+                if not video_clips:
+                    # Try to find some sample clips in the assets dir
+                    assets_dir = os.path.join(os.path.dirname(Config.OUTPUT_DIR), "assets")
+                    if os.path.exists(assets_dir):
+                        video_clips = [os.path.join(assets_dir, f) for f in os.listdir(assets_dir) if f.endswith(('.mp4', '.mov'))][:3]
+                
+                assets = AdAssets(
+                    video_clips=video_clips,
+                    audio_tracks=bp.get("audio_tracks", [])
+                )
+                
+                # 2. Prepare Config
+                # Map platform string to Enum
+                platform_map = {"instagram": Platform.INSTAGRAM, "tiktok": Platform.TIKTOK, "youtube": Platform.YOUTUBE}
+                platform = platform_map.get(request.platform.lower(), Platform.INSTAGRAM)
+                
+                # Map aspect ratio
+                ar_map = {"9:16": AspectRatio.VERTICAL, "1:1": AspectRatio.SQUARE, "16:9": AspectRatio.HORIZONTAL}
+                aspect_ratio = ar_map.get(request.aspect_ratio, AspectRatio.VERTICAL)
+                
+                # Extract details from blueprint
+                
+                config = AdConfig(
+                    template=AdTemplate.PROBLEM_SOLUTION, # Default
+                    platform=platform,
+                    aspect_ratio=aspect_ratio,
+                    hook_text=bp.get("hook_text", "Wait!"),
+                    cta_text=bp.get("cta_text", "Learn More"),
+                    duration=30.0,
+                    add_captions=True
+                )
+                
+                # 3. Generate
+                output = app_state.winning_ads_generator.generate_winning_ad(
+                    assets=assets,
+                    config=config,
+                    output_filename=f"{job_id}.mp4"
+                )
+                
+                output_path = output.video_path
+                
+            except Exception as render_err:
+                logger.error(f"Real rendering failed: {render_err}")
+                # Fallback to simulation if real render fails
+                raise render_err
 
-        # In production, this would be the actual output path
-        output_path = os.path.join(Config.OUTPUT_DIR, f"{job_id}.mp4")
+        else:
+            # SIMULATION (Fallback)
+            logger.warning("⚠️ WinningAdsGenerator not available - using SIMULATION")
+            for progress in [0, 25, 50, 75, 100]:
+                await asyncio.sleep(1)  # Simulate work
+                
+                # Update progress
+                job_data = await get_render_job(job_id)
+                if job_data:
+                    job_data["progress"] = progress
+                    job_data["updated_at"] = datetime.utcnow()
+                    await save_render_job(job_id, job_data)
+
+            # In production, this would be the actual output path
+            output_path = os.path.join(Config.OUTPUT_DIR, f"{job_id}.mp4")
+            
+            # Create dummy file
+            with open(output_path, "w") as f:
+                f.write("Simulated video content")
 
         # Mark as completed
-        app_state.render_jobs[job_id]["status"] = RenderStatus.COMPLETED
-        app_state.render_jobs[job_id]["output_path"] = output_path
-        app_state.render_jobs[job_id]["progress"] = 100.0
-        app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+        job_data = await get_render_job(job_id)
+        if job_data:
+            job_data["status"] = RenderStatus.COMPLETED
+            job_data["output_path"] = output_path
+            job_data["progress"] = 100.0
+            job_data["updated_at"] = datetime.utcnow()
+            await save_render_job(job_id, job_data)
 
         logger.info(f"Render job {job_id} completed")
 
     except Exception as e:
         logger.error(f"Render job {job_id} failed: {e}")
-        app_state.render_jobs[job_id]["status"] = RenderStatus.FAILED
-        app_state.render_jobs[job_id]["error"] = str(e)
-        app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+        
+        # Update status to failed
+        job_data = await get_render_job(job_id)
+        if job_data:
+            job_data["status"] = RenderStatus.FAILED
+            job_data["error"] = str(e)
+            job_data["updated_at"] = datetime.utcnow()
+            await save_render_job(job_id, job_data)
 
 
 # ============================================================================

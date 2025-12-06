@@ -141,8 +141,8 @@ async def health_check():
         "xgboost_loaded": ctr_predictor.is_trained,
         "enhanced_xgboost_loaded": enhanced_ctr_predictor.is_trained,
         "vowpal_wabbit_loaded": True,
-        "thompson_sampling_active": len(thompson_optimizer.variants) > 0,
-        "active_variants": len(thompson_optimizer.variants),
+        "thompson_sampling_active": len(thompson_optimizer.get_all_variants_stats()) > 0,
+        "active_variants": len(thompson_optimizer.get_all_variants_stats()),
         "model_metrics": ctr_predictor.training_metrics if ctr_predictor.is_trained else {},
         "enhanced_model_metrics": enhanced_ctr_predictor.training_metrics if enhanced_ctr_predictor.is_trained else {},
         "enhanced_features_count": len(enhanced_ctr_predictor.feature_names)

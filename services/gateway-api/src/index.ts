@@ -600,55 +600,40 @@ app.post('/api/publish/meta',
       `;
 
       await pgPool.query(publishAuditQuery, [
-        'AD_PUBLISHED',
+        'PUBLISH_INITIATED',
         ad_id,
         userId,
         JSON.stringify({
-          video_path,
-          caption: caption?.substring(0, 100), // Truncate for log
-          scheduled_time,
-          predicted_ctr: ad.predicted_ctr,
-          predicted_roas: ad.predicted_roas,
-          ip_address: req.ip
-        })
-      ]).catch(err => {
-        console.warn('[AUDIT] Failed to log publish event:', err.message);
-      });
+          // ====================================================================
 
-      console.log(`[AUDIT] Publish logged: ad_id=${ad_id}, user_id=${userId}, timestamp=${new Date().toISOString()}`);
+          const response = await axios.post(
+            `${META_PUBLISHER_URL}/publish/meta`,
+            {
+              ad_id,
+              video_path,
+              caption,
+              scheduled_time
+            }
+          );
 
-      // ====================================================================
-      // APPROVED: Proxy to Meta Publisher
-      // ====================================================================
+          console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
 
-      const response = await axios.post(
-        `${META_PUBLISHER_URL}/publish/meta`,
-        {
-          ad_id,
-          video_path,
-          caption,
-          scheduled_time
+          res.json({
+            ...response.data,
+            security_check: {
+              approved: true,
+              approved_by: userId,
+              published_at: new Date().toISOString()
+            }
+          });
+
+        } catch (error: any) {
+          console.error('[ERROR] Publish failed:', error.message);
+          res.status(error.response?.status || 500).json({
+            error: error.message
+          });
         }
-      );
-
-      console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
-
-      res.json({
-        ...response.data,
-        security_check: {
-          approved: true,
-          approved_by: userId,
-          published_at: new Date().toISOString()
-        }
-      });
-
-    } catch (error: any) {
-      console.error('[ERROR] Publish failed:', error.message);
-      res.status(error.response?.status || 500).json({
-        error: error.message
-      });
-    }
-  });
+    });
 
 app.get('/api/insights', async (req: Request, res: Response) => {
   try {
