@@ -221,9 +221,58 @@ class CAPIFeedbackLoop:
 
     async def _get_actuals(self, campaign_id: str, creative_id: str) -> Optional[Dict]:
         """Get actual performance data for a campaign/creative"""
-        # Query actuals from database
-        # This would aggregate CAPI events + platform reporting
-        return None  # Placeholder
+        try:
+            # Query actuals from database (PerformanceMetric table)
+            # We aggregate metrics for the given campaign/creative
+            from sqlalchemy import select, func
+            from db.models import PerformanceMetric, Video
+            
+            # Find video ID for this creative/campaign
+            # Assuming creative_id maps to Video.id or we join via Campaign
+            
+            # Query metrics
+            query = select(
+                func.sum(PerformanceMetric.impressions).label('impressions'),
+                func.sum(PerformanceMetric.clicks).label('clicks'),
+                func.sum(PerformanceMetric.conversions).label('conversions'),
+                func.sum(PerformanceMetric.spend).label('spend'),
+                func.sum(PerformanceMetric.revenue).label('revenue')
+            ).join(Video, PerformanceMetric.video_id == Video.id)\
+             .where(Video.campaign_id == campaign_id)
+            
+            if creative_id:
+                # If creative_id is provided, filter by it (assuming it's video_id)
+                query = query.where(Video.id == creative_id)
+                
+            result = await self.db.execute(query)
+            metrics = result.first()
+            
+            if not metrics or not metrics.impressions:
+                return None
+                
+            # Calculate rates
+            impressions = metrics.impressions or 0
+            clicks = metrics.clicks or 0
+            conversions = metrics.conversions or 0
+            spend = float(metrics.spend or 0)
+            revenue = float(metrics.revenue or 0)
+            
+            ctr = clicks / impressions if impressions > 0 else 0.0
+            roas = revenue / spend if spend > 0 else 0.0
+            
+            return {
+                'ctr': ctr,
+                'roas': roas,
+                'conversions': conversions,
+                'revenue': revenue,
+                'spend': spend,
+                'impressions': impressions,
+                'clicks': clicks
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting actuals for {campaign_id}: {e}")
+            return None
 
     async def should_retrain(self) -> bool:
         """Check if we should trigger model retraining"""
@@ -293,13 +342,39 @@ class CAPIFeedbackLoop:
 
     async def _execute_retrain(self, training_data: Dict) -> Dict:
         """Execute actual model retraining"""
-        # This would call your ML training pipeline
-        # For now, return placeholder
-        return {
-            'model_version': f"v{datetime.now().strftime('%Y%m%d_%H%M')}",
-            'samples': len(training_data['targets']['ctr']),
-            'status': 'trained'
-        }
+        try:
+            from src.main import ctr_predictor, feature_extractor
+            
+            # We need X (features) and y (targets)
+            # Currently training_data['features'] is empty because match_predictions_to_actuals 
+            # doesn't fetch features. We need to fetch features for each pair.
+            # For now, we'll trigger the standard data loader which fetches everything fresh from DB
+            
+            from src.data_loader import get_data_loader
+            data_loader = get_data_loader()
+            
+            if not data_loader:
+                return {'status': 'failed', 'reason': 'no data loader'}
+                
+            # Fetch fresh training data from DB (which now includes the new actuals we just verified)
+            X, y = data_loader.fetch_training_data(min_impressions=10)
+            
+            if X is None or len(X) < 50:
+                return {'status': 'skipped', 'reason': 'insufficient data'}
+                
+            # Train model
+            metrics = ctr_predictor.train(X, y, feature_names=feature_extractor.feature_names)
+            
+            return {
+                'model_version': f"v{datetime.now().strftime('%Y%m%d_%H%M')}",
+                'samples': len(X),
+                'metrics': metrics,
+                'status': 'trained'
+            }
+            
+        except Exception as e:
+            logger.error(f"Retraining failed: {e}")
+            return {'status': 'failed', 'error': str(e)}
 
     def get_feedback_metrics(self) -> Dict:
         """Get metrics on feedback loop health"""
@@ -328,3 +403,133 @@ async def daily_retrain_job(db_session):
     else:
         logger.info("Daily retrain skipped - conditions not met")
         return {'status': 'skipped'}
+
+
+async def daily_thompson_optimization_job(total_budget: float = 10000.0):
+    """
+    Run daily to analyze Thompson Sampling and detect losers.
+
+    This provides SUGGESTIONS (not auto-reallocation):
+    1. Identifies losers wasting budget (ROAS killers)
+    2. Suggests budget reallocation
+    3. Flags variants for kill switch
+
+    Schedule with cron:
+    0 3 * * * python -c "from capi_feedback_loop import daily_thompson_optimization_job; asyncio.run(daily_thompson_optimization_job(10000))"
+    """
+    if not THOMPSON_AVAILABLE or not thompson_optimizer:
+        logger.warning("Thompson Sampling not available for optimization")
+        return {'status': 'skipped', 'reason': 'thompson_not_available'}
+
+    try:
+        # Get all variant stats
+        all_variants = thompson_optimizer.get_all_variants_stats()
+
+        if not all_variants:
+            logger.info("No variants to optimize")
+            return {'status': 'skipped', 'reason': 'no_variants'}
+
+        # Get best performer
+        best_variant = thompson_optimizer.get_best_variant()
+        best_ctr = best_variant['estimated_ctr']
+
+        # LOSER DETECTION - Critical for ROAS, cut the waste
+        losers = []
+        winners = []
+        for variant in all_variants:
+            variant_ctr = variant['estimated_ctr']
+            spend = variant.get('spend', 0)
+            revenue = variant.get('revenue', 0)
+            roas = revenue / spend if spend > 0 else 0
+
+            # Loser criteria:
+            # 1. CTR < 50% of best
+            # 2. OR ROAS < 1.0 (losing money)
+            # 3. AND has enough data (> 20 events)
+            has_enough_data = variant.get('total_events', 0) >= 20
+
+            is_loser = False
+            loser_reason = []
+
+            if has_enough_data:
+                if variant_ctr < best_ctr * 0.5:
+                    is_loser = True
+                    loser_reason.append(f"CTR {variant_ctr:.2%} < 50% of best ({best_ctr:.2%})")
+
+                if spend > 0 and roas < 1.0:
+                    is_loser = True
+                    loser_reason.append(f"ROAS {roas:.2f} < 1.0 (losing money)")
+
+                # Statistical significance check
+                # If upper confidence interval is below best's lower, definitely a loser
+                if variant['ctr_ci_upper'] < best_variant['ctr_ci_lower']:
+                    is_loser = True
+                    loser_reason.append("Statistically significantly worse than best")
+
+            if is_loser:
+                losers.append({
+                    'variant_id': variant['id'],
+                    'estimated_ctr': variant_ctr,
+                    'roas': roas,
+                    'spend': spend,
+                    'revenue': revenue,
+                    'wasted_budget': max(0, spend - revenue),  # Money lost
+                    'reasons': loser_reason,
+                    'recommendation': 'KILL - Stop spending immediately',
+                    'confidence': variant['ctr_ci_lower']
+                })
+            elif has_enough_data and variant_ctr >= best_ctr * 0.8:
+                winners.append({
+                    'variant_id': variant['id'],
+                    'estimated_ctr': variant_ctr,
+                    'roas': roas,
+                    'recommendation': 'SCALE - Increase budget'
+                })
+
+        # Calculate total waste
+        total_wasted = sum(l['wasted_budget'] for l in losers)
+
+        # BUDGET SUGGESTIONS (not auto-reallocation)
+        budget_suggestions = []
+        if losers:
+            # Calculate how much to reallocate from losers
+            loser_budget = sum(l['spend'] for l in losers)
+            budget_suggestions.append({
+                'action': 'KILL_LOSERS',
+                'description': f"Stop {len(losers)} losing variant(s)",
+                'budget_freed': loser_budget,
+                'variants': [l['variant_id'] for l in losers]
+            })
+
+        if winners:
+            budget_suggestions.append({
+                'action': 'SCALE_WINNERS',
+                'description': f"Increase budget for {len(winners)} winner(s)",
+                'variants': [w['variant_id'] for w in winners],
+                'suggested_increase': f"{len(losers) * 20}%" if losers else "20%"
+            })
+
+        logger.info(f"Thompson analysis: {len(losers)} losers (${total_wasted:.2f} wasted), {len(winners)} winners")
+
+        return {
+            'status': 'success',
+            'summary': {
+                'total_variants': len(all_variants),
+                'losers_count': len(losers),
+                'winners_count': len(winners),
+                'total_wasted_budget': total_wasted
+            },
+            'best_variant': {
+                'id': best_variant['id'],
+                'estimated_ctr': best_variant['estimated_ctr'],
+                'roas': best_variant.get('roas', 0)
+            },
+            'losers': losers,  # KILL THESE - cut the waste
+            'winners': winners,  # SCALE THESE
+            'budget_suggestions': budget_suggestions,  # SUGGESTIONS not auto
+            'timestamp': datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Thompson optimization failed: {e}")
+        return {'status': 'error', 'error': str(e)}
