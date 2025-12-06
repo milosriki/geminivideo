@@ -344,10 +344,43 @@ class ThompsonSamplingOptimizer:
 
     # Legacy save/load methods (no longer needed with Redis, but kept for interface compatibility)
     def save_state(self, filepath: str):
-        pass
+        """Dump all Redis variants to a JSON file for backup"""
+        try:
+            variants = self.get_all_variants_stats()
+            data = {
+                'timestamp': datetime.utcnow().isoformat(),
+                'variants': variants
+            }
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            
+            with open(filepath, 'w') as f:
+                json.dump(data, f, indent=2)
+            logger.info(f"Saved Thompson Sampling state to {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to save state to {filepath}: {e}")
 
     def load_state(self, filepath: str):
-        pass
+        """Load variants from JSON file into Redis"""
+        if not os.path.exists(filepath):
+            logger.warning(f"State file not found: {filepath}")
+            return
+
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            
+            variants = data.get('variants', [])
+            count = 0
+            for variant in variants:
+                # Only register if not already in Redis (don't overwrite live data with old backup)
+                if not self._get_variant(variant['id']):
+                    self._save_variant(variant['id'], variant)
+                    count += 1
+            
+            logger.info(f"Loaded {count} variants from {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to load state from {filepath}: {e}")
 
 
 # Global optimizer instance

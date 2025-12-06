@@ -2914,6 +2914,23 @@ async def startup_event():
     except ImportError:
         logger.warning("Training scheduler not available")
 
+    # Agent 7: Persistence for Thompson Sampling
+    # Load state from disk if Redis is empty/fresh
+    try:
+        state_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'thompson_state.json')
+        thompson_optimizer.load_state(state_file)
+        
+        # Schedule periodic save (every hour)
+        async def periodic_save():
+            while True:
+                await asyncio.sleep(3600)  # 1 hour
+                thompson_optimizer.save_state(state_file)
+                
+        asyncio.create_task(periodic_save())
+        logger.info(f"Thompson Sampling persistence enabled (backup to {state_file})")
+    except Exception as e:
+        logger.error(f"Failed to setup Thompson persistence: {e}")
+
     # Start compound learning scheduler (Agent 50)
     try:
         from src.compound_learning_scheduler import compound_learning_scheduler

@@ -137,10 +137,20 @@ class CAPIFeedbackLoop:
             if variant_id:
                 try:
                     # Determine reward based on event type and value
-                    # Purchase/Lead with value > 0 = success (reward = 1)
-                    # No conversion = failure (reward = 0)
+                    # Agent 5: Use REAL value for ROAS optimization
                     is_conversion = event.event_name in ['Purchase', 'Lead', 'CompleteRegistration', 'Subscribe']
-                    reward = 1.0 if (is_conversion and event.value > 0) else 0.0
+                    
+                    # Use actual value as reward if available (Value-Based Optimization)
+                    if is_conversion and event.value > 0:
+                        reward = event.value
+                    elif is_conversion:
+                        reward = 1.0 # Default if no value provided
+                    else:
+                        reward = 0.0
+
+                    # Extract spend if provided in custom data (from our enrichment)
+                    # This allows calculating ROAS: Value / Spend
+                    ad_spend = float(event.custom_data.get('ad_spend', 0.0))
 
                     # Check if variant is registered, if not register it
                     if variant_id not in thompson_optimizer.variants:
@@ -153,11 +163,11 @@ class CAPIFeedbackLoop:
                             }
                         )
 
-                    # Update Thompson Sampling with real conversion data
+                    # Update Thompson Sampler with real conversion data
                     thompson_optimizer.update(
                         variant_id=variant_id,
                         reward=reward,
-                        cost=0.0,  # Cost comes from Meta API separately
+                        cost=ad_spend,  # Pass real spend for ROAS calculation
                         context={
                             'event_name': event.event_name,
                             'action_source': event.action_source
