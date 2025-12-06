@@ -944,6 +944,53 @@ async def record_feedback(data: FeedbackData):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/webhook/capi")
+async def capi_webhook(request: Request):
+    """
+    Handle Meta CAPI Webhook events (Agent 5)
+    
+    Receives real-time conversion data from Meta and updates:
+    1. Campaign Actuals (DB)
+    2. Thompson Sampling (Reinforcement Learning)
+    3. Retraining Queue
+    """
+    try:
+        data = await request.json()
+        logger.info(f"Received CAPI webhook: {len(data)} events")
+        
+        from src.capi_feedback_loop import CAPIFeedbackLoop
+        
+        # Get DB session
+        data_loader = get_data_loader()
+        if not data_loader or not data_loader.SessionLocal:
+            logger.error("No DB session available for CAPI webhook")
+            return {"status": "error", "message": "Database unavailable"}
+            
+        session = data_loader.SessionLocal()
+        try:
+            loop = CAPIFeedbackLoop(session)
+            
+            results = []
+            # Handle batch of events
+            events = data.get('entry', [])
+            for entry in events:
+                changes = entry.get('changes', [])
+                for change in changes:
+                    if change.get('field') == 'conversions':
+                        value = change.get('value', {})
+                        result = await loop.process_capi_event(value)
+                        results.append(result)
+                        
+            return {"status": "processed", "count": len(results), "results": results}
+            
+        finally:
+            session.close()
+            
+    except Exception as e:
+        logger.error(f"Error processing CAPI webhook: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/ml/thompson/impression")
 async def record_impression(variant_id: str):
     """
@@ -2938,6 +2985,53 @@ async def startup_event():
         logger.info(f"Precomputation engine started with {num_workers} workers")
     except Exception as e:
         logger.warning(f"Failed to start precomputation workers: {e}")
+
+    # Agent 5: Start CAPI Feedback Loop & Loser Detection
+    try:
+        from src.capi_feedback_loop import daily_retrain_job, daily_thompson_optimization_job
+        
+        # Schedule daily retrain (2 AM)
+        async def schedule_retrain():
+            while True:
+                now = datetime.now()
+                # Calculate seconds until 2 AM
+                target = now.replace(hour=2, minute=0, second=0, microsecond=0)
+                if target <= now:
+                    target += timedelta(days=1)
+                
+                seconds = (target - now).total_seconds()
+                await asyncio.sleep(seconds)
+                
+                # Run job
+                data_loader = get_data_loader()
+                if data_loader and data_loader.SessionLocal:
+                    session = data_loader.SessionLocal()
+                    try:
+                        await daily_retrain_job(session)
+                    finally:
+                        session.close()
+                        
+        # Schedule daily optimization (3 AM)
+        async def schedule_optimization():
+            while True:
+                now = datetime.now()
+                # Calculate seconds until 3 AM
+                target = now.replace(hour=3, minute=0, second=0, microsecond=0)
+                if target <= now:
+                    target += timedelta(days=1)
+                
+                seconds = (target - now).total_seconds()
+                await asyncio.sleep(seconds)
+                
+                # Run job
+                await daily_thompson_optimization_job()
+
+        asyncio.create_task(schedule_retrain())
+        asyncio.create_task(schedule_optimization())
+        logger.info("CAPI Feedback Loop & Loser Detection scheduled (Agents 5 & 6)")
+        
+    except Exception as e:
+        logger.error(f"Failed to schedule CAPI jobs: {e}")
 
     # Try to load existing model or train with real data from database
     if not ctr_predictor.is_trained:
