@@ -110,8 +110,14 @@ Production-quality video analysis, performance prediction, and automated ad crea
 | Component | Original Vision | Status | Implementation |
 |-----------|-----------------|--------|----------------|
 | **Performance Tracking** | Prediction vs reality | ✅ IMPLEMENTED | `ml-service/src/prediction_accuracy_tracker.py` |
-| **Thompson Sampling** | A/B testing intelligence | ❌ MISSING | Not implemented |
+| **Thompson Sampling** | A/B testing intelligence | ✅ IMPLEMENTED | `ml-service/src/thompson_sampler.py` - Beta distribution, loser detection, ROAS focus |
+| **CAPI → Thompson Auto-Update** | Real conversion feedback | ✅ IMPLEMENTED | `ml-service/src/capi_feedback_loop.py` - Auto-update on CAPI events |
+| **Loser Detection** | Cut wasted budget | ✅ IMPLEMENTED | ROAS < 1.0 detection, confidence intervals, budget suggestions |
 | **Weight Auto-Update** | Learning loop | ✅ IMPLEMENTED | `gateway-api` weight calibration |
+
+**Thompson Sampling Endpoints:**
+- `POST /api/ml/thompson/optimize` - Get loser analysis + budget suggestions
+- `GET /api/ml/thompson/status` - Full variant stats with recommendations
 
 ---
 
@@ -352,6 +358,10 @@ TIKTOK_ACCESS_TOKEN=your_token
 - [x] Real-time Prediction Streaming (WebSocket/SSE)
 - [x] Campaign Auto-Scaling (ROAS-based)
 - [x] Loser Kill Switch
+- [x] Thompson Sampling A/B Testing (Beta distribution)
+- [x] CAPI → Thompson Auto-Update (real conversion feedback)
+- [x] Loser Detection with ROAS Focus (cut wasted budget)
+- [x] Budget Suggestions (not auto-reallocation)
 - [x] Priority-Based Queue (Celery)
 - [x] Exponential Backoff Retry
 - [x] Batch API Cost Savings (50%)
@@ -369,7 +379,6 @@ TIKTOK_ACCESS_TOKEN=your_token
 - [ ] Phase-Aware Effects (effects exist, NOT phase-mapped)
 - [ ] Beat-Synced Transitions (transitions exist, NOT beat-synced)
 - [ ] Advanced Confidence Calibration (basic RMSE only)
-- [ ] Thompson Sampling A/B Testing
 - [ ] User Intent Detection (platform only)
 
 ### Not Implemented (Gaps)
@@ -422,7 +431,7 @@ The 10-layer intelligence architecture from the original concept document has be
 | 4. Queue Processing | 70% (missing auto-scaling, DLQ) |
 | 5. Real-Time Decision | 100% |
 | 6. Pattern Recognition | 100% |
-| 7. Adaptive Learning | 80% (missing Thompson sampling) |
+| 7. Adaptive Learning | 100% ✅ (Thompson Sampling + CAPI auto-update + loser detection) |
 | 8. Contextual Intelligence | 70% |
 | 9. Efficiency Intelligence | 100% |
 | 10. Error Intelligence | 80% |
