@@ -52,17 +52,18 @@ After starting, you should see:
 ```
 
 **Service URLs:**
-- 🎨 **Frontend Dashboard**: http://localhost:3000
-- 🚪 **Gateway API**: http://localhost:8000
-- 🎬 **Drive Intel**: http://localhost:8001
-- 🎥 **Video Agent**: http://localhost:8002
-- 📱 **Meta Publisher**: http://localhost:8003
+- 🎨 **Frontend Dashboard**: http://localhost
+- 🚪 **Gateway API**: http://localhost:8080
+- 🎬 **Drive Intel**: http://localhost:8081
+- 🎥 **Video Agent**: http://localhost:8082
+- 🤖 **ML Service**: http://localhost:8003
+- 📱 **Meta Publisher**: http://localhost:8083
 
 ## Step 3: Access the Dashboard
 
 Open your browser and go to:
 ```
-http://localhost:3000
+http://localhost
 ```
 
 You'll see 8 dashboard panels:
@@ -90,7 +91,7 @@ You'll see 8 dashboard panels:
 docker cp /path/to/your/video.mp4 geminivideo-drive-intel-1:/app/data/inputs/
 
 # Trigger ingestion via API
-curl -X POST http://localhost:8000/api/ingest/local/folder \
+curl -X POST http://localhost:8080/api/ingest/local/folder \
   -H "Content-Type: application/json" \
   -d '{"folder_path": "/app/data/inputs"}'
 ```
@@ -128,22 +129,22 @@ docker-compose restart gateway-api
 
 ### Check Service Health
 ```bash
-curl http://localhost:8000/health    # Gateway
-curl http://localhost:8001/health    # Drive Intel
-curl http://localhost:8002/health    # Video Agent
-curl http://localhost:8003/health    # Meta Publisher
+curl http://localhost:8080/health    # Gateway
+curl http://localhost:8081/health    # Drive Intel
+curl http://localhost:8082/health    # Video Agent
+curl http://localhost:8083/health    # Meta Publisher
 ```
 
 ## Test the System
 
 ### 1. List Assets
 ```bash
-curl http://localhost:8000/api/assets
+curl http://localhost:8080/api/assets
 ```
 
 ### 2. Score a Storyboard
 ```bash
-curl -X POST http://localhost:8000/api/score/storyboard \
+curl -X POST http://localhost:8080/api/score/storyboard \
   -H "Content-Type: application/json" \
   -d '{
     "scenes": [{
@@ -158,12 +159,12 @@ curl -X POST http://localhost:8000/api/score/storyboard \
 
 ### 3. Check Diversification Metrics
 ```bash
-curl http://localhost:8000/api/metrics/diversification
+curl http://localhost:8080/api/metrics/diversification
 ```
 
 ### 4. Check Reliability Metrics
 ```bash
-curl http://localhost:8000/api/metrics/reliability
+curl http://localhost:8080/api/metrics/reliability
 ```
 
 ## Production Deployment
