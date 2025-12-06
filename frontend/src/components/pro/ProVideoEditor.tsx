@@ -2153,10 +2153,10 @@ export const ProVideoEditor: React.FC = () => {
         setOutPoint(currentTime);
       }
 
-      // Tools
-      else if (e.key === 'v' || e.key === 'V') {
+      // Tools (only when no modifier keys are pressed)
+      else if (!e.metaKey && !e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
         setSelectedTool('selection');
-      } else if (e.key === 'c' || e.key === 'C') {
+      } else if (!e.metaKey && !e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
         setSelectedTool('razor');
       } else if (e.key === 'h' || e.key === 'H') {
         setSelectedTool('hand');
