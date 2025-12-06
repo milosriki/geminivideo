@@ -349,9 +349,90 @@ services:
     networks:
       - geminivideo-network
 
+  # ========================================================================
+  # ADINTEL - Ad Intelligence Platform (Foreplay Alternative)
+  # ========================================================================
+
+  typesense:
+    image: typesense/typesense:0.25.2
+    container_name: geminivideo-typesense
+    environment:
+      TYPESENSE_API_KEY: adintel-key-change-in-prod
+      TYPESENSE_DATA_DIR: /data
+    ports:
+      - "8108:8108"
+    volumes:
+      - typesense_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8108/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - geminivideo-network
+
+  intel-api:
+    build:
+      context: ./services/intel
+      dockerfile: Dockerfile
+    container_name: geminivideo-intel-api
+    environment:
+      PORT: 8090
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
+      TYPESENSE_HOST: typesense
+      TYPESENSE_PORT: 8108
+      TYPESENSE_API_KEY: adintel-key-change-in-prod
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "8090:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/api/v1/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - geminivideo-network
+
+  intel-worker:
+    build:
+      context: ./services/intel
+      dockerfile: Dockerfile
+    container_name: geminivideo-intel-worker
+    command: python -m intel.orchestrator worker
+    environment:
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
+      TYPESENSE_HOST: typesense
+      TYPESENSE_PORT: 8108
+      TYPESENSE_API_KEY: adintel-key-change-in-prod
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - geminivideo-network
+
 networks:
   geminivideo-network:
     driver: bridge
 
 volumes:
   postgres_data:
+  typesense_data:

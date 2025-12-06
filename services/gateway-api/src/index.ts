@@ -2269,6 +2269,79 @@ app.get('/api/realtime/stats', (req: Request, res: Response) => {
   });
 });
 
+// ============================================================================
+// ADINTEL API PROXY - Ad Intelligence Platform (Foreplay Alternative)
+// ============================================================================
+const INTEL_API_URL = process.env.INTEL_API_URL || 'http://intel-api:8090';
+
+// Proxy all /api/intel/* requests to intel-api service
+app.all('/api/intel/*', async (req: Request, res: Response) => {
+  try {
+    const targetPath = req.path.replace('/api/intel', '/api/v1');
+    const response = await axios({
+      method: req.method as any,
+      url: `${INTEL_API_URL}${targetPath}`,
+      data: req.body,
+      params: req.query,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.authorization || '',
+      },
+      validateStatus: () => true, // Don't throw on non-2xx
+    });
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error('Intel API proxy error:', error.message);
+    res.status(500).json({ error: 'Intel service unavailable', details: error.message });
+  }
+});
+
+// Quick shortcuts for common intel operations
+app.post('/api/intel/search', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.post(`${INTEL_API_URL}/api/v1/discovery/search`, req.body, {
+      headers: { 'Authorization': req.headers.authorization || '' }
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/intel/winners', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(`${INTEL_API_URL}/api/v1/discovery/winners`, {
+      params: req.query,
+      headers: { 'Authorization': req.headers.authorization || '' }
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/intel/track-brand', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.post(`${INTEL_API_URL}/api/v1/spyder/track`, req.body, {
+      headers: { 'Authorization': req.headers.authorization || '' }
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/intel/trends', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(`${INTEL_API_URL}/api/v1/analytics/trends`, {
+      headers: { 'Authorization': req.headers.authorization || '' }
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const server = app.listen(PORT, async () => {
   console.log(`Gateway API listening on port ${PORT}`);
 
