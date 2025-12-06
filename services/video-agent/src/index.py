@@ -343,6 +343,174 @@ async def process_render_job(job_id: str):
             await db.commit()
 
 
+# ============================================================================
+# DCO ENDPOINTS (Dynamic Creative Optimization)
+# ============================================================================
+
+class DCOConfig(BaseModel):
+    productName: str
+    painPoint: str = "challenges"
+    benefit: str = "better results"
+    targetAudience: str = "customers"
+    baseHook: str
+    baseCta: str
+    variantCount: int = 5
+    varyHooks: bool = True
+    varyCtas: bool = True
+    formats: List[str] = ["feed", "reels"]
+    enableSmartCrop: bool = True
+
+class DCORequest(BaseModel):
+    jobId: str
+    sourceVideoPath: str
+    outputDir: str
+    config: DCOConfig
+
+@app.post("/api/dco/generate-variants")
+async def generate_dco_variants(request: DCORequest, background_tasks: BackgroundTasks):
+    """
+    Generate DCO variants using WinningAdsGenerator
+    """
+    try:
+        # Import Pro modules (lazy import to avoid circular deps)
+        import sys
+        import os
+        
+        # Ensure 'pro' module is importable
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+            
+        from pro.winning_ads_generator import (
+            WinningAdsGenerator, 
+            AdAssets, 
+            AdConfig, 
+            AdTemplate,
+            Platform, 
+            AspectRatio,
+            HookStyle,
+            CTAType
+        )
+
+        # Initialize generator
+        generator = WinningAdsGenerator(output_dir=request.outputDir)
+        
+        variants = []
+        
+        # Create base assets
+        assets = AdAssets(
+            video_clips=[request.sourceVideoPath],
+            # In a real scenario, we might extract audio or use provided audio paths
+            audio_tracks=[] 
+        )
+        
+        # Generate variants based on count
+        for i in range(request.config.variantCount):
+            # Vary configuration for each variant
+            
+            # 1. Vary Template
+            templates = [
+                AdTemplate.PROBLEM_SOLUTION, 
+                AdTemplate.HOOK_STORY_OFFER, 
+                AdTemplate.LISTICLE,
+                AdTemplate.TESTIMONIAL
+            ]
+            template = templates[i % len(templates)]
+            
+            # 2. Vary Hook
+            hook_text = request.config.baseHook
+            if request.config.varyHooks:
+                hooks = [
+                    request.config.baseHook,
+                    f"Stop! {request.config.baseHook}",
+                    f"Want {request.config.benefit}?",
+                    f"Tired of {request.config.painPoint}?",
+                    f"The secret to {request.config.benefit}"
+                ]
+                hook_text = hooks[i % len(hooks)]
+                
+            # 3. Vary CTA
+            cta_text = request.config.baseCta
+            if request.config.varyCtas:
+                ctas = [
+                    request.config.baseCta,
+                    "Click to Learn More",
+                    "Get Started Now",
+                    "Limited Time Offer",
+                    "Shop Now"
+                ]
+                cta_text = ctas[i % len(ctas)]
+            
+            # Generate for each requested format
+            for fmt in request.config.formats:
+                # Map format to Platform/AspectRatio
+                platform = Platform.INSTAGRAM
+                aspect = AspectRatio.VERTICAL
+                width, height = 1080, 1920
+                
+                if fmt == "feed":
+                    aspect = AspectRatio.SQUARE
+                    width, height = 1080, 1080
+                elif fmt == "in_stream":
+                    aspect = AspectRatio.HORIZONTAL
+                    width, height = 1920, 1080
+                
+                # Create Config
+                ad_config = AdConfig(
+                    template=template,
+                    platform=platform,
+                    aspect_ratio=aspect,
+                    duration=30.0,
+                    hook_text=hook_text,
+                    cta_text=cta_text,
+                    add_captions=True,
+                    add_urgency=(i % 2 == 0) # Alternate urgency
+                )
+                
+                # Generate Ad
+                variant_id = f"{request.jobId}_v{i}_{fmt}"
+                output_filename = f"{variant_id}.mp4"
+                
+                try:
+                    # Run generation (synchronously for now to ensure completion, 
+                    # but in prod this should be queued)
+                    # For this implementation, we'll wrap it in a try/except to not fail batch
+                    output = generator.generate_winning_ad(
+                        assets=assets,
+                        config=ad_config,
+                        output_filename=output_filename
+                    )
+                    
+                    variants.append({
+                        "variant_id": variant_id,
+                        "format_type": fmt,
+                        "placement": f"instagram_{fmt}",
+                        "width": width,
+                        "height": height,
+                        "video_path": output.video_path,
+                        "thumbnail_path": output.thumbnail_path,
+                        "hook": hook_text,
+                        "cta": cta_text,
+                        "upload_ready": True,
+                        "metadata": output.metadata
+                    })
+                    
+                except Exception as e:
+                    print(f"Failed to generate variant {variant_id}: {e}")
+                    # Continue to next variant
+        
+        return {
+            "status": "success",
+            "jobId": request.jobId,
+            "variants": variants,
+            "count": len(variants)
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     import os

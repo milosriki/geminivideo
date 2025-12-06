@@ -86,3 +86,9 @@ frontend/dist/
 .env.local
 .vercel
 .env*.local
+
+# Models
+*.pkl
+*.h5
+*.pt
+*.pth
