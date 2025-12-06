@@ -248,6 +248,7 @@ services:
       TITAN_CORE_URL: http://titan-core:8084
       META_PUBLISHER_URL: http://meta-publisher:8083
       TIKTOK_ADS_URL: http://tiktok-ads:8085
+      INTEL_API_URL: http://intel-api:8090
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
     ports:
@@ -266,6 +267,8 @@ services:
       drive-intel:
         condition: service_healthy
       meta-publisher:
+        condition: service_healthy
+      intel-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]

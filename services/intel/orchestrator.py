@@ -304,7 +304,7 @@ class AdIntelOrchestrator:
         """Scrape all ads for a brand"""
         logger.info(f"🔍 Scraping ads for: {brand_name}")
 
-        ads = await self.scraper.scrape_by_advertiser(
+        ads = await self.scraper.scrape_brand_page(
             brand_name,
             max_ads=self.config.max_ads_per_brand
         )
@@ -315,8 +315,8 @@ class AdIntelOrchestrator:
 
             # Queue for enrichment
             await self.job_queue.enqueue("enrich", {
-                "ad_id": ad.ad_id,
-                "video_url": ad.video_url,
+                "ad_id": ad.id,
+                "video_url": ad.media_url,
             })
 
         # Update brand stats
@@ -400,6 +400,10 @@ class AdIntelOrchestrator:
 
     async def _save_ad_to_db(self, ad: ScrapedAd):
         """Save scraped ad to PostgreSQL"""
+        # ScrapedAd uses: id, page_name, platform (enum), media_type (enum)
+        platform_str = ad.platform.value if hasattr(ad.platform, 'value') else str(ad.platform)
+        format_str = ad.media_type.value if hasattr(ad.media_type, 'value') else str(ad.media_type)
+
         async with self.db_pool.acquire() as conn:
             await conn.execute("""
                 INSERT INTO adintel_ads (
@@ -413,8 +417,8 @@ class AdIntelOrchestrator:
                     is_winner = EXCLUDED.is_winner,
                     updated_at = NOW()
             """,
-                ad.ad_id, ad.advertiser_name, ad.platform, ad.format,
-                ad.headline, ad.body_text, ad.thumbnail_url, ad.video_url,
+                ad.id, ad.page_name, platform_str, format_str,
+                ad.headline, ad.body_text, ad.thumbnail_url, ad.media_url,
                 ad.landing_page_url, ad.running_duration_days,
                 ad.running_duration_days >= self.config.winner_threshold_days,
                 ad.first_seen, ad.last_seen
@@ -422,6 +426,14 @@ class AdIntelOrchestrator:
 
     async def _update_enriched_ad(self, ad_id: str, enriched: EnrichedAd):
         """Update ad with enrichment data"""
+        # EnrichedAd uses: nlp (not nlp_analysis), hook (not hook_analysis)
+        # Extract primary emotion from emotional_drivers list
+        primary_emotion = None
+        emotional_drivers = []
+        if enriched.nlp:
+            emotional_drivers = enriched.nlp.emotional_drivers or []
+            primary_emotion = emotional_drivers[0] if emotional_drivers else None
+
         async with self.db_pool.acquire() as conn:
             await conn.execute("""
                 UPDATE adintel_ads SET
@@ -438,12 +450,12 @@ class AdIntelOrchestrator:
             """,
                 ad_id,
                 enriched.transcription.full_text if enriched.transcription else None,
-                enriched.nlp_analysis.primary_emotion if enriched.nlp_analysis else None,
-                json.dumps(enriched.emotional_drivers),
-                enriched.hook_analysis.hook_type if enriched.hook_analysis else None,
-                enriched.hook_analysis.hook_text if enriched.hook_analysis else None,
+                primary_emotion,
+                json.dumps(emotional_drivers),
+                enriched.hook.hook_type if enriched.hook else None,
+                enriched.hook.hook_text if enriched.hook else None,
                 json.dumps(enriched.winning_patterns),
-                enriched.winner_score,
+                int(enriched.winner_score),
             )
 
     async def _get_ad_from_db(self, ad_id: str) -> Optional[Dict]:

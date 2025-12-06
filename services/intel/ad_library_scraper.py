@@ -731,28 +731,44 @@ def to_foreplay_format(ad: ScrapedAd) -> Dict:
 
     This allows easy integration with existing code that expects
     Foreplay's data structure.
+
+    IMPORTANT: Field names must match what AdDocument.from_enriched_ad() expects:
+    - ad_id (not id)
+    - brand_name (not advertiser_name)
+    - format (not display_format)
     """
     return {
-        "id": ad.id,
-        "external_id": ad.ad_archive_id,
-        "advertiser_name": ad.page_name,
-        "advertiser_id": ad.page_id,
-        "display_format": ad.media_type.value,
-        "media_url": ad.media_url,
-        "thumbnail_url": ad.thumbnail_url,
-        "headline": ad.headline,
-        "primary_text": ad.body_text,
-        "cta_text": ad.cta_type,
-        "landing_page_url": ad.landing_page_url,
-        "full_transcription": ad.transcript,
-        "timestamped_transcription": ad.timestamped_transcription,
-        "emotional_drivers": ad.emotional_drivers,
-        "running_duration_days": ad.running_duration_days,
-        "first_seen": ad.first_seen.isoformat(),
-        "last_seen": ad.last_seen.isoformat(),
-        "is_active": ad.is_active,
-        "niches": [ad.product_category] if ad.product_category else [],
+        # Core identifiers - MUST match AdDocument schema
+        "ad_id": ad.id,
+        "brand_name": ad.page_name,
+        "brand_id": ad.page_id,
         "platform": ad.platform.value,
+        "format": ad.media_type.value,
+
+        # Media
+        "video_url": ad.media_url,
+        "thumbnail_url": ad.thumbnail_url,
+
+        # Copy
+        "headline": ad.headline,
+        "body_text": ad.body_text,
+        "cta": ad.cta_type,
+        "landing_page_url": ad.landing_page_url,
+
+        # Transcription
+        "transcription": ad.transcript,
+
+        # AI Analysis (will be populated by enrichment)
+        "emotional_drivers": ad.emotional_drivers or [],
         "hook_text": ad.hook_text,
-        "patterns": ad.winning_patterns,
+        "winning_patterns": ad.winning_patterns or [],
+
+        # Timing
+        "running_duration_days": ad.running_duration_days,
+        "first_seen": ad.first_seen,
+        "last_seen": ad.last_seen,
+        "is_active": ad.is_active,
+
+        # Classification
+        "industry": ad.product_category,
     }

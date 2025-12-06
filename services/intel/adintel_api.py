@@ -25,7 +25,7 @@ import os
 # Local imports
 from .search_engine import AdSearchEngine, SearchConfig, AdDocument, SearchResponse
 from .ad_enrichment import AdEnrichmentPipeline, EnrichedAd
-from .ad_library_scraper import MetaAdLibraryScraper, BrandTracker, WinnerDetector
+from .ad_library_scraper import MetaAdLibraryScraper, BrandTracker, WinnerDetector, to_foreplay_format
 
 logger = logging.getLogger(__name__)
 
@@ -237,18 +237,45 @@ async def get_api_key(credentials: HTTPAuthorizationCredentials = Depends(securi
     api_key = credentials.credentials
 
     # In production, validate against database
-    # For now, accept any non-empty key
-    if not api_key or len(api_key) < 10:
+    # For demo/dev, accept "demo-key" or any key >= 5 chars
+    if not api_key:
+        raise HTTPException(status_code=401, detail="API key required")
+
+    # Allow demo key for development
+    if api_key in ("demo-key", "test-key", "dev-key"):
+        return api_key
+
+    # Require minimum length for real keys
+    if len(api_key) < 5:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
     return api_key
 
 
+# Global search engine instance (initialized on startup)
+_search_engine: Optional[AdSearchEngine] = None
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize search engine on startup"""
+    global _search_engine
+    config = SearchConfig.from_env()
+    _search_engine = AdSearchEngine(config)
+    try:
+        await _search_engine.initialize()
+        logger.info("Search engine initialized")
+    except Exception as e:
+        logger.warning(f"Search engine init failed (may not be running): {e}")
+
+
 async def get_search_engine() -> AdSearchEngine:
     """Get search engine instance"""
-    config = SearchConfig.from_env()
-    engine = AdSearchEngine(config)
-    return engine
+    if _search_engine is None:
+        config = SearchConfig.from_env()
+        engine = AdSearchEngine(config)
+        return engine
+    return _search_engine
 
 
 async def get_enrichment_pipeline() -> AdEnrichmentPipeline:
@@ -573,7 +600,7 @@ async def scrape_brand_ads(brand_id: str, brand_name: str):
     try:
         # Use our scraper
         scraper = MetaAdLibraryScraper()
-        ads = await scraper.scrape_by_advertiser(brand_name, max_ads=50)
+        ads = await scraper.scrape_brand_page(brand_name, max_ads=50)
 
         if brand_id in tracked_brands:
             tracked_brands[brand_id]["ad_count"] = len(ads)
@@ -587,7 +614,7 @@ async def scrape_brand_ads(brand_id: str, brand_name: str):
         # Index ads
         engine = AdSearchEngine(SearchConfig.from_env())
         for ad in ads:
-            doc = AdDocument.from_enriched_ad(ad.to_foreplay_format())
+            doc = AdDocument.from_enriched_ad(to_foreplay_format(ad))
             await engine.index_ad(doc)
 
         logger.info(f"Scraped {len(ads)} ads for brand {brand_name}")
