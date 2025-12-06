@@ -610,6 +610,27 @@ async def reallocate_budget(request: BudgetAllocation):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/ml/ab/apply-decay")
+async def apply_time_decay(decay_factor: float = 0.99):
+    """
+    Apply time decay to all variants to prevent ad fatigue
+    Should be called daily via cron/scheduler
+
+    Args:
+        decay_factor: Daily decay rate (0.99 = 1% decay per day)
+    """
+    try:
+        decayed_count = thompson_optimizer.apply_time_decay(decay_factor)
+        return {
+            "status": "success",
+            "variants_decayed": decayed_count,
+            "decay_factor": decay_factor
+        }
+    except Exception as e:
+        logger.error(f"Error applying time decay: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Additional AB Testing Endpoints for Visualization (Agent 15)
 
 @app.get("/api/ml/ab/experiments/{experiment_id}/results")
@@ -876,11 +897,12 @@ async def record_feedback(data: FeedbackData):
         elif data.impressions > 0:
             reward = 0.01 # Impression reward (Low value, but non-zero to track exposure)
             
-        # Update Thompson Sampler with reward
+        # Update Thompson Sampler with reward and conversion value
         thompson_optimizer.update(
             variant_id=data.variant_id,
             reward=reward,
             cost=data.spend,
+            conversion_value=data.revenue,  # Pass actual revenue for ROAS calculation
             metrics={
                 'impressions': data.impressions,
                 'clicks': data.clicks,

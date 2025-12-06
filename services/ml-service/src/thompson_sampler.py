@@ -158,13 +158,18 @@ class ThompsonSamplingOptimizer:
         # For now, fallback to Beta as in original code
         return self._select_with_beta(available_variants)
 
-    def _select_with_beta(self, available_variants: Dict[str, Dict]) -> Dict[str, Any]:
-        """Select variant using Beta distribution Thompson Sampling"""
+    def _select_with_beta(self, available_variants: Dict[str, Dict], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Select variant using Beta distribution Thompson Sampling with contextual boost"""
         samples = {}
 
         for variant_id, variant_data in available_variants.items():
             alpha = variant_data.get('alpha', 1.0)
             beta_param = variant_data.get('beta', 1.0)
+
+            # Apply context-based boost if context provided
+            if context:
+                context_boost = self._calculate_context_boost(variant_id, variant_data, context)
+                alpha = alpha * (1 + context_boost)
 
             # Sample from Beta distribution
             sample = np.random.beta(alpha, beta_param)
@@ -178,20 +183,66 @@ class ThompsonSamplingOptimizer:
             'variant_id': selected_id,
             'selection_score': float(selected_score),
             'all_scores': {k: float(v) for k, v in samples.items()},
-            'method': 'thompson_sampling_beta',
+            'method': 'thompson_sampling_contextual_beta',
             'timestamp': datetime.utcnow().isoformat()
         }
+
+    def _calculate_context_boost(self, variant_id: str, variant_data: Dict, context: Dict) -> float:
+        """Calculate context-based boost for variant (simpler alternative to VW)"""
+        boost = 0.0
+
+        # Time-based boost (ads perform differently at different times)
+        hour = context.get('hour', 12)
+        if 9 <= hour <= 17:  # Business hours
+            metadata = variant_data.get('metadata', {})
+            if metadata.get('target_audience') == 'business':
+                boost += 0.1
+
+        # Device-based boost
+        device = context.get('device', 'mobile')
+        metadata = variant_data.get('metadata', {})
+        if device == 'mobile' and metadata.get('optimized_for') == 'mobile':
+            boost += 0.15
+
+        # Audience age-based boost
+        age_group = context.get('age_group', 3)  # 1=18-24, 2=25-34, 3=35-44, etc.
+        target_age = metadata.get('target_age_group')
+        if target_age and abs(age_group - target_age) <= 1:
+            boost += 0.1
+
+        # Performance recency boost (favor recently updated variants)
+        last_updated = variant_data.get('last_updated')
+        if last_updated:
+            try:
+                from datetime import datetime
+                last_update_dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                days_old = (datetime.utcnow() - last_update_dt).days
+                if days_old < 7:  # Recent data
+                    boost += 0.05
+            except:
+                pass
+
+        return min(boost, 0.5)  # Cap at 50% boost
 
     def update(
         self,
         variant_id: str,
         reward: float,
-        cost: float = 0.0,
+        cost: float,  # REQUIRED - No default to prevent zero spend!
         context: Optional[Dict[str, Any]] = None,
-        metrics: Optional[Dict[str, float]] = None
+        metrics: Optional[Dict[str, float]] = None,
+        conversion_value: float = 0.0  # Actual revenue from conversion
     ):
         """
         Update variant with observed performance
+
+        Args:
+            variant_id: Variant identifier
+            reward: 1.0 for conversion, 0.0 for no conversion
+            cost: ACTUAL ad spend (REQUIRED - prevents ROAS calculation errors)
+            context: Context when variant was shown
+            metrics: Additional metrics (impressions, clicks, etc.)
+            conversion_value: Actual revenue from conversion
         """
         variant = self._get_variant(variant_id)
         if not variant:
@@ -200,33 +251,43 @@ class ThompsonSamplingOptimizer:
         # Update Beta distribution parameters
         if reward > 0:
             variant['alpha'] += reward
+            variant['conversions'] = variant.get('conversions', 0) + 1
+            # Track revenue
+            if 'revenue' not in variant:
+                variant['revenue'] = 0.0
+            variant['revenue'] += conversion_value
         else:
             variant['beta'] += 1
 
-        # Update metrics
+        # Update spend (always accumulate, even if no conversion)
+        variant['spend'] += cost
+        variant['impressions'] = variant.get('impressions', 0) + 1
+
+        # Update metrics if provided
         if metrics:
             variant['impressions'] = metrics.get('impressions', variant['impressions'])
             variant['clicks'] = metrics.get('clicks', variant['clicks'])
             variant['conversions'] = metrics.get('conversions', variant['conversions'])
-            variant['spend'] += cost
 
-            # Calculate rates
-            if variant['impressions'] > 0:
-                variant['ctr'] = variant['clicks'] / variant['impressions']
-            if variant['clicks'] > 0:
-                variant['cvr'] = variant['conversions'] / variant['clicks']
-            if variant['spend'] > 0:
-                # ROAS logic (simplified for persistence update)
-                revenue = variant.get('revenue', 0.0)
-                # If metrics has revenue, use it
-                if 'revenue' in metrics:
-                    revenue = metrics['revenue']
-                    variant['revenue'] = revenue
-                
-                variant['roas'] = revenue / variant['spend']
+            # If metrics has revenue, use it (overrides conversion_value)
+            if 'revenue' in metrics:
+                variant['revenue'] = metrics['revenue']
+
+        # Calculate rates
+        if variant['impressions'] > 0:
+            variant['ctr'] = variant['clicks'] / variant['impressions'] if variant.get('clicks', 0) > 0 else 0.0
+        if variant.get('clicks', 0) > 0:
+            variant['cvr'] = variant['conversions'] / variant['clicks']
+        if variant['spend'] > 0:
+            revenue = variant.get('revenue', 0.0)
+            variant['roas'] = revenue / variant['spend']
+            variant['cpa'] = variant['spend'] / max(variant['conversions'], 1)
+
+        # Track last update time
+        variant['last_updated'] = datetime.utcnow().isoformat()
 
         self._save_variant(variant_id, variant)
-        logger.debug(f"Updated variant {variant_id}: alpha={variant['alpha']:.2f}, beta={variant['beta']:.2f}")
+        logger.debug(f"Updated variant {variant_id}: alpha={variant['alpha']:.2f}, beta={variant['beta']:.2f}, spend=${variant['spend']:.2f}, roas={variant.get('roas', 0):.2f}")
 
     def get_variant_stats(self, variant_id: str) -> Dict[str, Any]:
         """Get statistics for a specific variant"""
@@ -335,6 +396,51 @@ class ThompsonSamplingOptimizer:
         logger.info(f"Budget reallocated across {len(allocations)} variants")
 
         return allocations
+
+    def apply_time_decay(self, decay_factor: float = 0.99):
+        """
+        Apply time decay to all variants to prevent ad fatigue
+        Call this daily via cron/scheduler
+
+        Args:
+            decay_factor: Daily decay rate (0.99 = 1% decay per day)
+        """
+        variant_ids = self._get_all_variant_ids()
+        decayed_count = 0
+
+        for variant_id in variant_ids:
+            variant = self._get_variant(variant_id)
+            if not variant:
+                continue
+
+            last_updated = variant.get('last_updated')
+            if not last_updated:
+                continue
+
+            try:
+                last_update_dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                days_old = (datetime.utcnow() - last_update_dt).days
+
+                if days_old > 0:
+                    decay = decay_factor ** days_old
+
+                    # Decay the Beta priors (makes old data less influential)
+                    variant['alpha'] = max(1.0, variant['alpha'] * decay)
+                    variant['beta'] = max(1.0, variant['beta'] * decay)
+
+                    # Track decay for debugging
+                    variant['decay_applied'] = decay
+                    variant['days_since_update'] = days_old
+
+                    self._save_variant(variant_id, variant)
+                    decayed_count += 1
+
+                    logger.info(f"Applied {decay:.4f} decay to variant {variant_id} ({days_old} days old)")
+            except Exception as e:
+                logger.warning(f"Failed to apply decay to {variant_id}: {e}")
+
+        logger.info(f"✅ Time decay applied to {decayed_count} variants")
+        return decayed_count
 
     # Legacy save/load methods (no longer needed with Redis, but kept for interface compatibility)
     def save_state(self, filepath: str):

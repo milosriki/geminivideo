@@ -1858,6 +1858,117 @@ app.post('/api/pipeline/generate-campaign',
   });
 
 // ============================================================================
+// ML SERVICE PROXIES (Agent 16 - Critical ML Intelligence Endpoints)
+// ============================================================================
+
+// POST /api/ml/predict-ctr - CTR prediction
+app.post('/api/ml/predict-ctr',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/predict-ctr`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML CTR prediction error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'CTR prediction failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/feedback - Learning loop feedback
+app.post('/api/ml/feedback',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/feedback`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML feedback error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Feedback submission failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/ab/select-variant - Thompson Sampling variant selection
+app.post('/api/ml/ab/select-variant',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/ab/select-variant`, req.body, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML variant selection error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Variant selection failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/ab/register-variant - Register A/B test variant
+app.post('/api/ml/ab/register-variant',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/ab/register-variant`, req.body, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML register variant error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Variant registration failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/ab/update-variant - Update variant performance
+app.post('/api/ml/ab/update-variant',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/ab/update-variant`, req.body, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML update variant error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Variant update failed', details: error.response?.data });
+    }
+  });
+
+// GET /api/ml/ab/variant-stats/:variant_id - Get variant statistics
+app.get('/api/ml/ab/variant-stats/:variant_id',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/variant-stats/${req.params.variant_id}`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML variant stats error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Failed to get variant stats', details: error.response?.data });
+    }
+  });
+
+// GET /api/ml/ab/all-variants - Get all variants
+app.get('/api/ml/ab/all-variants',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/all-variants`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML all variants error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Failed to get variants', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/ab/apply-decay - Apply time decay for ad fatigue
+app.post('/api/ml/ab/apply-decay',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/ab/apply-decay`, null, {
+        params: req.query,
+        timeout: 30000
+      });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML time decay error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Time decay failed', details: error.response?.data });
+    }
+  });
+
+// ============================================================================
 // MULTI-PLATFORM PUBLISHING ENDPOINTS (Agent 19)
 // ============================================================================
 
