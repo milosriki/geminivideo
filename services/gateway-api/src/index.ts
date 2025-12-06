@@ -138,6 +138,20 @@ const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
 const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
 const GOOGLE_ADS_URL = process.env.GOOGLE_ADS_URL || 'http://localhost:8084';
 
+// ============================================================================
+// INTERNAL SERVICE AUTHENTICATION
+// ============================================================================
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
+
+// Create a reusable internal service client with auth headers
+const internalServiceClient = axios.create({
+  timeout: 120000, // 2 minute timeout for long operations
+  headers: {
+    'X-Internal-API-Key': INTERNAL_API_KEY,
+    'Content-Type': 'application/json'
+  }
+});
+
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
   res.json({
@@ -159,6 +173,7 @@ function validateServiceUrl(url: string): boolean {
         parsed.hostname.includes('ml-service') ||
         parsed.hostname.includes('meta-publisher') ||
         parsed.hostname.includes('google-ads') ||
+        parsed.hostname.includes('titan-core') ||
         parsed.hostname.includes('.run.app')); // Cloud Run domains
   } catch {
     return false;
@@ -1707,8 +1722,8 @@ app.post('/api/council/evaluate',
 
       console.log(`AI Council evaluation: creative_id=${creative_id || 'N/A'}, video_uri=${video_uri || 'N/A'}`);
 
-      // Forward to Titan Core AI Council
-      const response = await axios.post(`${TITAN_CORE_URL}/council/evaluate`, {
+      // Forward to Titan Core AI Council with internal API key
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/council/evaluate`, {
         creative_id,
         video_uri,
         metadata
@@ -1749,8 +1764,8 @@ app.post('/api/oracle/predict',
 
       console.log(`Oracle prediction: type=${prediction_type}, data_keys=${Object.keys(campaign_data).length}`);
 
-      // Forward to Titan Core Oracle
-      const response = await axios.post(`${TITAN_CORE_URL}/oracle/predict`, {
+      // Forward to Titan Core Oracle with internal API key
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/oracle/predict`, {
         campaign_data,
         prediction_type
       }, {
@@ -1792,8 +1807,8 @@ app.post('/api/director/generate',
 
       console.log(`Director generation: brief_length=${brief.length}, assets=${assets?.length || 0}, style=${style || 'auto'}`);
 
-      // Forward to Titan Core Director
-      const response = await axios.post(`${TITAN_CORE_URL}/director/generate`, {
+      // Forward to Titan Core Director with internal API key
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/director/generate`, {
         brief,
         assets: assets || [],
         style: style || 'auto',
@@ -1843,8 +1858,8 @@ app.post('/api/pipeline/generate-campaign',
 
       console.log(`Pipeline campaign generation: videos=${video_files.length}, audience=${audience || 'general'}, platform=${platform}`);
 
-      // Forward to Titan Core Pipeline
-      const response = await axios.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
+      // Forward to Titan Core Pipeline with internal API key
+      const response = await internalServiceClient.post(`${TITAN_CORE_URL}/pipeline/generate-campaign`, {
         video_files,
         audience: audience || 'general',
         platform,
@@ -1868,6 +1883,119 @@ app.post('/api/pipeline/generate-campaign',
         error: 'Pipeline failed',
         message: error.message,
         details: error.response?.data
+      });
+    }
+  });
+
+// GET /api/pipeline/job/:job_id/status - Get job status for polling
+app.get('/api/pipeline/job/:job_id/status',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const { job_id } = req.params;
+
+      console.log(`Fetching job status: ${job_id}`);
+
+      // Try titan-core first (for pipeline/render jobs)
+      try {
+        const response = await internalServiceClient.get(
+          `${TITAN_CORE_URL}/render/${job_id}/status`,
+          { timeout: 10000 }
+        );
+
+        return res.json({
+          job_id,
+          status: response.data.status,
+          progress: response.data.progress || 0,
+          stage: response.data.stage || 'processing',
+          output_url: response.data.output_path || response.data.output_url,
+          video_url: response.data.video_url,
+          error: response.data.error,
+          metadata: response.data.metadata,
+          created_at: response.data.created_at,
+          completed_at: response.data.completed_at
+        });
+      } catch (titanError: any) {
+        // If titan-core doesn't have it, try video-agent
+        if (titanError.response?.status === 404) {
+          console.log('Job not in titan-core, trying video-agent...');
+        }
+      }
+
+      // Try video-agent
+      try {
+        const response = await internalServiceClient.get(
+          `${VIDEO_AGENT_URL}/api/videos/${job_id}/info`,
+          { timeout: 10000 }
+        );
+
+        return res.json({
+          job_id,
+          status: response.data.status,
+          progress: response.data.progress || 0,
+          stage: response.data.stage || 'processing',
+          output_url: response.data.output_path,
+          video_url: response.data.video_url,
+          gcs_path: response.data.gcs_path,
+          error: response.data.error,
+          metadata: response.data.metadata
+        });
+      } catch (videoError: any) {
+        if (videoError.response?.status === 404) {
+          console.log('Job not in video-agent either');
+        }
+      }
+
+      // Job not found in any service
+      return res.status(404).json({
+        error: 'Job not found',
+        message: `Job ${job_id} not found in any service`
+      });
+
+    } catch (error: any) {
+      console.error('Job status check error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Failed to get job status',
+        message: error.message
+      });
+    }
+  });
+
+// GET /api/videos/:video_id/download - Download video with signed URL
+app.get('/api/videos/:video_id/download',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const { video_id } = req.params;
+
+      console.log(`Fetching video download URL: ${video_id}`);
+
+      // Forward to video-agent
+      const response = await internalServiceClient.get(
+        `${VIDEO_AGENT_URL}/api/videos/${video_id}/download`,
+        { 
+          timeout: 10000,
+          maxRedirects: 0,  // Don't follow redirects
+          validateStatus: (status) => status < 400 || status === 302
+        }
+      );
+
+      // If redirect, return the URL
+      if (response.status === 302 || response.headers.location) {
+        return res.json({
+          url: response.headers.location || response.data.url,
+          expires_in: '7 days'
+        });
+      }
+
+      // Otherwise return whatever video-agent returned
+      return res.json(response.data);
+
+    } catch (error: any) {
+      console.error('Video download error:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: 'Failed to get video download URL',
+        message: error.message
       });
     }
   });

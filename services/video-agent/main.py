@@ -2261,6 +2261,108 @@ async def generate_multilingual_voiceover(request: Dict[str, Any], background_ta
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================================================
+# VIDEO DOWNLOAD ENDPOINT WITH SIGNED URL SUPPORT
+# ============================================================================
+from fastapi.responses import RedirectResponse
+from pro.winning_ads_generator import get_gcs_uploader
+
+@app.get("/api/videos/{video_id}/download")
+async def download_video(video_id: str):
+    """
+    Download video by ID - returns signed URL or redirects to video
+    
+    Supports:
+    - Direct GCS signed URL (if video is in cloud storage)
+    - Local file serving (fallback)
+    """
+    # First, check pro_jobs for video output info
+    job = pro_jobs.get(video_id)
+    
+    if not job:
+        # Try render_jobs
+        render_job = render_jobs.get(video_id)
+        if render_job:
+            job = {
+                "status": str(render_job.status),
+                "output_path": render_job.output_path
+            }
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Video {video_id} not found")
+    
+    # Check job status
+    if job.get("status") not in ["completed", "success"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Video not ready. Status: {job.get('status')}"
+        )
+    
+    # Get output info
+    output_path = job.get("output_path")
+    video_url = job.get("video_url")
+    gcs_path = job.get("gcs_path")
+    
+    # If we have a signed URL, redirect to it
+    if video_url:
+        return RedirectResponse(url=video_url)
+    
+    # If we have a GCS path but no signed URL, generate one
+    if gcs_path:
+        uploader = get_gcs_uploader()
+        if uploader.is_available:
+            signed_url = uploader.generate_signed_url(gcs_path)
+            if signed_url:
+                # Update job with new signed URL for caching
+                job["video_url"] = signed_url
+                return RedirectResponse(url=signed_url)
+    
+    # Fallback to local file
+    if output_path and os.path.exists(output_path):
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            path=output_path,
+            media_type="video/mp4",
+            filename=f"{video_id}.mp4"
+        )
+    
+    raise HTTPException(status_code=404, detail="Video file not found")
+
+
+@app.get("/api/videos/{video_id}/info")
+async def get_video_info(video_id: str):
+    """
+    Get video metadata and status
+    """
+    job = pro_jobs.get(video_id)
+    
+    if not job:
+        render_job = render_jobs.get(video_id)
+        if render_job:
+            job = {
+                "job_id": video_id,
+                "status": str(render_job.status),
+                "progress": render_job.progress,
+                "output_path": render_job.output_path,
+                "error": render_job.error,
+                "created_at": render_job.created_at.isoformat() if render_job.created_at else None
+            }
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Video {video_id} not found")
+    
+    return {
+        "video_id": video_id,
+        "status": job.get("status"),
+        "progress": job.get("progress", 0),
+        "output_path": job.get("output_path"),
+        "video_url": job.get("video_url"),
+        "gcs_path": job.get("gcs_path"),
+        "error": job.get("error"),
+        "metadata": job.get("metadata", {})
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8002)

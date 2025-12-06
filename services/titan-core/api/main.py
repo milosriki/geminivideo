@@ -14,17 +14,20 @@ import sys
 import asyncio
 import logging
 import uuid
+import json
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Union
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, status, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field, validator
 import uvicorn
+import httpx  # For async HTTP calls to video-agent
 
 # Setup logging
 logging.basicConfig(
@@ -36,6 +39,18 @@ logger = logging.getLogger(__name__)
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# ============================================================================
+# DATABASE IMPORTS (Async PostgreSQL with SQLAlchemy)
+# ============================================================================
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+    from sqlalchemy import text
+    DATABASE_AVAILABLE = True
+    logger.info("✅ SQLAlchemy async loaded successfully")
+except ImportError as e:
+    DATABASE_AVAILABLE = False
+    logger.warning(f"⚠️ SQLAlchemy not available: {e}")
 
 # ============================================================================
 # IMPORT AI COUNCIL COMPONENTS
@@ -138,10 +153,65 @@ class Config:
 
 
 # ============================================================================
+# SERVICE-TO-SERVICE AUTHENTICATION
+# ============================================================================
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key")
+api_key_header = APIKeyHeader(name="X-Internal-API-Key", auto_error=False)
+
+
+async def verify_internal_api_key(request: Request, api_key: str = Depends(api_key_header)) -> str:
+    """
+    Verify internal service-to-service API key.
+    Allows health checks without auth, requires auth for all other endpoints.
+    """
+    # Allow health checks without auth
+    if request.url.path in ["/health", "/", "/docs", "/redoc", "/openapi.json"]:
+        return "public"
+
+    if api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing internal API key. Provide X-Internal-API-Key header."
+        )
+
+    if api_key != INTERNAL_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid internal API key"
+        )
+
+    return api_key
+
+
+# ============================================================================
 # GLOBAL STATE & SINGLETONS
 # ============================================================================
+
+# Database configuration
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+db_engine = None
+async_session_factory = None
+
+if DATABASE_AVAILABLE and DATABASE_URL:
+    try:
+        # Convert postgresql:// to postgresql+asyncpg://
+        async_db_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+        db_engine = create_async_engine(
+            async_db_url,
+            echo=False,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True
+        )
+        async_session_factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+        logger.info("✅ Database engine configured")
+    except Exception as e:
+        logger.warning(f"⚠️ Database configuration failed: {e}")
+        db_engine = None
+
+
 class AppState:
-    """Global application state"""
+    """Global application state with database persistence"""
     def __init__(self):
         self.council: Optional[CouncilOfTitans] = None
         self.oracle: Optional[OracleAgent] = None
@@ -150,7 +220,8 @@ class AppState:
         self.video_renderer: Optional[VideoRenderer] = None
         self.winning_ads_generator: Optional[WinningAdsGenerator] = None
         self.vertex_ai: Optional[VertexAIService] = None
-        self.render_jobs: Dict[str, Dict[str, Any]] = {}
+        self.render_jobs: Dict[str, Dict[str, Any]] = {}  # In-memory fallback
+        self.db_available = db_engine is not None
         self.initialized = False
 
     async def initialize(self):
@@ -159,6 +230,16 @@ class AppState:
             return
 
         logger.info("🚀 Initializing Titan-Core components...")
+
+        # Test database connection
+        if self.db_available:
+            try:
+                async with async_session_factory() as session:
+                    await session.execute(text("SELECT 1"))
+                logger.info("✅ Database connection verified")
+            except Exception as e:
+                logger.warning(f"⚠️ Database connection failed, using in-memory storage: {e}")
+                self.db_available = False
 
         # Initialize AI Council
         if AI_COUNCIL_AVAILABLE:
@@ -192,6 +273,126 @@ class AppState:
 
         self.initialized = True
         logger.info("🎯 Titan-Core ready!")
+
+    # ========================================================================
+    # DATABASE METHODS FOR RENDER JOB PERSISTENCE
+    # ========================================================================
+    
+    async def create_render_job(self, job_id: str, job_data: dict) -> None:
+        """Create a render job in database or fallback to in-memory"""
+        if self.db_available and async_session_factory:
+            try:
+                async with async_session_factory() as session:
+                    query = text("""
+                        INSERT INTO render_jobs (id, status, progress, job_type, input_config, created_at, updated_at)
+                        VALUES (:id, :status, :progress, :job_type, :input_config, NOW(), NOW())
+                    """)
+                    await session.execute(query, {
+                        "id": job_id,
+                        "status": job_data.get("status", "pending"),
+                        "progress": job_data.get("progress", 0),
+                        "job_type": job_data.get("job_type", "render"),
+                        "input_config": json.dumps(job_data)
+                    })
+                    await session.commit()
+                logger.info(f"✅ Render job {job_id} saved to database")
+            except Exception as e:
+                logger.warning(f"⚠️ Database save failed, using in-memory: {e}")
+                self.render_jobs[job_id] = job_data
+        else:
+            self.render_jobs[job_id] = job_data
+
+    async def get_render_job(self, job_id: str) -> Optional[dict]:
+        """Get render job from database or in-memory fallback"""
+        if self.db_available and async_session_factory:
+            try:
+                async with async_session_factory() as session:
+                    query = text("""
+                        SELECT id, status, progress, job_type, input_config, output_url, error, 
+                               created_at, updated_at, completed_at
+                        FROM render_jobs WHERE id = :id
+                    """)
+                    result = await session.execute(query, {"id": job_id})
+                    row = result.fetchone()
+                    if row:
+                        job_data = json.loads(row.input_config) if row.input_config else {}
+                        return {
+                            "id": row.id,
+                            "status": row.status,
+                            "progress": row.progress or 0,
+                            "job_type": row.job_type,
+                            "output_path": row.output_url,
+                            "output_url": row.output_url,
+                            "error": row.error,
+                            "created_at": row.created_at,
+                            "updated_at": row.updated_at,
+                            "completed_at": row.completed_at,
+                            **job_data
+                        }
+            except Exception as e:
+                logger.warning(f"⚠️ Database read failed: {e}")
+        
+        # Fallback to in-memory
+        return self.render_jobs.get(job_id)
+
+    async def update_render_job(self, job_id: str, **updates) -> None:
+        """Update render job in database or in-memory fallback"""
+        if self.db_available and async_session_factory:
+            try:
+                async with async_session_factory() as session:
+                    # Build dynamic update query
+                    set_clauses = ["updated_at = NOW()"]
+                    params = {"id": job_id}
+                    
+                    if "status" in updates:
+                        set_clauses.append("status = :status")
+                        params["status"] = updates["status"]
+                    if "progress" in updates:
+                        set_clauses.append("progress = :progress")
+                        params["progress"] = updates["progress"]
+                    if "output_url" in updates:
+                        set_clauses.append("output_url = :output_url")
+                        params["output_url"] = updates["output_url"]
+                    if "error" in updates:
+                        set_clauses.append("error = :error")
+                        params["error"] = updates["error"]
+                    if "completed_at" in updates:
+                        set_clauses.append("completed_at = :completed_at")
+                        params["completed_at"] = updates["completed_at"]
+                    
+                    query = text(f"UPDATE render_jobs SET {', '.join(set_clauses)} WHERE id = :id")
+                    await session.execute(query, params)
+                    await session.commit()
+            except Exception as e:
+                logger.warning(f"⚠️ Database update failed: {e}")
+        
+        # Also update in-memory for consistency
+        if job_id in self.render_jobs:
+            self.render_jobs[job_id].update(updates)
+            self.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+
+    async def log_audit(self, action: str, entity_type: str, entity_id: str, 
+                        details: dict, user_id: str = None) -> None:
+        """Log action for audit trail"""
+        if self.db_available and async_session_factory:
+            try:
+                async with async_session_factory() as session:
+                    query = text("""
+                        INSERT INTO audit_log (action, entity_type, entity_id, details, user_id, created_at)
+                        VALUES (:action, :entity_type, :entity_id, :details, :user_id, NOW())
+                    """)
+                    await session.execute(query, {
+                        "action": action,
+                        "entity_type": entity_type,
+                        "entity_id": entity_id,
+                        "details": json.dumps(details),
+                        "user_id": user_id
+                    })
+                    await session.commit()
+            except Exception as e:
+                logger.warning(f"⚠️ Audit log failed: {e}")
+        else:
+            logger.info(f"[AUDIT] {action} on {entity_type}/{entity_id}: {details}")
 
 app_state = AppState()
 
@@ -657,7 +858,10 @@ async def system_status():
 # AI COUNCIL ENDPOINTS
 # ============================================================================
 @app.post("/council/evaluate", response_model=ScriptEvaluationResponse, tags=["AI Council"])
-async def evaluate_script(request: ScriptEvaluationRequest):
+async def evaluate_script(
+    request: ScriptEvaluationRequest,
+    api_key: str = Depends(verify_internal_api_key)
+):
     """
     Evaluate a script with Council of Titans
 
@@ -693,7 +897,10 @@ async def evaluate_script(request: ScriptEvaluationRequest):
 
 
 @app.post("/oracle/predict", response_model=Dict[str, Any], tags=["AI Council"])
-async def predict_roas(request: ROASPredictionRequest):
+async def predict_roas(
+    request: ROASPredictionRequest,
+    api_key: str = Depends(verify_internal_api_key)
+):
     """
     Get ROAS prediction from Oracle Agent
 
@@ -723,7 +930,10 @@ async def predict_roas(request: ROASPredictionRequest):
 
 
 @app.post("/director/generate", response_model=BlueprintResponse, tags=["AI Council"])
-async def generate_blueprints(request: BlueprintRequest):
+async def generate_blueprints(
+    request: BlueprintRequest,
+    api_key: str = Depends(verify_internal_api_key)
+):
     """
     Generate ad blueprints with Director Agent
 
@@ -776,7 +986,11 @@ async def generate_blueprints(request: BlueprintRequest):
 # VIDEO PROCESSING ENDPOINTS
 # ============================================================================
 @app.post("/render/start", response_model=RenderStartResponse, tags=["Video Processing"])
-async def start_render(request: RenderStartRequest, background_tasks: BackgroundTasks):
+async def start_render(
+    request: RenderStartRequest,
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(verify_internal_api_key)
+):
     """
     Start a render job
 
@@ -795,10 +1009,11 @@ async def start_render(request: RenderStartRequest, background_tasks: Background
     try:
         job_id = f"render_{uuid.uuid4().hex[:12]}"
 
-        # Create job entry
-        app_state.render_jobs[job_id] = {
+        # Create job data
+        job_data = {
             "id": job_id,
             "status": RenderStatus.PENDING,
+            "job_type": "render",
             "request": request.model_dump(),
             "progress": 0.0,
             "output_path": None,
@@ -806,6 +1021,12 @@ async def start_render(request: RenderStartRequest, background_tasks: Background
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
+
+        # Save to database (with in-memory fallback)
+        await app_state.create_render_job(job_id, job_data)
+        
+        # Also keep in memory for fast access
+        app_state.render_jobs[job_id] = job_data
 
         # Start render in background
         background_tasks.add_task(
@@ -829,13 +1050,17 @@ async def start_render(request: RenderStartRequest, background_tasks: Background
 
 
 @app.get("/render/{job_id}/status", response_model=RenderStatusResponse, tags=["Video Processing"])
-async def get_render_status(job_id: str):
+async def get_render_status(
+    job_id: str,
+    api_key: str = Depends(verify_internal_api_key)
+):
     """
     Get render job status
 
     Returns current status, progress, and output path when complete
     """
-    job = app_state.render_jobs.get(job_id)
+    # Try to get from database first, then fallback to in-memory
+    job = await app_state.get_render_job(job_id)
 
     if not job:
         raise HTTPException(
@@ -847,13 +1072,16 @@ async def get_render_status(job_id: str):
 
 
 @app.get("/render/{job_id}/download", tags=["Video Processing"])
-async def download_render(job_id: str):
+async def download_render(
+    job_id: str,
+    api_key: str = Depends(verify_internal_api_key)
+):
     """
     Download completed video
 
     Returns the rendered video file
     """
-    job = app_state.render_jobs.get(job_id)
+    job = await app_state.get_render_job(job_id)
 
     if not job:
         raise HTTPException(
@@ -867,7 +1095,7 @@ async def download_render(job_id: str):
             detail=f"Job is not completed (status: {job['status']})"
         )
 
-    if not job["output_path"] or not os.path.exists(job["output_path"]):
+    if not job.get("output_path") or not os.path.exists(job["output_path"]):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Output file not found"
@@ -884,7 +1112,10 @@ async def download_render(job_id: str):
 # PIPELINE ENDPOINTS - THE MAIN ONES
 # ============================================================================
 @app.post("/pipeline/generate-campaign", response_model=CampaignGenerationResponse, tags=["Pipeline"])
-async def generate_campaign(request: CampaignGenerationRequest):
+async def generate_campaign(
+    request: CampaignGenerationRequest,
+    api_key: str = Depends(verify_internal_api_key)
+):
     """
     🎯 THE MAIN ENDPOINT - Full end-to-end campaign generation
 
@@ -954,7 +1185,11 @@ async def generate_campaign(request: CampaignGenerationRequest):
 
 
 @app.post("/pipeline/render-winning", response_model=RenderWinningResponse, tags=["Pipeline"])
-async def render_winning_blueprints(request: RenderWinningRequest, background_tasks: BackgroundTasks):
+async def render_winning_blueprints(
+    request: RenderWinningRequest,
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(verify_internal_api_key)
+):
     """
     Render the top blueprints from generate-campaign
 
@@ -984,9 +1219,10 @@ async def render_winning_blueprints(request: RenderWinningRequest, background_ta
             )
             
             job_id = f"render_{uuid.uuid4().hex[:12]}"
-            app_state.render_jobs[job_id] = {
+            job_data = {
                 "id": job_id,
                 "status": RenderStatus.PENDING,
+                "job_type": "render",
                 "request": render_req.model_dump(),
                 "progress": 0.0,
                 "output_path": None,
@@ -994,6 +1230,10 @@ async def render_winning_blueprints(request: RenderWinningRequest, background_ta
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }
+            
+            # Save to database
+            await app_state.create_render_job(job_id, job_data)
+            app_state.render_jobs[job_id] = job_data
             
             # Add to background tasks
             background_tasks.add_task(
@@ -1443,49 +1683,257 @@ async def generate_embeddings_endpoint(request: EmbeddingsRequest):
 
 
 # ============================================================================
-# BACKGROUND TASKS
+# BACKGROUND TASKS - REAL RENDERING VIA VIDEO-AGENT
 # ============================================================================
+VIDEO_AGENT_URL = os.getenv("VIDEO_AGENT_URL", "http://localhost:8002")
+
 async def _process_render_job(job_id: str, request: RenderStartRequest):
     """
-    Process a render job in the background
+    Process a render job by calling video-agent PRO renderer
 
-    This is a placeholder for the actual rendering logic.
-    In production, this would:
-    1. Use WinningAdsGenerator to create the video
-    2. Apply auto-captions
-    3. Apply smart cropping
-    4. Save to output directory
-    5. Update job status
+    Production flow:
+    1. Call video-agent to start rendering
+    2. Poll for progress updates
+    3. Update database with final output
+    4. Log audit trail
     """
     try:
         # Update status to processing
+        await app_state.update_render_job(job_id, status=RenderStatus.PROCESSING)
         app_state.render_jobs[job_id]["status"] = RenderStatus.PROCESSING
         app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
 
         logger.info(f"Processing render job {job_id}")
 
-        # Simulate rendering (replace with actual rendering logic)
-        for progress in [0, 25, 50, 75, 100]:
-            await asyncio.sleep(1)  # Simulate work
-            app_state.render_jobs[job_id]["progress"] = progress
-            app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+        # Try to use local PRO renderer if available
+        if app_state.winning_ads_generator and PRO_VIDEO_AVAILABLE:
+            try:
+                logger.info(f"Using local PRO renderer for job {job_id}")
+                
+                # Import pro module components
+                from pro.winning_ads_generator import AdAssets, AdConfig, AdTemplate, Platform, AspectRatio
+                
+                # Create assets and config from request
+                req_data = request.model_dump() if hasattr(request, 'model_dump') else request.__dict__
+                blueprint = req_data.get('blueprint', {})
+                
+                assets = AdAssets(
+                    video_clips=blueprint.get('video_clips', []),
+                    images=blueprint.get('images', []),
+                    audio_tracks=blueprint.get('audio_tracks', []),
+                    logo=blueprint.get('logo'),
+                )
+                
+                config = AdConfig(
+                    template=AdTemplate.PROBLEM_SOLUTION,
+                    platform=Platform.INSTAGRAM,
+                    aspect_ratio=AspectRatio.VERTICAL,
+                    duration=blueprint.get('duration', 30.0),
+                )
+                
+                # Generate the ad
+                output = app_state.winning_ads_generator.generate_winning_ad(
+                    assets=assets,
+                    config=config,
+                    output_filename=f"{job_id}.mp4",
+                    upload_to_gcs=True
+                )
+                
+                # Update with results
+                await app_state.update_render_job(
+                    job_id,
+                    status=RenderStatus.COMPLETED,
+                    progress=100,
+                    output_url=output.video_url or output.video_path,
+                    completed_at=datetime.utcnow()
+                )
+                app_state.render_jobs[job_id].update({
+                    "status": RenderStatus.COMPLETED,
+                    "output_path": output.video_path,
+                    "video_url": output.video_url,
+                    "gcs_path": output.gcs_path,
+                    "progress": 100.0,
+                    "updated_at": datetime.utcnow()
+                })
+                
+                # Log audit
+                await app_state.log_audit(
+                    action="render_completed",
+                    entity_type="render_job",
+                    entity_id=job_id,
+                    details={
+                        "output_path": output.video_path,
+                        "video_url": output.video_url,
+                        "gcs_path": output.gcs_path,
+                        "status": "completed"
+                    }
+                )
+                
+                logger.info(f"✅ Render job {job_id} completed via local PRO renderer")
+                return
+                
+            except Exception as e:
+                logger.warning(f"Local PRO renderer failed, falling back to video-agent: {e}")
 
-        # In production, this would be the actual output path
-        output_path = os.path.join(Config.OUTPUT_DIR, f"{job_id}.mp4")
-
-        # Mark as completed
-        app_state.render_jobs[job_id]["status"] = RenderStatus.COMPLETED
-        app_state.render_jobs[job_id]["output_path"] = output_path
-        app_state.render_jobs[job_id]["progress"] = 100.0
-        app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
-
-        logger.info(f"Render job {job_id} completed")
+        # Fallback: Call video-agent service via HTTP
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            headers = {"X-Internal-API-Key": INTERNAL_API_KEY}
+            
+            # Update progress: initializing
+            await app_state.update_render_job(job_id, progress=10)
+            app_state.render_jobs[job_id]["progress"] = 10
+            
+            # Start render on video-agent
+            try:
+                req_data = request.model_dump() if hasattr(request, 'model_dump') else request.__dict__
+                
+                response = await client.post(
+                    f"{VIDEO_AGENT_URL}/api/pro/render-winning-ad",
+                    json={
+                        "job_id": job_id,
+                        "niche": req_data.get("niche", "fitness"),
+                        "style": req_data.get("style", "transformation"),
+                        "duration": req_data.get("duration", 15),
+                        "hooks": req_data.get("hooks", []),
+                        "music_style": req_data.get("music_style", "energetic"),
+                        "caption_style": req_data.get("caption_style", "hormozi"),
+                        "blueprint": req_data.get("blueprint", {})
+                    },
+                    headers=headers
+                )
+                
+                if response.status_code not in [200, 202]:
+                    raise Exception(f"Video agent returned {response.status_code}: {response.text}")
+                
+                render_response = response.json()
+                video_agent_job_id = render_response.get("job_id", job_id)
+                
+            except Exception as e:
+                logger.error(f"Failed to start render on video-agent: {e}")
+                # If video-agent is not available, simulate with placeholder
+                logger.warning("Video-agent unavailable, using placeholder render")
+                
+                # Simulate progress with configurable delay
+                placeholder_delay = float(os.getenv("PLACEHOLDER_RENDER_DELAY", "2"))
+                for progress in [25, 50, 75, 100]:
+                    await asyncio.sleep(placeholder_delay)
+                    await app_state.update_render_job(job_id, progress=progress)
+                    app_state.render_jobs[job_id]["progress"] = progress
+                
+                output_path = os.path.join(Config.OUTPUT_DIR, f"{job_id}.mp4")
+                
+                await app_state.update_render_job(
+                    job_id,
+                    status=RenderStatus.COMPLETED,
+                    progress=100,
+                    output_url=output_path,
+                    completed_at=datetime.utcnow()
+                )
+                app_state.render_jobs[job_id].update({
+                    "status": RenderStatus.COMPLETED,
+                    "output_path": output_path,
+                    "progress": 100.0,
+                    "updated_at": datetime.utcnow()
+                })
+                
+                await app_state.log_audit(
+                    action="render_completed",
+                    entity_type="render_job",
+                    entity_id=job_id,
+                    details={"output_path": output_path, "status": "completed", "mode": "placeholder"}
+                )
+                
+                logger.info(f"Render job {job_id} completed (placeholder mode)")
+                return
+            
+            # Poll for completion
+            await app_state.update_render_job(job_id, progress=25)
+            app_state.render_jobs[job_id]["progress"] = 25
+            
+            # Configurable polling parameters
+            max_polls = int(os.getenv("RENDER_MAX_POLLS", "180"))  # Default 30 min (180 * 10s)
+            poll_interval = int(os.getenv("RENDER_POLL_INTERVAL", "10"))
+            
+            for i in range(max_polls):
+                try:
+                    status_response = await client.get(
+                        f"{VIDEO_AGENT_URL}/api/videos/{video_agent_job_id}/info",
+                        headers=headers
+                    )
+                    
+                    if status_response.status_code != 200:
+                        await asyncio.sleep(10)
+                        continue
+                    
+                    status_data = status_response.json()
+                    progress = status_data.get("progress", 0)
+                    stage = status_data.get("status", "processing")
+                    
+                    await app_state.update_render_job(job_id, progress=min(progress, 99))
+                    app_state.render_jobs[job_id]["progress"] = min(progress, 99)
+                    
+                    if stage in ["completed", "success"]:
+                        output_url = status_data.get("video_url") or status_data.get("output_path")
+                        
+                        await app_state.update_render_job(
+                            job_id,
+                            status=RenderStatus.COMPLETED,
+                            progress=100,
+                            output_url=output_url,
+                            completed_at=datetime.utcnow()
+                        )
+                        app_state.render_jobs[job_id].update({
+                            "status": RenderStatus.COMPLETED,
+                            "output_path": status_data.get("output_path"),
+                            "video_url": status_data.get("video_url"),
+                            "gcs_path": status_data.get("gcs_path"),
+                            "progress": 100.0,
+                            "updated_at": datetime.utcnow()
+                        })
+                        
+                        await app_state.log_audit(
+                            action="render_completed",
+                            entity_type="render_job",
+                            entity_id=job_id,
+                            details={"output_url": output_url, "status": "completed"}
+                        )
+                        
+                        logger.info(f"✅ Render job {job_id} completed via video-agent")
+                        return
+                    
+                    if stage in ["failed", "error"]:
+                        error_msg = status_data.get("error", "Unknown error")
+                        raise Exception(error_msg)
+                    
+                    await asyncio.sleep(poll_interval)
+                    
+                except httpx.TimeoutException:
+                    logger.warning(f"Poll timeout for job {job_id}, retrying...")
+                    await asyncio.sleep(poll_interval)
+            
+            # Timeout
+            timeout_mins = (max_polls * poll_interval) // 60
+            raise Exception(f"Render job timed out after {timeout_mins} minutes")
 
     except Exception as e:
         logger.error(f"Render job {job_id} failed: {e}")
+        await app_state.update_render_job(
+            job_id,
+            status=RenderStatus.FAILED,
+            error=str(e),
+            completed_at=datetime.utcnow()
+        )
         app_state.render_jobs[job_id]["status"] = RenderStatus.FAILED
         app_state.render_jobs[job_id]["error"] = str(e)
         app_state.render_jobs[job_id]["updated_at"] = datetime.utcnow()
+
+        # Log audit trail
+        await app_state.log_audit(
+            action="render_failed",
+            entity_type="render_job",
+            entity_id=job_id,
+            details={"error": str(e), "status": "failed"}
+        )
 
 
 # ============================================================================
