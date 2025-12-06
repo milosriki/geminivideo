@@ -23,7 +23,7 @@ aiohttp==3.9.1
 aiosmtplib==3.0.1
 
 # A/B Testing uses scipy.stats.beta for Thompson Sampling (Agent 6)
-# vowpalwabbit removed due to complex build dependencies
+vowpalwabbit==9.9.0
 
 # Database
 sqlalchemy==2.0.23
@@ -32,6 +32,9 @@ psycopg2-binary==2.9.9
 # Report Generation Dependencies (Agent 18)
 reportlab==4.0.7
 openpyxl==3.1.2
+
+# Cross-Account Learning (Agent 49)
+anthropic==0.8.1
 
 # Vector Database (Agent 39 - pgvector)
 pgvector==0.2.4

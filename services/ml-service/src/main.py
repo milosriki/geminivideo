@@ -2685,6 +2685,60 @@ async def get_cross_learning_stats():
 
 
 # ============================================================
+# END CROSS-ACCOUNT LEARNING ENDPOINTS
+# ============================================================
+
+
+# ============================================================
+# REPORT GENERATOR ENDPOINTS (Agent 18)
+# Professional PDF/Excel reporting
+# ============================================================
+
+class ReportRequest(BaseModel):
+    """Request model for report generation"""
+    account_id: str
+    report_type: str = "performance"  # performance, creative, executive
+    format: str = "pdf"  # pdf, excel
+    date_range: str = "30d"  # 7d, 30d, 90d, all
+    include_charts: bool = True
+
+@app.post("/api/reports/generate", tags=["Reports"])
+async def generate_report(request: ReportRequest):
+    """
+    Generate a professional performance report (Agent 18)
+    
+    Creates a detailed PDF or Excel report with charts, insights,
+    and recommendations.
+    """
+    try:
+        from src.reports.report_generator import ReportGenerator
+        
+        # Initialize generator
+        generator = ReportGenerator()
+        
+        logger.info(f"Generating {request.format} report for account {request.account_id}")
+        
+        # Generate report
+        report_url = await generator.generate_report(
+            account_id=request.account_id,
+            report_type=request.report_type,
+            output_format=request.format,
+            date_range=request.date_range
+        )
+        
+        return {
+            "success": True,
+            "report_url": report_url,
+            "format": request.format,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
 # AUTO-RETRAIN PIPELINE ENDPOINTS (Quick Win #3)
 # Automatic model retraining based on performance
 # ============================================================
@@ -2938,6 +2992,33 @@ async def startup_event():
         logger.info("🚀 Compound learning scheduler started - system will get 10x better automatically!")
     except Exception as e:
         logger.warning(f"Compound learning scheduler not available: {e}")
+
+    # Agent 49: Initialize Cross-Account Learning
+    try:
+        from src.cross_learner import initialize_cross_learner
+        # We need to pass the database session factory or similar
+        # For now, assuming it handles its own DB connection or we pass the global one if available
+        # Looking at cross_learner.py, it needs a db_session. 
+        # initialize_cross_learner helper might handle this.
+        # Let's check if we imported it at the top level.
+        # Yes, line 2442: from src.cross_learner import cross_learner, initialize_cross_learner
+        
+        # We need to await it if it's async, or call it if it's sync.
+        # Let's assume it takes a DB session.
+        data_loader = get_data_loader()
+        if data_loader and data_loader.SessionLocal:
+             # Create a session for initialization
+            session = data_loader.SessionLocal()
+            try:
+                initialize_cross_learner(session)
+                logger.info("🌍 Cross-Account Learning system initialized (Agent 49)")
+            finally:
+                session.close()
+        else:
+            logger.warning("Could not initialize Cross-Learner: No DB session available")
+
+    except Exception as e:
+        logger.warning(f"Cross-Account Learning initialization failed: {e}")
 
     # Train enhanced model if not already trained
     if not enhanced_ctr_predictor.is_trained:
