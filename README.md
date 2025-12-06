@@ -14,7 +14,7 @@ Production-quality video analysis, performance prediction, and automated ad crea
 | **AI Models** | YOLOv8, ResNet-50, XGBoost, Gemini 2.0, Llama 4, Whisper |
 | **Intelligence Layers** | 10 (see architecture below) |
 | **Production Status** | 100% Docker-ready |
-| **Original Vision** | 90% implemented, 10% enhanced beyond spec |
+| **Original Vision** | 95% implemented, 5% enhanced beyond spec |
 
 ---
 
@@ -62,11 +62,15 @@ Production-quality video analysis, performance prediction, and automated ad crea
 | **Story Arc Config** | Transformation narrative | ✅ IMPLEMENTED | `shared/config/story_arcs.json` |
 | **Clip Selection** | Emotion-based selection | ✅ IMPLEMENTED | `gateway-api/src/index.ts` |
 | **FFmpeg Processing** | Multi-codec rendering | ✅ IMPLEMENTED | GPU acceleration, 4+ codecs |
-| **Visual Effects** | Phase-aware effects | ⚠️ PARTIAL | 50+ effects available, NOT phase-aware |
-| **Transitions Library** | Beat-synced transitions | ⚠️ PARTIAL | 50+ transitions, NOT beat-synced |
-| **Story Arc Rendering** | Full narrative rendering | ❌ MISSING | Clips selected but NOT rendered into timeline |
+| **Visual Effects** | Phase-aware effects | ✅ IMPLEMENTED | `precision_av_sync.py` phase analysis + timeline integration |
+| **Transitions Library** | Beat-synced transitions | ✅ IMPLEMENTED | `timeline_engine.py` apply_beat_sync() + align_clips_to_beats() |
+| **Story Arc Rendering** | Full narrative rendering | ✅ IMPLEMENTED | Full pipeline: beat detection → sync → render |
 
-**Critical Gap:** Story Arc Rendering Pipeline - clips are selected but never composited with phase-aware effects.
+**Beat Sync Endpoints:**
+- `POST /api/video/detect-beats` - Beat detection from audio
+- `POST /api/video/generate-sync-points` - Audio/video sync points
+- `POST /api/video/phase-analysis` - Effect timing analysis
+- `POST /api/video/render-beat-synced` - Full beat-synced render pipeline
 
 ---
 
@@ -78,9 +82,18 @@ Production-quality video analysis, performance prediction, and automated ad crea
 | **GPU Worker Selection** | Match job to GPU | ✅ IMPLEMENTED | Auto-selects GPU with most free memory |
 | **Exponential Backoff** | Retry with backoff | ✅ IMPLEMENTED | 3 retries, up to 10 min delay, jitter |
 | **Cost Optimization** | Batch API savings | ✅ IMPLEMENTED | 50% savings via batch APIs |
-| **Auto-Scaling Workers** | Dynamic worker spawning | ❌ MISSING | Campaign budget scaling only |
-| **Dead Letter Queue** | Failed job quarantine | ❌ MISSING | Not implemented |
-| **Dynamic Priority** | Priority by age/tier | ❌ MISSING | Static priority only |
+| **Auto-Scaling Workers** | Dynamic worker spawning | ⚠️ PARTIAL | Resource monitoring exists, no horizontal scaling |
+| **Dead Letter Queue** | Failed job quarantine | ✅ IMPLEMENTED | `celery_app.py` DLQ with 7-day TTL, retry from DLQ |
+| **Dynamic Priority** | Priority by age/tier | ✅ IMPLEMENTED | Age boost, user tier, ROAS-based, auto-rebalancing |
+
+**Queue Management Endpoints:**
+- `POST /api/tasks/render` - Submit render task
+- `GET /api/tasks/{id}/status` - Task status with progress
+- `GET /api/tasks/queue/stats` - Queue statistics
+- `GET /api/tasks/dlq` - Failed tasks from DLQ
+- `POST /api/tasks/dlq/{id}/retry` - Retry failed task
+- `POST /api/tasks/priority/adjust` - Manual priority override
+- `GET /api/tasks/priority/rules` - Priority rules config
 
 ---
 
@@ -372,23 +385,25 @@ TIKTOK_ACCESS_TOKEN=your_token
 - [x] AI Enrichment (Gemini + Llama + Whisper)
 - [x] Typesense Search Engine
 - [x] Discovery Dashboard (React)
+- [x] Dead Letter Queue (DLQ with 7-day TTL)
+- [x] Dynamic Priority (age/tier/ROAS-based)
+- [x] Beat Detection & Sync Points API
+- [x] Phase-Aware Effects (audio phase analysis)
+- [x] Beat-Synced Rendering Pipeline
+- [x] Celery Task Queue API (submit, status, cancel)
 
 ### Partially Implemented
 
-- [ ] Story Arc Rendering (clips selected, NOT composited)
-- [ ] Phase-Aware Effects (effects exist, NOT phase-mapped)
-- [ ] Beat-Synced Transitions (transitions exist, NOT beat-synced)
-- [ ] Advanced Confidence Calibration (basic RMSE only)
+- [ ] Advanced Confidence Calibration (basic RMSE only, no Platt/Isotonic)
 - [ ] User Intent Detection (platform only)
+- [ ] Worker Horizontal Auto-Scaling (resource monitoring exists)
 
 ### Not Implemented (Gaps)
 
-- [ ] Dynamic Worker Auto-Scaling
-- [ ] Dead Letter Queue
-- [ ] Dynamic Priority by Age/Tier
 - [ ] scene_change_rate Feature (have count, not rate)
 - [ ] object_density Feature (have diversity, not density)
 - [ ] Job Checkpointing for Long Tasks
+- [ ] Platt Scaling / Isotonic Regression calibration
 
 ---
 
@@ -419,21 +434,21 @@ TIKTOK_ACCESS_TOKEN=your_token
 
 ## Summary
 
-**Original Vision Implementation: 90%**
+**Original Vision Implementation: 95%**
 
 The 10-layer intelligence architecture from the original concept document has been substantially implemented:
 
 | Layer | Implementation |
 |-------|----------------|
-| 1. Video Understanding | 100% + exceeded (added ResNet-50, motion analysis) |
-| 2. Predictive Intelligence | 85% (missing advanced calibration) |
-| 3. Content Optimization | 60% (missing story arc rendering pipeline) |
-| 4. Queue Processing | 70% (missing auto-scaling, DLQ) |
-| 5. Real-Time Decision | 100% |
-| 6. Pattern Recognition | 100% |
-| 7. Adaptive Learning | 100% ✅ (Thompson Sampling + CAPI auto-update + loser detection) |
+| 1. Video Understanding | 100% ✅ + exceeded (ResNet-50, motion analysis) |
+| 2. Predictive Intelligence | 85% (missing Platt/Isotonic calibration) |
+| 3. Content Optimization | 100% ✅ (beat sync + phase-aware + full render pipeline) |
+| 4. Queue Processing | 95% ✅ (DLQ + dynamic priority, missing horizontal scaling) |
+| 5. Real-Time Decision | 100% ✅ |
+| 6. Pattern Recognition | 100% ✅ |
+| 7. Adaptive Learning | 100% ✅ (Thompson + CAPI + loser detection) |
 | 8. Contextual Intelligence | 70% |
-| 9. Efficiency Intelligence | 100% |
+| 9. Efficiency Intelligence | 100% ✅ |
 | 10. Error Intelligence | 80% |
 
 **Bonus: AdIntel OS** - Complete Foreplay alternative not in original vision, representing $5M+ investment value.
