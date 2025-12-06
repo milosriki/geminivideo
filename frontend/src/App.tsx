@@ -314,7 +314,7 @@ function App() {
                 }
               />
 
-              {/* AdIntel Discovery (Foreplay Alternative) */}
+              {/* AdIntel Discovery Dashboard */}
               <Route
                 path="discovery"
                 element={

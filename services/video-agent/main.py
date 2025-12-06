@@ -39,6 +39,16 @@ from pro.preview_generator import PreviewGenerator, ProxyQuality
 from pro.asset_library import AssetLibrary, AssetType, AssetCategory
 from pro.voice_generator import VoiceGenerator, VoiceProvider, OpenAIVoice, VoiceSettings, VoiceCloneConfig
 
+# Quick Win #4: Import PrecisionAVSync for beat sync analysis
+try:
+    from pro.precision_av_sync import PrecisionAVSync, AudioPeak, VisualPeak, SyncPoint
+    precision_av_sync = PrecisionAVSync()
+    PRECISION_AV_SYNC_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: PrecisionAVSync not available: {e}")
+    precision_av_sync = None
+    PRECISION_AV_SYNC_AVAILABLE = False
+
 app = FastAPI(title="Video Agent Service", version="1.0.0")
 
 # Production safety check - prevent debug mode in production
@@ -1818,6 +1828,240 @@ async def beat_sync_render(request: Dict[str, Any], background_tasks: Background
         raise
     except Exception as e:
         logger.error(f"Beat-sync endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# PRECISION AV SYNC ANALYSIS (Quick Win #4)
+# Analyze audio-visual synchronization with 0.1s precision
+# ============================================================================
+
+@app.post("/api/video/analyze-sync")
+async def analyze_av_sync(request: Dict[str, Any]):
+    """
+    Analyze audio-visual synchronization quality (Quick Win #4)
+
+    Extracts audio peaks (beats, onsets, drops) and visual peaks (cuts, motion spikes)
+    then measures how well they align within 0.1 second tolerance.
+
+    Critical for ad performance:
+    - Beat drops should hit on visual transitions
+    - Emotional peaks in voice should match face closeups
+    - Music energy should match motion energy
+
+    Body:
+    - video_path: str (required) - Path to video file
+    - audio_path: str (optional) - Separate audio path (if not using video audio)
+
+    Returns:
+    - total_audio_peaks: int - Number of detected audio peaks
+    - total_visual_peaks: int - Number of detected visual peaks
+    - sync_points_found: int - Number of matching points
+    - synced_within_tolerance: int - Points within 0.1s tolerance
+    - sync_percentage: float - Percentage of synced points
+    - average_offset_seconds: float - Average timing offset
+    - average_sync_score: float - 0-1 sync quality score
+    - recommendation: str - Human-readable sync assessment
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available - check dependencies (librosa, cv2)")
+
+    try:
+        video_path = request.get("video_path")
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=400, detail="Invalid video_path")
+
+        audio_path = request.get("audio_path")  # Optional separate audio
+
+        # Analyze sync quality
+        result = precision_av_sync.analyze_sync_quality(video_path, audio_path)
+
+        return {
+            "status": "success",
+            "video_path": video_path,
+            "analysis": result
+        }
+
+    except Exception as e:
+        logger.error(f"AV sync analysis error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/video/extract-audio-peaks")
+async def extract_audio_peaks(request: Dict[str, Any]):
+    """
+    Extract audio peaks from audio/video file (Quick Win #4)
+
+    Detects:
+    - Beats (rhythm markers)
+    - Onsets (sudden sounds)
+    - Drops (energy peaks)
+    - Vocals (if present)
+
+    Body:
+    - audio_path: str (required) - Path to audio file
+
+    Returns:
+    - peaks: List of {timestamp, energy, peak_type}
+    - total_peaks: int
+    - tempo_bpm: float (estimated)
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        audio_path = request.get("audio_path")
+        if not audio_path or not os.path.exists(audio_path):
+            raise HTTPException(status_code=400, detail="Invalid audio_path")
+
+        peaks = precision_av_sync.extract_audio_peaks(audio_path)
+
+        # Convert to dict format
+        peaks_data = [
+            {
+                "timestamp": p.timestamp,
+                "energy": p.energy,
+                "peak_type": p.peak_type
+            }
+            for p in peaks
+        ]
+
+        # Get tempo using librosa
+        import librosa
+        y, sr = librosa.load(audio_path)
+        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+
+        return {
+            "status": "success",
+            "peaks": peaks_data,
+            "total_peaks": len(peaks),
+            "tempo_bpm": float(tempo),
+            "peak_types": {
+                "beat": len([p for p in peaks if p.peak_type == 'beat']),
+                "onset": len([p for p in peaks if p.peak_type == 'onset']),
+                "drop": len([p for p in peaks if p.peak_type == 'drop'])
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Extract audio peaks error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/video/extract-visual-peaks")
+async def extract_visual_peaks(request: Dict[str, Any]):
+    """
+    Extract visual peaks from video file (Quick Win #4)
+
+    Detects:
+    - Cuts (scene changes)
+    - Motion spikes (high activity moments)
+    - Transitions (gradual changes)
+
+    Body:
+    - video_path: str (required) - Path to video file
+
+    Returns:
+    - peaks: List of {timestamp, motion_energy, peak_type}
+    - total_peaks: int
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        video_path = request.get("video_path")
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=400, detail="Invalid video_path")
+
+        peaks = precision_av_sync.extract_visual_peaks(video_path)
+
+        # Convert to dict format
+        peaks_data = [
+            {
+                "timestamp": p.timestamp,
+                "motion_energy": p.motion_energy,
+                "peak_type": p.peak_type
+            }
+            for p in peaks
+        ]
+
+        return {
+            "status": "success",
+            "peaks": peaks_data,
+            "total_peaks": len(peaks),
+            "peak_types": {
+                "cut": len([p for p in peaks if p.peak_type == 'cut']),
+                "motion": len([p for p in peaks if p.peak_type == 'motion'])
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Extract visual peaks error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/video/suggest-cut-adjustments")
+async def suggest_cut_adjustments(request: Dict[str, Any]):
+    """
+    Suggest timing adjustments for out-of-sync cuts (Quick Win #4)
+
+    Analyzes current sync and suggests exactly where to move cuts
+    to align with audio beats.
+
+    Body:
+    - video_path: str (required) - Path to video file
+    - audio_path: str (optional) - Separate audio path
+
+    Returns:
+    - adjustments: List of suggested timing changes
+    - each adjustment contains:
+      - current_visual_time: Current cut position
+      - target_audio_time: Where it should be to match beat
+      - adjustment_needed: Seconds to shift
+      - direction: 'earlier' or 'later'
+      - priority: 'high' (beat) or 'medium' (onset)
+    """
+    if not PRECISION_AV_SYNC_AVAILABLE or not precision_av_sync:
+        raise HTTPException(status_code=503, detail="PrecisionAVSync not available")
+
+    try:
+        video_path = request.get("video_path")
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=400, detail="Invalid video_path")
+
+        audio_path = request.get("audio_path")
+
+        # Extract audio from video if not provided
+        if audio_path is None:
+            import subprocess
+            import tempfile
+            audio_path = tempfile.mktemp(suffix='.wav')
+            subprocess.run([
+                'ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le',
+                '-ar', '22050', '-ac', '1', audio_path, '-y'
+            ], capture_output=True)
+
+        # Get peaks and sync points
+        audio_peaks = precision_av_sync.extract_audio_peaks(audio_path)
+        visual_peaks = precision_av_sync.extract_visual_peaks(video_path)
+        sync_points = precision_av_sync.find_sync_points(audio_peaks, visual_peaks)
+
+        # Get suggested adjustments
+        adjustments = precision_av_sync.suggest_cut_adjustments(sync_points)
+
+        return {
+            "status": "success",
+            "adjustments": adjustments,
+            "total_adjustments": len(adjustments),
+            "sync_summary": {
+                "total_sync_points": len(sync_points),
+                "synced_count": len([sp for sp in sync_points if sp.is_synced]),
+                "out_of_sync_count": len([sp for sp in sync_points if not sp.is_synced])
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Suggest cut adjustments error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
