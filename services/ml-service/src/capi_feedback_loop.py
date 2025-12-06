@@ -283,9 +283,58 @@ class CAPIFeedbackLoop:
 
     async def _get_actuals(self, campaign_id: str, creative_id: str) -> Optional[Dict]:
         """Get actual performance data for a campaign/creative"""
-        # Query actuals from database
-        # This would aggregate CAPI events + platform reporting
-        return None  # Placeholder
+        try:
+            # Query actuals from database (PerformanceMetric table)
+            # We aggregate metrics for the given campaign/creative
+            from sqlalchemy import select, func
+            from db.models import PerformanceMetric, Video
+            
+            # Find video ID for this creative/campaign
+            # Assuming creative_id maps to Video.id or we join via Campaign
+            
+            # Query metrics
+            query = select(
+                func.sum(PerformanceMetric.impressions).label('impressions'),
+                func.sum(PerformanceMetric.clicks).label('clicks'),
+                func.sum(PerformanceMetric.conversions).label('conversions'),
+                func.sum(PerformanceMetric.spend).label('spend'),
+                func.sum(PerformanceMetric.revenue).label('revenue')
+            ).join(Video, PerformanceMetric.video_id == Video.id)\
+             .where(Video.campaign_id == campaign_id)
+            
+            if creative_id:
+                # If creative_id is provided, filter by it (assuming it's video_id)
+                query = query.where(Video.id == creative_id)
+                
+            result = await self.db.execute(query)
+            metrics = result.first()
+            
+            if not metrics or not metrics.impressions:
+                return None
+                
+            # Calculate rates
+            impressions = metrics.impressions or 0
+            clicks = metrics.clicks or 0
+            conversions = metrics.conversions or 0
+            spend = float(metrics.spend or 0)
+            revenue = float(metrics.revenue or 0)
+            
+            ctr = clicks / impressions if impressions > 0 else 0.0
+            roas = revenue / spend if spend > 0 else 0.0
+            
+            return {
+                'ctr': ctr,
+                'roas': roas,
+                'conversions': conversions,
+                'revenue': revenue,
+                'spend': spend,
+                'impressions': impressions,
+                'clicks': clicks
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting actuals for {campaign_id}: {e}")
+            return None
 
     async def should_retrain(self) -> bool:
         """Check if we should trigger model retraining"""
@@ -355,13 +404,39 @@ class CAPIFeedbackLoop:
 
     async def _execute_retrain(self, training_data: Dict) -> Dict:
         """Execute actual model retraining"""
-        # This would call your ML training pipeline
-        # For now, return placeholder
-        return {
-            'model_version': f"v{datetime.now().strftime('%Y%m%d_%H%M')}",
-            'samples': len(training_data['targets']['ctr']),
-            'status': 'trained'
-        }
+        try:
+            from src.main import ctr_predictor, feature_extractor
+            
+            # We need X (features) and y (targets)
+            # Currently training_data['features'] is empty because match_predictions_to_actuals 
+            # doesn't fetch features. We need to fetch features for each pair.
+            # For now, we'll trigger the standard data loader which fetches everything fresh from DB
+            
+            from src.data_loader import get_data_loader
+            data_loader = get_data_loader()
+            
+            if not data_loader:
+                return {'status': 'failed', 'reason': 'no data loader'}
+                
+            # Fetch fresh training data from DB (which now includes the new actuals we just verified)
+            X, y = data_loader.fetch_training_data(min_impressions=10)
+            
+            if X is None or len(X) < 50:
+                return {'status': 'skipped', 'reason': 'insufficient data'}
+                
+            # Train model
+            metrics = ctr_predictor.train(X, y, feature_names=feature_extractor.feature_names)
+            
+            return {
+                'model_version': f"v{datetime.now().strftime('%Y%m%d_%H%M')}",
+                'samples': len(X),
+                'metrics': metrics,
+                'status': 'trained'
+            }
+            
+        except Exception as e:
+            logger.error(f"Retraining failed: {e}")
+            return {'status': 'failed', 'error': str(e)}
 
     def get_feedback_metrics(self) -> Dict:
         """Get metrics on feedback loop health"""
