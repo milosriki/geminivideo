@@ -37,6 +37,9 @@ from enum import Enum
 from pathlib import Path
 import math
 import random
+from datetime import datetime, timedelta
+
+from google.cloud import storage
 
 # Import from our pro modules
 try:
@@ -130,6 +133,56 @@ except ImportError:
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# GCS configuration
+GCS_BUCKET = os.getenv("GCS_BUCKET", "geminivideo-outputs")
+GCS_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "ptd-fitness-demo")
+
+
+class GCSUploader:
+    """Upload generated videos to Google Cloud Storage"""
+    
+    def __init__(self):
+        self.client = storage.Client(project=GCS_PROJECT)
+        self.bucket = self.client.bucket(GCS_BUCKET)
+    
+    def upload_video(self, local_path: Path, gcs_path: str) -> str:
+        """Upload video to GCS and return signed URL"""
+        blob = self.bucket.blob(gcs_path)
+        blob.upload_from_filename(str(local_path))
+        
+        # Generate signed URL valid for 7 days
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(days=7),
+            method="GET"
+        )
+        return signed_url
+    
+    def get_public_url(self, gcs_path: str) -> str:
+        """Get public URL (if bucket is public)"""
+        return f"https://storage.googleapis.com/{GCS_BUCKET}/{gcs_path}"
+
+
+# Initialize uploader lazily to avoid errors if GCS is not configured
+_gcs_uploader = None
+
+
+def get_gcs_uploader() -> Optional[GCSUploader]:
+    """Get GCS uploader instance, initializing lazily"""
+    global _gcs_uploader
+    if _gcs_uploader is None:
+        try:
+            _gcs_uploader = GCSUploader()
+        except Exception as e:
+            logger.warning(
+                f"GCS uploader initialization failed: {e}. "
+                f"Ensure GOOGLE_CLOUD_PROJECT and GCS_BUCKET env vars are set, "
+                f"and valid credentials are available (via GOOGLE_APPLICATION_CREDENTIALS "
+                f"or default application credentials)."
+            )
+            return None
+    return _gcs_uploader
 
 
 class AdTemplate(Enum):
@@ -253,10 +306,16 @@ class AdConfig:
 @dataclass
 class AdOutput:
     """Generated ad output"""
-    video_path: str
+    video_path: str  # GCS path or local path
+    video_url: Optional[str] = None  # Signed URL for direct download
+    duration: float = 0.0
+    resolution: str = "1080x1920"
+    file_size: int = 0
     thumbnail_path: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     metrics: Dict[str, Any] = field(default_factory=dict)  # Predicted engagement metrics
+    performance_prediction: Optional[Dict[str, float]] = None
     ffmpeg_commands: List[str] = field(default_factory=list)
 
 
@@ -339,16 +398,77 @@ class WinningAdsGenerator:
         timeline = self._add_cta(timeline, config)
 
         # Render final video
-        output_path = self.output_dir / output_filename
-        ffmpeg_commands = self._render_timeline(timeline, output_path, config)
+        local_video_path = self.output_dir / output_filename
+        ffmpeg_commands = self._render_timeline(timeline, local_video_path, config)
 
         # Generate thumbnail
-        thumbnail_path = self._generate_thumbnail(output_path)
+        thumbnail_path = self._generate_thumbnail(local_video_path)
 
-        # Create output metadata
+        # Get file size before potential upload
+        file_size = 0
+        if local_video_path.exists():
+            file_size = os.path.getsize(local_video_path)
+
+        # Upload to GCS - use consistent timestamp for paths
+        upload_timestamp = datetime.now()
+        date_path = upload_timestamp.strftime('%Y/%m/%d')
+        gcs_path = f"winning-ads/{date_path}/{output_filename}"
+        gcs_uploader = get_gcs_uploader()
+
+        if gcs_uploader is not None:
+            try:
+                signed_url = gcs_uploader.upload_video(local_video_path, gcs_path)
+
+                # Upload thumbnail to GCS if exists (use same date path for consistency)
+                thumbnail_url = None
+                if thumbnail_path and os.path.exists(thumbnail_path):
+                    thumb_gcs_path = f"winning-ads/{date_path}/thumbnails/{Path(thumbnail_path).name}"
+                    try:
+                        thumbnail_url = gcs_uploader.upload_video(Path(thumbnail_path), thumb_gcs_path)
+                    except Exception as thumb_e:
+                        logger.warning(f"Thumbnail upload failed: {thumb_e}")
+
+                # Clean up local file after upload
+                if local_video_path.exists():
+                    local_video_path.unlink()
+
+                output = AdOutput(
+                    video_path=gcs_path,  # GCS path for reference
+                    video_url=signed_url,  # Signed URL for download
+                    duration=config.duration,
+                    resolution=f"{config.aspect_ratio.value}",
+                    file_size=file_size,
+                    thumbnail_path=thumbnail_path,
+                    thumbnail_url=thumbnail_url,
+                    metadata={
+                        "template": config.template.value,
+                        "platform": config.platform.value,
+                        "duration": config.duration,
+                        "aspect_ratio": config.aspect_ratio.value,
+                        "gcs_bucket": GCS_BUCKET,
+                        "gcs_path": gcs_path
+                    },
+                    metrics=self._calculate_predicted_metrics(config),
+                    performance_prediction=None,
+                    ffmpeg_commands=ffmpeg_commands
+                )
+
+                logger.info(f"Winning ad uploaded to GCS: {gcs_path}")
+                return output
+
+            except Exception as e:
+                logger.error(f"GCS upload failed: {e}")
+                # Fallback to local path if GCS fails
+
+        # Fallback: return local path if GCS is not available or upload failed
         output = AdOutput(
-            video_path=str(output_path),
+            video_path=str(local_video_path),
+            video_url=None,  # Frontend will need to use download endpoint
+            duration=config.duration,
+            resolution=f"{config.aspect_ratio.value}",
+            file_size=file_size,
             thumbnail_path=thumbnail_path,
+            thumbnail_url=None,
             metadata={
                 "template": config.template.value,
                 "platform": config.platform.value,
@@ -356,10 +476,11 @@ class WinningAdsGenerator:
                 "aspect_ratio": config.aspect_ratio.value,
             },
             metrics=self._calculate_predicted_metrics(config),
+            performance_prediction=None,
             ffmpeg_commands=ffmpeg_commands
         )
 
-        logger.info(f"Winning ad generated: {output_path}")
+        logger.info(f"Winning ad generated locally: {local_video_path}")
         return output
 
     # ===========================

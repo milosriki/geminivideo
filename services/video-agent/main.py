@@ -5,15 +5,22 @@ Handles video rendering with overlays, subtitles, and compliance checks
 PRODUCTION-GRADE PRO VIDEO MODULES - €5M Investment Integration
 13 Professional video processing modules with 500KB+ production code
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import os
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import uuid
+import logging
+
+from google.cloud import storage
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 # Track startup time for uptime calculation
 _start_time = time.time()
@@ -154,6 +161,10 @@ preview_gen = PreviewGenerator()
 asset_lib = AssetLibrary(base_dir=os.getenv("ASSET_DIR", "/tmp/assets"))
 voice_generator = VoiceGenerator(output_dir=os.getenv("VOICEOVER_DIR", "/tmp/voiceovers"))
 
+# GCS Configuration
+GCS_BUCKET = os.getenv("GCS_BUCKET", "geminivideo-outputs")
+GCS_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "ptd-fitness-demo")
+
 # Redis Client (Lazy initialization)
 import redis
 try:
@@ -165,6 +176,9 @@ except Exception as e:
 # In-memory job storage (would be Redis/DB in production)
 render_jobs: Dict[str, RenderJob] = {}
 pro_jobs: Dict[str, Dict[str, Any]] = {}  # Pro module job tracking
+
+# In-memory video storage (would be database in production)
+generated_videos: Dict[str, Dict[str, Any]] = {}
 
 
 # Request/Response Models
@@ -411,6 +425,119 @@ async def health_check():
         "uptime": uptime,
         "timestamp": datetime.utcnow().isoformat(),
         "jobs_count": len(render_jobs)
+    }
+
+
+# ==================== VIDEO DOWNLOAD ENDPOINT ====================
+# Fallback for direct video downloads when signed URLs expire
+# ================================================================
+
+@app.get("/api/videos/{video_id}/download")
+async def download_video(video_id: str):
+    """Download video by ID - returns signed URL or streams file"""
+    
+    # Get video info from in-memory storage (would be database in production)
+    video = generated_videos.get(video_id)
+    
+    if not video:
+        # Also check pro_jobs for completed render jobs
+        job = pro_jobs.get(video_id)
+        if job and job.get("status") == "completed" and job.get("output_path"):
+            video = {
+                "id": video_id,
+                "gcs_path": job.get("gcs_path"),
+                "local_path": job.get("output_path"),
+                "signed_url": job.get("signed_url"),
+                "signed_url_expires_at": job.get("signed_url_expires_at")
+            }
+    
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # If signed URL is still valid, redirect
+    signed_url = video.get("signed_url")
+    expires_at = video.get("signed_url_expires_at")
+    
+    if signed_url and expires_at:
+        # Parse datetime if it's a string
+        if isinstance(expires_at, str):
+            try:
+                # Handle ISO format with timezone indicators
+                if expires_at.endswith('Z'):
+                    # UTC indicated by 'Z' suffix
+                    expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                elif '+' in expires_at or (len(expires_at) > 5 and expires_at[-6] == '-' and ':' in expires_at[-5:]):
+                    # Has timezone offset (e.g., +00:00 or -05:00)
+                    expires_at = datetime.fromisoformat(expires_at)
+                else:
+                    # No timezone specified - assume UTC
+                    expires_at = datetime.fromisoformat(expires_at).replace(tzinfo=timezone.utc)
+            except (ValueError, AttributeError):
+                expires_at = None
+        
+        # Make comparison timezone-aware
+        if expires_at is not None:
+            now_utc = datetime.now(timezone.utc)
+            # If expires_at is naive, assume UTC
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at > now_utc:
+                return RedirectResponse(url=signed_url)
+    
+    # Generate new signed URL if we have a GCS path
+    gcs_path = video.get("gcs_path")
+    if gcs_path:
+        try:
+            client = storage.Client(project=GCS_PROJECT)
+            bucket = client.bucket(GCS_BUCKET)
+            blob = bucket.blob(gcs_path)
+            
+            signed_url = blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(days=7),
+                method="GET"
+            )
+            
+            # Update storage with new signed URL
+            new_expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+            if video_id in generated_videos:
+                generated_videos[video_id]["signed_url"] = signed_url
+                generated_videos[video_id]["signed_url_expires_at"] = new_expires_at.isoformat()
+            elif video_id in pro_jobs:
+                pro_jobs[video_id]["signed_url"] = signed_url
+                pro_jobs[video_id]["signed_url_expires_at"] = new_expires_at.isoformat()
+            
+            return RedirectResponse(url=signed_url)
+            
+        except Exception as e:
+            logger.error(f"Failed to generate signed URL: {e}")
+            # Fall through to local file check
+    
+    # Fallback: Try to serve local file
+    local_path = video.get("local_path") or video.get("output_path")
+    if local_path and os.path.exists(local_path):
+        return FileResponse(
+            path=local_path,
+            media_type="video/mp4",
+            filename=f"{video_id}.mp4"
+        )
+    
+    raise HTTPException(status_code=500, detail="Failed to generate download URL")
+
+
+def register_generated_video(video_id: str, video_data: Dict[str, Any]):
+    """Helper function to register a generated video for download tracking"""
+    expires_at = video_data.get("signed_url_expires_at")
+    if expires_at is None and video_data.get("video_url"):
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    
+    generated_videos[video_id] = {
+        "id": video_id,
+        "gcs_path": video_data.get("gcs_path"),
+        "local_path": video_data.get("local_path") or video_data.get("video_path"),
+        "signed_url": video_data.get("signed_url") or video_data.get("video_url"),
+        "signed_url_expires_at": expires_at,
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
 
 
