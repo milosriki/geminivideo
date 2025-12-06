@@ -48,6 +48,7 @@ from pro.celery_app import (
     caption_task,
     batch_render_task,
     cleanup_task,
+    submit_task_with_priority,
     redis_client as celery_redis,
     get_failed_tasks,
     get_dlq_stats,
@@ -3332,7 +3333,7 @@ async def generate_multilingual_voiceover(request: Dict[str, Any], background_ta
 @app.post("/api/tasks/render")
 async def submit_render_task(request: Dict[str, Any]):
     """
-    Submit video render task to Celery queue
+    Submit video render task to Celery queue with dynamic priority
 
     Body:
     - scenes: List[Dict] (required) - Scene data with video paths, timing
@@ -3341,12 +3342,15 @@ async def submit_render_task(request: Dict[str, Any]):
     - overlays: List[str] (optional) - Overlay paths
     - subtitles: str (optional) - Subtitle file path
     - use_gpu: bool (default: false) - Use GPU acceleration
-    - priority: int (1-10, default: 5) - Task priority
+    - tier: str (default: "free") - User tier (free/basic/premium/enterprise)
+    - roas_score: float (optional) - Campaign ROAS for priority calculation
 
     Returns:
     - task_id: str - Celery task ID
     - status: str - Task status
     - queue: str - Queue name
+    - user_tier: str - User tier used for priority
+    - campaign_roas: float - ROAS score used for priority
     """
     try:
         scenes = request.get("scenes", [])
@@ -3367,19 +3371,26 @@ async def submit_render_task(request: Dict[str, Any]):
             "use_gpu": request.get("use_gpu", False)
         }
 
-        # Submit to Celery
-        priority = request.get("priority", 5)
-        task = render_video_task.apply_async(
-            args=[job_data],
-            priority=priority
+        # Submit to Celery with dynamic priority
+        user_tier = request.get("tier", "free")
+        campaign_roas = request.get("roas_score")
+
+        task = submit_task_with_priority(
+            task_func=render_video_task,
+            task_args=(job_data,),
+            task_kwargs={},
+            user_tier=user_tier,
+            campaign_roas=campaign_roas,
+            queue_name='render_queue'
         )
 
         return {
             "status": "queued",
             "task_id": task.id,
             "queue": "render_queue",
-            "priority": priority,
-            "message": "Render task submitted to queue"
+            "user_tier": user_tier,
+            "campaign_roas": campaign_roas,
+            "message": "Render task submitted to queue with dynamic priority"
         }
 
     except Exception as e:
@@ -3389,7 +3400,7 @@ async def submit_render_task(request: Dict[str, Any]):
 @app.post("/api/tasks/transcode")
 async def submit_transcode_task(request: Dict[str, Any]):
     """
-    Submit video transcode task to Celery queue
+    Submit video transcode task to Celery queue with dynamic priority
 
     Body:
     - input_path: str (required) - Source video path
@@ -3399,11 +3410,14 @@ async def submit_transcode_task(request: Dict[str, Any]):
         - width: int (optional)
         - height: int (optional)
         - bitrate: str (optional, e.g., "5M")
-    - priority: int (1-10, default: 7) - Task priority
+    - tier: str (default: "free") - User tier (free/basic/premium/enterprise)
+    - roas_score: float (optional) - Campaign ROAS for priority calculation
 
     Returns:
     - task_id: str - Celery task ID
     - status: str - Task status
+    - user_tier: str - User tier used for priority
+    - campaign_roas: float - ROAS score used for priority
     """
     try:
         input_path = request.get("input_path")
@@ -3414,21 +3428,28 @@ async def submit_transcode_task(request: Dict[str, Any]):
         if not output_format:
             raise HTTPException(status_code=400, detail="output_format required")
 
-        # Submit to Celery
-        priority = request.get("priority", 7)
-        task = transcode_task.apply_async(
-            args=[input_path, output_format],
-            priority=priority
+        # Submit to Celery with dynamic priority
+        user_tier = request.get("tier", "free")
+        campaign_roas = request.get("roas_score")
+
+        task = submit_task_with_priority(
+            task_func=transcode_task,
+            task_args=(input_path, output_format),
+            task_kwargs={},
+            user_tier=user_tier,
+            campaign_roas=campaign_roas,
+            queue_name='transcode_queue'
         )
 
         return {
             "status": "queued",
             "task_id": task.id,
             "queue": "transcode_queue",
-            "priority": priority,
+            "user_tier": user_tier,
+            "campaign_roas": campaign_roas,
             "input_path": input_path,
             "output_format": output_format,
-            "message": "Transcode task submitted to queue"
+            "message": "Transcode task submitted to queue with dynamic priority"
         }
 
     except Exception as e:

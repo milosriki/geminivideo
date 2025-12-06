@@ -613,6 +613,24 @@ class VideoProcessingTask(Task):
         """Handle task failure"""
         logger.error(f"Task {task_id} failed: {exc}")
         publish_progress(task_id, 0, 'failed', str(exc))
+
+        # Write to Dead Letter Queue
+        try:
+            dlq_entry = {
+                'task_id': str(task_id),
+                'task_name': self.name if hasattr(self, 'name') else 'unknown',
+                'args': str(args) if args else '[]',
+                'kwargs': str(kwargs) if kwargs else '{}',
+                'exception': str(exc),
+                'traceback': str(einfo) if einfo else '',
+                'failed_at': datetime.utcnow().isoformat(),
+                'retries': self.request.retries if hasattr(self, 'request') else 0
+            }
+            redis_client.rpush('dead_letter_queue', json.dumps(dlq_entry))
+            logger.info(f"Task {task_id} added to DLQ")
+        except Exception as dlq_error:
+            logger.error(f"Failed to write to DLQ: {dlq_error}")
+
         super().on_failure(exc, task_id, args, kwargs, einfo)
 
     def on_retry(self, exc, task_id, args, kwargs, einfo):
@@ -1435,9 +1453,25 @@ def on_task_postrun(task_id=None, task=None, **kwargs):
     logger.info(f"Task {task.name} [{task_id}] completed")
 
 @task_failure.connect
-def on_task_failure(task_id=None, exception=None, **kwargs):
-    """Log task failure"""
+def on_task_failure(sender=None, task_id=None, exception=None, args=None, kwargs=None, traceback=None, einfo=None, **kw):
+    """Write failed tasks to Dead Letter Queue for later analysis"""
     logger.error(f"Task [{task_id}] failed: {exception}")
+
+    # Write to Dead Letter Queue
+    try:
+        dlq_entry = {
+            'task_id': str(task_id),
+            'task_name': sender.name if sender else 'unknown',
+            'args': str(args) if args else '[]',
+            'kwargs': str(kwargs) if kwargs else '{}',
+            'exception': str(exception),
+            'traceback': str(einfo) if einfo else '',
+            'failed_at': datetime.utcnow().isoformat()
+        }
+        redis_client.rpush('dead_letter_queue', json.dumps(dlq_entry))
+        logger.info(f"Task {task_id} added to DLQ")
+    except Exception as dlq_error:
+        logger.error(f"Failed to write to DLQ: {dlq_error}")
 
 # ============================================================================
 # DEAD LETTER QUEUE MANAGEMENT
@@ -1625,34 +1659,6 @@ def purge_dlq(older_than_days: int = 7) -> int:
     except Exception as e:
         logger.error(f"Failed to purge DLQ: {e}")
         return 0
-
-
-@app.task(name='services.video-agent.pro.celery_app.rebalance_priorities_task')
-def rebalance_priorities_task() -> Dict[str, Any]:
-    """
-    Rebalance task priorities in queues
-    Move long-waiting low-priority tasks to higher priority
-
-    Returns:
-        Statistics about rebalancing operation
-    """
-    try:
-        rebalanced_count = 0
-
-        # This is a placeholder for actual queue rebalancing logic
-        # In production, you'd inspect queue messages and adjust priorities
-
-        logger.info(f"Rebalanced {rebalanced_count} tasks")
-
-        return {
-            'rebalanced_count': rebalanced_count,
-            'timestamp': datetime.utcnow().isoformat()
-        }
-
-    except Exception as e:
-        logger.error(f"Priority rebalancing failed: {e}")
-        return {'error': str(e)}
-
 # ============================================================================
 # MAIN ENTRY POINT
 # ============================================================================

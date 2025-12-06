@@ -9,6 +9,7 @@ from typing import List, Dict, Optional, Any
 import os
 import logging
 import time
+import asyncio
 import numpy as np
 from datetime import datetime
 
@@ -35,6 +36,10 @@ from src.reports.excel_builder import generate_excel_report
 
 # Import Precomputer (Agent 45)
 from src.precomputer import get_precomputer, PrecomputeEvent, PrecomputeTaskType
+
+# Setup logging (moved before usage)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import Batch API (Agent 42)
 try:
@@ -77,10 +82,6 @@ except ImportError:
     logger.warning("Auto-Retrain Pipeline not available - check dependencies")
     AUTO_RETRAIN_AVAILABLE = False
     auto_retrain_pipeline = None
-
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Feedback store for retraining (in-memory, but could be persisted)
 feedback_store: List[Dict[str, Any]] = []
@@ -311,7 +312,7 @@ async def train_model(request: TrainingRequest):
     try:
         if request.use_synthetic_data:
             logger.info(f"Generating {request.n_samples} synthetic training samples...")
-            X, y = generate_synthetic_training_data(n_samples=request.n_samples)
+            X, y = generate_enhanced_data(n_samples=request.n_samples)
             feature_names = feature_extractor.feature_names
         else:
             # Load real data from database
@@ -2734,55 +2735,6 @@ async def get_cross_learning_stats():
 # ============================================================
 # END CROSS-ACCOUNT LEARNING ENDPOINTS
 # ============================================================
-
-
-# ============================================================
-# REPORT GENERATOR ENDPOINTS (Agent 18)
-# Professional PDF/Excel reporting
-# ============================================================
-
-class ReportRequest(BaseModel):
-    """Request model for report generation"""
-    account_id: str
-    report_type: str = "performance"  # performance, creative, executive
-    format: str = "pdf"  # pdf, excel
-    date_range: str = "30d"  # 7d, 30d, 90d, all
-    include_charts: bool = True
-
-@app.post("/api/reports/generate", tags=["Reports"])
-async def generate_report(request: ReportRequest):
-    """
-    Generate a professional performance report (Agent 18)
-    
-    Creates a detailed PDF or Excel report with charts, insights,
-    and recommendations.
-    """
-    try:
-        from src.reports.report_generator import ReportGenerator
-        
-        # Initialize generator
-        generator = ReportGenerator()
-        
-        logger.info(f"Generating {request.format} report for account {request.account_id}")
-        
-        # Generate report
-        report_url = await generator.generate_report(
-            account_id=request.account_id,
-            report_type=request.report_type,
-            output_format=request.format,
-            date_range=request.date_range
-        )
-        
-        return {
-            "success": True,
-            "report_url": report_url,
-            "format": request.format,
-            "generated_at": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error generating report: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================
