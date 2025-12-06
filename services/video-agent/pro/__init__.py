@@ -42,6 +42,12 @@ from .asset_library import (
     AudioCodec,
 )
 
+from .motion_moment_sdk import (
+    MotionMomentSDK,
+    MotionMoment,
+    TemporalWindow,
+)
+
 __all__ = [
     # Motion Graphics
     'MotionGraphicsEngine',
@@ -79,4 +85,8 @@ __all__ = [
     'MusicLibrary',
     'VideoCodec',
     'AudioCodec',
+    # Motion Moment SDK
+    'MotionMomentSDK',
+    'MotionMoment',
+    'TemporalWindow',
 ]

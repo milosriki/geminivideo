@@ -28,6 +28,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Face weighting constants for motion analysis
+FACE_WEIGHT_MULTIPLIER = 3.2  # Faces get 3.2x importance in motion analysis
+BACKGROUND_WEIGHT = 1.0
+
 # Lazy imports for vision models
 try:
     from openai import AsyncOpenAI
@@ -94,6 +98,8 @@ class VisualPatternDNA:
     motion_intensity: float
     motion_type: str  # static, smooth, fast-cut, dynamic
     camera_movement: str  # static, pan, zoom, handheld
+    face_weight_applied: float = 3.2  # Weight multiplier for face regions
+    weighted_motion_score: float = 0.0  # Motion score with face weighting applied
 
     # Text & overlay patterns
     text_overlay_count: int
