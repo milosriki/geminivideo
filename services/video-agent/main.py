@@ -5,8 +5,9 @@ Handles video rendering with overlays, subtitles, and compliance checks
 PRODUCTION-GRADE PRO VIDEO MODULES - €5M Investment Integration
 13 Professional video processing modules with 500KB+ production code
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import os
@@ -44,6 +45,18 @@ app = FastAPI(title="Video Agent Service", version="1.0.0")
 # Production safety check - prevent debug mode in production
 if app.debug and os.environ.get('ENVIRONMENT') == 'production':
     raise RuntimeError("Debug mode detected in production!")
+
+# Internal API Key Configuration for service-to-service authentication
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key")
+api_key_header = APIKeyHeader(name="X-Internal-API-Key", auto_error=False)
+
+async def verify_internal_api_key(api_key: str = Depends(api_key_header)):
+    """Verify internal service-to-service API key"""
+    if api_key is None:
+        raise HTTPException(status_code=401, detail="Missing internal API key")
+    if api_key != INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid internal API key")
+    return api_key
 
 # CORS middleware
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080").split(",")
@@ -162,9 +175,102 @@ except Exception as e:
     print(f"Warning: Redis connection failed: {e}")
     redis_client = None
 
-# In-memory job storage (would be Redis/DB in production)
+# Database configuration for persistent job tracking
+from contextlib import asynccontextmanager as db_asynccontextmanager
+
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/geminivideo")
+engine = None
+async_session_factory = None
+
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+    from sqlalchemy import text
+    
+    # Convert postgres:// to postgresql+asyncpg:// for async driver
+    db_url = DATABASE_URL
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    
+    engine = create_async_engine(db_url, echo=False, pool_size=5, max_overflow=10, pool_pre_ping=True)
+    async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    print("✅ Database engine configured for video-agent")
+except Exception as e:
+    print(f"⚠️ Database setup failed (using in-memory): {e}")
+    engine = None
+    async_session_factory = None
+
+
+@db_asynccontextmanager
+async def get_db_session():
+    """Get database session with automatic cleanup"""
+    if async_session_factory is None:
+        raise Exception("Database not available")
+    
+    session = async_session_factory()
+    try:
+        yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
+
+
+# In-memory job storage (fallback when DB unavailable)
 render_jobs: Dict[str, RenderJob] = {}
 pro_jobs: Dict[str, Dict[str, Any]] = {}  # Pro module job tracking
+
+
+# Database helper functions for job persistence
+async def create_job_in_db(job_id: str, job_data: dict) -> None:
+    """Persist job to database"""
+    if async_session_factory is None:
+        return
+    
+    try:
+        async with get_db_session() as session:
+            await session.execute(
+                text("""
+                    INSERT INTO render_jobs (id, status, progress, job_type, input_config, created_at)
+                    VALUES (:id, :status, :progress, :job_type, :input_config, :created_at)
+                    ON CONFLICT (id) DO UPDATE SET updated_at = NOW()
+                """),
+                {
+                    'id': job_id,
+                    'status': job_data.get('status', 'pending'),
+                    'progress': job_data.get('progress', 0),
+                    'job_type': job_data.get('type', 'render'),
+                    'input_config': json.dumps(job_data),
+                    'created_at': datetime.utcnow()
+                }
+            )
+    except Exception as e:
+        print(f"Failed to persist job to DB: {e}")
+
+
+async def update_job_in_db(job_id: str, **updates) -> None:
+    """Update job in database"""
+    if async_session_factory is None:
+        return
+    
+    try:
+        async with get_db_session() as session:
+            updates['updated_at'] = datetime.utcnow()
+            set_parts = []
+            params = {'id': job_id}
+            for key, value in updates.items():
+                set_parts.append(f"{key} = :{key}")
+                params[key] = value
+            
+            await session.execute(
+                text(f"UPDATE render_jobs SET {', '.join(set_parts)} WHERE id = :id"),
+                params
+            )
+    except Exception as e:
+        print(f"Failed to update job in DB: {e}")
 
 
 # Request/Response Models
@@ -196,7 +302,8 @@ async def root():
 @app.post("/render/remix")
 async def render_remix(
     request: RemixRequest,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(verify_internal_api_key)
 ):
     """
     Render a remixed video with overlays, subtitles, and transitions

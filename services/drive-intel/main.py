@@ -2,8 +2,9 @@
 Drive Intel Service - Scene Enrichment & Feature Extraction
 Handles video ingestion, shot detection, and feature extraction
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 import os
@@ -22,6 +23,18 @@ app = FastAPI(title="Drive Intel Service", version="1.0.0")
 # Production safety check - prevent debug mode in production
 if app.debug and os.environ.get('ENVIRONMENT') == 'production':
     raise RuntimeError("Debug mode detected in production!")
+
+# Internal API Key Configuration for service-to-service authentication
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key")
+api_key_header = APIKeyHeader(name="X-Internal-API-Key", auto_error=False)
+
+async def verify_internal_api_key(api_key: str = Depends(api_key_header)):
+    """Verify internal service-to-service API key"""
+    if api_key is None:
+        raise HTTPException(status_code=401, detail="Missing internal API key")
+    if api_key != INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid internal API key")
+    return api_key
 
 # CORS middleware
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080").split(",")
@@ -123,7 +136,8 @@ async def root():
 @app.post("/ingest/drive/folder")
 async def ingest_drive_folder(
     request: IngestDriveFolderRequest,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    api_key: str = Depends(verify_internal_api_key)
 ):
     """
     Ingest videos from Google Drive folder with OAuth 2.0 authentication
