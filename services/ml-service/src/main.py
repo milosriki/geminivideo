@@ -812,6 +812,8 @@ class FeedbackData(BaseModel):
     impressions: int
     clicks: int
     conversions: int = 0
+    spend: float = 0.0
+    revenue: float = 0.0
 
 
 async def trigger_retrain():
@@ -860,18 +862,30 @@ async def record_feedback(data: FeedbackData):
     3. Triggers retraining when enough samples accumulated
     """
     try:
-        # Calculate CTR from actual performance
-        ctr = data.clicks / data.impressions if data.impressions > 0 else 0.0
-        cvr = data.conversions / data.clicks if data.clicks > 0 else 0.0
-
-        # Update Thompson Sampler with reward (CTR as reward signal)
+        # Calculate weighted reward based on event type (Agent 5 - Enhanced Learning)
+        # If explicit value is provided (e.g. purchase value), use it.
+        # Otherwise, use weighted score for the event type.
+        
+        reward = 0.0
+        if data.revenue > 0:
+            reward = data.revenue  # Use actual revenue if available
+        elif data.conversions > 0:
+            reward = 1.0  # Default conversion reward
+        elif data.clicks > 0:
+            reward = 0.5  # Click reward (Medium value)
+        elif data.impressions > 0:
+            reward = 0.01 # Impression reward (Low value, but non-zero to track exposure)
+            
+        # Update Thompson Sampler with reward
         thompson_optimizer.update(
             variant_id=data.variant_id,
-            reward=ctr,
+            reward=reward,
+            cost=data.spend,
             metrics={
                 'impressions': data.impressions,
                 'clicks': data.clicks,
-                'conversions': data.conversions
+                'conversions': data.conversions,
+                'revenue': data.revenue
             }
         )
 
@@ -895,17 +909,38 @@ async def record_feedback(data: FeedbackData):
         if len(feedback_store) >= 100:
             logger.info("Feedback threshold reached (100 samples), triggering retrain...")
             retrain_triggered = await trigger_retrain()
-
         return {
             "status": "recorded",
             "ctr": ctr,
             "cvr": cvr,
-            "feedback_count": len(feedback_store),
             "retrain_triggered": retrain_triggered
         }
 
     except Exception as e:
         logger.error(f"Error recording feedback: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/thompson/impression")
+async def record_impression(variant_id: str):
+    """
+    Record an ad impression (Agent 5 - Enhanced Learning)
+    Call this when ad is shown (from Meta webhook or frontend)
+    """
+    try:
+        # Record as failure (shown but no conversion yet)
+        # This increments the 'beta' parameter (failure count) or just impressions count
+        # depending on implementation. In our case, update() handles metrics.
+        
+        thompson_optimizer.update(
+            variant_id=variant_id,
+            reward=0.0,
+            cost=0.0,
+            metrics={'impressions': 1}
+        )
+        return {"recorded": True}
+    except Exception as e:
+        logger.error(f"Error recording impression: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
