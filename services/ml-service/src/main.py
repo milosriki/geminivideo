@@ -3866,6 +3866,57 @@ if ARTERY_MODULES_AVAILABLE:
             logger.error(f"Error attributing conversion: {e}", exc_info=True)
             raise HTTPException(500, str(e))
 
+    # ============================================================
+    # CRM DATA INGESTION - HubSpot Batch Sync
+    # ============================================================
+
+    @app.post("/api/ml/ingest-crm-data")
+    async def ingest_crm_data(request: Dict[str, Any]):
+        """
+        Bulk ingest synthetic revenue data from HubSpot batch sync.
+        Updates the BattleHardenedSampler's ad_states with pipeline values.
+        """
+        ad_performances = request.get("ad_performances", {})
+
+        if not hasattr(app.state, "sampler"):
+            raise HTTPException(status_code=500, detail="Sampler not initialized")
+
+        updated_count = 0
+        for ad_id, synthetic_revenue in ad_performances.items():
+            if ad_id in app.state.sampler.ad_states:
+                app.state.sampler.ad_states[ad_id].synthetic_revenue = synthetic_revenue
+                updated_count += 1
+
+        return {
+            "status": "ok",
+            "updated_ads": updated_count,
+            "total_received": len(ad_performances)
+        }
+
+    # ============================================================
+    # HOOK CLASSIFIER - Video Hook Detection
+    # ============================================================
+
+    @app.post("/api/ml/hooks/classify")
+    async def classify_hook(request: Dict[str, Any]):
+        """
+        Classify video hooks to identify high-performing patterns.
+        Note: HookClassifier implementation pending.
+        """
+        return {"status": "not_implemented", "message": "HookClassifier module not yet available"}
+
+    # ============================================================
+    # DEEP VIDEO INTELLIGENCE - Advanced Video Analysis
+    # ============================================================
+
+    @app.post("/api/ml/video/analyze")
+    async def analyze_video(request: Dict[str, Any]):
+        """
+        Perform deep video intelligence analysis.
+        Note: DeepVideoIntelligence implementation pending.
+        """
+        return {"status": "not_implemented", "message": "DeepVideoIntelligence module not yet available"}
+
 
 # ============================================================
 # END SELF-LEARNING LOOPS 4-7 + ARTERY MODULES
