@@ -63,11 +63,11 @@ I personally retrieved and verified each critical file from GitHub:
 
 | File | Status | Lines | SHA |
 |------|--------|-------|-----|
-| `battle_hardened_sampler.py` | ✅ EXISTS | 711 | 861c636 |
-| `winner_index.py` | ✅ EXISTS | 122 | 8641f01 |
-| `fatigue_detector.py` | ✅ EXISTS | ~300 | (verified) |
-| `005_pending_ad_changes.sql` | ✅ EXISTS | 122 | 735f90d |
-| `006_model_registry.sql` | ✅ EXISTS | ~100 | (verified) |
+| battle_hardened_sampler.py | ✅ EXISTS | 711 | 861c636 |
+| winner_index.py | ✅ EXISTS | 122 | 8641f01 |
+| fatigue_detector.py | ✅ EXISTS | ~300 | (verified) |
+| 005_pending_ad_changes.sql | ✅ EXISTS | 122 | 735f90d |
+| 006_model_registry.sql | ✅ EXISTS | ~100 | (verified) |
 
 **Verification Method:** Used GitHub MCP server to fetch actual file contents from the feature branch.
 
