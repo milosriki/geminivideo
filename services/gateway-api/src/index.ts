@@ -2620,6 +2620,20 @@ const imageGenerationRouter = createImageGenerationRouter(pgPool);
 app.use('/api/image', imageGenerationRouter);
 
 // ============================================================================
+// ARTERY MODULES - Service Business Intelligence
+// ============================================================================
+
+// HubSpot Webhook (Artery #1: HubSpot → ML-Service)
+import hubspotWebhookRouter from './webhooks/hubspot';
+app.use('/api', hubspotWebhookRouter);
+console.log('✅ HubSpot webhook handler mounted at /api/webhook/hubspot');
+
+// ML Proxy Routes (Artery Module Endpoints)
+import mlProxyRouter from './routes/ml-proxy';
+app.use('/api/ml', mlProxyRouter);
+console.log('✅ Artery module endpoints mounted at /api/ml/*');
+
+// ============================================================================
 // HEALTH CHECK
 // ============================================================================
 
