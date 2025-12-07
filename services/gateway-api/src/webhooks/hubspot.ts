@@ -1,20 +1,70 @@
 /**
  * HubSpot Webhook Handler - Artery #1 (HubSpot → ML-Service)
+ * COMPLETE INTELLIGENCE FEEDBACK LOOP
  *
  * Purpose:
  *   Receives HubSpot deal stage changes and routes them to ML-Service for:
  *   - Synthetic revenue calculation
  *   - Attribution to ad clicks
  *   - Budget optimization triggers
+ *   - Battle-Hardened Sampler feedback (closes the intelligence loop)
  *
  * Flow:
  *   1. Verify HubSpot signature
  *   2. Parse deal stage change
  *   3. Calculate synthetic revenue
  *   4. Attribute to ad click (3-layer attribution)
- *   5. Queue ad change job if needed
+ *   5. Send feedback to BattleHardenedSampler (NEW - Intelligence Loop)
+ *   6. Queue ad change job if needed
+ *
+ * Complete System Integration Flow:
+ * =====================================
+ *
+ * 1. REVENUE ATTRIBUTION FLOW:
+ *    HubSpot Deal Change → Synthetic Revenue → Attribution → Battle-Hardened Feedback
+ *    └─ This file wires revenue back to ML models for optimization
+ *
+ * 2. DECISION FLOW:
+ *    BattleHardenedSampler.select_budget_allocation()
+ *    └─ Returns budget recommendations
+ *    └─ Gets queued to pending_ad_changes table
+ *    └─ SafeExecutor picks up
+ *    └─ Executes with safety checks (max budget change, approval gates)
+ *    └─ Meta API (via meta-publisher service)
+ *
+ * 3. FATIGUE DETECTION & CREATIVE REFRESH:
+ *    BattleHardenedSampler (built-in decay factor)
+ *    └─ Ad fatigue detected via decay_factor < 0.5
+ *    └─ Triggers creative refresh workflow:
+ *        a) Creative DNA Extractor analyzes fatiguing ad
+ *        b) RAG Vector Store finds similar high-performers
+ *        c) AI Council reviews and approves new creative
+ *        d) Video Pro generates new ad variant
+ *        e) New ad → BattleHardenedSampler (Thompson Sampling)
+ *
+ * 4. COMPLETE COMPOUNDING LOOP:
+ *    Thompson Sampling (Battle-Hardened)
+ *    → Fatigue Detection (decay_factor in blended score)
+ *    → Creative DNA Extraction (extract winning patterns)
+ *    → RAG (find similar winners in vector store)
+ *    → AI Council (review & approve)
+ *    → Video Generation (create new variants)
+ *    → Thompson Sampling (test new variants)
+ *    → REPEAT (continuous improvement)
+ *
+ * Data Flow Verification:
+ * =======================
+ * ✓ HubSpot → Synthetic Revenue (✓ Wired)
+ * ✓ Synthetic Revenue → Attribution (✓ Wired)
+ * ✓ Attribution → Battle-Hardened Feedback (✓ WIRED HERE)
+ * ✓ Battle-Hardened → Budget Recommendations (✓ In battle_hardened_sampler.py)
+ * ✓ Recommendations → pending_ad_changes (✓ In SafeExecutor)
+ * ✓ pending_ad_changes → Meta API (✓ In SafeExecutor + meta-publisher)
+ * ✓ Fatigue → Creative DNA (✓ Built into decay_factor)
+ * ✓ Creative DNA → RAG → AI Council → Video Pro (✓ In ML-Service)
  *
  * Created: 2025-12-07
+ * Updated: 2025-12-07 (Agent 9 - Complete Integration Wiring)
  */
 
 import { Router, Request, Response } from 'express';
@@ -255,7 +305,30 @@ router.post('/webhook/hubspot', async (req: Request, res: Response) => {
       `(method: ${attribution.attribution_method}, confidence: ${attribution.attribution_confidence})`
     );
 
-    // Step 6: Queue optimization if needed
+    // Step 6: Send feedback to BattleHardenedSampler (Intelligence Loop)
+    if (attribution.success && attribution.ad_id) {
+      try {
+        await axios.post(
+          `${ML_SERVICE_URL}/api/ml/battle-hardened/feedback`,
+          {
+            ad_id: attribution.ad_id,
+            actual_pipeline_value: syntheticRevenue.calculated_value,
+            actual_spend: attribution.attributed_spend || 0,
+          },
+          { timeout: 5000 }
+        );
+
+        console.log(
+          `[HubSpot Webhook] Feedback sent to Battle-Hardened Sampler ` +
+          `(ad: ${attribution.ad_id}, pipeline_value: $${syntheticRevenue.calculated_value})`
+        );
+      } catch (error: any) {
+        // Non-critical: log and continue
+        console.warn(`[HubSpot Webhook] Failed to send feedback: ${error.message}`);
+      }
+    }
+
+    // Step 7: Queue optimization if needed
     if (attribution.success) {
       await queueAdChangeIfNeeded(attribution, syntheticRevenue, stageChange.tenantId);
     }
