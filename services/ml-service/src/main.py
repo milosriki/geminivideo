@@ -3867,6 +3867,56 @@ if ARTERY_MODULES_AVAILABLE:
             raise HTTPException(500, str(e))
 
 
+    # ============================================================
+    # RAG WINNER INDEX (Agent 8) - FAISS-based pattern matching
+    # ============================================================
+
+    @app.post("/api/ml/rag/add-winner", tags=["RAG Winner Index"])
+    async def add_winner_to_index(request: Dict[str, Any]):
+        """Add a winning ad to the RAG index."""
+        from src.winner_index import get_winner_index
+
+        ad_id = request.get("ad_id")
+        embedding = request.get("embedding")  # Should be list of floats
+        metadata = request.get("metadata", {})
+
+        if not ad_id or not embedding:
+            raise HTTPException(status_code=400, detail="Missing ad_id or embedding")
+
+        winner_index = get_winner_index()
+        success = winner_index.add_winner(ad_id, np.array(embedding), metadata)
+        winner_index.persist()
+
+        return {"status": "ok", "ad_id": ad_id, "total_winners": winner_index.stats()["total_winners"]}
+
+    @app.post("/api/ml/rag/find-similar", tags=["RAG Winner Index"])
+    async def find_similar_winners(request: Dict[str, Any]):
+        """Find similar winning ads."""
+        from src.winner_index import get_winner_index
+
+        embedding = request.get("embedding")
+        k = request.get("k", 5)
+
+        if not embedding:
+            raise HTTPException(status_code=400, detail="Missing embedding")
+
+        winner_index = get_winner_index()
+        matches = winner_index.find_similar(np.array(embedding), k)
+
+        return {
+            "matches": [
+                {"ad_id": m.ad_id, "similarity": m.similarity, "metadata": m.metadata}
+                for m in matches
+            ]
+        }
+
+    @app.get("/api/ml/rag/stats", tags=["RAG Winner Index"])
+    async def get_rag_stats():
+        """Get RAG index statistics."""
+        from src.winner_index import get_winner_index
+        return get_winner_index().stats()
+
+
 # ============================================================
 # END SELF-LEARNING LOOPS 4-7 + ARTERY MODULES
 # ============================================================
