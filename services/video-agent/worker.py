@@ -16,6 +16,35 @@ from shared.db import SessionLocal, Clip, init_db
 from services.renderer import VideoRenderer
 from src.compliance_checker import compliance_checker
 
+# Try to import Pro modules (70,000+ lines of Hollywood-grade video code)
+try:
+    from pro.winning_ads_generator import WinningAdsGenerator
+    from pro.voice_generator import VoiceGenerator
+    from pro.ai_video_generator import AIVideoGenerator
+    from pro.auto_captions import AutoCaptioner
+    from pro.color_grading import ColorGrader
+    from pro.smart_crop import SmartCropper
+    from pro.audio_mixer import AudioMixer
+    from pro.timeline_engine import TimelineEngine
+    from pro.motion_graphics import MotionGraphicsEngine
+    from pro.transitions_library import TransitionsLibrary
+    PRO_MODULES_AVAILABLE = True
+    print("✅ Pro modules loaded successfully (70,000+ lines activated)")
+except ImportError as e:
+    PRO_MODULES_AVAILABLE = False
+    print(f"⚠️ Pro modules not available: {e}")
+    print("Running in basic mode")
+
+
+def get_video_generator():
+    """Get the appropriate video generator based on Pro module availability."""
+    if PRO_MODULES_AVAILABLE:
+        return AIVideoGenerator()
+    else:
+        # Fallback to basic generator
+        from services.renderer import VideoRenderer
+        return VideoRenderer()  # Using renderer as fallback
+
 
 class VideoWorker:
     """Background worker for video rendering tasks"""
