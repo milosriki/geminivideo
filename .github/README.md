@@ -2,6 +2,8 @@
 
 This directory contains GitHub-specific configuration files and documentation for managing the Gemini Video project.
 
+> **Note**: Some URLs in this documentation point to the `milosriki/geminivideo` repository. If you fork this repository, update these URLs to point to your fork.
+
 ## 📁 Directory Structure
 
 ```
