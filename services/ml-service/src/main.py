@@ -3866,6 +3866,32 @@ if ARTERY_MODULES_AVAILABLE:
             logger.error(f"Error attributing conversion: {e}", exc_info=True)
             raise HTTPException(500, str(e))
 
+    # ============================================================
+    # FATIGUE DETECTOR - Predict ad fatigue BEFORE the crash
+    # ============================================================
+
+    @app.post("/api/ml/fatigue/check")
+    async def check_fatigue(request: Dict[str, Any]):
+        """Check ad for fatigue signals."""
+        from src.fatigue_detector import detect_fatigue
+
+        ad_id = request.get("ad_id")
+        metrics_history = request.get("metrics_history", [])
+
+        if not ad_id or not metrics_history:
+            raise HTTPException(status_code=400, detail="Missing ad_id or metrics_history")
+
+        result = detect_fatigue(ad_id, metrics_history)
+
+        return {
+            "ad_id": ad_id,
+            "status": result.status,
+            "confidence": result.confidence,
+            "reason": result.reason,
+            "days_until_critical": result.days_until_critical,
+            "recommendation": "REFRESH_CREATIVE" if result.status in ["FATIGUING", "SATURATED", "AUDIENCE_EXHAUSTED"] else "CONTINUE"
+        }
+
 
 # ============================================================
 # END SELF-LEARNING LOOPS 4-7 + ARTERY MODULES
