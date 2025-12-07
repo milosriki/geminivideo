@@ -72,6 +72,13 @@ class BattleHardenedSampler:
         min_impressions_for_decision: int = 100,
         confidence_threshold: float = 0.70,
         max_budget_change_pct: float = 0.50,  # Max 50% increase per decision
+        mode: str = "pipeline",  # "pipeline" for service business, "direct" for e-commerce
+        ignorance_zone_days: float = 2.0,
+        ignorance_zone_spend: float = 100.0,
+        account_average_score: float = 1.0,
+        min_spend_for_kill: float = 200.0,
+        kill_pipeline_roas: float = 0.5,
+        scale_pipeline_roas: float = 3.0,
     ):
         """
         Initialize Battle-Hardened Sampler.
@@ -81,15 +88,30 @@ class BattleHardenedSampler:
             min_impressions_for_decision: Minimum impressions before optimization
             confidence_threshold: Minimum confidence for budget changes
             max_budget_change_pct: Maximum budget change per decision
+            mode: "pipeline" for service business, "direct" for e-commerce
+            ignorance_zone_days: Days before making kill decisions
+            ignorance_zone_spend: Minimum spend before making kill decisions
+            account_average_score: Account baseline score for comparisons
+            min_spend_for_kill: Minimum spend required before killing ads
+            kill_pipeline_roas: Pipeline ROAS threshold for killing ads
+            scale_pipeline_roas: Pipeline ROAS threshold for aggressive scaling
         """
         self.decay_constant = decay_constant
         self.min_impressions_for_decision = min_impressions_for_decision
         self.confidence_threshold = confidence_threshold
         self.max_budget_change_pct = max_budget_change_pct
+        self.mode = mode
+        self.ignorance_zone_days = ignorance_zone_days
+        self.ignorance_zone_spend = ignorance_zone_spend
+        self.account_average_score = account_average_score
+        self.min_spend_for_kill = min_spend_for_kill
+        self.kill_pipeline_roas = kill_pipeline_roas
+        self.scale_pipeline_roas = scale_pipeline_roas
 
         logger.info(
             f"BattleHardenedSampler initialized: "
-            f"decay={decay_constant}, min_impressions={min_impressions_for_decision}"
+            f"mode={mode}, decay={decay_constant}, min_impressions={min_impressions_for_decision}, "
+            f"ignorance_zone_days={ignorance_zone_days}, min_spend_for_kill=${min_spend_for_kill}"
         )
 
     def select_budget_allocation(
@@ -413,6 +435,111 @@ class BattleHardenedSampler:
             "actual_roas": actual_roas,
             "timestamp": timestamp.isoformat(),
         }
+
+    def should_kill_service_ad(self, ad_id: str, spend: float, synthetic_revenue: float, days_live: float) -> tuple[bool, str]:
+        """Service business kill logic with ignorance zone."""
+        # Ignorance zone: don't kill too early
+        if days_live < self.ignorance_zone_days and spend < self.ignorance_zone_spend:
+            return False, f"In ignorance zone (day {days_live:.1f}, spent ${spend:.0f})"
+
+        # Need minimum spend before making kill decision
+        if spend < self.min_spend_for_kill:
+            return False, f"Below min spend threshold (${spend:.0f} < ${self.min_spend_for_kill:.0f})"
+
+        # Calculate pipeline ROAS
+        pipeline_roas = synthetic_revenue / spend if spend > 0 else 0
+
+        # Kill if pipeline ROAS is terrible
+        if pipeline_roas < self.kill_pipeline_roas:
+            return True, f"Pipeline ROAS {pipeline_roas:.2f} < {self.kill_pipeline_roas}"
+
+        return False, f"Performing OK (pipeline ROAS: {pipeline_roas:.2f})"
+
+    def should_scale_aggressively(self, ad_id: str, spend: float, synthetic_revenue: float, days_live: float) -> tuple[bool, str]:
+        """Check if ad should scale aggressively."""
+        if spend < self.min_spend_for_kill:
+            return False, "Insufficient data"
+
+        pipeline_roas = synthetic_revenue / spend if spend > 0 else 0
+
+        if pipeline_roas > self.scale_pipeline_roas:
+            return True, f"Excellent pipeline ROAS {pipeline_roas:.2f} > {self.scale_pipeline_roas}"
+
+        return False, f"Pipeline ROAS {pipeline_roas:.2f} not ready for aggressive scaling"
+
+    def make_decision(
+        self,
+        ad_id: str,
+        spend: float,
+        revenue: float,
+        synthetic_revenue: float,
+        days_live: float,
+    ) -> Dict:
+        """
+        Make kill/scale decision using mode-aware logic.
+
+        Args:
+            ad_id: Ad identifier
+            spend: Total spend on ad
+            revenue: Direct revenue (for e-commerce mode)
+            synthetic_revenue: Pipeline value (for service business mode)
+            days_live: Days since ad creation
+
+        Returns:
+            Dict with decision, reason, and metrics
+        """
+        if self.mode == "pipeline":
+            # Service business mode: use pipeline ROAS and ignorance zone
+            should_kill, kill_reason = self.should_kill_service_ad(
+                ad_id, spend, synthetic_revenue, days_live
+            )
+            should_scale, scale_reason = self.should_scale_aggressively(
+                ad_id, spend, synthetic_revenue, days_live
+            )
+
+            pipeline_roas = synthetic_revenue / spend if spend > 0 else 0
+
+            return {
+                "ad_id": ad_id,
+                "decision": "kill" if should_kill else ("scale" if should_scale else "maintain"),
+                "reason": kill_reason if should_kill else scale_reason,
+                "mode": "pipeline",
+                "metrics": {
+                    "spend": round(spend, 2),
+                    "synthetic_revenue": round(synthetic_revenue, 2),
+                    "pipeline_roas": round(pipeline_roas, 2),
+                    "days_live": round(days_live, 1),
+                },
+            }
+        else:
+            # E-commerce mode: use direct ROAS
+            direct_roas = revenue / spend if spend > 0 else 0
+
+            # Simple kill logic for e-commerce (no ignorance zone)
+            should_kill = spend >= self.min_spend_for_kill and direct_roas < self.kill_pipeline_roas
+            should_scale = spend >= self.min_spend_for_kill and direct_roas > self.scale_pipeline_roas
+
+            if should_kill:
+                reason = f"Direct ROAS {direct_roas:.2f} < {self.kill_pipeline_roas}"
+            elif should_scale:
+                reason = f"Excellent direct ROAS {direct_roas:.2f} > {self.scale_pipeline_roas}"
+            elif spend < self.min_spend_for_kill:
+                reason = f"Insufficient spend (${spend:.0f} < ${self.min_spend_for_kill:.0f})"
+            else:
+                reason = f"Performing OK (direct ROAS: {direct_roas:.2f})"
+
+            return {
+                "ad_id": ad_id,
+                "decision": "kill" if should_kill else ("scale" if should_scale else "maintain"),
+                "reason": reason,
+                "mode": "direct",
+                "metrics": {
+                    "spend": round(spend, 2),
+                    "revenue": round(revenue, 2),
+                    "direct_roas": round(direct_roas, 2),
+                    "days_live": round(days_live, 1),
+                },
+            }
 
 
 # Singleton instance
