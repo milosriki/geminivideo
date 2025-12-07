@@ -135,6 +135,7 @@ const learningService = new LearningService(weightsConfig);
 const DRIVE_INTEL_URL = process.env.DRIVE_INTEL_URL || 'http://localhost:8001';
 const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || 'http://localhost:8002';
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
+const TITAN_CORE_URL = process.env.TITAN_CORE_URL || 'http://titan-core:8000';
 const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
 const GOOGLE_ADS_URL = process.env.GOOGLE_ADS_URL || 'http://localhost:8084';
 
@@ -1164,8 +1165,6 @@ app.post('/api/approval/approve/:ad_id',
 // META ADS LIBRARY ENDPOINTS (Agent 26 - Ad Spy Dashboard)
 // ============================================================================
 
-const TITAN_CORE_URL = process.env.TITAN_CORE_URL || 'http://localhost:8004';
-
 // POST /api/meta/ads-library/search
 // Search Meta Ads Library with filters
 app.post('/api/meta/ads-library/search',
@@ -1805,6 +1804,49 @@ app.post('/api/director/generate',
     }
   });
 
+// Titan-Core Proxy Routes
+app.post('/api/titan/council/evaluate', async (req, res) => {
+  try {
+    const response = await fetch(`${TITAN_CORE_URL}/api/titan/council/evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/titan/director/generate', async (req, res) => {
+  try {
+    const response = await fetch(`${TITAN_CORE_URL}/api/titan/director/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/titan/oracle/predict', async (req, res) => {
+  try {
+    const response = await fetch(`${TITAN_CORE_URL}/api/titan/oracle/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // POST /api/pipeline/generate-campaign - Full campaign generation pipeline
 app.post('/api/pipeline/generate-campaign',
   uploadRateLimiter,
@@ -1854,6 +1896,401 @@ app.post('/api/pipeline/generate-campaign',
         message: error.message,
         details: error.response?.data
       });
+    }
+  });
+
+// ============================================================================
+// ML SERVICE PROXIES (Agent 16 - Critical ML Intelligence Endpoints)
+// ============================================================================
+
+// POST /api/ml/predict-ctr - CTR prediction
+app.post('/api/ml/predict-ctr',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/predict-ctr`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML CTR prediction error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'CTR prediction failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/feedback - Learning loop feedback
+app.post('/api/ml/feedback',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/feedback`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML feedback error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Feedback submission failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/ab/select-variant - Thompson Sampling variant selection
+app.post('/api/ml/ab/select-variant',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/ab/select-variant`, req.body, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML variant selection error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Variant selection failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/ab/register-variant - Register A/B test variant
+app.post('/api/ml/ab/register-variant',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/ab/register-variant`, req.body, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML register variant error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Variant registration failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/ab/update-variant - Update variant performance
+app.post('/api/ml/ab/update-variant',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/ab/update-variant`, req.body, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML update variant error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Variant update failed', details: error.response?.data });
+    }
+  });
+
+// GET /api/ml/ab/variant-stats/:variant_id - Get variant statistics
+app.get('/api/ml/ab/variant-stats/:variant_id',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/variant-stats/${req.params.variant_id}`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML variant stats error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Failed to get variant stats', details: error.response?.data });
+    }
+  });
+
+// GET /api/ml/ab/all-variants - Get all variants
+app.get('/api/ml/ab/all-variants',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/all-variants`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML all variants error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Failed to get variants', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/ab/apply-decay - Apply time decay for ad fatigue
+app.post('/api/ml/ab/apply-decay',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/ab/apply-decay`, null, {
+        params: req.query,
+        timeout: 30000
+      });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('ML time decay error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Time decay failed', details: error.response?.data });
+    }
+  });
+
+// ============================================================================
+// RAG WINNER MEMORY ENDPOINTS (Agent 50)
+// Persistent memory for winning ads with GCS + Redis
+// ============================================================================
+
+// POST /api/ml/rag/search-winners - Search similar winning ads
+app.post('/api/ml/rag/search-winners',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/rag/search-winners`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG search error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'RAG search failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/rag/index-winner - Add winning ad to memory
+app.post('/api/ml/rag/index-winner',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/rag/index-winner`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG indexing error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'RAG indexing failed', details: error.response?.data });
+    }
+  });
+
+// GET /api/ml/rag/memory-stats - Get RAG memory statistics
+app.get('/api/ml/rag/memory-stats',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/rag/memory-stats`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG stats error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'RAG stats failed', details: error.response?.data });
+    }
+  });
+
+// GET /api/ml/rag/winner/:ad_id - Get specific winner from memory
+app.get('/api/ml/rag/winner/:ad_id',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/rag/winner/${req.params.ad_id}`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG retrieval error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'RAG retrieval failed', details: error.response?.data });
+    }
+  });
+
+// DELETE /api/ml/rag/clear-cache - Clear Redis cache
+app.delete('/api/ml/rag/clear-cache',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.delete(`${ML_SERVICE_URL}/api/ml/rag/clear-cache`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG cache clear error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Cache clear failed', details: error.response?.data });
+    }
+  });
+
+// ============================================================================
+// SELF-LEARNING LOOPS 4-7: CREATIVE DNA, COMPOUND LEARNER, ACTUALS, AUTO-PROMOTER
+// All 7 loops for maximum self-upgrading intelligence
+// ============================================================================
+
+// Creative DNA (Loop 4) - Extract WHY ads win
+app.post('/api/ml/dna/extract',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/dna/extract`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Creative DNA extraction error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'DNA extraction failed', details: error.response?.data });
+    }
+  });
+
+app.post('/api/ml/dna/build-formula',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/dna/build-formula`, req.body, { timeout: 60000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('DNA formula build error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Formula build failed', details: error.response?.data });
+    }
+  });
+
+app.post('/api/ml/dna/apply',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/dna/apply`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('DNA application error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'DNA application failed', details: error.response?.data });
+    }
+  });
+
+app.post('/api/ml/dna/score',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/dna/score`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Creative scoring error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Creative scoring failed', details: error.response?.data });
+    }
+  });
+
+// Compound Learner (Loop 5) - Ensemble learning
+app.post('/api/ml/compound/learning-cycle',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/compound/learning-cycle`, req.body, { timeout: 120000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Learning cycle error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Learning cycle failed', details: error.response?.data });
+    }
+  });
+
+app.post('/api/ml/compound/trajectory',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/compound/trajectory`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Trajectory calculation error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Trajectory calculation failed', details: error.response?.data });
+    }
+  });
+
+app.post('/api/ml/compound/snapshot',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/compound/snapshot`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Snapshot creation error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Snapshot creation failed', details: error.response?.data });
+    }
+  });
+
+app.get('/api/ml/compound/history/:account_id',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/compound/history/${req.params.account_id}`, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('History retrieval error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'History retrieval failed', details: error.response?.data });
+    }
+  });
+
+// Actuals Fetcher (Loop 6) - Auto-validation
+app.post('/api/ml/actuals/fetch',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/actuals/fetch`, req.body, { timeout: 60000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Actuals fetch error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Actuals fetch failed', details: error.response?.data });
+    }
+  });
+
+app.post('/api/ml/actuals/batch',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/actuals/batch`, req.body, { timeout: 180000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Batch actuals fetch error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Batch fetch failed', details: error.response?.data });
+    }
+  });
+
+app.post('/api/ml/actuals/sync-scheduled',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/actuals/sync-scheduled`, req.body, { timeout: 300000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Scheduled sync error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Scheduled sync failed', details: error.response?.data });
+    }
+  });
+
+app.get('/api/ml/actuals/stats',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/actuals/stats`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Actuals stats error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Stats retrieval failed', details: error.response?.data });
+    }
+  });
+
+// Auto-Promoter (Loop 7) - Scale winners
+app.post('/api/ml/auto-promote/check',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/auto-promote/check`, req.body, { timeout: 60000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Auto-promotion check error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Promotion check failed', details: error.response?.data });
+    }
+  });
+
+app.post('/api/ml/auto-promote/check-all',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/auto-promote/check-all`, req.body, { timeout: 180000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Bulk promotion check error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Bulk check failed', details: error.response?.data });
+    }
+  });
+
+app.post('/api/ml/auto-promote/history',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/auto-promote/history`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Promotion history error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'History retrieval failed', details: error.response?.data });
+    }
+  });
+
+app.get('/api/ml/auto-promote/cumulative-improvement',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/auto-promote/cumulative-improvement`, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Cumulative improvement error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Improvement report failed', details: error.response?.data });
+    }
+  });
+
+// Self-Learning Cycle (All 7 loops together)
+app.post('/api/ml/self-learning-cycle',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/self-learning-cycle`, req.body, { timeout: 300000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('Self-learning cycle error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Self-learning cycle failed', details: error.response?.data });
     }
   });
 
@@ -2223,6 +2660,20 @@ import {
 import { createImageGenerationRouter } from './routes/image-generation';
 const imageGenerationRouter = createImageGenerationRouter(pgPool);
 app.use('/api/image', imageGenerationRouter);
+
+// ============================================================================
+// ARTERY MODULES - Service Business Intelligence
+// ============================================================================
+
+// HubSpot Webhook (Artery #1: HubSpot → ML-Service)
+import hubspotWebhookRouter from './webhooks/hubspot';
+app.use('/api', hubspotWebhookRouter);
+console.log('✅ HubSpot webhook handler mounted at /api/webhook/hubspot');
+
+// ML Proxy Routes (Artery Module Endpoints)
+import mlProxyRouter from './routes/ml-proxy';
+app.use('/api/ml', mlProxyRouter);
+console.log('✅ Artery module endpoints mounted at /api/ml/*');
 
 // ============================================================================
 // HEALTH CHECK
