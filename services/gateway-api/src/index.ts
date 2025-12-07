@@ -135,6 +135,7 @@ const learningService = new LearningService(weightsConfig);
 const DRIVE_INTEL_URL = process.env.DRIVE_INTEL_URL || 'http://localhost:8001';
 const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || 'http://localhost:8002';
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
+const TITAN_CORE_URL = process.env.TITAN_CORE_URL || 'http://titan-core:8000';
 const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
 const GOOGLE_ADS_URL = process.env.GOOGLE_ADS_URL || 'http://localhost:8084';
 
@@ -1164,8 +1165,6 @@ app.post('/api/approval/approve/:ad_id',
 // META ADS LIBRARY ENDPOINTS (Agent 26 - Ad Spy Dashboard)
 // ============================================================================
 
-const TITAN_CORE_URL = process.env.TITAN_CORE_URL || 'http://localhost:8004';
-
 // POST /api/meta/ads-library/search
 // Search Meta Ads Library with filters
 app.post('/api/meta/ads-library/search',
@@ -1804,6 +1803,49 @@ app.post('/api/director/generate',
       });
     }
   });
+
+// Titan-Core Proxy Routes
+app.post('/api/titan/council/evaluate', async (req, res) => {
+  try {
+    const response = await fetch(`${TITAN_CORE_URL}/api/titan/council/evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/titan/director/generate', async (req, res) => {
+  try {
+    const response = await fetch(`${TITAN_CORE_URL}/api/titan/director/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/titan/oracle/predict', async (req, res) => {
+  try {
+    const response = await fetch(`${TITAN_CORE_URL}/api/titan/oracle/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // POST /api/pipeline/generate-campaign - Full campaign generation pipeline
 app.post('/api/pipeline/generate-campaign',
