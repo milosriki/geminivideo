@@ -1,0 +1,12 @@
+# Note: If forking this repository, update the URLs below to match your fork
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 GitHub Projects Guide
+    url: https://github.com/milosriki/geminivideo/blob/main/GITHUB_PROJECTS_GUIDE.md
+    about: Learn how to use GitHub Projects to track ideas
+  - name: 💬 GitHub Discussions
+    url: https://github.com/milosriki/geminivideo/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📚 Documentation
+    url: https://github.com/milosriki/geminivideo/blob/main/README.md
+    about: Read the project documentation

@@ -1,0 +1,136 @@
+name: 💡 Idea / Feature Request
+description: Submit a new idea or feature suggestion for Gemini Video
+title: "[IDEA] "
+labels: ["idea", "needs-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to share your idea! Please fill out the sections below to help us understand your suggestion.
+
+  - type: input
+    id: title
+    attributes:
+      label: Idea Title
+      description: A clear, concise title for your idea
+      placeholder: "Add AI-powered scene recommendations"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 🎯 Problem Statement
+      description: What problem does this solve? What pain point does it address?
+      placeholder: |
+        Currently, users have to manually browse through all scenes to find good content...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 💭 Proposed Solution
+      description: How would this work? Describe your idea in detail.
+      placeholder: |
+        1. Implement a recommendation engine that...
+        2. Display recommendations in a sidebar...
+        3. Allow users to filter by...
+    validations:
+      required: true
+
+  - type: textarea
+    id: benefits
+    attributes:
+      label: ✨ Benefits
+      description: What are the key benefits of this idea?
+      placeholder: |
+        - Saves time for content creators
+        - Improves content quality
+        - Reduces manual work
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 📊 Priority
+      description: How important is this idea?
+      options:
+        - High - Critical feature
+        - Medium - Important improvement
+        - Low - Nice to have
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 🏷️ Category
+      description: What area does this idea relate to?
+      options:
+        - AI/ML Features
+        - Video Processing
+        - Analytics/Dashboards
+        - Meta Integration
+        - UI/UX
+        - API/Backend
+        - Performance
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical
+    attributes:
+      label: 🔧 Technical Approach (Optional)
+      description: Any technical details or suggestions for implementation?
+      placeholder: |
+        - Could use TensorFlow for ML model
+        - Integrate with existing scene ranking system
+        - Add new API endpoint /api/recommendations
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 📋 Acceptance Criteria (Optional)
+      description: What would "done" look like for this idea?
+      placeholder: |
+        - [ ] User can see top 5 recommended scenes
+        - [ ] Recommendations update in real-time
+        - [ ] System handles 1000+ scenes efficiently
+
+  - type: textarea
+    id: questions
+    attributes:
+      label: 🤔 Open Questions (Optional)
+      description: Any uncertainties or questions about this idea?
+      placeholder: |
+        - How should we handle cold start (no user history)?
+        - Should this be configurable per user?
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: 📸 Mockups/Examples (Optional)
+      description: Add screenshots, diagrams, or links to examples
+      placeholder: |
+        Drag and drop images here or paste links to mockups
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 📝 Additional Context (Optional)
+      description: Any other information that would be helpful?
+      placeholder: |
+        This idea came from user feedback during demos...
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this idea, you agree to follow our Code of Conduct
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
