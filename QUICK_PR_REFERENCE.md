@@ -98,11 +98,11 @@ I personally checked each critical file on the feature branch:
 
 | File | Status | Lines | Purpose |
 |------|--------|-------|---------|
-| `battle_hardened_sampler.py` | ✅ | 711 | Thompson Sampling with mode switching |
-| `winner_index.py` | ✅ | 122 | FAISS RAG pattern learning |
-| `fatigue_detector.py` | ✅ | ~300 | 4-rule detection system |
-| `005_pending_ad_changes.sql` | ✅ | 122 | SafeExecutor queue + locking |
-| `006_model_registry.sql` | ✅ | ~100 | Model version tracking |
+| battle_hardened_sampler.py | ✅ | 711 | Thompson Sampling with mode switching |
+| winner_index.py | ✅ | 122 | FAISS RAG pattern learning |
+| fatigue_detector.py | ✅ | ~300 | 4-rule detection system |
+| 005_pending_ad_changes.sql | ✅ | 122 | SafeExecutor queue + locking |
+| 006_model_registry.sql | ✅ | ~100 | Model version tracking |
 
 **Confidence Level:** 100% ✅
 
