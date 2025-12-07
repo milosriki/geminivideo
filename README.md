@@ -254,6 +254,16 @@ MIT License - see LICENSE file for details.
 
 Issues and pull requests welcome! See the [GitHub Issues](https://github.com/milosriki/geminivideo/issues) for epic #2 and sub-issues #12-#18.
 
+### 💡 Have an Idea?
+
+We love hearing your ideas! Check out our **[GitHub Projects Guide](GITHUB_PROJECTS_GUIDE.md)** to learn how to:
+- Submit and track ideas using GitHub Projects
+- Organize features and enhancements
+- Participate in project planning
+- Follow ideas from concept to completion
+
+[**Submit a new idea →**](https://github.com/milosriki/geminivideo/issues/new?template=idea.yml)
+
 ## 📧 Support
 
 For questions or issues, please open a GitHub issue or contact the maintainers.
