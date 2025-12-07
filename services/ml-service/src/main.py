@@ -71,6 +71,16 @@ except ImportError as e:
     logger.warning(f"Self-learning modules not fully available: {e}")
     SELF_LEARNING_MODULES_AVAILABLE = False
 
+# Import Artery Modules (Service Business Intelligence)
+try:
+    from src.battle_hardened_sampler import get_battle_hardened_sampler, AdState, BudgetRecommendation
+    from src.synthetic_revenue import get_synthetic_revenue_calculator, SyntheticRevenueResult
+    from src.hubspot_attribution import get_hubspot_attribution_service, ConversionData, AttributionResult
+    ARTERY_MODULES_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Artery modules not fully available: {e}")
+    ARTERY_MODULES_AVAILABLE = False
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -3569,7 +3579,296 @@ if SELF_LEARNING_MODULES_AVAILABLE:
 
 
 # ============================================================
-# END SELF-LEARNING LOOPS 4-7
+# ARTERY MODULES - Service Business Intelligence
+# ============================================================
+
+if ARTERY_MODULES_AVAILABLE:
+    # ============================================================
+    # BATTLE-HARDENED SAMPLER - Attribution-Lag-Aware Optimization
+    # ============================================================
+
+    class BattleHardenedSelectRequest(BaseModel):
+        """Request for battle-hardened budget allocation"""
+        ad_states: List[Dict[str, Any]]
+        total_budget: float
+        creative_dna_scores: Optional[Dict[str, float]] = None
+
+    class BattleHardenedFeedbackRequest(BaseModel):
+        """Register actual performance feedback"""
+        ad_id: str
+        actual_pipeline_value: float
+        actual_spend: float
+
+    @app.post("/api/ml/battle-hardened/select", tags=["Battle-Hardened Sampler"])
+    async def battle_hardened_select(request: BattleHardenedSelectRequest):
+        """
+        Allocate budget across ads using blended scoring (CTR early → Pipeline ROAS later).
+        Handles service business attribution lag (5-7 day sales cycles).
+        """
+        try:
+            sampler = get_battle_hardened_sampler()
+
+            # Convert dicts to AdState objects
+            from datetime import datetime, timezone
+            ad_states = []
+            for ad_dict in request.ad_states:
+                ad_states.append(AdState(
+                    ad_id=ad_dict["ad_id"],
+                    impressions=ad_dict["impressions"],
+                    clicks=ad_dict["clicks"],
+                    spend=ad_dict["spend"],
+                    pipeline_value=ad_dict.get("pipeline_value", 0),
+                    cash_revenue=ad_dict.get("cash_revenue", 0),
+                    age_hours=ad_dict["age_hours"],
+                    last_updated=datetime.now(timezone.utc),
+                ))
+
+            recommendations = sampler.select_budget_allocation(
+                ad_states=ad_states,
+                total_budget=request.total_budget,
+                creative_dna_scores=request.creative_dna_scores,
+            )
+
+            return {
+                "total_budget": request.total_budget,
+                "recommendations": [
+                    {
+                        "ad_id": rec.ad_id,
+                        "current_budget": rec.current_budget,
+                        "recommended_budget": rec.recommended_budget,
+                        "change_percentage": rec.change_percentage,
+                        "confidence": rec.confidence,
+                        "reason": rec.reason,
+                        "metrics": rec.metrics,
+                    }
+                    for rec in recommendations
+                ],
+                "num_ads": len(recommendations),
+            }
+
+        except Exception as e:
+            logger.error(f"Error in battle-hardened select: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+    @app.post("/api/ml/battle-hardened/feedback", tags=["Battle-Hardened Sampler"])
+    async def battle_hardened_feedback(request: BattleHardenedFeedbackRequest):
+        """Register actual performance feedback for model improvement"""
+        try:
+            sampler = get_battle_hardened_sampler()
+            result = sampler.register_feedback(
+                ad_id=request.ad_id,
+                actual_pipeline_value=request.actual_pipeline_value,
+                actual_spend=request.actual_spend,
+            )
+
+            return {
+                "status": "feedback_registered",
+                "ad_id": result["ad_id"],
+                "actual_roas": result["actual_roas"],
+                "timestamp": result["timestamp"],
+            }
+
+        except Exception as e:
+            logger.error(f"Error registering feedback: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+    # ============================================================
+    # SYNTHETIC REVENUE - Pipeline Value Calculator
+    # ============================================================
+
+    class SyntheticRevenueStageChangeRequest(BaseModel):
+        """Calculate synthetic revenue for stage change"""
+        tenant_id: str
+        stage_from: Optional[str] = None
+        stage_to: str
+        deal_value: Optional[float] = None
+
+    class SyntheticRevenueAdROASRequest(BaseModel):
+        """Calculate Pipeline ROAS for an ad"""
+        tenant_id: str
+        ad_spend: float
+        stage_changes: List[Dict[str, Any]]
+
+    class GetStagesRequest(BaseModel):
+        """Get all configured stages"""
+        tenant_id: str
+
+    @app.post("/api/ml/synthetic-revenue/calculate", tags=["Synthetic Revenue"])
+    async def calculate_synthetic_revenue(request: SyntheticRevenueStageChangeRequest):
+        """
+        Calculate synthetic revenue for a CRM stage change.
+        Enables optimization before deals close (critical for 5-7 day cycles).
+        """
+        try:
+            calculator = get_synthetic_revenue_calculator()
+            result = calculator.calculate_stage_change(
+                tenant_id=request.tenant_id,
+                stage_from=request.stage_from,
+                stage_to=request.stage_to,
+                deal_value=request.deal_value,
+            )
+
+            return {
+                "stage_from": result.stage_from,
+                "stage_to": result.stage_to,
+                "synthetic_value": result.synthetic_value,
+                "calculated_value": result.calculated_value,
+                "confidence": result.confidence,
+                "reason": result.reason,
+                "timestamp": result.timestamp.isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Error calculating synthetic revenue: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+    @app.post("/api/ml/synthetic-revenue/ad-roas", tags=["Synthetic Revenue"])
+    async def calculate_ad_pipeline_roas(request: SyntheticRevenueAdROASRequest):
+        """Calculate Pipeline ROAS for an ad based on stage changes"""
+        try:
+            calculator = get_synthetic_revenue_calculator()
+            result = calculator.calculate_ad_pipeline_roas(
+                tenant_id=request.tenant_id,
+                ad_spend=request.ad_spend,
+                stage_changes=request.stage_changes,
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error calculating ad pipeline ROAS: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+    @app.post("/api/ml/synthetic-revenue/get-stages", tags=["Synthetic Revenue"])
+    async def get_synthetic_revenue_stages(request: GetStagesRequest):
+        """Get all configured pipeline stages for a tenant"""
+        try:
+            calculator = get_synthetic_revenue_calculator()
+            stages = calculator.get_all_stages(request.tenant_id)
+
+            return {
+                "tenant_id": request.tenant_id,
+                "stages": [
+                    {
+                        "stage_name": s.stage_name,
+                        "value": s.value,
+                        "confidence": s.confidence,
+                        "description": s.description,
+                    }
+                    for s in stages
+                ],
+                "num_stages": len(stages),
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting stages: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+    # ============================================================
+    # HUBSPOT ATTRIBUTION - 3-Layer Attribution Recovery
+    # ============================================================
+
+    class TrackClickRequest(BaseModel):
+        """Track ad click with device fingerprint"""
+        ad_id: str
+        campaign_id: str
+        adset_id: Optional[str] = None
+        tenant_id: str
+        fbclid: Optional[str] = None
+        click_id: Optional[str] = None
+        ip_address: Optional[str] = None
+        user_agent: Optional[str] = None
+        device_type: Optional[str] = None
+        fingerprint_components: Optional[Dict[str, Any]] = None
+        landing_page_url: Optional[str] = None
+        utm_source: Optional[str] = None
+        utm_medium: Optional[str] = None
+        utm_campaign: Optional[str] = None
+
+    class AttributeConversionRequest(BaseModel):
+        """Attribute conversion to ad click"""
+        tenant_id: str
+        conversion_id: str
+        conversion_type: str
+        conversion_value: float
+        conversion_timestamp: str  # ISO format
+        fbclid: Optional[str] = None
+        click_id: Optional[str] = None
+        fingerprint_hash: Optional[str] = None
+        ip_address: Optional[str] = None
+        user_agent: Optional[str] = None
+
+    @app.post("/api/ml/attribution/track-click", tags=["Attribution"])
+    async def track_ad_click(request: TrackClickRequest):
+        """
+        Track ad click with device fingerprint for later attribution.
+        Stores click data for 7-day attribution window.
+        """
+        try:
+            attribution_service = get_hubspot_attribution_service()
+            click_id = attribution_service.track_click(request.dict())
+
+            return {
+                "status": "click_tracked",
+                "click_id": click_id,
+                "attribution_window_days": 7,
+            }
+
+        except Exception as e:
+            logger.error(f"Error tracking click: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+    @app.post("/api/ml/attribution/attribute-conversion", tags=["Attribution"])
+    async def attribute_conversion(request: AttributeConversionRequest):
+        """
+        Attribute conversion to ad click using 3-layer matching:
+        Layer 1: URL Parameters (100% confidence)
+        Layer 2: Device Fingerprint (90% confidence)
+        Layer 3: Probabilistic (70% confidence)
+        """
+        try:
+            attribution_service = get_hubspot_attribution_service()
+
+            # Parse timestamp
+            from datetime import datetime
+            conversion_timestamp = datetime.fromisoformat(request.conversion_timestamp)
+
+            # Create ConversionData
+            conversion_data = ConversionData(
+                conversion_id=request.conversion_id,
+                conversion_type=request.conversion_type,
+                conversion_value=request.conversion_value,
+                fingerprint_hash=request.fingerprint_hash,
+                ip_address=request.ip_address,
+                user_agent=request.user_agent,
+                conversion_timestamp=conversion_timestamp,
+                fbclid=request.fbclid,
+                click_id=request.click_id,
+            )
+
+            result = attribution_service.attribute_conversion(
+                tenant_id=request.tenant_id,
+                conversion_data=conversion_data,
+            )
+
+            return {
+                "success": result.success,
+                "attributed_click_id": result.attributed_click_id,
+                "attribution_method": result.attribution_method,
+                "attribution_confidence": result.attribution_confidence,
+                "attribution_window_hours": result.attribution_window_hours,
+                "reason": result.reason,
+                "ad_id": result.ad_id,
+                "campaign_id": result.campaign_id,
+            }
+
+        except Exception as e:
+            logger.error(f"Error attributing conversion: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+
+# ============================================================
+# END SELF-LEARNING LOOPS 4-7 + ARTERY MODULES
 # ============================================================
 
 
