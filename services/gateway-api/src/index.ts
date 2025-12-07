@@ -1969,6 +1969,76 @@ app.post('/api/ml/ab/apply-decay',
   });
 
 // ============================================================================
+// RAG WINNER MEMORY ENDPOINTS (Agent 50)
+// Persistent memory for winning ads with GCS + Redis
+// ============================================================================
+
+// POST /api/ml/rag/search-winners - Search similar winning ads
+app.post('/api/ml/rag/search-winners',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/rag/search-winners`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG search error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'RAG search failed', details: error.response?.data });
+    }
+  });
+
+// POST /api/ml/rag/index-winner - Add winning ad to memory
+app.post('/api/ml/rag/index-winner',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(`${ML_SERVICE_URL}/api/ml/rag/index-winner`, req.body, { timeout: 30000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG indexing error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'RAG indexing failed', details: error.response?.data });
+    }
+  });
+
+// GET /api/ml/rag/memory-stats - Get RAG memory statistics
+app.get('/api/ml/rag/memory-stats',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/rag/memory-stats`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG stats error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'RAG stats failed', details: error.response?.data });
+    }
+  });
+
+// GET /api/ml/rag/winner/:ad_id - Get specific winner from memory
+app.get('/api/ml/rag/winner/:ad_id',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get(`${ML_SERVICE_URL}/api/ml/rag/winner/${req.params.ad_id}`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG retrieval error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'RAG retrieval failed', details: error.response?.data });
+    }
+  });
+
+// DELETE /api/ml/rag/clear-cache - Clear Redis cache
+app.delete('/api/ml/rag/clear-cache',
+  apiRateLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.delete(`${ML_SERVICE_URL}/api/ml/rag/clear-cache`, { timeout: 10000 });
+      res.json(response.data);
+    } catch (error: any) {
+      console.error('RAG cache clear error:', error.message);
+      res.status(error.response?.status || 500).json({ error: 'Cache clear failed', details: error.response?.data });
+    }
+  });
+
+// ============================================================================
 // MULTI-PLATFORM PUBLISHING ENDPOINTS (Agent 19)
 // ============================================================================
 

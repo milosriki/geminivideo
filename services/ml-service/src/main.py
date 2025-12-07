@@ -911,6 +911,11 @@ async def record_feedback(data: FeedbackData):
             }
         )
 
+        # Calculate CTR and CVR
+        ctr = data.clicks / data.impressions if data.impressions > 0 else 0
+        cvr = data.conversions / data.clicks if data.clicks > 0 else 0
+        roas = data.revenue / data.spend if data.spend > 0 else 0
+
         # Store for retraining
         feedback_entry = {
             "ad_id": data.ad_id,
@@ -924,15 +929,58 @@ async def record_feedback(data: FeedbackData):
         }
         feedback_store.append(feedback_entry)
 
-        logger.info(f"Feedback recorded for variant {data.variant_id}: CTR={ctr:.4f}, CVR={cvr:.4f}")
+        logger.info(f"Feedback recorded for variant {data.variant_id}: CTR={ctr:.4f}, CVR={cvr:.4f}, ROAS={roas:.2f}")
+
+        # AUTO-INDEX WINNERS TO RAG MEMORY
+        # If CTR > 3% (winning threshold), automatically save to memory
+        indexed_to_rag = False
+        if ctr >= 0.03 and winner_index:
+            try:
+                # Create ad_data from variant stats
+                variant_stats = thompson_optimizer.get_variant_stats(data.variant_id)
+                ad_data = {
+                    "ad_id": data.ad_id,
+                    "variant_id": data.variant_id,
+                    "ctr": ctr,
+                    "roas": roas,
+                    "conversions": data.conversions,
+                    "impressions": data.impressions,
+                    "clicks": data.clicks,
+                    "spend": data.spend,
+                    "revenue": data.revenue,
+                    **variant_stats.get('metadata', {})
+                }
+
+                # Check if already indexed in Redis
+                already_indexed = False
+                if rag_redis:
+                    exists_key = f"rag:indexed:{data.ad_id}"
+                    already_indexed = rag_redis.exists(exists_key)
+
+                if not already_indexed:
+                    # Add to RAG memory
+                    success = winner_index.add_winner(ad_data, ctr, min_ctr=0.03)
+                    if success:
+                        # Store in Redis cache
+                        if rag_redis:
+                            redis_key = f"rag:winner:{data.ad_id}"
+                            rag_redis.setex(redis_key, 86400 * 30, json.dumps(ad_data, default=str))
+                            rag_redis.set(f"rag:indexed:{data.ad_id}", "1")
+
+                        indexed_to_rag = True
+                        logger.info(f"✅ AUTO-INDEXED winner {data.ad_id} to RAG memory (CTR: {ctr:.3f})")
+            except Exception as e:
+                logger.warning(f"RAG auto-indexing failed (non-critical): {e}")
 
         # Check if retraining needed (every 100 samples)
         retrain_triggered = False
         if len(feedback_store) >= 100:
             logger.info("Feedback threshold reached (100 samples), triggering retrain...")
             retrain_triggered = await trigger_retrain()
+
         return {
             "status": "recorded",
+            "indexed_to_rag": indexed_to_rag,
             "ctr": ctr,
             "cvr": cvr,
             "retrain_triggered": retrain_triggered
@@ -2337,6 +2385,299 @@ async def get_queue_status():
 # ============================================================
 # END PRECOMPUTATION ENDPOINTS
 # ============================================================
+
+
+# ============================================================
+# RAG WINNER INDEX WITH PERSISTENT MEMORY (Agent 50)
+# Learn from ALL historical winning ads with GCS/Redis memory
+# ============================================================
+
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
+
+from services.rag.winner_index import WinnerIndex
+from services.rag.embeddings import prepare_ad_text, extract_ad_features, score_ad_quality
+import redis
+import json
+
+# Initialize RAG with persistent memory
+winner_index: WinnerIndex = None
+rag_redis: redis.Redis = None
+
+def initialize_rag_memory():
+    """Initialize RAG with GCS + Redis memory"""
+    global winner_index, rag_redis
+
+    try:
+        # Initialize FAISS-based winner index (GCS-backed)
+        winner_index = WinnerIndex(
+            namespace="production_winners",
+            use_gcs=True
+        )
+        logger.info(f"✅ RAG Winner Index initialized: {len(winner_index.winners)} winners in memory")
+
+        # Initialize Redis for fast pattern lookups
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        rag_redis = redis.from_url(redis_url, decode_responses=True)
+        rag_redis.ping()
+        logger.info("✅ RAG Redis memory connected")
+
+    except Exception as e:
+        logger.warning(f"RAG initialization warning (non-critical): {e}")
+        winner_index = WinnerIndex(namespace="production_winners", use_gcs=False)
+
+
+class RAGSearchRequest(BaseModel):
+    """Request model for RAG winner search"""
+    query: str
+    top_k: int = 5
+    min_ctr: float = 0.03
+    min_similarity: float = 0.7
+
+
+class RAGIndexRequest(BaseModel):
+    """Request model for indexing winners"""
+    ad_id: str
+    ad_data: Dict[str, Any]
+    ctr: float
+    roas: float = 0.0
+    conversions: int = 0
+    spend: float = 0.0
+
+
+@app.on_event("startup")
+async def startup_rag():
+    """Initialize RAG memory on startup"""
+    initialize_rag_memory()
+
+
+@app.post("/api/ml/rag/search-winners", tags=["RAG Memory"])
+async def search_winning_patterns(request: RAGSearchRequest):
+    """
+    Search for similar winning ads from memory
+
+    Uses FAISS vector similarity to find ads similar to your query.
+    Memory persists in GCS + Redis for fast retrieval.
+
+    Example query: "fitness transformation before/after"
+    Returns: Top 5 similar winners with CTR and similarity scores
+    """
+    try:
+        if not winner_index:
+            raise HTTPException(503, "RAG memory not initialized")
+
+        # Check Redis cache first
+        cache_key = f"rag:search:{request.query}:{request.top_k}"
+        if rag_redis:
+            cached = rag_redis.get(cache_key)
+            if cached:
+                logger.info(f"✅ RAG cache HIT for query: {request.query}")
+                return json.loads(cached)
+
+        # Search FAISS index
+        results = winner_index.find_similar(request.query, k=request.top_k)
+
+        # Filter by minimum CTR and similarity
+        filtered_results = [
+            r for r in results
+            if r.get('ctr', 0) >= request.min_ctr
+            and r.get('similarity', 0) >= request.min_similarity
+        ]
+
+        response = {
+            "query": request.query,
+            "total_in_memory": len(winner_index.winners),
+            "results_found": len(filtered_results),
+            "winners": filtered_results,
+            "memory_backend": "GCS + Redis"
+        }
+
+        # Cache results for 5 minutes
+        if rag_redis:
+            rag_redis.setex(cache_key, 300, json.dumps(response, default=str))
+
+        logger.info(f"RAG search: '{request.query}' found {len(filtered_results)} winners")
+        return response
+
+    except Exception as e:
+        logger.error(f"RAG search error: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/ml/rag/index-winner", tags=["RAG Memory"])
+async def index_winning_ad(request: RAGIndexRequest):
+    """
+    Add winning ad to persistent memory
+
+    Automatically saves to:
+    - FAISS vector index (for similarity search)
+    - GCS (persistent storage)
+    - Redis (fast lookup cache)
+
+    Memory persists forever and grows with every winner.
+    """
+    try:
+        if not winner_index:
+            raise HTTPException(503, "RAG memory not initialized")
+
+        # Check if already indexed
+        if rag_redis:
+            exists_key = f"rag:indexed:{request.ad_id}"
+            if rag_redis.exists(exists_key):
+                return {
+                    "status": "already_indexed",
+                    "ad_id": request.ad_id,
+                    "message": "This winner is already in memory"
+                }
+
+        # Add to FAISS index (auto-saves to GCS)
+        success = winner_index.add_winner(
+            ad_data=request.ad_data,
+            ctr=request.ctr,
+            min_ctr=0.03  # Minimum threshold for "winner"
+        )
+
+        if not success:
+            return {
+                "status": "skipped",
+                "ad_id": request.ad_id,
+                "reason": f"CTR {request.ctr:.3f} below minimum threshold (0.03)"
+            }
+
+        # Store in Redis for fast lookup
+        if rag_redis:
+            redis_key = f"rag:winner:{request.ad_id}"
+            winner_data = {
+                "ad_id": request.ad_id,
+                "ad_data": request.ad_data,
+                "ctr": request.ctr,
+                "roas": request.roas,
+                "conversions": request.conversions,
+                "spend": request.spend,
+                "indexed_at": datetime.utcnow().isoformat()
+            }
+            rag_redis.setex(redis_key, 86400 * 30, json.dumps(winner_data, default=str))  # 30 days
+            rag_redis.set(f"rag:indexed:{request.ad_id}", "1")
+
+        logger.info(f"✅ Indexed winner {request.ad_id} to RAG memory (CTR: {request.ctr:.3f})")
+
+        return {
+            "status": "indexed",
+            "ad_id": request.ad_id,
+            "total_in_memory": len(winner_index.winners),
+            "ctr": request.ctr,
+            "roas": request.roas,
+            "memory_backend": "GCS + Redis"
+        }
+
+    except Exception as e:
+        logger.error(f"RAG indexing error: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/ml/rag/memory-stats", tags=["RAG Memory"])
+async def get_rag_memory_stats():
+    """
+    Get RAG memory statistics
+
+    Shows how many winners are stored, memory backend status,
+    and cache performance.
+    """
+    try:
+        if not winner_index:
+            raise HTTPException(503, "RAG memory not initialized")
+
+        # Get Redis stats
+        redis_stats = {}
+        if rag_redis:
+            try:
+                redis_info = rag_redis.info('memory')
+                redis_stats = {
+                    "connected": True,
+                    "used_memory_mb": round(redis_info.get('used_memory', 0) / 1024 / 1024, 2),
+                    "total_keys": rag_redis.dbsize()
+                }
+            except:
+                redis_stats = {"connected": False}
+
+        return {
+            "total_winners_in_memory": len(winner_index.winners),
+            "faiss_index_size": winner_index.index.ntotal,
+            "dimension": winner_index.dimension,
+            "namespace": winner_index.namespace,
+            "storage_backend": "GCS" if winner_index.use_gcs else "Local",
+            "redis_cache": redis_stats,
+            "embedding_model": "all-MiniLM-L6-v2",
+            "memory_status": "persistent"
+        }
+
+    except Exception as e:
+        logger.error(f"RAG stats error: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/ml/rag/winner/{ad_id}", tags=["RAG Memory"])
+async def get_winner_from_memory(ad_id: str):
+    """
+    Retrieve specific winner from memory
+
+    Fast lookup from Redis cache, falls back to FAISS search.
+    """
+    try:
+        if not winner_index:
+            raise HTTPException(503, "RAG memory not initialized")
+
+        # Try Redis first (fast)
+        if rag_redis:
+            redis_key = f"rag:winner:{ad_id}"
+            cached = rag_redis.get(redis_key)
+            if cached:
+                logger.info(f"✅ Retrieved {ad_id} from Redis cache")
+                return json.loads(cached)
+
+        # Fallback: search FAISS index
+        for winner in winner_index.winners:
+            if winner.get('data', {}).get('ad_id') == ad_id:
+                return {
+                    "ad_id": ad_id,
+                    **winner,
+                    "source": "FAISS"
+                }
+
+        raise HTTPException(404, f"Winner {ad_id} not found in memory")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"RAG retrieval error: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/api/ml/rag/clear-cache", tags=["RAG Memory"])
+async def clear_rag_cache():
+    """Clear Redis cache (FAISS index persists in GCS)"""
+    try:
+        if not rag_redis:
+            raise HTTPException(503, "Redis not connected")
+
+        # Clear RAG-related keys
+        pattern = "rag:*"
+        deleted = 0
+        for key in rag_redis.scan_iter(match=pattern):
+            rag_redis.delete(key)
+            deleted += 1
+
+        logger.info(f"Cleared {deleted} RAG cache keys")
+        return {
+            "status": "cache_cleared",
+            "keys_deleted": deleted,
+            "note": "FAISS index persists in GCS"
+        }
+
+    except Exception as e:
+        logger.error(f"Cache clear error: {e}")
+        raise HTTPException(500, str(e))
 
 
 # ============================================================
