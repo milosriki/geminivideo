@@ -702,10 +702,16 @@ async def evaluate_script(request: ScriptEvaluationRequest):
 @app.post("/oracle/predict", response_model=Dict[str, Any], tags=["AI Council"])
 async def predict_roas(request: ROASPredictionRequest):
     """
-    Get ROAS prediction from Oracle Agent
+    Get ROAS prediction from Oracle Agent with Prediction Gate
 
     The Oracle uses 8 prediction engines:
     - DeepFM, DCN, XGBoost, LightGBM, CatBoost, Neural Net, Random Forest, Gradient Boost
+
+    PREDICTION GATE:
+    - If predicted_score < 70% of account_average_score → REJECT
+    - Otherwise → PROCEED
+
+    This prevents spending money on low-quality videos before generation.
     """
     if not app_state.oracle:
         raise HTTPException(
@@ -720,7 +726,34 @@ async def predict_roas(request: ROASPredictionRequest):
         )
 
         # Convert Pydantic model to dict
-        return prediction.model_dump() if hasattr(prediction, 'model_dump') else prediction
+        prediction_dict = prediction.model_dump() if hasattr(prediction, 'model_dump') else prediction
+
+        # PREDICTION GATE LOGIC
+        # Extract account average (default to 1.0 if not provided)
+        account_avg = request.features.get("account_average_score", 1.0)
+        predicted_score = prediction_dict.get("final_score", 0)
+
+        # Gate threshold: 70% of account average
+        threshold = account_avg * 0.70
+
+        if predicted_score < threshold:
+            return {
+                "decision": "REJECT",
+                "reason": f"Predicted {predicted_score:.2f} < 70% of account avg ({account_avg:.2f})",
+                "threshold": round(threshold, 2),
+                "predicted_score": predicted_score,
+                "confidence": prediction_dict.get("overall_confidence", 0),
+                "full_prediction": prediction_dict
+            }
+
+        return {
+            "decision": "PROCEED",
+            "predicted_score": predicted_score,
+            "confidence": prediction_dict.get("overall_confidence", 0),
+            "predicted_roas": prediction_dict.get("roas_prediction", {}).get("predicted_roas", 0),
+            "full_prediction": prediction_dict
+        }
+
     except Exception as e:
         logger.error(f"Oracle prediction failed: {e}")
         raise HTTPException(
