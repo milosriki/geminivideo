@@ -3,26 +3,25 @@
  *
  * Purpose:
  *   Executes ad changes via Meta API with safety checks to prevent account bans.
- *   Uses pg-boss job queue with retry logic and multiple safety layers.
+ *   Polls pending_ad_changes table using claim_pending_ad_change() function.
  *
  * Safety Rules:
  *   1. Rate Limiting: Max 15 actions per campaign per hour
  *   2. Budget Velocity: Max 20% budget change in 6-hour window
- *   3. Jitter: Random 3-18 second delays between calls
+ *   3. Jitter: Random delays based on DB config (jitter_ms_min to jitter_ms_max)
  *   4. Fuzzy Budgets: ±3% randomization to appear human
  *
  * Flow:
- *   1. Receive job from pg-boss queue
- *   2. Apply jitter delay
+ *   1. Poll pending_ad_changes table via claim_pending_ad_change(workerId)
+ *   2. Apply jitter delay from DB config
  *   3. Check rate limit
  *   4. Check budget velocity
  *   5. Execute Meta API call with fuzzy budget
- *   6. Log results to database
+ *   6. Update status in database
  *
  * Created: 2025-12-07
  */
 
-import PgBoss from 'pg-boss';
 import axios from 'axios';
 import { Pool } from 'pg';
 
@@ -30,20 +29,16 @@ import { Pool } from 'pg';
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const META_API_VERSION = process.env.META_API_VERSION || 'v18.0';
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN || '';
-
-// Job types
-const JOB_AD_CHANGE = 'ad-change';
-const JOB_BUDGET_OPTIMIZATION = 'budget-optimization';
+const WORKER_ID = process.env.WORKER_ID || 'worker-1';
+const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000', 10);
 
 // Safety constants
 const MAX_ACTIONS_PER_HOUR = 15;
 const MAX_BUDGET_VELOCITY_PCT = 0.20; // 20%
 const VELOCITY_WINDOW_HOURS = 6;
-const MIN_JITTER_MS = 3000; // 3 seconds
-const MAX_JITTER_MS = 18000; // 18 seconds
-const FUZZY_BUDGET_PCT = 0.03; // ±3%
 
-interface AdChangeJob {
+interface PendingAdChange {
+  id: number;
   tenant_id: string;
   campaign_id: string;
   ad_id?: string;
@@ -53,6 +48,10 @@ interface AdChangeJob {
   triggered_by: string;
   ml_confidence?: number;
   reason?: string;
+  jitter_ms_min: number;
+  jitter_ms_max: number;
+  claimed_by?: string;
+  claimed_at?: Date;
 }
 
 interface SafetyCheckResult {
@@ -76,11 +75,11 @@ function getDbPool(): Pool {
 }
 
 /**
- * Apply random jitter delay (3-18 seconds)
+ * Apply random jitter delay based on change config
  */
-async function applyJitter(): Promise<number> {
-  const jitterMs = Math.floor(Math.random() * (MAX_JITTER_MS - MIN_JITTER_MS)) + MIN_JITTER_MS;
-  console.log(`[SafeExecutor] Applying jitter: ${jitterMs}ms`);
+async function applyJitter(change: PendingAdChange): Promise<number> {
+  const jitterMs = Math.floor(Math.random() * (change.jitter_ms_max - change.jitter_ms_min)) + change.jitter_ms_min;
+  console.log(`[SafeExecutor] Applying jitter: ${jitterMs}ms (range: ${change.jitter_ms_min}-${change.jitter_ms_max})`);
   await new Promise(resolve => setTimeout(resolve, jitterMs));
   return jitterMs;
 }
@@ -88,7 +87,7 @@ async function applyJitter(): Promise<number> {
 /**
  * Check rate limit (max 15 actions per campaign per hour)
  */
-async function checkRateLimit(job: AdChangeJob): Promise<SafetyCheckResult> {
+async function checkRateLimit(change: PendingAdChange): Promise<SafetyCheckResult> {
   const pool = getDbPool();
   const client = await pool.connect();
 
@@ -100,7 +99,7 @@ async function checkRateLimit(job: AdChangeJob): Promise<SafetyCheckResult> {
       WHERE campaign_id = $1
         AND status IN ('executing', 'completed')
         AND created_at > NOW() - INTERVAL '1 hour'
-    `, [job.campaign_id]);
+    `, [change.campaign_id]);
 
     const actionCount = parseInt(result.rows[0].action_count, 10);
 
@@ -127,9 +126,9 @@ async function checkRateLimit(job: AdChangeJob): Promise<SafetyCheckResult> {
 /**
  * Check budget velocity (max 20% change in 6-hour window)
  */
-async function checkBudgetVelocity(job: AdChangeJob): Promise<SafetyCheckResult> {
+async function checkBudgetVelocity(change: PendingAdChange): Promise<SafetyCheckResult> {
   // Only check for budget changes
-  if (job.change_type !== 'BUDGET_INCREASE' && job.change_type !== 'BUDGET_DECREASE') {
+  if (change.change_type !== 'BUDGET_INCREASE' && change.change_type !== 'BUDGET_DECREASE') {
     return { passed: true };
   }
 
@@ -148,7 +147,7 @@ async function checkBudgetVelocity(job: AdChangeJob): Promise<SafetyCheckResult>
         AND status = 'completed'
         AND created_at > NOW() - INTERVAL '${VELOCITY_WINDOW_HOURS} hours'
       ORDER BY created_at ASC
-    `, [job.campaign_id]);
+    `, [change.campaign_id]);
 
     if (result.rows.length === 0) {
       return { passed: true };
@@ -156,8 +155,8 @@ async function checkBudgetVelocity(job: AdChangeJob): Promise<SafetyCheckResult>
 
     // Calculate total budget change
     const firstBudget = parseFloat(result.rows[0].old_budget);
-    const currentBudget = parseFloat(job.old_value.budget);
-    const newBudget = parseFloat(job.new_value.budget);
+    const currentBudget = parseFloat(change.old_value.budget);
+    const newBudget = parseFloat(change.new_value.budget);
 
     const totalChange = Math.abs(newBudget - firstBudget);
     const changePercentage = totalChange / firstBudget;
@@ -179,9 +178,8 @@ async function checkBudgetVelocity(job: AdChangeJob): Promise<SafetyCheckResult>
 /**
  * Apply fuzzy budget (±3% randomization to appear human)
  */
-function applyFuzzyBudget(budget: number): number {
-  const randomFactor = 1 + (Math.random() * 2 - 1) * FUZZY_BUDGET_PCT;
-  const fuzzyBudget = budget * randomFactor;
+function applyFuzzyBudget(requestedBudget: number): number {
+  const fuzzyBudget = requestedBudget * (1 + (Math.random() * 0.06 - 0.03));
 
   // Round to 2 decimal places
   return Math.round(fuzzyBudget * 100) / 100;
@@ -190,13 +188,13 @@ function applyFuzzyBudget(budget: number): number {
 /**
  * Execute Meta API call
  */
-async function executeMetaApiCall(job: AdChangeJob, fuzzyBudget?: number): Promise<any> {
-  const targetId = job.ad_id || job.campaign_id;
+async function executeMetaApiCall(change: PendingAdChange, fuzzyBudget?: number): Promise<any> {
+  const targetId = change.ad_id || change.campaign_id;
   const endpoint = `https://graph.facebook.com/${META_API_VERSION}/${targetId}`;
 
   let updateData: any = {};
 
-  switch (job.change_type) {
+  switch (change.change_type) {
     case 'BUDGET_INCREASE':
     case 'BUDGET_DECREASE':
       updateData = {
@@ -206,13 +204,13 @@ async function executeMetaApiCall(job: AdChangeJob, fuzzyBudget?: number): Promi
 
     case 'STATUS_CHANGE':
       updateData = {
-        status: job.new_value.status,
+        status: change.new_value.status,
       };
       break;
 
     case 'TARGETING_UPDATE':
       updateData = {
-        targeting: job.new_value.targeting,
+        targeting: change.new_value.targeting,
       };
       break;
   }
@@ -232,11 +230,10 @@ async function executeMetaApiCall(job: AdChangeJob, fuzzyBudget?: number): Promi
 }
 
 /**
- * Log job execution to database
+ * Log execution to database
  */
-async function logJobExecution(
-  jobId: string,
-  job: AdChangeJob,
+async function logExecution(
+  change: PendingAdChange,
   status: 'completed' | 'failed' | 'blocked',
   duration: number,
   metaResponse?: any,
@@ -256,15 +253,15 @@ async function logJobExecution(
         execution_duration_ms, meta_response, error_message
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
     `, [
-      job.tenant_id,
-      job.campaign_id,
-      job.ad_id,
-      job.change_type,
-      JSON.stringify(job.old_value),
-      JSON.stringify(job.new_value),
-      job.triggered_by,
-      job.ml_confidence,
-      job.reason,
+      change.tenant_id,
+      change.campaign_id,
+      change.ad_id,
+      change.change_type,
+      JSON.stringify(change.old_value),
+      JSON.stringify(change.new_value),
+      change.triggered_by,
+      change.ml_confidence,
+      change.reason,
       status,
       rateLimitCheck?.passed ?? true,
       velocityCheck?.passed ?? true,
@@ -279,99 +276,109 @@ async function logJobExecution(
 }
 
 /**
- * Main job handler
+ * Claim and process a pending ad change
  */
-async function handleAdChangeJob(job: PgBoss.Job<AdChangeJob>): Promise<void> {
-  const startTime = Date.now();
-  const data = job.data;
-
-  console.log(`[SafeExecutor] Processing ad change job ${job.id} for campaign ${data.campaign_id}`);
+async function claimAndProcessChange(): Promise<boolean> {
+  const pool = getDbPool();
+  const client = await pool.connect();
 
   try {
-    // Step 1: Apply jitter
-    await applyJitter();
+    // Claim a pending change
+    const result = await client.query('SELECT * FROM claim_pending_ad_change($1)', [WORKER_ID]);
 
-    // Step 2: Check rate limit
-    const rateLimitCheck = await checkRateLimit(data);
-    if (!rateLimitCheck.passed) {
-      console.warn(`[SafeExecutor] Rate limit check failed: ${rateLimitCheck.reason}`);
-      await logJobExecution(job.id, data, 'blocked', Date.now() - startTime, undefined, undefined, rateLimitCheck);
-      throw new Error(rateLimitCheck.reason); // Will trigger retry
+    if (result.rows.length === 0) {
+      // No pending changes
+      return false;
     }
 
-    // Step 3: Check budget velocity
-    const velocityCheck = await checkBudgetVelocity(data);
-    if (!velocityCheck.passed) {
-      console.warn(`[SafeExecutor] Velocity check failed: ${velocityCheck.reason}`);
-      await logJobExecution(job.id, data, 'blocked', Date.now() - startTime, undefined, undefined, rateLimitCheck, velocityCheck);
-      throw new Error(velocityCheck.reason); // Will trigger retry
+    const change: PendingAdChange = result.rows[0];
+    console.log(`[SafeExecutor] Claimed change ${change.id} for campaign ${change.campaign_id}`);
+
+    const startTime = Date.now();
+
+    try {
+      // Step 1: Apply jitter from DB config
+      const jitterMs = Math.floor(Math.random() * (change.jitter_ms_max - change.jitter_ms_min)) + change.jitter_ms_min;
+      console.log(`[SafeExecutor] Applying jitter: ${jitterMs}ms`);
+      await new Promise(resolve => setTimeout(resolve, jitterMs));
+
+      // Step 2: Check rate limit
+      const rateLimitCheck = await checkRateLimit(change);
+      if (!rateLimitCheck.passed) {
+        console.warn(`[SafeExecutor] Rate limit check failed: ${rateLimitCheck.reason}`);
+        await logExecution(change, 'blocked', Date.now() - startTime, undefined, undefined, rateLimitCheck);
+        // Update status to failed so it can be retried later
+        await client.query('UPDATE pending_ad_changes SET status = $1 WHERE id = $2', ['failed', change.id]);
+        return true;
+      }
+
+      // Step 3: Check budget velocity
+      const velocityCheck = await checkBudgetVelocity(change);
+      if (!velocityCheck.passed) {
+        console.warn(`[SafeExecutor] Velocity check failed: ${velocityCheck.reason}`);
+        await logExecution(change, 'blocked', Date.now() - startTime, undefined, undefined, rateLimitCheck, velocityCheck);
+        // Update status to failed so it can be retried later
+        await client.query('UPDATE pending_ad_changes SET status = $1 WHERE id = $2', ['failed', change.id]);
+        return true;
+      }
+
+      // Step 4: Apply fuzzy budget (if budget change)
+      let fuzzyBudget: number | undefined;
+      if (change.change_type === 'BUDGET_INCREASE' || change.change_type === 'BUDGET_DECREASE') {
+        const requestedBudget = parseFloat(change.new_value.budget);
+        fuzzyBudget = requestedBudget * (1 + (Math.random() * 0.06 - 0.03));
+        console.log(`[SafeExecutor] Fuzzy budget: $${requestedBudget} → $${fuzzyBudget}`);
+      }
+
+      // Step 5: Execute Meta API call
+      const metaResponse = await executeMetaApiCall(change, fuzzyBudget);
+
+      // Step 6: Update status and log success
+      await client.query('UPDATE pending_ad_changes SET status = $1, executed_at = NOW() WHERE id = $2', ['completed', change.id]);
+
+      const duration = Date.now() - startTime;
+      await logExecution(change, 'completed', duration, metaResponse, undefined, rateLimitCheck, velocityCheck);
+
+      console.log(`[SafeExecutor] Change ${change.id} completed successfully in ${duration}ms`);
+      return true;
+
+    } catch (error: any) {
+      // Log failure and update status
+      const duration = Date.now() - startTime;
+      await logExecution(change, 'failed', duration, undefined, error);
+      await client.query('UPDATE pending_ad_changes SET status = $1 WHERE id = $2', ['failed', change.id]);
+
+      console.error(`[SafeExecutor] Change ${change.id} failed:`, error.message);
+      return true;
     }
 
-    // Step 4: Apply fuzzy budget (if budget change)
-    let fuzzyBudget: number | undefined;
-    if (data.change_type === 'BUDGET_INCREASE' || data.change_type === 'BUDGET_DECREASE') {
-      fuzzyBudget = applyFuzzyBudget(data.new_value.budget);
-      console.log(`[SafeExecutor] Fuzzy budget: $${data.new_value.budget} → $${fuzzyBudget}`);
-    }
-
-    // Step 5: Execute Meta API call
-    const metaResponse = await executeMetaApiCall(data, fuzzyBudget);
-
-    // Step 6: Log success
-    const duration = Date.now() - startTime;
-    await logJobExecution(job.id, data, 'completed', duration, metaResponse, undefined, rateLimitCheck, velocityCheck);
-
-    console.log(`[SafeExecutor] Job ${job.id} completed successfully in ${duration}ms`);
-
-  } catch (error: any) {
-    // Log failure
-    const duration = Date.now() - startTime;
-    await logJobExecution(job.id, data, 'failed', duration, undefined, error);
-
-    console.error(`[SafeExecutor] Job ${job.id} failed:`, error.message);
-    throw error; // Re-throw to trigger pg-boss retry
+  } finally {
+    client.release();
   }
 }
 
 /**
  * Start SafeExecutor worker
  */
-export async function startSafeExecutor(): Promise<PgBoss> {
-  console.log('[SafeExecutor] Starting worker...');
+export async function startSafeExecutor(): Promise<void> {
+  console.log(`[SafeExecutor] Starting worker ${WORKER_ID}...`);
+  console.log(`[SafeExecutor] Poll interval: ${POLL_INTERVAL_MS}ms`);
 
-  const pgBoss = new PgBoss({
-    connectionString: DATABASE_URL,
-    retryLimit: 5,
-    retryDelay: 60, // 1 minute
-    retryBackoff: true,
-    expireInHours: 24,
-  });
+  // Continuous polling loop
+  while (true) {
+    try {
+      const processed = await claimAndProcessChange();
 
-  await pgBoss.start();
+      if (!processed) {
+        // No changes found, wait before polling again
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+      // If we processed something, immediately check for more work
 
-  // Subscribe to ad-change jobs
-  await pgBoss.work(JOB_AD_CHANGE, {
-    teamSize: 3, // Max 3 concurrent jobs
-    teamConcurrency: 1, // 1 job per worker at a time
-  }, handleAdChangeJob);
-
-  console.log('[SafeExecutor] Worker started and listening for ad-change jobs');
-
-  return pgBoss;
+    } catch (error: any) {
+      console.error(`[SafeExecutor] Polling error:`, error.message);
+      // Wait before retrying on error
+      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+  }
 }
-
-/**
- * Queue an ad change job
- */
-export async function queueAdChange(boss: PgBoss, job: AdChangeJob): Promise<string> {
-  const jobId = await boss.send(JOB_AD_CHANGE, job, {
-    priority: 10, // Higher priority for ad changes
-    singletonKey: `${job.campaign_id}-${job.change_type}`, // Prevent duplicate jobs
-  });
-
-  console.log(`[SafeExecutor] Queued ad change job ${jobId} for campaign ${job.campaign_id}`);
-
-  return jobId;
-}
-
-export { PgBoss };
