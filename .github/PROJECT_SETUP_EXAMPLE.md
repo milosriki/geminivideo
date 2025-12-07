@@ -196,10 +196,10 @@ Add these links to project README:
 
 ```markdown
 ## Quick Links
-- 📝 [Submit New Idea](https://github.com/milosriki/geminivideo/issues/new?template=idea.yml)
-- 📋 [All Ideas](https://github.com/milosriki/geminivideo/labels/idea)
-- 🎯 [High Priority](filter_link_here)
-- 📖 [How to Use Projects](https://github.com/milosriki/geminivideo/blob/main/GITHUB_PROJECTS_GUIDE.md)
+- 📝 [Submit New Idea](../../issues/new?template=idea.yml)
+- 📋 [All Ideas](../../labels/idea)
+- 🎯 [High Priority](../../issues?q=is%3Aissue+is%3Aopen+label%3Ahigh-priority)
+- 📖 [How to Use Projects](../GITHUB_PROJECTS_GUIDE.md)
 ```
 
 ## 📊 Project Insights

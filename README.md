@@ -262,6 +262,7 @@ We love hearing your ideas! Check out our **[GitHub Projects Guide](GITHUB_PROJE
 - Participate in project planning
 - Follow ideas from concept to completion
 
+<!-- Note: If you fork this repository, update the URL below to point to your fork -->
 [**Submit a new idea →**](https://github.com/milosriki/geminivideo/issues/new?template=idea.yml)
 
 ## 📧 Support

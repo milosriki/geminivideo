@@ -15,7 +15,7 @@ GitHub Projects is a powerful project management tool built into GitHub that hel
 
 ### Step 1: Access GitHub Projects
 
-1. Go to the repository: https://github.com/milosriki/geminivideo
+1. Go to your repository on GitHub
 2. Click on the **"Projects"** tab at the top of the repository
 3. Click **"New project"** to create your first project board
 
@@ -312,7 +312,7 @@ Ready to start using GitHub Projects for ideas? Follow this checklist:
 - [ ] Share the project board link with your team
 - [ ] Schedule regular idea review sessions
 
-**Your Project URL**: `https://github.com/milosriki/geminivideo/projects`
+**Your Project URL**: Navigate to the "Projects" tab in your repository
 
 ---
 

@@ -4,15 +4,15 @@ Fast reference for using GitHub Projects to manage ideas in the Gemini Video rep
 
 ## 🚀 Quick Links
 
-- **Create New Idea**: [Submit Idea Form](https://github.com/milosriki/geminivideo/issues/new?template=idea.yml)
-- **View All Issues**: [Issues Page](https://github.com/milosriki/geminivideo/issues)
-- **Project Boards**: [Projects Tab](https://github.com/milosriki/geminivideo/projects)
+- **Create New Idea**: [Submit Idea Form](../issues/new?template=idea.yml)
+- **View All Issues**: [Issues Page](../issues)
+- **Project Boards**: [Projects Tab](../projects)
 - **Full Guide**: [GitHub Projects Guide](../GITHUB_PROJECTS_GUIDE.md)
 
 ## 📋 Common Tasks
 
 ### Submit an Idea
-1. Click [New Issue](https://github.com/milosriki/geminivideo/issues/new)
+1. Click [New Issue](../issues/new)
 2. Select "💡 Idea / Feature Request"
 3. Fill out the form
 4. Click "Submit new issue"
@@ -24,7 +24,7 @@ Fast reference for using GitHub Projects to manage ideas in the Gemini Video rep
 4. Choose the column (e.g., "Ideas")
 
 ### Track Progress
-1. Go to [Projects Tab](https://github.com/milosriki/geminivideo/projects)
+1. Go to [Projects Tab](../projects)
 2. View your board
 3. Drag items between columns as they progress
 
@@ -114,9 +114,9 @@ In your project, filter by:
 ## 🆘 Need Help?
 
 - **Full Documentation**: [GitHub Projects Guide](../GITHUB_PROJECTS_GUIDE.md)
-- **Ask Questions**: Open a [Discussion](https://github.com/milosriki/geminivideo/discussions)
+- **Ask Questions**: Open a [Discussion](../discussions)
 - **Report Issues**: Create an issue with `question` label
 
 ---
 
-**Quick Start**: [Create your first idea now →](https://github.com/milosriki/geminivideo/issues/new?template=idea.yml)
+**Quick Start**: [Create your first idea now →](../issues/new?template=idea.yml)

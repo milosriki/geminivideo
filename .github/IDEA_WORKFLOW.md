@@ -380,4 +380,4 @@ Practice    ↓
 
 ---
 
-**Ready to submit your first idea?** [Create New Idea →](https://github.com/milosriki/geminivideo/issues/new?template=idea.yml)
+**Ready to submit your first idea?** [Create New Idea →](../issues/new?template=idea.yml)
