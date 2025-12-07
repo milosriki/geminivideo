@@ -92,3 +92,4 @@ frontend/dist/
 *.h5
 *.pt
 *.pth
+trees/

@@ -20,6 +20,19 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "services" / "titan-core"))
 sys.path.insert(0, str(PROJECT_ROOT / "services" / "gateway-api"))
 
+# MOCK XGBOOST (Bypass libomp missing on macOS/CI)
+# This must happen before any imports that use xgboost
+try:
+    import xgboost
+except Exception as e:
+    # Create a mock module
+    mock_xgb = Mock()
+    mock_xgb.XGBClassifier = Mock
+    mock_xgb.XGBRegressor = Mock
+    mock_xgb.DMatrix = Mock
+    sys.modules['xgboost'] = mock_xgb
+    print(f"WARNING: XGBoost mocked due to error: {e}")
+
 
 # ============================================================================
 # PYTEST CONFIGURATION

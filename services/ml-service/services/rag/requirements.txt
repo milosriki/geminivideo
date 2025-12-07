@@ -1,0 +1,12 @@
+# RAG Service Dependencies
+# REQUIRED for winner index and semantic search
+
+faiss-cpu==1.9.0.post1
+sentence-transformers==3.3.1
+numpy>=1.26.0,<2.0.0
+
+# Google Cloud Storage for persistent pattern storage
+google-cloud-storage>=2.10.0
+
+# Optional: GPU support (uncomment if CUDA available)
+# faiss-gpu==1.9.0.post1
