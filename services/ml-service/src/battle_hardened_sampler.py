@@ -41,6 +41,16 @@ class AdState:
     cash_revenue: float    # Actual closed deals (if any)
     age_hours: float       # Hours since ad creation
     last_updated: datetime
+    
+    def __hash__(self) -> int:
+        """Make AdState hashable for use as dictionary key."""
+        return hash(self.ad_id)
+    
+    def __eq__(self, other: object) -> bool:
+        """Compare AdStates by ad_id."""
+        if isinstance(other, AdState):
+            return self.ad_id == other.ad_id
+        return False
 
 
 @dataclass
