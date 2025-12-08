@@ -25,6 +25,7 @@ def process_hubspot_webhook(webhook_payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     import asyncio
     import httpx
+    import os
     
     async def _process():
         try:
