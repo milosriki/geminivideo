@@ -232,6 +232,34 @@ services:
     networks:
       - geminivideo-network
 
+  google-ads:
+    build:
+      context: ./services/google-ads
+      dockerfile: Dockerfile
+    container_name: geminivideo-google-ads
+    environment:
+      PORT: 8086
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_DEVELOPER_TOKEN: ${GOOGLE_DEVELOPER_TOKEN:-}
+      GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN:-}
+      GOOGLE_ADS_CUSTOMER_ID: ${GOOGLE_ADS_CUSTOMER_ID:-}
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8086/health" ]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - geminivideo-network
+
   # ========================================================================
   # GATEWAY & FRONTEND
   # ========================================================================
@@ -249,6 +277,7 @@ services:
       TITAN_CORE_URL: http://titan-core:8084
       META_PUBLISHER_URL: http://meta-publisher:8083
       TIKTOK_ADS_URL: http://tiktok-ads:8085
+      GOOGLE_ADS_URL: http://google-ads:8086
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
     ports:
@@ -347,6 +376,32 @@ services:
     volumes:
       - ./shared:/app/shared
       - ./services/video-agent/src:/app/src
+    networks:
+      - geminivideo-network
+
+  safe-executor-worker:
+    build:
+      context: ./services/gateway-api
+      dockerfile: Dockerfile
+    container_name: geminivideo-safe-executor-worker
+    command: npm run worker:safe-executor:prod
+    environment:
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
+      META_API_VERSION: ${META_API_VERSION:-v18.0}
+      WORKER_ID: ${SAFE_EXECUTOR_WORKER_ID:-safe-executor-1}
+      POLL_INTERVAL_MS: ${SAFE_EXECUTOR_POLL_INTERVAL_MS:-5000}
+      BATCH_MODE_ENABLED: ${BATCH_MODE_ENABLED:-true}
+      BATCH_SIZE: ${BATCH_SIZE:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared
     networks:
       - geminivideo-network
 

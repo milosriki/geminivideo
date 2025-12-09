@@ -24,6 +24,8 @@
 
 import axios from 'axios';
 import { Pool } from 'pg';
+import { processBatchChanges } from './batch-executor';
+import { updateMarketIntelOnScaling } from '../services/market-intel-service';
 
 // Environment variables
 const DATABASE_URL = process.env.DATABASE_URL || '';
@@ -31,6 +33,8 @@ const META_API_VERSION = process.env.META_API_VERSION || 'v18.0';
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN || '';
 const WORKER_ID = process.env.WORKER_ID || 'worker-1';
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000', 10);
+const BATCH_MODE_ENABLED = process.env.BATCH_MODE_ENABLED === 'true' || true; // Default enabled
+const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '10', 10); // Min batch size to trigger batch mode
 
 // Safety constants
 const MAX_ACTIONS_PER_HOUR = 15;
@@ -333,7 +337,30 @@ async function claimAndProcessChange(): Promise<boolean> {
       // Step 5: Execute Meta API call
       const metaResponse = await executeMetaApiCall(change, fuzzyBudget);
 
-      // Step 6: Update status and log success
+      // Step 6: Update Market Intelligence on scaling (if budget increase)
+      if ((change.change_type === 'BUDGET_INCREASE') && fuzzyBudget) {
+        try {
+          const oldBudget = parseFloat(change.old_value.budget);
+          const changePercentage = (fuzzyBudget - oldBudget) / oldBudget;
+          
+          if (changePercentage >= 0.20) { // 20%+ increase
+            await updateMarketIntelOnScaling({
+              campaign_id: change.campaign_id,
+              ad_id: change.ad_id,
+              old_budget: oldBudget,
+              new_budget: fuzzyBudget,
+              change_percentage: changePercentage,
+              reason: change.reason || 'Budget increase',
+              triggered_by: change.triggered_by || 'ml-service'
+            });
+          }
+        } catch (marketIntelError: any) {
+          // Non-fatal - don't block execution
+          console.debug(`[SafeExecutor] Market Intel update failed (non-fatal): ${marketIntelError.message}`);
+        }
+      }
+
+      // Step 7: Update status and log success
       await client.query('UPDATE pending_ad_changes SET status = $1, executed_at = NOW() WHERE id = $2', ['completed', change.id]);
 
       const duration = Date.now() - startTime;
@@ -358,15 +385,51 @@ async function claimAndProcessChange(): Promise<boolean> {
 }
 
 /**
+ * Check how many pending changes are available
+ */
+async function countPendingChanges(): Promise<number> {
+  const pool = getDbPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT COUNT(*) as count FROM pending_ad_changes WHERE status = 'pending'`
+    );
+    return parseInt(result.rows[0].count, 10);
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Start SafeExecutor worker
  */
 export async function startSafeExecutor(): Promise<void> {
   console.log(`[SafeExecutor] Starting worker ${WORKER_ID}...`);
   console.log(`[SafeExecutor] Poll interval: ${POLL_INTERVAL_MS}ms`);
+  console.log(`[SafeExecutor] Batch mode: ${BATCH_MODE_ENABLED ? 'enabled' : 'disabled'}`);
 
   // Continuous polling loop
   while (true) {
     try {
+      // Check if batch mode should be used
+      if (BATCH_MODE_ENABLED) {
+        const pendingCount = await countPendingChanges();
+        
+        if (pendingCount >= BATCH_SIZE) {
+          // Use batch processing for 10x faster execution
+          console.log(`[SafeExecutor] Processing batch: ${pendingCount} pending changes`);
+          const processed = await processBatchChanges(getDbPool(), WORKER_ID, BATCH_SIZE);
+          
+          if (processed > 0) {
+            console.log(`[SafeExecutor] Batch processed ${processed} changes`);
+            // Continue immediately to process more
+            continue;
+          }
+        }
+      }
+
+      // Fall back to individual processing
       const processed = await claimAndProcessChange();
 
       if (!processed) {

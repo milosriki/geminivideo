@@ -1,0 +1,15 @@
+NO - Use stash strategy instead:
+
+1. Stash my local changes:
+   git stash push -m "Local async components work"
+
+2. Pull remote updates:
+   git pull origin main
+
+3. Reapply my changes:
+   git stash pop
+
+4. If conflicts appear, I'll resolve them manually.
+
+This protects my local work while getting remote updates.
+
