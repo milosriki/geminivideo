@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useToastStore } from '@/stores/toastStore'
 import { CheckCircleIcon, ExclamationCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -154,49 +155,61 @@ function App() {
             <Route
               path="/onboarding/welcome"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <WelcomePage />
-                </Suspense>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <WelcomePage />
+                  </Suspense>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/onboarding/connect-meta"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <ConnectMetaPage />
-                </Suspense>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <ConnectMetaPage />
+                  </Suspense>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/onboarding/connect-google"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <ConnectGooglePage />
-                </Suspense>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <ConnectGooglePage />
+                  </Suspense>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/onboarding/configure"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <ConfigurePage />
-                </Suspense>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <ConfigurePage />
+                  </Suspense>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/onboarding/first-campaign"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <FirstCampaignPage />
-                </Suspense>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <FirstCampaignPage />
+                  </Suspense>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/onboarding/complete"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <CompletePage />
-                </Suspense>
+                <ProtectedRoute>
+                  <Suspense fallback={<PageLoader />}>
+                    <CompletePage />
+                  </Suspense>
+                </ProtectedRoute>
               }
             />
 
@@ -237,7 +250,11 @@ function App() {
             />
 
             {/* Dashboard Routes */}
-            <Route path="/" element={<DashboardLayout />}>
+            <Route path="/" element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }>
               <Route
                 index
                 element={

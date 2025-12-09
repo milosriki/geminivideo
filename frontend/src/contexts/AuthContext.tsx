@@ -429,58 +429,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 }
 
 /**
- * Protected Route Component
- * Renders children only if user is authenticated
- * Redirects to login page otherwise
- */
-interface ProtectedRouteProps {
-  children: ReactNode;
-  redirectTo?: string;
-  requiredRoles?: UserRole[];
-  fallback?: ReactNode;
-}
-
-export function ProtectedRoute({
-  children,
-  redirectTo = '/login',
-  requiredRoles,
-  fallback
-}: ProtectedRouteProps) {
-  const { currentUser, loading, hasRole } = useAuth();
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <div>Loading...</div>
-      </div>
-    );
-  }
-
-  if (!currentUser) {
-    // Redirect to login (in a real app, use react-router)
-    if (typeof window !== 'undefined') {
-      window.location.href = redirectTo;
-    }
-    return fallback || null;
-  }
-
-  // Check role requirements
-  if (requiredRoles && requiredRoles.length > 0) {
-    if (!hasRole(...requiredRoles)) {
-      return (
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          <h2>Access Denied</h2>
-          <p>You don't have permission to view this page.</p>
-          <p>Required roles: {requiredRoles.join(', ')}</p>
-        </div>
-      );
-    }
-  }
-
-  return <>{children}</>;
-}
-
-/**
  * Convert Firebase auth error codes to user-friendly messages
  */
 function getAuthErrorMessage(errorCode: string): string {
