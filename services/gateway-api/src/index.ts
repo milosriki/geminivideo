@@ -2788,6 +2788,85 @@ app.get('/api/realtime/stats', (req: Request, res: Response) => {
   });
 });
 
+// System metrics endpoint
+app.get('/api/system/metrics', async (req: Request, res: Response) => {
+  try {
+    const metrics = {
+      timestamp: new Date().toISOString(),
+      uptime_seconds: process.uptime(),
+      memory: {
+        heap_used: process.memoryUsage().heapUsed,
+        heap_total: process.memoryUsage().heapTotal,
+        external: process.memoryUsage().external,
+        rss: process.memoryUsage().rss
+      },
+      cpu: process.cpuUsage(),
+      node_version: process.version,
+      pid: process.pid
+    };
+
+    res.json({ success: true, data: metrics });
+  } catch (error: any) {
+    console.error('Error getting system metrics:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Database stats endpoint
+app.get('/api/system/database', async (req: Request, res: Response) => {
+  try {
+    const poolStats = {
+      total_connections: pgPool.totalCount,
+      idle_connections: pgPool.idleCount,
+      waiting_queries: pgPool.waitingCount
+    };
+
+    const dbResult = await pgPool.query(`
+      SELECT
+        pg_database_size(current_database()) as db_size,
+        (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()) as active_connections
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        pool: poolStats,
+        database: dbResult.rows[0]
+      }
+    });
+  } catch (error: any) {
+    console.error('Error getting database stats:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Service status endpoint
+app.get('/api/system/services', async (req: Request, res: Response) => {
+  try {
+    const services = [
+      { name: 'ml-service', url: process.env.ML_SERVICE_URL },
+      { name: 'video-agent', url: process.env.VIDEO_AGENT_URL },
+      { name: 'drive-intel', url: process.env.DRIVE_INTEL_URL }
+    ];
+
+    const results = await Promise.all(
+      services.map(async (service) => {
+        try {
+          const response = await axios.get(`${service.url}/health`, { timeout: 5000 });
+          return { name: service.name, status: 'healthy', latency_ms: response.headers['x-response-time'] || 0 };
+        } catch {
+          return { name: service.name, status: 'unhealthy' };
+        }
+      })
+    );
+
+    res.json({ success: true, data: results });
+  } catch (error: any) {
+    console.error('Error checking services:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Worker initialization function
 async function initializeWorkers() {
   try {
