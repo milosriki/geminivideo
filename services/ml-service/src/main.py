@@ -3609,6 +3609,40 @@ if SELF_LEARNING_MODULES_AVAILABLE:
             logger.error(f"Error getting cumulative improvement: {e}", exc_info=True)
             raise HTTPException(500, str(e))
 
+    @app.get("/api/ml/auto-promote/success-rate/{account_id}", tags=["Auto-Promoter"])
+    async def get_promotion_success_rate(account_id: str, days: int = 30):
+        """
+        Get promotion success rate for an account
+        """
+        try:
+            if not auto_promoter:
+                raise HTTPException(status_code=503, detail="Auto-promoter not available")
+
+            success_rate = await auto_promoter.get_success_rate(account_id, days=days)
+            return {"success": True, "data": success_rate}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting promotion success rate: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/ml/auto-promote/niche-performance/{niche}", tags=["Auto-Promoter"])
+    async def get_niche_promotion_performance(niche: str, days: int = 30):
+        """
+        Get promotion performance by niche/vertical
+        """
+        try:
+            if not auto_promoter:
+                raise HTTPException(status_code=503, detail="Auto-promoter not available")
+
+            performance = await auto_promoter.get_niche_performance(niche, days=days)
+            return {"success": True, "data": performance}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting niche performance: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
 
     # ============================================================
     # SELF-LEARNING CYCLE - All 7 loops together
