@@ -3941,9 +3941,17 @@ if ARTERY_MODULES_AVAILABLE:
     async def classify_hook(request: Dict[str, Any]):
         """
         Classify video hooks to identify high-performing patterns.
-        Note: HookClassifier implementation pending.
+        Uses heuristic rules (v1).
         """
-        return {"status": "not_implemented", "message": "HookClassifier module not yet available"}
+        from src.hook_classifier import hook_classifier
+        
+        video_metadata = request.get("video_metadata", {})
+        if not video_metadata:
+             # Try to construct metadata from flat request if nested object missing
+             video_metadata = request
+             
+        result = hook_classifier.classify(video_metadata)
+        return result
 
     # ============================================================
     # DEEP VIDEO INTELLIGENCE - Advanced Video Analysis
@@ -3953,9 +3961,22 @@ if ARTERY_MODULES_AVAILABLE:
     async def analyze_video(request: Dict[str, Any]):
         """
         Perform deep video intelligence analysis.
-        Note: DeepVideoIntelligence implementation pending.
+        Note: DeepVideoIntelligence implementation pending (Placeholder).
         """
         return {"status": "not_implemented", "message": "DeepVideoIntelligence module not yet available"}
+
+    # ============================================================
+    # ASYNC TASK TRIGGER
+    # ============================================================
+    
+    @app.post("/api/tasks/trigger-sync")
+    async def trigger_sync_task(request: Dict[str, Any]):
+        """Manually trigger the HubSpot sync task via Celery."""
+        from src.tasks import run_batch_sync
+        
+        tenant_id = request.get("tenant_id", "default")
+        task = run_batch_sync.delay(tenant_id)
+        return {"status": "queued", "task_id": str(task.id)}
 
     # ============================================================
     # FATIGUE DETECTOR - Predict ad fatigue BEFORE the crash
