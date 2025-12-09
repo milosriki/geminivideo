@@ -3081,6 +3081,45 @@ async def get_cross_learning_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/cross-learning/insights/{account_id}", tags=["Cross-Learning"])
+async def get_cross_learning_insights(account_id: str, days: int = 30):
+    """
+    Get cross-learning insights applied to an account
+    """
+    try:
+        if not cross_learner:
+            raise HTTPException(status_code=503, detail="Cross-learner not available")
+
+        insights = await cross_learner.get_insights(account_id, days=days)
+        return {"success": True, "data": insights}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting cross-learning insights: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/cross-learning/patterns", tags=["Cross-Learning"])
+async def get_global_patterns(min_accounts: int = 3, min_improvement: float = 0.1):
+    """
+    Get global patterns discovered across accounts
+    """
+    try:
+        if not cross_learner:
+            raise HTTPException(status_code=503, detail="Cross-learner not available")
+
+        patterns = await cross_learner.get_global_patterns(
+            min_accounts=min_accounts,
+            min_improvement=min_improvement
+        )
+        return {"success": True, "data": patterns}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting global patterns: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================
 # END CROSS-ACCOUNT LEARNING ENDPOINTS
 # ============================================================
