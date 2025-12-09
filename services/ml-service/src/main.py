@@ -100,8 +100,20 @@ except ImportError as e:
     logger.warning(f"Instant learner not available: {e}")
     INSTANT_LEARNER_AVAILABLE = False
 
-# Feedback store for retraining (in-memory, but could be persisted)
+# DATA INTEGRITY FIX: Bounded feedback store to prevent memory leaks
+# Maximum 10,000 feedback entries (approximately 50MB memory)
+MAX_FEEDBACK_STORE_SIZE = 10000
 feedback_store: List[Dict[str, Any]] = []
+
+def add_feedback(feedback: Dict[str, Any]) -> None:
+    """Add feedback with automatic eviction of oldest entries"""
+    feedback_store.append(feedback)
+    # Evict oldest entries if over limit
+    if len(feedback_store) > MAX_FEEDBACK_STORE_SIZE:
+        # Remove oldest 10% when limit exceeded
+        evict_count = MAX_FEEDBACK_STORE_SIZE // 10
+        feedback_store[:evict_count] = []
+        logger.info(f"Evicted {evict_count} oldest feedback entries (store size: {len(feedback_store)})")
 
 app = FastAPI(
     title="ML Service",
