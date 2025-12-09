@@ -10,7 +10,7 @@ echo "Total routes registered: $TOTAL_ROUTES"
 # Check for credits/roas/knowledge
 echo ""
 echo "2. Credits/ROAS/Knowledge Routes:"
-if grep -qE "app.use.*credits|creditsRouter" services/gateway-api/src/index.ts 2>/dev/null; then
+if grep -qE "registerCreditsEndpoints|app.use.*credits|creditsRouter" services/gateway-api/src/index.ts 2>/dev/null; then
   echo "✅ Credits route registered"
 else
   echo "❌ MISSING: Credits route not registered"

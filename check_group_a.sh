@@ -1,74 +1,98 @@
 #!/bin/bash
-echo "=== GROUP A VERIFICATION CHECK ==="
+# Group A Verification Script
+# Checks: Gateway API, Frontend, Docker, Config
+
+echo "======================================"
+echo "GROUP A VERIFICATION CHECKLIST"
+echo "======================================"
 echo ""
 
-echo "1. Route Files:"
-ls -1 services/gateway-api/src/routes/*.ts | wc -l
-echo "Route files found"
+# Colors
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
-echo ""
-echo "2. Routes Registered in index.ts:"
-grep -c "app.use('/api" services/gateway-api/src/index.ts
-echo "routes registered"
+check_file() {
+    if [ -f "$1" ]; then
+        echo -e "${GREEN}✓${NC} $2"
+        return 0
+    else
+        echo -e "${RED}✗${NC} $2 - MISSING: $1"
+        return 1
+    fi
+}
 
-echo ""
-echo "3. Workers Started:"
-grep -c "startSelfLearningCycleWorker\|start.*worker" services/gateway-api/src/index.ts
-echo "workers started"
+check_dir() {
+    if [ -d "$1" ]; then
+        echo -e "${GREEN}✓${NC} $2"
+        return 0
+    else
+        echo -e "${RED}✗${NC} $2 - MISSING: $1"
+        return 1
+    fi
+}
 
-echo ""
-echo "4. Services Exist:"
-ls -1 services/gateway-api/src/services/*.ts 2>/dev/null | wc -l
-echo "service files found"
-
-echo ""
-echo "5. Workers Exist:"
-ls -1 services/gateway-api/src/workers/*.ts 2>/dev/null | wc -l
-echo "worker files found"
-
-echo ""
-echo "6. Jobs Exist:"
-ls -1 services/gateway-api/src/jobs/*.ts 2>/dev/null | wc -l
-echo "job files found"
-
-echo ""
-echo "7. Multi-Platform Files:"
-ls -1 services/gateway-api/src/multi-platform/*.ts 2>/dev/null | wc -l
-echo "multi-platform files found"
-
-echo ""
-echo "=== CHECKING FOR MISSING ITEMS ==="
+echo "📁 GATEWAY API"
+echo "─────────────────────────────────────"
+check_file "services/gateway-api/src/index.ts" "Main server file"
+check_dir "services/gateway-api/src/routes" "Routes directory"
+check_file "services/gateway-api/src/webhooks/hubspot.ts" "HubSpot webhook"
+check_dir "services/gateway-api/src/realtime" "Realtime infrastructure"
+check_file "services/gateway-api/Dockerfile" "Dockerfile"
 echo ""
 
-# Check if all expected routes are registered
-echo "Checking route registrations..."
-MISSING_ROUTES=0
+echo "🎨 FRONTEND"
+echo "─────────────────────────────────────"
+check_file "frontend/src/App.tsx" "Main App component"
+check_dir "frontend/src/pages" "Pages directory"
+check_dir "frontend/src/components" "Components directory"
+check_dir "frontend/src/hooks" "Hooks directory"
+check_file "frontend/src/components/ErrorBoundary.tsx" "Error boundary"
+check_file "frontend/src/components/LoadingScreen.tsx" "Loading screen"
+check_file "frontend/Dockerfile" "Dockerfile"
+echo ""
 
-if ! grep -q "app.use('/api/campaigns'" services/gateway-api/src/index.ts; then
-  echo "❌ MISSING: /api/campaigns route"
-  MISSING_ROUTES=$((MISSING_ROUTES+1))
-fi
+echo "🐳 DOCKER"
+echo "─────────────────────────────────────"
+check_file "docker-compose.yml" "Docker Compose main"
+check_file "docker-compose.production.yml" "Docker Compose production"
 
-if ! grep -q "app.use('/api/ads'" services/gateway-api/src/index.ts; then
-  echo "❌ MISSING: /api/ads route"
-  MISSING_ROUTES=$((MISSING_ROUTES+1))
-fi
-
-if ! grep -q "app.use('/api/analytics'" services/gateway-api/src/index.ts; then
-  echo "❌ MISSING: /api/analytics route"
-  MISSING_ROUTES=$((MISSING_ROUTES+1))
-fi
-
-if [ $MISSING_ROUTES -eq 0 ]; then
-  echo "✅ All main routes registered"
-fi
-
-# Check if workers are started
-if ! grep -q "startSelfLearningCycleWorker" services/gateway-api/src/index.ts; then
-  echo "❌ MISSING: Self-learning cycle worker not started"
+# Check for Celery services in docker-compose
+if grep -q "celery-worker" docker-compose.yml 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Celery worker service configured"
 else
-  echo "✅ Self-learning cycle worker started"
+    echo -e "${RED}✗${NC} Celery worker service MISSING"
 fi
 
+if grep -q "celery-beat" docker-compose.yml 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Celery beat service configured"
+else
+    echo -e "${RED}✗${NC} Celery beat service MISSING"
+fi
 echo ""
-echo "=== VERIFICATION COMPLETE ==="
+
+echo "⚙️ CONFIG"
+echo "─────────────────────────────────────"
+check_dir "shared/config" "Config directory"
+check_file ".env.example" "Environment example"
+echo ""
+
+echo "🔌 ASYNC PROCESSING (Agent 5 & 13)"
+echo "─────────────────────────────────────"
+if grep -q "ASYNC_MODE" services/gateway-api/src/webhooks/hubspot.ts 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} HubSpot async mode implemented"
+else
+    echo -e "${YELLOW}⚠${NC} HubSpot async mode not found"
+fi
+
+if grep -q "queueCeleryTask" services/gateway-api/src/webhooks/hubspot.ts 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Celery task queueing implemented"
+else
+    echo -e "${YELLOW}⚠${NC} Celery task queueing not found"
+fi
+echo ""
+
+echo "======================================"
+echo "VERIFICATION COMPLETE"
+echo "======================================"
