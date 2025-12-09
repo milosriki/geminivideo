@@ -577,6 +577,12 @@ export function createAnalyticsRouter(pgPool: Pool): Router {
   router.get(
     '/real-time',
     apiRateLimiter,
+    validateInput({
+      query: {
+        platform: { type: 'string', required: false },
+        hours: { type: 'number', required: false, min: 1, max: 72 }
+      }
+    }),
     async (req: Request, res: Response) => {
       try {
         console.log('Fetching real-time analytics');
