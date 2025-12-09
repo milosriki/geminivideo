@@ -70,8 +70,16 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import axios from 'axios';
+import Redis from 'ioredis';
 
 const router = Router();
+
+// Redis client for Celery task queueing
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const redisClient = new Redis(REDIS_URL);
+
+// Async mode flag - enables Celery queueing for high-volume scenarios
+const ASYNC_MODE = process.env.HUBSPOT_ASYNC_MODE === 'true';
 
 // Environment variables
 const HUBSPOT_CLIENT_SECRET = process.env.HUBSPOT_CLIENT_SECRET || '';
@@ -110,6 +118,49 @@ interface SyntheticRevenueResult {
   confidence: number;
   reason: string;
   timestamp: string;
+}
+
+/**
+ * Queue a task to Celery via Redis (Agent 5: Async Processing)
+ * This prevents webhook timeouts for high-volume scenarios
+ */
+async function queueCeleryTask(taskName: string, args: any[]): Promise<string> {
+  const taskId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Celery task message format
+  const taskMessage = {
+    id: taskId,
+    task: taskName,
+    args: args,
+    kwargs: {},
+    retries: 0,
+    eta: null,
+    expires: null,
+    utc: true,
+  };
+
+  // Celery uses specific Redis list names for queues
+  const queueName = 'celery'; // Default Celery queue
+
+  // Push to Redis queue in Celery format
+  await redisClient.lpush(queueName, JSON.stringify({
+    body: Buffer.from(JSON.stringify(taskMessage)).toString('base64'),
+    'content-encoding': 'utf-8',
+    'content-type': 'application/json',
+    headers: {},
+    properties: {
+      correlation_id: taskId,
+      delivery_info: {
+        exchange: '',
+        routing_key: queueName,
+      },
+      delivery_mode: 2,
+      delivery_tag: taskId,
+    },
+  }));
+
+  console.log(`[HubSpot Webhook] Queued Celery task ${taskName} with ID ${taskId}`);
+  return taskId;
 }
 
 /**
@@ -251,6 +302,10 @@ async function queueAdChangeIfNeeded(
 
 /**
  * Main webhook endpoint
+ *
+ * Agent 5: Supports async mode for high-volume scenarios
+ * When HUBSPOT_ASYNC_MODE=true, webhooks are queued to Celery
+ * and return immediately with 202 Accepted status.
  */
 router.post('/webhook/hubspot', async (req: Request, res: Response) => {
   try {
@@ -276,6 +331,33 @@ router.post('/webhook/hubspot', async (req: Request, res: Response) => {
     }
 
     console.log(`[HubSpot Webhook] Deal ${stageChange.dealId} moved to ${stageChange.stageTo}`);
+
+    // ASYNC MODE: Queue to Celery and return immediately (Agent 5)
+    if (ASYNC_MODE) {
+      const webhookPayload = {
+        dealId: stageChange.dealId,
+        tenantId: stageChange.tenantId,
+        stageFrom: stageChange.stageFrom,
+        stageTo: stageChange.stageTo,
+        dealValue: stageChange.dealValue,
+        contactEmail: stageChange.contactEmail,
+        occurredAt: stageChange.occurredAt.toISOString(),
+      };
+
+      const taskId = await queueCeleryTask('process_hubspot_webhook', [webhookPayload]);
+
+      console.log(`[HubSpot Webhook] Async mode: queued deal ${stageChange.dealId} as task ${taskId}`);
+
+      return res.status(202).json({
+        status: 'queued',
+        task_id: taskId,
+        deal_id: stageChange.dealId,
+        stage_to: stageChange.stageTo,
+        message: 'Webhook queued for async processing',
+      });
+    }
+
+    // SYNC MODE: Process immediately (original behavior)
 
     // Step 4: Calculate synthetic revenue
     const syntheticRevenue = await calculateSyntheticRevenue(
