@@ -2619,27 +2619,22 @@ const createVersionedRouter = (version: string) => {
 // Campaign Management Routes
 import { createCampaignsRouter } from './routes/campaigns';
 const campaignsRouter = createCampaignsRouter(pgPool);
-app.use('/api/campaigns', campaignsRouter);
 
 // Analytics Routes
 import { createAnalyticsRouter } from './routes/analytics';
 const analyticsRouter = createAnalyticsRouter(pgPool);
-app.use('/api/analytics', analyticsRouter);
 
 // A/B Testing Routes
 import { createABTestsRouter } from './routes/ab-tests';
 const abTestsRouter = createABTestsRouter(pgPool);
-app.use('/api/ab-tests', abTestsRouter);
 
 // Ads Management Routes
 import { createAdsRouter } from './routes/ads';
 const adsRouter = createAdsRouter(pgPool);
-app.use('/api/ads', adsRouter);
 
 // Predictions Routes
 import { createPredictionsRouter } from './routes/predictions';
 const predictionsRouter = createPredictionsRouter(pgPool);
-app.use('/api/predictions', predictionsRouter);
 
 // ============================================================================
 // ONBOARDING ENDPOINTS
@@ -2647,42 +2642,36 @@ app.use('/api/predictions', predictionsRouter);
 
 import { createOnboardingRouter } from './routes/onboarding';
 const onboardingRouter = createOnboardingRouter(pgPool);
-app.use('/api/onboarding', onboardingRouter);
 
 // ============================================================================
 // DEMO MODE ENDPOINTS (Agent 20 - Investor Demo Mode)
 // ============================================================================
 
 import demoRouter from './routes/demo';
-app.use('/api/demo', demoRouter);
 
 // ============================================================================
 // ALERT SYSTEM ENDPOINTS (Agent 16 - Real-Time Performance Alerts)
 // ============================================================================
 
 import createAlertsRouter, { initializeAlertWebSocket } from './routes/alerts';
-app.use('/api/alerts', createAlertsRouter(pgPool));
 
 // ============================================================================
 // WEBHOOK MANAGEMENT ENDPOINTS (GROUP-A)
 // ============================================================================
 
 import { createWebhooksRouter } from './routes/webhooks';
-app.use('/api/webhooks', createWebhooksRouter(pgPool));
 
 // ============================================================================
 // REPORT GENERATION ENDPOINTS (Agent 18 - Campaign Performance Reports)
 // ============================================================================
 
 import reportRoutes from './routes/reports';
-app.use('/api/reports', reportRoutes);
 
 // ============================================================================
 // REAL-TIME STREAMING ENDPOINTS (Agent 38 - SSE/WebSocket)
 // ============================================================================
 
 import streamingRoutes from './routes/streaming';
-app.use('/api', streamingRoutes);
 
 // Import real-time infrastructure
 import {
@@ -2715,6 +2704,40 @@ console.log('✅ HubSpot webhook handler mounted at /api/webhook/hubspot');
 import mlProxyRouter from './routes/ml-proxy';
 app.use('/api/ml', mlProxyRouter);
 console.log('✅ Artery module endpoints mounted at /api/ml/*');
+
+// ============================================================================
+// V1 API ROUTES (GROUP-A - API Versioning)
+// ============================================================================
+
+// V1 API routes (current)
+const v1Router = createVersionedRouter('1.0');
+v1Router.use('/campaigns', campaignsRouter);
+v1Router.use('/ads', adsRouter);
+v1Router.use('/analytics', analyticsRouter);
+v1Router.use('/predictions', predictionsRouter);
+v1Router.use('/ab-tests', abTestsRouter);
+v1Router.use('/alerts', createAlertsRouter(pgPool));
+v1Router.use('/reports', reportRoutes);
+v1Router.use('/streaming', streamingRoutes);
+v1Router.use('/onboarding', onboardingRouter);
+v1Router.use('/demo', demoRouter);
+v1Router.use('/webhooks', createWebhooksRouter(pgPool));
+
+// Mount versioned APIs
+app.use('/api/v1', v1Router);
+
+// Default /api routes to v1 for backward compatibility
+app.use('/api', v1Router);
+
+// API version info endpoint
+app.get('/api/versions', (req: Request, res: Response) => {
+  res.json({
+    current: '1.0',
+    supported: ['1.0'],
+    deprecated: [],
+    documentation: '/api/docs'
+  });
+});
 
 // ============================================================================
 // HEALTH CHECK
