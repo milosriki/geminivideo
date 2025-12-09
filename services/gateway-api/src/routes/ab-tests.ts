@@ -324,6 +324,74 @@ export function createABTestsRouter(pgPool: Pool): Router {
   );
 
   /**
+   * PUT /api/ab-tests/:id
+   * Update an A/B test experiment
+   */
+  router.put(
+    '/:id',
+    apiRateLimiter,
+    validateInput({
+      params: { id: { type: 'uuid', required: true } },
+      body: {
+        name: { type: 'string', required: false, max: 100 },
+        description: { type: 'string', required: false, max: 500 },
+        traffic_split: { type: 'number', required: false, min: 0, max: 100 }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const updates = req.body;
+
+        const result = await pgPool.query(
+          `UPDATE ab_tests
+           SET name = COALESCE($1, name),
+               description = COALESCE($2, description),
+               traffic_split = COALESCE($3, traffic_split),
+               updated_at = NOW()
+           WHERE id = $4
+           RETURNING *`,
+          [updates.name, updates.description, updates.traffic_split, id]
+        );
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'A/B test not found' });
+        }
+        res.json({ success: true, data: result.rows[0] });
+      } catch (error: any) {
+        console.error(`Error updating A/B test ${req.params.id}: ${error.message}`);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * DELETE /api/ab-tests/:id
+   * Delete an A/B test experiment
+   */
+  router.delete(
+    '/:id',
+    apiRateLimiter,
+    validateInput({ params: { id: { type: 'uuid', required: true } } }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const result = await pgPool.query(
+          'DELETE FROM ab_tests WHERE id = $1 RETURNING id',
+          [id]
+        );
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'A/B test not found' });
+        }
+        res.json({ success: true, message: 'A/B test deleted' });
+      } catch (error: any) {
+        console.error(`Error deleting A/B test ${req.params.id}: ${error.message}`);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
+  /**
    * GET /api/ab-tests/:id/winner
    * Determine the statistical winner of an A/B test
    */
@@ -536,6 +604,32 @@ export function createABTestsRouter(pgPool: Pool): Router {
           error: 'Failed to pause A/B test',
           message: error.message
         });
+      }
+    }
+  );
+
+  /**
+   * POST /api/ab-tests/:id/resume
+   * Resume a paused A/B test experiment
+   */
+  router.post(
+    '/:id/resume',
+    apiRateLimiter,
+    validateInput({ params: { id: { type: 'uuid', required: true } } }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const result = await pgPool.query(
+          `UPDATE ab_tests SET status = 'running', updated_at = NOW() WHERE id = $1 AND status = 'paused' RETURNING *`,
+          [id]
+        );
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'A/B test not found or not paused' });
+        }
+        res.json({ success: true, data: result.rows[0] });
+      } catch (error: any) {
+        console.error(`Error resuming A/B test ${req.params.id}: ${error.message}`);
+        res.status(500).json({ error: error.message });
       }
     }
   );
