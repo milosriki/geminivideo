@@ -729,6 +729,55 @@ export function createAdsRouter(pgPool: Pool): Router {
     }
   );
 
+  /**
+   * GET /api/ads/:id/performance
+   * Get ad performance metrics
+   */
+  router.get(
+    '/:id/performance',
+    apiRateLimiter,
+    validateInput({ params: { id: { type: 'uuid', required: true } } }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const result = await pgPool.query(
+          `SELECT
+            a.ad_id as id,
+            a.asset_id as campaign_id,
+            a.status,
+            a.approved,
+            a.created_at,
+            COALESCE(SUM(pm.impressions), 0) as total_impressions,
+            COALESCE(SUM(pm.clicks), 0) as total_clicks,
+            COALESCE(SUM(pm.spend), 0) as total_spend,
+            COALESCE(SUM(pm.conversions), 0) as total_conversions,
+            CASE
+              WHEN SUM(pm.impressions) > 0
+              THEN ROUND((SUM(pm.clicks)::numeric / SUM(pm.impressions)::numeric) * 100, 2)
+              ELSE 0
+            END as ctr_percentage,
+            CASE
+              WHEN SUM(pm.spend) > 0
+              THEN ROUND(SUM(pm.conversions)::numeric / SUM(pm.spend)::numeric, 2)
+              ELSE 0
+            END as roas
+          FROM ads a
+          LEFT JOIN performance_metrics pm ON pm.ad_id = a.ad_id
+          WHERE a.ad_id = $1
+          GROUP BY a.ad_id, a.asset_id, a.status, a.approved, a.created_at`,
+          [id]
+        );
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Ad not found' });
+        }
+        res.json({ success: true, data: result.rows[0] });
+      } catch (error: any) {
+        console.error(`Error fetching ad performance ${req.params.id}: ${error.message}`);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
   return router;
 }
 
