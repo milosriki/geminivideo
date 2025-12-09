@@ -12,6 +12,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { apiRateLimiter, validateInput } from '../middleware/security';
+import { pgPool } from '../db';
 
 const router = Router();
 
@@ -251,6 +252,130 @@ router.get(
         error: 'Failed to fetch templates',
         message: error.message
       });
+    }
+  }
+);
+
+/**
+ * POST /api/reports/generate/async
+ * Queue an async report generation job
+ */
+router.post(
+  '/generate/async',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      type: { type: 'string', required: true },
+      params: { type: 'object', required: false },
+      format: { type: 'string', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { type, params = {}, format = 'pdf' } = req.body;
+
+      // Create async report job
+      const result = await pgPool.query(
+        `INSERT INTO batch_jobs (type, data, status, created_at)
+         VALUES ('report_generation', $1, 'pending', NOW())
+         RETURNING id`,
+        [JSON.stringify({ report_type: type, params, format })]
+      );
+
+      const jobId = result.rows[0].id;
+
+      res.status(202).json({
+        success: true,
+        job_id: jobId,
+        message: 'Report generation queued',
+        status_url: `/api/reports/status/${jobId}`
+      });
+    } catch (error: any) {
+      console.error('Error queuing report generation:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+/**
+ * GET /api/reports/status/:jobId
+ * Check the status of an async report generation job
+ */
+router.get(
+  '/status/:jobId',
+  apiRateLimiter,
+  validateInput({ params: { jobId: { type: 'uuid', required: true } } }),
+  async (req: Request, res: Response) => {
+    try {
+      const { jobId } = req.params;
+
+      const result = await pgPool.query(
+        'SELECT * FROM batch_jobs WHERE id = $1',
+        [jobId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Report job not found' });
+      }
+
+      const job = result.rows[0];
+      res.json({
+        success: true,
+        data: {
+          job_id: job.id,
+          status: job.status,
+          created_at: job.created_at,
+          completed_at: job.completed_at,
+          error: job.error
+        }
+      });
+    } catch (error: any) {
+      console.error('Error checking report status:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+/**
+ * POST /api/reports/:id/share
+ * Share a report with an email address
+ */
+router.post(
+  '/:id/share',
+  apiRateLimiter,
+  validateInput({
+    params: { id: { type: 'uuid', required: true } },
+    body: {
+      email: { type: 'string', required: true },
+      message: { type: 'string', required: false, max: 500 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { email, message } = req.body;
+
+      // Verify report exists
+      const reportResult = await pgPool.query(
+        'SELECT * FROM reports WHERE id = $1',
+        [id]
+      );
+
+      if (reportResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+
+      // Create share record
+      await pgPool.query(
+        `INSERT INTO report_shares (report_id, shared_with_email, message, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [id, email, message]
+      );
+
+      res.json({ success: true, message: `Report shared with ${email}` });
+    } catch (error: any) {
+      console.error('Error sharing report:', error.message);
+      res.status(500).json({ error: error.message });
     }
   }
 );
