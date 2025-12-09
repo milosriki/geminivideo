@@ -4,6 +4,8 @@
  */
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
+import { apiRateLimiter } from '../middleware/rate-limiter';
+import { validateInput } from '../middleware/validation';
 
 export function createOnboardingRouter(db: Pool) {
   const router = Router();
@@ -12,7 +14,15 @@ export function createOnboardingRouter(db: Pool) {
    * POST /api/onboarding/start
    * Initialize onboarding session for new user
    */
-  router.post('/start', async (req: Request, res: Response) => {
+  router.post(
+    '/start',
+    apiRateLimiter,
+    validateInput({
+      body: {
+        userId: { type: 'uuid', required: true }
+      }
+    }),
+    async (req: Request, res: Response) => {
     try {
       const { userId, email } = req.body;
 
@@ -63,7 +73,15 @@ export function createOnboardingRouter(db: Pool) {
    * GET /api/onboarding/status
    * Get current onboarding progress
    */
-  router.get('/status', async (req: Request, res: Response) => {
+  router.get(
+    '/status',
+    apiRateLimiter,
+    validateInput({
+      query: {
+        userId: { type: 'uuid', required: true }
+      }
+    }),
+    async (req: Request, res: Response) => {
     try {
       const { userId } = req.query;
 
@@ -118,7 +136,18 @@ export function createOnboardingRouter(db: Pool) {
    * PUT /api/onboarding/step/:step
    * Complete a specific onboarding step
    */
-  router.put('/step/:step', async (req: Request, res: Response) => {
+  router.put(
+    '/step/:step',
+    apiRateLimiter,
+    validateInput({
+      params: {
+        step: { type: 'string', required: true }
+      },
+      body: {
+        userId: { type: 'uuid', required: true }
+      }
+    }),
+    async (req: Request, res: Response) => {
     try {
       const { step } = req.params;
       const { userId, data } = req.body;
@@ -246,7 +275,16 @@ export function createOnboardingRouter(db: Pool) {
    * POST /api/onboarding/skip
    * Skip optional onboarding steps
    */
-  router.post('/skip', async (req: Request, res: Response) => {
+  router.post(
+    '/skip',
+    apiRateLimiter,
+    validateInput({
+      body: {
+        userId: { type: 'uuid', required: true },
+        step: { type: 'string', required: true }
+      }
+    }),
+    async (req: Request, res: Response) => {
     try {
       const { userId, step, reason } = req.body;
 
@@ -298,7 +336,15 @@ export function createOnboardingRouter(db: Pool) {
    * DELETE /api/onboarding/reset
    * Reset onboarding progress (admin only)
    */
-  router.delete('/reset', async (req: Request, res: Response) => {
+  router.delete(
+    '/reset',
+    apiRateLimiter,
+    validateInput({
+      body: {
+        userId: { type: 'uuid', required: true }
+      }
+    }),
+    async (req: Request, res: Response) => {
     try {
       const { userId } = req.body;
 
