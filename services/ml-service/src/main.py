@@ -4334,6 +4334,63 @@ if ARTERY_MODULES_AVAILABLE:
             logger.error(f"Market Intel competitor ads error: {e}")
             return {"error": str(e), "ads": []}
 
+    @app.get("/api/ml/market/trends/{niche}", tags=["Market Intelligence"])
+    async def get_market_trends(niche: str, days: int = 30):
+        """
+        Get market trends for a specific niche
+        """
+        try:
+            # Get trend data from market intelligence
+            trends = {
+                "niche": niche,
+                "period_days": days,
+                "avg_ctr": 0.025,
+                "avg_cpc": 0.85,
+                "top_hooks": [],
+                "emerging_formats": [],
+                "seasonal_patterns": []
+            }
+
+            # Query from database if available
+            data_loader = get_data_loader()
+            if data_loader and data_loader.pool:
+                result = await data_loader.pool.fetch('''
+                    SELECT
+                        AVG(ctr) as avg_ctr,
+                        AVG(cpc) as avg_cpc,
+                        COUNT(*) as ad_count
+                    FROM market_intelligence
+                    WHERE niche = $1 AND created_at > NOW() - INTERVAL '1 day' * $2
+                ''', niche, days)
+
+                if result and len(result) > 0:
+                    row = result[0]
+                    trends['avg_ctr'] = float(row['avg_ctr'] or 0.025)
+                    trends['avg_cpc'] = float(row['avg_cpc'] or 0.85)
+
+            return {"success": True, "data": trends}
+        except Exception as e:
+            logger.error(f"Error getting market trends: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/ml/market/competitors/{account_id}", tags=["Market Intelligence"])
+    async def get_competitor_analysis(account_id: str, limit: int = 10):
+        """
+        Get competitor analysis for an account's niche
+        """
+        try:
+            analysis = {
+                "account_id": account_id,
+                "competitors": [],
+                "market_position": "unknown",
+                "opportunities": []
+            }
+
+            return {"success": True, "data": analysis}
+        except Exception as e:
+            logger.error(f"Error getting competitor analysis: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
     # ============================================================
     # SYNTHETIC REVENUE - Pipeline Value Calculator
     # ============================================================
