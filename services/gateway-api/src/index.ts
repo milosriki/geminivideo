@@ -2631,8 +2631,8 @@ app.use('/api/demo', demoRouter);
 // ALERT SYSTEM ENDPOINTS (Agent 16 - Real-Time Performance Alerts)
 // ============================================================================
 
-import alertsRouter, { initializeAlertWebSocket } from './routes/alerts';
-app.use('/api/alerts', alertsRouter);
+import createAlertsRouter, { initializeAlertWebSocket } from './routes/alerts';
+app.use('/api/alerts', createAlertsRouter(pgPool));
 
 // ============================================================================
 // REPORT GENERATION ENDPOINTS (Agent 18 - Campaign Performance Reports)

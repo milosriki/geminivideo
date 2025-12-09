@@ -6,6 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { Pool } from 'pg';
 import axios from 'axios';
 import WebSocket from 'ws';
 import { logger } from '../logger';
@@ -95,6 +96,11 @@ export function broadcastAlert(alert: any) {
 
   logger.info(`Alert broadcast to ${sentCount} WebSocket clients`);
 }
+
+/**
+ * Create alerts router with database pool
+ */
+export function createAlertsRouter(pgPool: Pool): Router {
 
 // ============================================================
 // ALERT RULE MANAGEMENT
@@ -668,4 +674,73 @@ router.post(
   }
 );
 
-export default router;
+/**
+ * Update an alert
+ * PUT /api/alerts/:alertId
+ */
+router.put(
+  '/:alertId',
+  apiRateLimiter,
+  validateInput({
+    params: { alertId: { type: 'uuid', required: true } },
+    body: {
+      severity: { type: 'string', required: false },
+      message: { type: 'string', required: false, max: 500 }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { alertId } = req.params;
+      const { severity, message } = req.body;
+
+      const result = await pgPool.query(
+        `UPDATE alerts
+         SET severity = COALESCE($1, severity),
+             message = COALESCE($2, message),
+             updated_at = NOW()
+         WHERE id = $3
+         RETURNING *`,
+        [severity, message, alertId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      res.json({ success: true, data: result.rows[0] });
+    } catch (error: any) {
+      console.error(`Error updating alert ${req.params.alertId}: ${error.message}`);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+/**
+ * Delete an alert
+ * DELETE /api/alerts/:alertId
+ */
+router.delete(
+  '/:alertId',
+  apiRateLimiter,
+  validateInput({ params: { alertId: { type: 'uuid', required: true } } }),
+  async (req: Request, res: Response) => {
+    try {
+      const { alertId } = req.params;
+      const result = await pgPool.query(
+        'DELETE FROM alerts WHERE id = $1 RETURNING id',
+        [alertId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      res.json({ success: true, message: 'Alert deleted' });
+    } catch (error: any) {
+      console.error(`Error deleting alert ${req.params.alertId}: ${error.message}`);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+  return router;
+}
+
+export default createAlertsRouter;
