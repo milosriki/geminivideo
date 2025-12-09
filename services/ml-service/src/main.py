@@ -388,6 +388,90 @@ async def get_feature_importance():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Model Management Endpoints
+
+@app.get("/api/ml/models")
+async def list_models():
+    """
+    List all available ML models
+    """
+    try:
+        models = {
+            "ctr_predictor": {
+                "name": "CTR Predictor",
+                "type": "vowpal_wabbit",
+                "status": "active",
+                "version": "1.0",
+                "last_trained": None
+            },
+            "thompson_sampler": {
+                "name": "Thompson Sampling",
+                "type": "bayesian",
+                "status": "active",
+                "version": "1.0"
+            },
+            "creative_dna": {
+                "name": "Creative DNA Extractor",
+                "type": "embedding",
+                "status": "active",
+                "version": "1.0"
+            },
+            "cross_learner": {
+                "name": "Cross-Account Learner",
+                "type": "federated",
+                "status": "active" if cross_learner else "inactive"
+            },
+            "compound_learner": {
+                "name": "Compound Learner",
+                "type": "ensemble",
+                "status": "active"
+            }
+        }
+
+        return {"success": True, "data": models}
+    except Exception as e:
+        logger.error(f"Error listing models: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ml/models/{model_id}/metrics")
+async def get_model_metrics(model_id: str):
+    """
+    Get performance metrics for a specific model
+    """
+    try:
+        metrics = {
+            "model_id": model_id,
+            "accuracy": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1_score": 0.0,
+            "predictions_count": 0,
+            "avg_latency_ms": 0.0
+        }
+
+        # Query model metrics from database
+        data_loader = get_data_loader()
+        result = await data_loader.pool.fetch('''
+            SELECT
+                AVG(accuracy) as accuracy,
+                COUNT(*) as predictions,
+                AVG(latency_ms) as avg_latency
+            FROM model_predictions
+            WHERE model_id = $1 AND created_at > NOW() - INTERVAL '7 days'
+        ''', model_id)
+
+        if result and len(result) > 0:
+            row = result[0]
+            metrics['accuracy'] = float(row['accuracy'] or 0)
+            metrics['predictions_count'] = int(row['predictions'] or 0)
+            metrics['avg_latency_ms'] = float(row['avg_latency'] or 0)
+
+        return {"success": True, "data": metrics}
+    except Exception as e:
+        logger.error(f"Error getting model metrics: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Enhanced XGBoost CTR Prediction Endpoints (Agent 5)
 
 class EnhancedCTRRequest(BaseModel):
