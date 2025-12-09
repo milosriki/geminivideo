@@ -2734,7 +2734,7 @@ console.log('✅ Artery module endpoints mounted at /api/ml/*');
 // CREDITS ENDPOINTS (GROUP A - Wired)
 // ============================================================================
 
-const { registerCreditsEndpoints } = require('./credits-endpoint');
+import { registerCreditsEndpoints } from './credits-endpoint';
 registerCreditsEndpoints(app, pgPool);
 console.log('✅ Credits endpoints mounted at /api/credits');
 
