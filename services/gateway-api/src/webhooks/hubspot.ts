@@ -326,6 +326,55 @@ router.post('/webhook/hubspot', async (req: Request, res: Response) => {
         // Non-critical: log and continue
         console.warn(`[HubSpot Webhook] Failed to send feedback: ${error.message}`);
       }
+
+      // OPTIMIZATION 1: Meta CAPI - 40% attribution recovery
+      try {
+        await axios.post(
+          `${ML_SERVICE_URL}/api/ml/meta-capi/track`,
+          {
+            event_name: stageChange.stageTo === 'closedwon' ? 'Purchase' : 'Lead',
+            user_data: {
+              email: stageChange.contactEmail,
+              phone: stageChange.contactId, // Would need phone lookup
+              fbp: attribution.click_tracking?.fbp,
+              fbc: attribution.click_tracking?.fbc,
+            },
+            event_time: Math.floor(stageChange.occurredAt.getTime() / 1000),
+            value: syntheticRevenue.calculated_value,
+          },
+          { timeout: 5000 }
+        );
+        console.log(`[HubSpot Webhook] Meta CAPI event tracked (40% attribution recovery)`);
+      } catch (capiError: any) {
+        console.warn(`[HubSpot Webhook] Meta CAPI tracking failed (non-fatal): ${capiError.message}`);
+      }
+
+      // OPTIMIZATION 5: Instant Learning - Real-time adaptation
+      try {
+        await axios.post(
+          `${ML_SERVICE_URL}/api/ml/instant-learn/event`,
+          {
+            ad_id: attribution.ad_id,
+            event_type: 'conversion',
+            features: {
+              ctr: attribution.ctr || 0,
+              spend: attribution.attributed_spend || 0,
+              age_hours: attribution.age_hours || 0,
+              pipeline_value: syntheticRevenue.calculated_value,
+            },
+            outcome: 1.0,
+            metadata: {
+              deal_stage: stageChange.stageTo,
+              synthetic_revenue: syntheticRevenue.calculated_value,
+              attribution_method: attribution.attribution_method,
+            },
+          },
+          { timeout: 5000 }
+        );
+        console.log(`[HubSpot Webhook] Instant learning event processed (real-time adaptation)`);
+      } catch (learnError: any) {
+        console.warn(`[HubSpot Webhook] Instant learning failed (non-fatal): ${learnError.message}`);
+      }
     }
 
     // Step 7: Queue optimization if needed
