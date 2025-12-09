@@ -2675,6 +2675,21 @@ import mlProxyRouter from './routes/ml-proxy';
 app.use('/api/ml', mlProxyRouter);
 console.log('✅ Artery module endpoints mounted at /api/ml/*');
 
+// AI Credits Endpoints (Agent 5 - Group A wiring)
+import { registerCreditsEndpoints } from './credits-endpoint';
+registerCreditsEndpoints(app, pgPool);
+console.log('✅ AI Credits endpoints mounted at /api/credits');
+
+// ROAS Dashboard Routes (Agent 14 - Group A wiring)
+import { initializeROASRoutes } from './routes/roas-dashboard';
+app.use('/api/roas', initializeROASRoutes(pgPool));
+console.log('✅ ROAS dashboard endpoints mounted at /api/roas/*');
+
+// Knowledge Management Routes (Group A wiring)
+import knowledgeRouter from './knowledge';
+app.use('/api/knowledge', knowledgeRouter);
+console.log('✅ Knowledge management endpoints mounted at /api/knowledge/*');
+
 // ============================================================================
 // HEALTH CHECK
 // ============================================================================
