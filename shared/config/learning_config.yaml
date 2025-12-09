@@ -1,0 +1,224 @@
+# Learning & Automation Configuration
+# Controls all auto-triggers, thresholds, and intervals
+
+version: "1.0.0"
+last_updated: "2025-12-09"
+
+# ============================================================================
+# WINNER DETECTION THRESHOLDS
+# ============================================================================
+winner_detection:
+  # Criteria for identifying winning ads
+  ctr_threshold: 0.03          # CTR > 3% (0.03)
+  roas_threshold: 3.0          # ROAS > 3.0
+  min_impressions: 1000         # Minimum impressions required
+  min_hours_live: 24            # Minimum hours ad has been live
+  min_clicks: 30                # Minimum clicks for statistical significance
+  
+  # Advanced criteria (optional)
+  require_both: false           # Require BOTH CTR and ROAS thresholds (false = OR)
+  min_spend: 50.0               # Minimum spend in currency
+  min_conversions: 1            # Minimum conversions (for service businesses)
+
+# ============================================================================
+# RAG AUTO-INDEXING
+# ============================================================================
+rag_indexing:
+  # Auto-index winners to RAG memory
+  enabled: true
+  auto_trigger: true            # Automatically index when winner detected
+  
+  # Indexing criteria (can be different from winner detection)
+  ctr_threshold: 0.03
+  roas_threshold: 3.0
+  min_impressions: 1000
+  min_hours_live: 24
+  
+  # Batch processing
+  batch_size: 10                # Index multiple winners at once
+  batch_interval_seconds: 300   # Process batch every 5 minutes
+
+# ============================================================================
+# SELF-LEARNING CYCLE
+# ============================================================================
+self_learning_cycle:
+  # Master orchestrator for all 7 learning loops
+  enabled: true
+  interval_seconds: 3600        # Run every hour (3600 seconds)
+  interval_hours: 1             # Alternative: specify in hours
+  
+  # Loop execution order and settings
+  loops:
+    rag_winner_index:
+      enabled: true
+      priority: 1
+      timeout_seconds: 300
+    
+    thompson_sampling:
+      enabled: true
+      priority: 2
+      timeout_seconds: 180
+    
+    cross_learner:
+      enabled: true
+      priority: 3
+      timeout_seconds: 600
+    
+    creative_dna:
+      enabled: true
+      priority: 4
+      timeout_seconds: 900
+    
+    compound_learner:
+      enabled: true
+      priority: 5
+      timeout_seconds: 1200
+    
+    actuals_fetcher:
+      enabled: true
+      priority: 6
+      timeout_seconds: 1800
+    
+    auto_promoter:
+      enabled: true
+      priority: 7
+      timeout_seconds: 600
+  
+  # Failure handling
+  continue_on_error: true       # Continue other loops if one fails
+  max_retries: 3
+  retry_delay_seconds: 60
+
+# ============================================================================
+# CHAMPION-CHALLENGER EVALUATION
+# ============================================================================
+model_evaluation:
+  # Auto-evaluate models after training
+  enabled: true
+  auto_promote: true            # Automatically promote if challenger wins
+  
+  # Evaluation criteria
+  min_improvement_pct: 2.0      # Challenger must be 2% better
+  min_samples: 1000              # Minimum samples for evaluation
+  confidence_level: 0.95        # Statistical confidence (95%)
+  
+  # Promotion criteria
+  require_statistical_significance: true
+  min_accuracy_delta: 0.01       # Minimum accuracy improvement (1%)
+  
+  # Model types to evaluate
+  evaluate_ctr_models: true
+  evaluate_roas_models: true
+  evaluate_ensemble_models: true
+
+# ============================================================================
+# AUTO-PROMOTER SETTINGS
+# ============================================================================
+auto_promoter:
+  # Automatically scale winners and kill losers
+  enabled: true
+  check_interval_seconds: 1800  # Check every 30 minutes
+  
+  # Promotion criteria (scale budget)
+  promotion:
+    min_ctr: 0.025              # Minimum CTR to promote (2.5%)
+    min_roas: 2.5               # Minimum ROAS to promote
+    min_impressions: 500
+    min_hours_live: 12
+    budget_increase_pct: 20.0   # Increase budget by 20%
+    max_budget_increase_pct: 100.0  # Never more than 2x
+  
+  # Kill criteria (pause/delete)
+  kill:
+    max_ctr: 0.01               # Kill if CTR < 1%
+    max_roas: 1.0               # Kill if ROAS < 1.0
+    min_impressions: 1000        # Need enough data
+    min_hours_live: 24
+    consecutive_days_failing: 3  # Kill after 3 days of poor performance
+
+# ============================================================================
+# ACTUALS FETCHER SETTINGS
+# ============================================================================
+actuals_fetcher:
+  # Fetch performance data from Meta API
+  enabled: true
+  fetch_interval_seconds: 3600  # Fetch every hour
+  
+  # Fetch criteria
+  days_back: 7                  # Look back 7 days
+  min_spend: 10.0               # Only fetch if spend > $10
+  batch_size: 50                # Fetch 50 ads at a time
+  
+  # Rate limiting
+  max_requests_per_hour: 200     # Meta API rate limit
+  request_delay_ms: 100         # Delay between requests
+
+# ============================================================================
+# SAFE EXECUTOR SETTINGS
+# ============================================================================
+safe_executor:
+  # Safe ad change execution with anti-ban protection
+  enabled: true
+  poll_interval_ms: 5000        # Poll every 5 seconds
+  
+  # Safety rules
+  rate_limiting:
+    max_actions_per_hour: 15     # Max 15 actions per campaign per hour
+    max_actions_per_day: 100     # Max 100 actions per day
+  
+  budget_velocity:
+    max_change_pct: 20.0         # Max 20% budget change in 6h window
+    velocity_window_hours: 6
+  
+  jitter:
+    enabled: true
+    min_ms: 3000                 # Random delay: 3-18 seconds
+    max_ms: 18000
+  
+  fuzzy_budgets:
+    enabled: true
+    variance_pct: 3.0            # ±3% randomization to appear human
+
+# ============================================================================
+# PREDICTION SETTINGS
+# ============================================================================
+predictions:
+  # ROAS prediction
+  roas:
+    default_days_forward: 7
+    max_days_forward: 90
+    confidence_threshold: 0.7
+  
+  # Pipeline prediction
+  pipeline:
+    min_deal_amount: 100.0       # Only predict deals > $100
+    default_probability_threshold: 0.1  # Include deals with >10% probability
+
+# ============================================================================
+# FEATURE FLAGS
+# ============================================================================
+feature_flags:
+  # Enable/disable features without code changes
+  rag_auto_indexing: true
+  self_learning_cycle: true
+  auto_promoter: true
+  champion_challenger: true
+  safe_executor: true
+  database_triggers: true
+
+# ============================================================================
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# ============================================================================
+environments:
+  development:
+    self_learning_cycle:
+      interval_seconds: 60       # Run every minute in dev
+    safe_executor:
+      poll_interval_ms: 1000     # Poll faster in dev
+  
+  production:
+    self_learning_cycle:
+      interval_seconds: 3600     # Run every hour in prod
+    safe_executor:
+      poll_interval_ms: 5000     # Poll every 5s in prod
+
