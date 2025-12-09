@@ -405,6 +405,55 @@ services:
     networks:
       - geminivideo-network
 
+  # ========================================================================
+  # CELERY WORKERS (Agent 13: Async Task Processing)
+  # ========================================================================
+
+  celery-worker:
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
+    container_name: geminivideo-celery-worker
+    command: celery -A src.celery_app worker -Q hubspot-webhook-events,fatigue-monitoring,budget-optimization --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
+      PYTHONPATH: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared
+      - ./services/ml-service/models:/app/models
+    networks:
+      - geminivideo-network
+
+  celery-beat:
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
+    container_name: geminivideo-celery-beat
+    command: celery -A src.celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      REDIS_URL: redis://redis:6379
+      PYTHONPATH: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared
+    networks:
+      - geminivideo-network
+
 networks:
   geminivideo-network:
     driver: bridge

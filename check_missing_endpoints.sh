@@ -1,51 +1,86 @@
 #!/bin/bash
-echo "=== CHECKING FOR MISSING ENDPOINTS ==="
+# Check for missing or unwired API endpoints
+# Compares frontend API calls with gateway-api endpoints
+
+echo "======================================"
+echo "ENDPOINT WIRING VERIFICATION"
+echo "======================================"
 echo ""
 
-# Check campaigns.ts for common endpoints
-echo "Campaigns Endpoints:"
-grep -o "router\.\(get\|post\|put\|delete\|patch\)" services/gateway-api/src/routes/campaigns.ts | sort | uniq -c
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo "📡 GATEWAY API ROUTES"
+echo "─────────────────────────────────────"
+
+# Count routes in gateway-api
+ROUTE_FILES=$(find services/gateway-api/src/routes -name "*.ts" 2>/dev/null | wc -l)
+echo "Route files: $ROUTE_FILES"
+
+# List route modules
+echo ""
+echo "Route modules:"
+ls -1 services/gateway-api/src/routes/*.ts 2>/dev/null | while read f; do
+    basename "$f" .ts | sed 's/^/  - /'
+done
 
 echo ""
-echo "Ads Endpoints:"
-grep -o "router\.\(get\|post\|put\|delete\|patch\)" services/gateway-api/src/routes/ads.ts | sort | uniq -c
+echo "📱 FRONTEND HOOKS"
+echo "─────────────────────────────────────"
+
+# Count hooks
+HOOK_FILES=$(find frontend/src/hooks -name "*.ts" -o -name "*.tsx" 2>/dev/null | wc -l)
+echo "Hook files: $HOOK_FILES"
 
 echo ""
-echo "Analytics Endpoints:"
-grep -o "router\.\(get\|post\|put\|delete\|patch\)" services/gateway-api/src/routes/analytics.ts | sort | uniq -c
+echo "Hooks:"
+ls -1 frontend/src/hooks/*.ts 2>/dev/null | while read f; do
+    basename "$f" .ts | sed 's/^/  - /'
+done
 
 echo ""
-echo "=== CHECKING FOR MISSING FUNCTIONALITY ==="
-echo ""
+echo "🔗 API BASE URL CHECK"
+echo "─────────────────────────────────────"
 
-# Check for error handling
-echo "Error Handling Check:"
-MISSING_ERROR_HANDLING=$(grep -L "catch.*error" services/gateway-api/src/routes/campaigns.ts services/gateway-api/src/routes/ads.ts 2>/dev/null | wc -l)
-if [ $MISSING_ERROR_HANDLING -gt 0 ]; then
-  echo "⚠️  Some routes may be missing error handling"
+# Check if API_BASE_URL is configured
+if grep -r "VITE_API_BASE_URL\|API_BASE_URL" frontend/src --include="*.ts" --include="*.tsx" -l 2>/dev/null | head -1 > /dev/null; then
+    echo -e "${GREEN}✓${NC} API base URL configured in frontend"
 else
-  echo "✅ Error handling present"
+    echo -e "${RED}✗${NC} API base URL configuration not found"
 fi
 
-# Check for rate limiting
 echo ""
-echo "Rate Limiting Check:"
-MISSING_RATE_LIMIT=$(grep -L "RateLimiter\|rateLimiter" services/gateway-api/src/routes/campaigns.ts services/gateway-api/src/routes/ads.ts 2>/dev/null | wc -l)
-if [ $MISSING_RATE_LIMIT -gt 0 ]; then
-  echo "⚠️  Some routes may be missing rate limiting"
-else
-  echo "✅ Rate limiting present"
-fi
+echo "🌐 CRITICAL ENDPOINTS"
+echo "─────────────────────────────────────"
 
-# Check for input validation
-echo ""
-echo "Input Validation Check:"
-MISSING_VALIDATION=$(grep -L "validateInput" services/gateway-api/src/routes/campaigns.ts services/gateway-api/src/routes/ads.ts 2>/dev/null | wc -l)
-if [ $MISSING_VALIDATION -gt 0 ]; then
-  echo "⚠️  Some routes may be missing input validation"
-else
-  echo "✅ Input validation present"
-fi
+# Check for key endpoints in gateway-api
+check_endpoint() {
+    if grep -rq "$1" services/gateway-api/src --include="*.ts" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} $2"
+    else
+        echo -e "${RED}✗${NC} $2 - pattern: $1"
+    fi
+}
+
+check_endpoint "/api/campaigns" "Campaigns endpoint"
+check_endpoint "/api/analytics" "Analytics endpoint"
+check_endpoint "/api/ads" "Ads endpoint"
+check_endpoint "/api/ml" "ML proxy endpoints"
+check_endpoint "/webhook/hubspot" "HubSpot webhook"
+check_endpoint "/api/predictions" "Predictions endpoint"
+check_endpoint "/api/ab-tests" "A/B Tests endpoint"
+check_endpoint "/health" "Health check endpoint"
 
 echo ""
-echo "=== CHECK COMPLETE ==="
+echo "🔄 REALTIME ENDPOINTS"
+echo "─────────────────────────────────────"
+
+check_endpoint "SSE\|EventSource\|server-sent" "SSE support"
+check_endpoint "WebSocket\|socket" "WebSocket support"
+
+echo ""
+echo "======================================"
+echo "ENDPOINT CHECK COMPLETE"
+echo "======================================"
