@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import WebSocket from 'ws';
 import { logger } from '../logger';
+import { apiRateLimiter, validateInput } from '../middleware/security';
 
 const router = Router();
 
@@ -103,7 +104,18 @@ export function broadcastAlert(alert: any) {
  * Create or update an alert rule
  * POST /api/alerts/rules
  */
-router.post('/rules', async (req: Request, res: Response) => {
+router.post(
+  '/rules',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      rule_name: { type: 'string', required: true, max: 100 },
+      campaign_id: { type: 'uuid', required: true },
+      metric_name: { type: 'string', required: true },
+      threshold: { type: 'number', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     logger.info(`Creating alert rule: ${req.body.rule_id}`);
 
@@ -117,13 +129,14 @@ router.post('/rules', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Get all alert rules
  * GET /api/alerts/rules
  */
-router.get('/rules', async (req: Request, res: Response) => {
+router.get('/rules', apiRateLimiter, async (req: Request, res: Response) => {
   try {
     const enabledOnly = req.query.enabled_only === 'true';
 
@@ -145,7 +158,15 @@ router.get('/rules', async (req: Request, res: Response) => {
  * Get a specific alert rule
  * GET /api/alerts/rules/:ruleId
  */
-router.get('/rules/:ruleId', async (req: Request, res: Response) => {
+router.get(
+  '/rules/:ruleId',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      ruleId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { ruleId } = req.params;
 
@@ -159,13 +180,22 @@ router.get('/rules/:ruleId', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Delete an alert rule
  * DELETE /api/alerts/rules/:ruleId
  */
-router.delete('/rules/:ruleId', async (req: Request, res: Response) => {
+router.delete(
+  '/rules/:ruleId',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      ruleId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { ruleId } = req.params;
 
@@ -179,13 +209,22 @@ router.delete('/rules/:ruleId', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Enable an alert rule
  * PUT /api/alerts/rules/:ruleId/enable
  */
-router.put('/rules/:ruleId/enable', async (req: Request, res: Response) => {
+router.put(
+  '/rules/:ruleId/enable',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      ruleId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { ruleId } = req.params;
 
@@ -199,13 +238,22 @@ router.put('/rules/:ruleId/enable', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Disable an alert rule
  * PUT /api/alerts/rules/:ruleId/disable
  */
-router.put('/rules/:ruleId/disable', async (req: Request, res: Response) => {
+router.put(
+  '/rules/:ruleId/disable',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      ruleId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { ruleId } = req.params;
 
@@ -219,7 +267,8 @@ router.put('/rules/:ruleId/disable', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 // ============================================================
 // ALERT MONITORING & TRIGGERING
@@ -231,7 +280,17 @@ router.put('/rules/:ruleId/disable', async (req: Request, res: Response) => {
  *
  * This is the core endpoint for real-time alert monitoring
  */
-router.post('/check', async (req: Request, res: Response) => {
+router.post(
+  '/check',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      campaign_id: { type: 'uuid', required: true },
+      metric_name: { type: 'string', required: true },
+      metric_value: { type: 'number', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     logger.info(`Checking metric: ${req.body.metric_name} for campaign ${req.body.campaign_id}`);
 
@@ -252,13 +311,14 @@ router.post('/check', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Get active alerts
  * GET /api/alerts
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', apiRateLimiter, async (req: Request, res: Response) => {
   try {
     const { campaign_id, alert_type, severity, limit } = req.query;
 
@@ -285,7 +345,7 @@ router.get('/', async (req: Request, res: Response) => {
  * Get alert history
  * GET /api/alerts/history
  */
-router.get('/history', async (req: Request, res: Response) => {
+router.get('/history', apiRateLimiter, async (req: Request, res: Response) => {
   try {
     const { campaign_id, days_back, limit } = req.query;
 
@@ -311,7 +371,7 @@ router.get('/history', async (req: Request, res: Response) => {
  * Get alert statistics
  * GET /api/alerts/stats
  */
-router.get('/stats', async (req: Request, res: Response) => {
+router.get('/stats', apiRateLimiter, async (req: Request, res: Response) => {
   try {
     const { campaign_id } = req.query;
 
@@ -333,7 +393,15 @@ router.get('/stats', async (req: Request, res: Response) => {
  * Get a specific alert
  * GET /api/alerts/:alertId
  */
-router.get('/:alertId', async (req: Request, res: Response) => {
+router.get(
+  '/:alertId',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      alertId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { alertId } = req.params;
 
@@ -347,13 +415,22 @@ router.get('/:alertId', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Acknowledge an alert
  * PUT /api/alerts/:alertId/acknowledge
  */
-router.put('/:alertId/acknowledge', async (req: Request, res: Response) => {
+router.put(
+  '/:alertId/acknowledge',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      alertId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { alertId } = req.params;
     const { user_id } = req.body;
@@ -379,13 +456,22 @@ router.put('/:alertId/acknowledge', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Resolve an alert
  * PUT /api/alerts/:alertId/resolve
  */
-router.put('/:alertId/resolve', async (req: Request, res: Response) => {
+router.put(
+  '/:alertId/resolve',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      alertId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { alertId } = req.params;
 
@@ -406,13 +492,22 @@ router.put('/:alertId/resolve', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Send a test alert notification
  * POST /api/alerts/test
  */
-router.post('/test', async (req: Request, res: Response) => {
+router.post(
+  '/test',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      channel: { type: 'string', required: false, enum: ['slack', 'email', 'webhook'] }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { channel } = req.body;
 
@@ -428,7 +523,8 @@ router.post('/test', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 // ============================================================
 // CONVENIENCE ENDPOINTS FOR SPECIFIC METRICS
@@ -438,7 +534,18 @@ router.post('/test', async (req: Request, res: Response) => {
  * Check ROAS metric
  * POST /api/alerts/check/roas
  */
-router.post('/check/roas', async (req: Request, res: Response) => {
+router.post(
+  '/check/roas',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      campaign_id: { type: 'uuid', required: true },
+      campaign_name: { type: 'string', required: false },
+      roas: { type: 'number', required: true },
+      context: { type: 'object', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { campaign_id, campaign_name, roas, context } = req.body;
 
@@ -466,13 +573,25 @@ router.post('/check/roas', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Check budget metric
  * POST /api/alerts/check/budget
  */
-router.post('/check/budget', async (req: Request, res: Response) => {
+router.post(
+  '/check/budget',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      campaign_id: { type: 'uuid', required: true },
+      campaign_name: { type: 'string', required: false },
+      budget_spent_pct: { type: 'number', required: true },
+      context: { type: 'object', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { campaign_id, campaign_name, budget_spent_pct, context } = req.body;
 
@@ -500,13 +619,25 @@ router.post('/check/budget', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 /**
  * Check CTR metric
  * POST /api/alerts/check/ctr
  */
-router.post('/check/ctr', async (req: Request, res: Response) => {
+router.post(
+  '/check/ctr',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      campaign_id: { type: 'uuid', required: true },
+      campaign_name: { type: 'string', required: false },
+      ctr_drop_pct: { type: 'number', required: true },
+      context: { type: 'object', required: false }
+    }
+  }),
+  async (req: Request, res: Response) => {
   try {
     const { campaign_id, campaign_name, ctr_drop_pct, context } = req.body;
 
@@ -534,6 +665,7 @@ router.post('/check/ctr', async (req: Request, res: Response) => {
       details: error.message
     });
   }
-});
+  }
+);
 
 export default router;

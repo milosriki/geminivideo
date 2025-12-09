@@ -8,6 +8,7 @@ import { getSSEManager } from '../realtime/sse-manager';
 import { CouncilScoreStreamEvent, createAIStreamChunk } from '../realtime/events';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
+import { apiRateLimiter, validateInput } from '../middleware/security';
 
 const router = Router();
 
@@ -19,7 +20,17 @@ const router = Router();
  * Stream AI Council evaluation in real-time
  * Shows each model's thinking process as it happens
  */
-router.get('/stream/council-score', async (req: Request, res: Response) => {
+router.get(
+  '/stream/council-score',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      userId: { type: 'string', required: true },
+      videoUrl: { type: 'url', required: true },
+      transcript: { type: 'string', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   const sseManager = getSSEManager();
   const client = sseManager.initializeConnection(res, req.query.userId as string);
 
@@ -148,12 +159,22 @@ Provide reasoning and final composite score.`;
     console.error('Council score streaming error:', error);
     sseManager.sendError(client, error.message);
   }
-});
+  }
+);
 
 /**
  * Stream AI creative evaluation
  */
-router.get('/stream/evaluate-creative', async (req: Request, res: Response) => {
+router.get(
+  '/stream/evaluate-creative',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      userId: { type: 'string', required: true },
+      content: { type: 'string', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   const sseManager = getSSEManager();
   const client = sseManager.initializeConnection(res, req.query.userId as string);
 
@@ -190,12 +211,21 @@ Analyze:
     console.error('Creative evaluation streaming error:', error);
     sseManager.sendError(client, error.message);
   }
-});
+  }
+);
 
 /**
  * Stream video render progress frame-by-frame
  */
-router.get('/stream/render-progress/:jobId', async (req: Request, res: Response) => {
+router.get(
+  '/stream/render-progress/:jobId',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      jobId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   const sseManager = getSSEManager();
   const client = sseManager.initializeConnection(res, req.query.userId as string);
 
@@ -259,12 +289,21 @@ router.get('/stream/render-progress/:jobId', async (req: Request, res: Response)
     console.error('Render progress streaming error:', error);
     sseManager.sendError(client, error.message);
   }
-});
+  }
+);
 
 /**
  * Stream live campaign metrics
  */
-router.get('/stream/campaign-metrics/:campaignId', async (req: Request, res: Response) => {
+router.get(
+  '/stream/campaign-metrics/:campaignId',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      campaignId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   const sseManager = getSSEManager();
   const client = sseManager.initializeConnection(res, req.query.userId as string);
 
@@ -314,12 +353,21 @@ router.get('/stream/campaign-metrics/:campaignId', async (req: Request, res: Res
     console.error('Campaign metrics streaming error:', error);
     sseManager.sendError(client, error.message);
   }
-});
+  }
+);
 
 /**
  * Stream A/B test results as they update
  */
-router.get('/stream/ab-test-results/:testId', async (req: Request, res: Response) => {
+router.get(
+  '/stream/ab-test-results/:testId',
+  apiRateLimiter,
+  validateInput({
+    params: {
+      testId: { type: 'uuid', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
   const sseManager = getSSEManager();
   const client = sseManager.initializeConnection(res, req.query.userId as string);
 
@@ -374,7 +422,8 @@ router.get('/stream/ab-test-results/:testId', async (req: Request, res: Response
     console.error('A/B test streaming error:', error);
     sseManager.sendError(client, error.message);
   }
-});
+  }
+);
 
 // ============================================================================
 // HELPER FUNCTIONS
