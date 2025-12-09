@@ -17,6 +17,11 @@ import { ScoringEngine } from './services/scoring-engine';
 import { ReliabilityLogger } from './services/reliability-logger';
 import { LearningService } from './services/learning-service';
 
+// Worker imports
+import { startSelfLearningCycleWorker } from './workers/self-learning-cycle';
+import { startBatchExecutorWorker } from './workers/batch-executor';
+import { initializeSafeExecutor } from './workers/safe-executor';
+
 // Security middleware imports (Agent 5)
 import {
   initializeSecurityRedis,
@@ -2747,6 +2752,27 @@ app.get('/api/realtime/stats', (req: Request, res: Response) => {
   });
 });
 
+// Worker initialization function
+async function initializeWorkers() {
+  try {
+    // Initialize safe executor for circuit breaker protection
+    initializeSafeExecutor(pgPool);
+    console.log('SafeExecutor initialized');
+
+    // Start batch executor worker (runs every minute)
+    startBatchExecutorWorker(pgPool, 60000);
+    console.log('Batch executor worker started');
+
+    // Start self-learning cycle worker (runs every hour)
+    startSelfLearningCycleWorker(pgPool, 3600000);
+    console.log('Self-learning cycle worker started');
+
+    console.log('All workers initialized successfully');
+  } catch (error: any) {
+    console.error('Error initializing workers:', error.message);
+  }
+}
+
 const server = app.listen(PORT, async () => {
   console.log(`Gateway API listening on port ${PORT}`);
 
@@ -2773,6 +2799,15 @@ const server = app.listen(PORT, async () => {
     console.log('🎉 Real-time infrastructure ready!');
   } catch (error) {
     console.error('❌ Failed to initialize real-time infrastructure:', error);
+  }
+
+  // Initialize workers
+  try {
+    console.log('🚀 Initializing workers...');
+    await initializeWorkers();
+    console.log('🎉 Workers initialized successfully!');
+  } catch (error) {
+    console.error('❌ Failed to initialize workers:', error);
   }
 });
 
