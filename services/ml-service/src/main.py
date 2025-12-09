@@ -3491,6 +3491,40 @@ if SELF_LEARNING_MODULES_AVAILABLE:
             logger.error(f"Error getting actuals stats: {e}", exc_info=True)
             raise HTTPException(500, str(e))
 
+    @app.get("/api/ml/actuals/predictions-vs-actuals/{account_id}", tags=["Actuals Fetcher"])
+    async def get_predictions_vs_actuals(account_id: str, days: int = 30):
+        """
+        Compare predicted vs actual performance for an account
+        """
+        try:
+            if not actuals_fetcher:
+                raise HTTPException(status_code=503, detail="Actuals fetcher not available")
+
+            comparison = await actuals_fetcher.compare_predictions(account_id, days=days)
+            return {"success": True, "data": comparison}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error comparing predictions vs actuals: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/ml/actuals/validation-accuracy", tags=["Actuals Fetcher"])
+    async def get_validation_accuracy(days: int = 30):
+        """
+        Get overall prediction validation accuracy metrics
+        """
+        try:
+            if not actuals_fetcher:
+                raise HTTPException(status_code=503, detail="Actuals fetcher not available")
+
+            accuracy = await actuals_fetcher.get_accuracy_metrics(days=days)
+            return {"success": True, "data": accuracy}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting validation accuracy: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
 
     # ============================================================
     # AUTO-PROMOTER (Loop 7) - Scale winners automatically
