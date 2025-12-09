@@ -66,12 +66,25 @@ export class LearningService {
   }
 
   private loadPredictions(logFile: string): any[] {
-    const content = fs.readFileSync(logFile, 'utf8');
-    const lines = content.trim().split('\n');
-    
-    return lines
-      .filter(line => line.trim())
-      .map(line => JSON.parse(line));
+    try {
+      if (!fs.existsSync(logFile)) {
+        return [];
+      }
+      const content = fs.readFileSync(logFile, 'utf-8');
+      return content.trim().split('\n')
+        .filter(line => line.length > 0)
+        .map(line => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        })
+        .filter(item => item !== null);
+    } catch (error: any) {
+      console.error(`Error loading predictions: ${error.message}`);
+      return [];
+    }
   }
 
   private calculateCalibration(predictions: any[]): any {
@@ -127,28 +140,47 @@ export class LearningService {
   }
 
   private applyWeightAdjustments(adjustments: Record<string, number>): void {
-    // Update weights config
-    for (const [path, delta] of Object.entries(adjustments)) {
-      const parts = path.split('.');
-      let obj: any = this.weightsConfig;
-      
-      for (let i = 0; i < parts.length - 1; i++) {
-        obj = obj[parts[i]];
-      }
-      
-      const key = parts[parts.length - 1];
-      obj[key] = Math.max(0, Math.min(1, obj[key] + delta));
-    }
-
-    // Update version
-    const currentVersion = this.weightsConfig.version || '1.0.0';
-    const versionParts = currentVersion.split('.').map((n: string) => parseInt(n));
-    versionParts[2]++; // Increment patch version
-    this.weightsConfig.version = versionParts.join('.');
-    this.weightsConfig.last_updated = new Date().toISOString().split('T')[0];
-
-    // Write updated config
     const weightsPath = path.join(this.configPath, 'weights.yaml');
-    fs.writeFileSync(weightsPath, yaml.dump(this.weightsConfig), 'utf8');
+    const backupPath = `${weightsPath}.backup`;
+
+    try {
+      // Create backup before modifying
+      if (fs.existsSync(weightsPath)) {
+        fs.copyFileSync(weightsPath, backupPath);
+      }
+
+      // Update weights config
+      for (const [path, delta] of Object.entries(adjustments)) {
+        const parts = path.split('.');
+        let obj: any = this.weightsConfig;
+
+        for (let i = 0; i < parts.length - 1; i++) {
+          obj = obj[parts[i]];
+        }
+
+        const key = parts[parts.length - 1];
+        obj[key] = Math.max(0, Math.min(1, obj[key] + delta));
+      }
+
+      // Update version
+      const currentVersion = this.weightsConfig.version || '1.0.0';
+      const versionParts = currentVersion.split('.').map((n: string) => parseInt(n));
+      versionParts[2]++; // Increment patch version
+      this.weightsConfig.version = versionParts.join('.');
+      this.weightsConfig.last_updated = new Date().toISOString().split('T')[0];
+
+      // Write updated config
+      fs.writeFileSync(weightsPath, yaml.dump(this.weightsConfig), 'utf8');
+
+      console.log('Weight adjustments applied successfully');
+    } catch (error: any) {
+      console.error(`Error applying weight adjustments: ${error.message}`);
+      // Attempt to restore from backup
+      if (fs.existsSync(backupPath)) {
+        fs.copyFileSync(backupPath, weightsPath);
+        console.log('Restored from backup after error');
+      }
+      throw error;
+    }
   }
 }
