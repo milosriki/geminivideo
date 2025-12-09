@@ -8,6 +8,7 @@ This directory contains PostgreSQL database migrations for the GeminiVideo platf
 |-------|------|-------------|
 | 001 | 001_winner_detection_trigger.sql | Winner detection trigger for automatic RAG indexing |
 | 002 | 002_batch_jobs_table.sql | Batch jobs queue and execution failures tracking |
+| 003 | 003_audit_webhooks_tables.sql | Audit logging, webhooks, webhook deliveries, and report shares |
 
 ## Running Migrations
 
@@ -15,6 +16,7 @@ This directory contains PostgreSQL database migrations for the GeminiVideo platf
 ```bash
 psql -U user -d geminivideo -f migrations/001_winner_detection_trigger.sql
 psql -U user -d geminivideo -f migrations/002_batch_jobs_table.sql
+psql -U user -d geminivideo -f migrations/003_audit_webhooks_tables.sql
 ```
 
 ### Using the migration script:
