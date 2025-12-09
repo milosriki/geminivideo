@@ -154,6 +154,63 @@ export const deleteCampaign = async (campaignId: string) => {
   return response.data;
 };
 
+export const pauseCampaign = async (id: string) => {
+  return api.post(`/campaigns/${id}/pause`);
+};
+
+export const getCampaignPerformance = async (id: string) => {
+  return api.get(`/campaigns/${id}/performance`);
+};
+
+// Ad Management
+export const getAds = async (params?: { campaign_id?: string; status?: string; approved?: boolean }) => {
+  const queryParams = new URLSearchParams();
+  if (params?.campaign_id) queryParams.append('campaign_id', params.campaign_id);
+  if (params?.status) queryParams.append('status', params.status);
+  if (params?.approved !== undefined) queryParams.append('approved', String(params.approved));
+  const query = queryParams.toString();
+  return api.get(`/ads${query ? `?${query}` : ''}`);
+};
+
+export const getAdById = async (id: string) => {
+  return api.get(`/ads/${id}`);
+};
+
+export const createAd = async (data: {
+  campaign_id: string;
+  creative_url?: string;
+  headline?: string;
+  description?: string;
+  call_to_action?: string;
+}) => {
+  return api.post('/ads', data);
+};
+
+export const updateAd = async (id: string, data: {
+  headline?: string;
+  description?: string;
+  call_to_action?: string;
+  status?: string;
+}) => {
+  return api.put(`/ads/${id}`, data);
+};
+
+export const deleteAd = async (id: string) => {
+  return api.delete(`/ads/${id}`);
+};
+
+export const approveAd = async (id: string, notes?: string) => {
+  return api.post(`/ads/${id}/approve`, { notes });
+};
+
+export const rejectAd = async (id: string, reason: string) => {
+  return api.post(`/ads/${id}/reject`, { reason });
+};
+
+export const getAdPerformance = async (id: string) => {
+  return api.get(`/ads/${id}/performance`);
+};
+
 // Predictions & ROI Analytics
 export const getPredictionAccuracy = async (timeRange = 'last_30d') => {
   const response = await api.get('/analytics/predictions/accuracy', { params: { timeRange } });
