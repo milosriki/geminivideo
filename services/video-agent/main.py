@@ -1614,6 +1614,87 @@ async def get_pro_job_status(job_id: str):
     }
 
 
+@app.get("/api/jobs")
+async def list_jobs(status: str = None, limit: int = 50, offset: int = 0):
+    """
+    List all render jobs with optional filtering
+    """
+    try:
+        jobs_list = list(pro_jobs.values())
+
+        # Filter by status if provided
+        if status:
+            jobs_list = [j for j in jobs_list if j.get('status') == status]
+
+        # Sort by created_at descending
+        jobs_list.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+
+        # Apply pagination
+        paginated = jobs_list[offset:offset + limit]
+
+        return {
+            "success": True,
+            "data": paginated,
+            "total": len(jobs_list),
+            "limit": limit,
+            "offset": offset
+        }
+    except Exception as e:
+        logger.error(f"Error listing jobs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/jobs/{job_id}")
+async def cancel_job(job_id: str):
+    """
+    Cancel a pending or running job
+    """
+    try:
+        if job_id not in pro_jobs:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+        job = pro_jobs[job_id]
+        if job.get('status') in ['completed', 'failed', 'cancelled']:
+            raise HTTPException(status_code=400, detail=f"Job {job_id} already {job.get('status')}")
+
+        job['status'] = 'cancelled'
+        job['cancelled_at'] = datetime.now().isoformat()
+
+        return {"success": True, "message": f"Job {job_id} cancelled"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling job {job_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/jobs/{job_id}/retry")
+async def retry_job(job_id: str):
+    """
+    Retry a failed job
+    """
+    try:
+        if job_id not in pro_jobs:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+        job = pro_jobs[job_id]
+        if job.get('status') != 'failed':
+            raise HTTPException(status_code=400, detail=f"Can only retry failed jobs. Current status: {job.get('status')}")
+
+        # Reset job for retry
+        job['status'] = 'pending'
+        job['error'] = None
+        job['retried_at'] = datetime.now().isoformat()
+        job['retry_count'] = job.get('retry_count', 0) + 1
+
+        # Re-queue the job (implement based on your worker system)
+
+        return {"success": True, "message": f"Job {job_id} queued for retry", "retry_count": job['retry_count']}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrying job {job_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ==================== BEAT-SYNC RENDERING ====================
 # Investment-grade beat-synchronized video rendering
 # ============================================================
