@@ -2675,6 +2675,63 @@ async def index_winning_ad(request: RAGIndexRequest):
         raise HTTPException(500, str(e))
 
 
+@app.post("/api/ml/rag/batch-index")
+async def batch_index_winners(request: Dict[str, Any]):
+    """
+    Batch index multiple winning ads to RAG memory
+
+    Request body:
+    {
+        "winners": [
+            {"ad_id": "...", "ad_data": {...}, "ctr": 0.05, "roas": 3.5},
+            ...
+        ],
+        "min_ctr": 0.03  // optional threshold
+    }
+    """
+    try:
+        if not winner_index:
+            raise HTTPException(status_code=503, detail="Winner index not available")
+
+        winners = request.get('winners', [])
+        if not winners or not isinstance(winners, list):
+            raise HTTPException(status_code=400, detail="winners must be a non-empty list")
+
+        min_ctr = request.get('min_ctr', 0.03)
+        results = []
+        indexed_count = 0
+        skipped_count = 0
+
+        for winner in winners:
+            try:
+                ad_id = winner.get('ad_id')
+                ad_data = winner.get('ad_data', {})
+                ctr = winner.get('ctr', 0)
+
+                if ctr >= min_ctr:
+                    winner_index.add_winner(ad_data, ctr, min_ctr)
+                    indexed_count += 1
+                    results.append({"ad_id": ad_id, "status": "indexed"})
+                else:
+                    skipped_count += 1
+                    results.append({"ad_id": ad_id, "status": "skipped", "reason": f"CTR {ctr} below threshold {min_ctr}"})
+            except Exception as e:
+                results.append({"ad_id": winner.get('ad_id'), "status": "error", "error": str(e)})
+
+        return {
+            "success": True,
+            "indexed": indexed_count,
+            "skipped": skipped_count,
+            "total": len(winners),
+            "results": results
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error batch indexing winners: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/ml/rag/memory-stats", tags=["RAG Memory"])
 async def get_rag_memory_stats():
     """
