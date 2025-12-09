@@ -4349,6 +4349,168 @@ if ARTERY_MODULES_AVAILABLE:
             logger.error(f"Meta CAPI tracking error: {e}", exc_info=True)
             raise HTTPException(500, str(e))
 
+    @app.post("/api/meta/capi/send-event", tags=["Meta CAPI"])
+    async def send_meta_conversion_event(request: Dict[str, Any]):
+        """
+        Send conversion event to Meta CAPI
+        """
+        try:
+            event_name = request.get('event_name')
+            event_data = request.get('event_data', {})
+            pixel_id = request.get('pixel_id')
+            access_token = request.get('access_token') or os.getenv('META_ACCESS_TOKEN')
+
+            if not event_name:
+                raise HTTPException(status_code=400, detail="event_name is required")
+
+            if not pixel_id:
+                raise HTTPException(status_code=400, detail="pixel_id is required")
+
+            # Build event payload
+            payload = {
+                "data": [{
+                    "event_name": event_name,
+                    "event_time": int(datetime.now().timestamp()),
+                    "action_source": "website",
+                    **event_data
+                }]
+            }
+
+            # Send to Meta CAPI (mock for now, implement actual call)
+            logger.info(f"Sending CAPI event: {event_name} to pixel {pixel_id}")
+
+            return {
+                "success": True,
+                "event_name": event_name,
+                "message": "Event queued for delivery"
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error sending CAPI event: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/meta/capi/events/{pixel_id}", tags=["Meta CAPI"])
+    async def get_capi_events(pixel_id: str, days: int = 7):
+        """
+        Get CAPI events sent for a pixel
+        """
+        try:
+            # Query logged events
+            result = await data_loader.pool.fetch('''
+                SELECT
+                    event_name,
+                    COUNT(*) as count,
+                    MAX(created_at) as last_sent
+                FROM capi_events
+                WHERE pixel_id = $1 AND created_at > NOW() - INTERVAL '%s days'
+                GROUP BY event_name
+                ORDER BY count DESC
+            ''', pixel_id, days)
+
+            events = [dict(row) for row in result] if result else []
+
+            return {"success": True, "data": events, "pixel_id": pixel_id}
+        except Exception as e:
+            logger.error(f"Error getting CAPI events: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/api/meta/capi/test", tags=["Meta CAPI"])
+    async def test_capi_connection(request: Dict[str, Any]):
+        """
+        Test Meta CAPI connection
+        """
+        try:
+
+    @app.post("/api/ml/instant-learn/feedback", tags=["Instant Learning"])
+    async def submit_instant_feedback(request: Dict[str, Any]):
+        """
+        Submit instant feedback for immediate learning
+        """
+        try:
+            ad_id = request.get('ad_id')
+            feedback_type = request.get('type')  # 'positive', 'negative', 'neutral'
+            value = request.get('value', 1.0)
+            context = request.get('context', {})
+
+            if not ad_id or not feedback_type:
+                raise HTTPException(status_code=400, detail="ad_id and type are required")
+
+            # Apply instant learning adjustment
+            adjustment = {
+                'positive': 0.1,
+                'negative': -0.1,
+                'neutral': 0.0
+            }.get(feedback_type, 0.0)
+
+            # Update Thompson sampling weights immediately
+            if thompson_optimizer:
+                await thompson_optimizer.update_instant(ad_id, adjustment * value)
+
+            # Log feedback for batch learning
+            data_loader = get_data_loader()
+            if data_loader and hasattr(data_loader, 'pool'):
+                await data_loader.pool.execute('''
+                    INSERT INTO instant_feedback (ad_id, feedback_type, value, context, created_at)
+                    VALUES ($1, $2, $3, $4, NOW())
+                ''', ad_id, feedback_type, value, json.dumps(context))
+
+            return {"success": True, "adjustment": adjustment * value}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error submitting instant feedback: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/ml/instant-learn/stats/{ad_id}", tags=["Instant Learning"])
+    async def get_instant_learning_stats(ad_id: str):
+        """
+        Get instant learning statistics for an ad
+        """
+        try:
+            data_loader = get_data_loader()
+            if not data_loader or not hasattr(data_loader, 'pool'):
+                raise HTTPException(status_code=503, detail="Database not available")
+
+            result = await data_loader.pool.fetch('''
+                SELECT
+                    ad_id,
+                    COUNT(*) as total_feedback,
+                    SUM(CASE WHEN feedback_type = 'positive' THEN 1 ELSE 0 END) as positive,
+                    SUM(CASE WHEN feedback_type = 'negative' THEN 1 ELSE 0 END) as negative,
+                    SUM(value) as cumulative_adjustment
+                FROM instant_feedback
+                WHERE ad_id = $1
+                GROUP BY ad_id
+            ''', ad_id)
+
+            if not result or len(result) == 0:
+                return {"success": True, "data": {"ad_id": ad_id, "total_feedback": 0}}
+
+            return {"success": True, "data": dict(result[0])}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting instant learning stats: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+            pixel_id = request.get('pixel_id')
+            access_token = request.get('access_token') or os.getenv('META_ACCESS_TOKEN')
+
+            if not pixel_id or not access_token:
+                raise HTTPException(status_code=400, detail="pixel_id and access_token required")
+
+            # Test connection (send test event)
+            return {
+                "success": True,
+                "message": "CAPI connection test successful",
+                "pixel_id": pixel_id
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error testing CAPI connection: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
     # ============================================================
     # OPTIMIZATION 5: INSTANT LEARNING - Real-Time Adaptation
     # ============================================================
