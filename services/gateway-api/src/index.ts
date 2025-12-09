@@ -3,7 +3,7 @@
  * Unified proxy to internal services with scoring capabilities
  * Enhanced with comprehensive security middleware (Agent 5)
  */
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -38,6 +38,15 @@ import {
   bruteForceProtection,
   validateApiKey
 } from './middleware/security';
+
+// TypeScript declaration for API versioning
+declare global {
+  namespace Express {
+    interface Request {
+      apiVersion?: string;
+    }
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -2587,6 +2596,26 @@ app.get('/api/publish/summary',
 // API ROUTE MODULES (Agent 58 - Full API Wiring)
 // ============================================================================
 
+// ============================================================================
+// API VERSIONING MIDDLEWARE (GROUP-A)
+// ============================================================================
+
+// API Version middleware
+const apiVersion = (version: string) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    req.apiVersion = version;
+    res.setHeader('X-API-Version', version);
+    next();
+  };
+};
+
+// Versioned router factory
+const createVersionedRouter = (version: string) => {
+  const versionedRouter = express.Router();
+  versionedRouter.use(apiVersion(version));
+  return versionedRouter;
+};
+
 // Campaign Management Routes
 import { createCampaignsRouter } from './routes/campaigns';
 const campaignsRouter = createCampaignsRouter(pgPool);
@@ -2633,6 +2662,13 @@ app.use('/api/demo', demoRouter);
 
 import createAlertsRouter, { initializeAlertWebSocket } from './routes/alerts';
 app.use('/api/alerts', createAlertsRouter(pgPool));
+
+// ============================================================================
+// WEBHOOK MANAGEMENT ENDPOINTS (GROUP-A)
+// ============================================================================
+
+import { createWebhooksRouter } from './routes/webhooks';
+app.use('/api/webhooks', createWebhooksRouter(pgPool));
 
 // ============================================================================
 // REPORT GENERATION ENDPOINTS (Agent 18 - Campaign Performance Reports)
