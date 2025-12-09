@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
+import * as path from 'path';
+import * as crypto from 'crypto';
 import {
   KnowledgeUploadRequest,
   KnowledgeUploadResponse,
