@@ -9,6 +9,8 @@
     "dev": "ts-node src/index.ts",
     "worker:safe-executor": "ts-node src/workers/safe-executor-worker.ts",
     "worker:safe-executor:prod": "node dist/workers/safe-executor-worker.js",
+    "worker:self-learning": "ts-node -e \"import('./src/workers/self-learning-cycle').then(m => { const pg = require('pg'); const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL }); m.startSelfLearningCycleWorker(pool); })\"",
+    "worker:batch": "ts-node src/jobs/batch-executor.ts",
     "test": "jest",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
