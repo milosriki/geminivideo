@@ -2509,9 +2509,10 @@ app.get('/api/platforms/specs',
   async (req: Request, res: Response) => {
     try {
       const platformsQuery = req.query.platforms as string;
+      const validPlatforms: ('meta' | 'google' | 'tiktok')[] = ['meta', 'google', 'tiktok'];
       const platforms = platformsQuery
-        ? (platformsQuery.split(',') as ('meta' | 'google' | 'tiktok')[])
-        : ['meta', 'google', 'tiktok'];
+        ? (platformsQuery.split(',') as string[]).filter(p => validPlatforms.includes(p as any)) as ('meta' | 'google' | 'tiktok')[]
+        : validPlatforms;
 
       const specs = multiPlatformPublisher.getPlatformSpecs(platforms);
 
@@ -2733,7 +2734,7 @@ console.log('✅ Artery module endpoints mounted at /api/ml/*');
 // CREDITS ENDPOINTS (GROUP A - Wired)
 // ============================================================================
 
-import { registerCreditsEndpoints } from './credits-endpoint';
+const { registerCreditsEndpoints } = require('./credits-endpoint');
 registerCreditsEndpoints(app, pgPool);
 console.log('✅ Credits endpoints mounted at /api/credits');
 

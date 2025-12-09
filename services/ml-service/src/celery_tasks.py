@@ -197,9 +197,15 @@ def auto_index_winner(ad_id: str, creative_dna: Dict[str, Any]) -> Dict[str, Any
         try:
             # Try to import embedding service (may not exist yet)
             try:
-                from .rag.embedding_service import generate_creative_dna_embedding
-                embedding = await generate_creative_dna_embedding(creative_dna)
-            except ImportError:
+                import sys
+                import os
+                # Add services directory to path if needed
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../..'))
+                from services.rag.embeddings import generate_embedding
+                # Generate embedding from creative DNA text
+                text = f"{creative_dna.get('hook_type', '')} {creative_dna.get('visual_style', '')}"
+                embedding = generate_embedding(text)
+            except (ImportError, Exception) as e:
                 # Fallback: generate simple embedding from hash
                 import hashlib
                 text = f"{creative_dna.get('hook_type', '')} {creative_dna.get('visual_style', '')}"

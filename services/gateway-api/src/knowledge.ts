@@ -43,9 +43,6 @@ router.post('/upload', async (req: Request, res: Response) => {
     const timestamp = new Date().toISOString();
     
     // SECURITY FIX: Sanitize filename to prevent path traversal
-    import * as path from 'path';
-    import * as crypto from 'crypto';
-    
     function sanitizeGcsPath(userPath: string): string {
         // Remove any path traversal attempts
         const normalized = path.normalize(userPath);
@@ -75,7 +72,7 @@ router.post('/upload', async (req: Request, res: Response) => {
     // Upload to GCS if not in mock mode
     if (storage && file) {
       const bucket = storage.bucket(BUCKET_NAME);
-      const blob = bucket.file(`knowledge/${body.category}/${body.subcategory}/${fileName}`);
+      const blob = bucket.file(`knowledge/${body.category}/${body.subcategory}/${safeFileName}`);
 
       await blob.save(file.buffer, {
         metadata: {
