@@ -2,7 +2,7 @@
 ML Service - XGBoost CTR Prediction & Vowpal Wabbit A/B Testing
 Agent 1-3 - Main FastAPI Service with XGBoost
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
@@ -1028,11 +1028,20 @@ async def record_feedback(data: FeedbackData):
 
 
 @app.post("/webhook/capi")
-async def capi_webhook(event: Dict[str, Any]):
+async def capi_webhook(
+    event: Dict[str, Any],
+    request: Request,
+    x_capi_signature: Optional[str] = Header(None, alias="X-CAPI-Signature")
+):
     """
     Webhook for CAPI events (Purchase, Lead, etc.)
+    SECURITY: Now includes signature verification
     """
     try:
+        # SECURITY FIX: Verify webhook signature
+        from src.webhook_security import verify_webhook_middleware
+        await verify_webhook_middleware(request, webhook_type='capi')
+        
         from src.capi_feedback_loop import CAPIFeedbackLoop
         # In a real app, we'd get the DB session from dependency injection
         # Here we mock or use a global one if available
@@ -1046,23 +1055,36 @@ async def capi_webhook(event: Dict[str, Any]):
         # await capi_loop.process_capi_event(event)
         
         return {"status": "received"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error processing CAPI webhook: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/webhook/hubspot")
-async def hubspot_webhook(payload: Dict[str, Any]):
+async def hubspot_webhook(
+    payload: Dict[str, Any],
+    request: Request,
+    x_hubspot_signature: Optional[str] = Header(None, alias="X-HubSpot-Signature-v3")
+):
     """
     Webhook for HubSpot deal updates (Attribution)
+    SECURITY: Now includes signature verification
     """
     try:
+        # SECURITY FIX: Verify webhook signature
+        from src.webhook_security import verify_webhook_middleware
+        await verify_webhook_middleware(request, webhook_type='hubspot')
+        
         logger.info(f"Received HubSpot webhook: {payload.get('dealId')}")
         
         # Process attribution logic here
         # ...
         
         return {"status": "processed"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error processing HubSpot webhook: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2042,9 +2064,32 @@ async def download_report(report_id: str):
     try:
         from fastapi.responses import FileResponse
 
+        # SECURITY FIX: Validate report_id and prevent path traversal
+        import re
+        from pathlib import Path
+        
+        # Validate report_id format (UUID or alphanumeric)
+        if not re.match(r'^[a-zA-Z0-9_-]+$', report_id):
+            raise HTTPException(status_code=400, detail="Invalid report_id format")
+        
+        # Define safe report directory
+        REPORT_DIR = Path("/tmp/reports")
+        REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        
         # Check both PDF and Excel extensions
         for ext in ['pdf', 'xlsx']:
-            file_path = f"/tmp/reports/{report_id}.{ext}"
+            # Construct safe path
+            safe_path = REPORT_DIR / f"{report_id}.{ext}"
+            
+            # Resolve to absolute path
+            safe_path = safe_path.resolve()
+            report_dir_abs = REPORT_DIR.resolve()
+            
+            # Verify path is within report directory
+            if not str(safe_path).startswith(str(report_dir_abs)):
+                continue  # Skip if path traversal detected
+            
+            file_path = str(safe_path)
             if os.path.exists(file_path):
                 # Determine media type
                 media_type = 'application/pdf' if ext == 'pdf' else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

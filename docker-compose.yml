@@ -9,9 +9,9 @@ services:
     image: postgres:15-alpine
     container_name: geminivideo-postgres
     environment:
-      POSTGRES_USER: geminivideo
-      POSTGRES_PASSWORD: geminivideo
-      POSTGRES_DB: geminivideo
+      POSTGRES_USER: ${POSTGRES_USER:-geminivideo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-${POSTGRES_PASSWORD_REQUIRED}}
+      POSTGRES_DB: ${POSTGRES_DB:-geminivideo}
     ports:
       - "5432:5432"
     volumes:
@@ -52,7 +52,7 @@ services:
     container_name: geminivideo-ml-service
     environment:
       PORT: 8003
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
       REDIS_URL: redis://redis:6379
     ports:
       - "8003:8003"
@@ -115,7 +115,7 @@ services:
     container_name: geminivideo-video-agent
     environment:
       PORT: 8082
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
       REDIS_URL: redis://redis:6379
       ASSET_DIR: /tmp/assets
       VOICEOVER_DIR: /tmp/voiceovers
@@ -146,7 +146,7 @@ services:
       dockerfile: Dockerfile
     container_name: geminivideo-drive-intel
     environment:
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
       REDIS_URL: redis://redis:6379
       PORT: 8081
     ports:
@@ -187,7 +187,7 @@ services:
       META_APP_ID: ${META_APP_ID}
       META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
       META_APP_SECRET: ${META_APP_SECRET}
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
     ports:
       - "8083:8083"
     depends_on:
@@ -214,7 +214,7 @@ services:
       PORT: 8085
       TIKTOK_ACCESS_TOKEN: ${TIKTOK_ACCESS_TOKEN:-}
       TIKTOK_ADVERTISER_ID: ${TIKTOK_ADVERTISER_ID:-}
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
     ports:
       - "8085:8085"
     depends_on:
@@ -244,7 +244,7 @@ services:
       GOOGLE_DEVELOPER_TOKEN: ${GOOGLE_DEVELOPER_TOKEN:-}
       GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN:-}
       GOOGLE_ADS_CUSTOMER_ID: ${GOOGLE_ADS_CUSTOMER_ID:-}
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
     ports:
       - "8086:8086"
     depends_on:
@@ -279,7 +279,7 @@ services:
       TIKTOK_ADS_URL: http://tiktok-ads:8085
       GOOGLE_ADS_URL: http://google-ads:8086
       REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
     ports:
       - "8080:8080"
     depends_on:
@@ -344,7 +344,7 @@ services:
     container_name: geminivideo-drive-worker
     command: python worker.py
     environment:
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
       REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
@@ -365,7 +365,7 @@ services:
     container_name: geminivideo-video-worker
     command: python worker.py
     environment:
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
       REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
@@ -386,7 +386,7 @@ services:
     container_name: geminivideo-safe-executor-worker
     command: npm run worker:safe-executor:prod
     environment:
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
       REDIS_URL: redis://redis:6379
       META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
       META_API_VERSION: ${META_API_VERSION:-v18.0}

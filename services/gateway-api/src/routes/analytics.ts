@@ -12,7 +12,7 @@
 
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import axios from 'axios';
+import { httpClient } from "../index";
 import { apiRateLimiter, validateInput } from '../middleware/security';
 
 const router = Router();
@@ -48,13 +48,24 @@ export function createAnalyticsRouter(pgPool: Pool): Router {
         // Calculate date range
         let dateFilter = '';
         const dateParams: any[] = [];
+        let paramIndex = 1;
 
         if (start_date && end_date) {
           dateFilter = 'AND pm.date >= $1 AND pm.date <= $2';
           dateParams.push(start_date, end_date);
         } else if (time_range !== 'all') {
+          // SECURITY FIX: Use parameterized query instead of string interpolation
           const days = time_range === 'today' ? 0 : parseInt(time_range.replace('d', ''));
-          dateFilter = `AND pm.date >= CURRENT_DATE - INTERVAL '${days} days'`;
+          
+          // Validate days is a number
+          if (isNaN(days) || days < 0 || days > 365) {
+            return res.status(400).json({ error: 'Invalid time_range' });
+          }
+          
+          // Use parameterized query
+          dateFilter = `AND pm.date >= CURRENT_DATE - INTERVAL $${paramIndex} days`;
+          dateParams.push(days);
+          paramIndex++;
         }
 
         // Query overall metrics
@@ -404,7 +415,7 @@ export function createAnalyticsRouter(pgPool: Pool): Router {
         // Try to get ML service predictions
         let predictions = null;
         try {
-          const mlResponse = await axios.get(`${ML_SERVICE_URL}/api/ml/predictions/trends`, {
+          const mlResponse = await httpClient.get(`${ML_SERVICE_URL}/api/ml/predictions/trends`, {
             params: { days },
             timeout: 10000
           });

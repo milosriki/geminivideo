@@ -100,7 +100,22 @@ def process_hubspot_webhook(webhook_payload: Dict[str, Any]) -> Dict[str, Any]:
             logger.error(f"Error processing HubSpot webhook: {e}", exc_info=True)
             raise
     
-    return asyncio.run(_process())
+    # Fix: Don't use asyncio.run() in Celery - use event loop properly
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    if loop.is_running():
+        # If loop is already running, use create_task
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, _process())
+            return future.result()
+    else:
+        return loop.run_until_complete(_process())
 
 
 @celery_app.task(name='monitor_fatigue')

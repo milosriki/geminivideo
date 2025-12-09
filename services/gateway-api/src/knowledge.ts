@@ -41,8 +41,36 @@ router.post('/upload', async (req: Request, res: Response) => {
 
     const uploadId = uuidv4();
     const timestamp = new Date().toISOString();
-    const fileName = file?.originalname || 'mock-file.json';
-    const gcsPath = `gs://${BUCKET_NAME}/knowledge/${body.category}/${body.subcategory}/${fileName}`;
+    
+    // SECURITY FIX: Sanitize filename to prevent path traversal
+    import * as path from 'path';
+    import * as crypto from 'crypto';
+    
+    function sanitizeGcsPath(userPath: string): string {
+        // Remove any path traversal attempts
+        const normalized = path.normalize(userPath);
+        
+        // Remove any .. or . components
+        const parts = normalized.split(path.sep).filter(part => 
+            part !== '..' && part !== '.' && part !== ''
+        );
+        
+        // Generate safe filename
+        const safeFilename = parts[parts.length - 1];
+        const sanitized = safeFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        
+        // Add hash to prevent collisions
+        const hash = crypto.createHash('sha256')
+            .update(userPath + Date.now().toString())
+            .digest('hex')
+            .substring(0, 8);
+        
+        return `${sanitized}_${hash}`;
+    }
+    
+    const rawFileName = file?.originalname || 'mock-file.json';
+    const safeFileName = sanitizeGcsPath(rawFileName);
+    const gcsPath = `gs://${BUCKET_NAME}/knowledge/${body.category}/${body.subcategory}/${safeFileName}`;
 
     // Upload to GCS if not in mock mode
     if (storage && file) {

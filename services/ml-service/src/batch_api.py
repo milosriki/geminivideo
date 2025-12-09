@@ -18,14 +18,32 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 import logging
 
-from batch_processor import (
-    BatchProcessor,
-    BatchJobType,
-    BatchProvider,
-    BatchStatus
-)
-from batch_scheduler import BatchScheduler
-from batch_monitoring import BatchMonitor
+try:
+    from src.batch_processor import (
+        BatchProcessor,
+        BatchJobType,
+        BatchProvider,
+        BatchStatus
+    )
+    from src.batch_scheduler import BatchScheduler
+    from src.batch_monitoring import BatchMonitor
+    BATCH_MODULES_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Batch modules not available: {e}")
+    BATCH_MODULES_AVAILABLE = False
+    # Create dummy classes to prevent import errors
+    class BatchProcessor:
+        pass
+    class BatchJobType:
+        pass
+    class BatchProvider:
+        pass
+    class BatchStatus:
+        pass
+    class BatchScheduler:
+        pass
+    class BatchMonitor:
+        pass
 
 logger = logging.getLogger(__name__)
 

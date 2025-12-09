@@ -22,7 +22,7 @@
  * Created: 2025-12-07
  */
 
-import axios from 'axios';
+import httpClient from 'axios';
 import { Pool } from 'pg';
 import { processBatchChanges } from './batch-executor';
 import { updateMarketIntelOnScaling } from '../services/market-intel-service';
@@ -219,7 +219,7 @@ async function executeMetaApiCall(change: PendingAdChange, fuzzyBudget?: number)
       break;
   }
 
-  const response = await axios.post(
+  const response = await httpClient.post(
     endpoint,
     updateData,
     {

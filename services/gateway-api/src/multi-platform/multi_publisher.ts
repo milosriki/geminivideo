@@ -4,7 +4,7 @@
  * Agent 19: Multi-Platform Publishing Infrastructure
  */
 
-import axios from 'axios';
+import { httpClient } from '../index';
 import { FormatAdapter } from './format_adapter';
 import { statusAggregator, MultiPlatformJob, PlatformStatus } from './status_aggregator';
 
@@ -232,7 +232,7 @@ export class MultiPlatformPublisher {
     const metaConfig = request.campaign_config.meta || {};
 
     // Step 1: Create campaign
-    const campaignResponse = await axios.post(
+    const campaignResponse = await httpClient.post(
       `${this.metaPublisherUrl}/api/campaigns`,
       {
         name: request.campaign_name,
@@ -246,7 +246,7 @@ export class MultiPlatformPublisher {
     console.log(`[META] Campaign created: ${campaignId}`);
 
     // Step 2: Create ad set
-    const adSetResponse = await axios.post(
+    const adSetResponse = await httpClient.post(
       `${this.metaPublisherUrl}/api/adsets`,
       {
         name: metaConfig.adSetName || `${request.campaign_name} - AdSet`,
@@ -269,7 +269,7 @@ export class MultiPlatformPublisher {
     console.log(`[META] AdSet created: ${adSetId}`);
 
     // Step 3: Upload video and create ad
-    const videoAdResponse = await axios.post(
+    const videoAdResponse = await httpClient.post(
       `${this.metaPublisherUrl}/api/video-ads`,
       {
         videoPath: request.video_path,
@@ -316,7 +316,7 @@ export class MultiPlatformPublisher {
     const googleConfig = request.campaign_config.google || {};
 
     // Step 1: Create campaign
-    const campaignResponse = await axios.post(
+    const campaignResponse = await httpClient.post(
       `${this.googleAdsUrl}/api/campaigns`,
       {
         name: request.campaign_name,
@@ -331,7 +331,7 @@ export class MultiPlatformPublisher {
     console.log(`[GOOGLE] Campaign created: ${campaignId}`);
 
     // Step 2: Create ad group
-    const adGroupResponse = await axios.post(
+    const adGroupResponse = await httpClient.post(
       `${this.googleAdsUrl}/api/ad-groups`,
       {
         name: googleConfig.adGroupName || `${request.campaign_name} - AdGroup`,
@@ -346,7 +346,7 @@ export class MultiPlatformPublisher {
     console.log(`[GOOGLE] AdGroup created: ${adGroupId}`);
 
     // Step 3: Upload video and create ad
-    const videoAdResponse = await axios.post(
+    const videoAdResponse = await httpClient.post(
       `${this.googleAdsUrl}/api/video-ads`,
       {
         videoPath: request.video_path,
@@ -387,7 +387,7 @@ export class MultiPlatformPublisher {
     const tiktokConfig = request.campaign_config.tiktok || {};
 
     // Call TikTok service (placeholder implementation)
-    const response = await axios.post(
+    const response = await httpClient.post(
       `${this.tiktokAdsUrl}/api/publish`,
       {
         campaignName: request.campaign_name,

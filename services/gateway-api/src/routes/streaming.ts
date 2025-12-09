@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import { getSSEManager } from '../realtime/sse-manager';
 import { CouncilScoreStreamEvent, createAIStreamChunk } from '../realtime/events';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import axios from 'axios';
+import { httpClient } from "../index";
 
 const router = Router();
 

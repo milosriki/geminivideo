@@ -6,7 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import axios from 'axios';
+import { httpClient } from "../index";
 import WebSocket from 'ws';
 import { logger } from '../logger';
 

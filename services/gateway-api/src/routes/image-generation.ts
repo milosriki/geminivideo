@@ -10,7 +10,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import axios from 'axios';
+import { httpClient } from "../index";
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 
