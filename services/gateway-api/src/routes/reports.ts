@@ -10,7 +10,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import axios from 'axios';
+import { httpClient } from "../index";
 import { apiRateLimiter, validateInput } from '../middleware/security';
 
 const router = Router();
@@ -54,7 +54,7 @@ router.post(
       console.log(`Generating report: ${req.body.report_type} (${req.body.format})`);
 
       // Forward to ML service
-      const response = await axios.post(
+      const response = await httpClient.post(
         `${ML_SERVICE_URL}/api/reports/generate`,
         req.body,
         { timeout: 120000 } // 2 minute timeout for report generation
@@ -85,7 +85,7 @@ router.get(
 
       console.log(`Fetching report list (limit: ${limit})`);
 
-      const response = await axios.get(
+      const response = await httpClient.get(
         `${ML_SERVICE_URL}/api/reports`,
         {
           params: { limit },
@@ -120,7 +120,7 @@ router.get(
       console.log(`Downloading report: ${id}`);
 
       // Stream file from ML service
-      const response = await axios.get(
+      const response = await httpClient.get(
         `${ML_SERVICE_URL}/api/reports/${id}/download`,
         {
           responseType: 'stream',
@@ -157,7 +157,7 @@ router.delete(
 
       console.log(`Deleting report: ${id}`);
 
-      const response = await axios.delete(
+      const response = await httpClient.delete(
         `${ML_SERVICE_URL}/api/reports/${id}`,
         { timeout: 30000 }
       );

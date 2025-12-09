@@ -12,7 +12,7 @@
  * Created: 2025-01-08
  */
 
-import axios from 'axios';
+import { httpClient } from "../index";
 import { Pool } from 'pg';
 
 const META_API_VERSION = process.env.META_API_VERSION || 'v18.0';
@@ -96,7 +96,7 @@ export async function executeBatchMetaApiCall(
   const batchUrl = `https://graph.facebook.com/${META_API_VERSION}`;
   
   try {
-    const response = await axios.post(
+    const response = await httpClient.post(
       batchUrl,
       {
         batch: JSON.stringify(batch),

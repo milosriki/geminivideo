@@ -11,7 +11,7 @@
 
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import axios from 'axios';
+import { httpClient } from "../index";
 import { v4 as uuidv4 } from 'uuid';
 import { apiRateLimiter, uploadRateLimiter, validateInput } from '../middleware/security';
 
@@ -68,7 +68,7 @@ export function createABTestsRouter(pgPool: Pool): Router {
         }
 
         // Forward to ML service for Thompson Sampling experiment creation
-        const mlResponse = await axios.post(
+        const mlResponse = await httpClient.post(
           `${ML_SERVICE_URL}/api/ml/ab/experiments`,
           {
             name,
@@ -140,7 +140,7 @@ export function createABTestsRouter(pgPool: Pool): Router {
 
         // Try ML service first
         try {
-          const mlResponse = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/experiments`, {
+          const mlResponse = await httpClient.get(`${ML_SERVICE_URL}/api/ml/ab/experiments`, {
             params: { campaign_id, status, limit },
             timeout: 10000
           });
@@ -239,7 +239,7 @@ export function createABTestsRouter(pgPool: Pool): Router {
 
         // Try ML service first
         try {
-          const mlResponse = await axios.get(`${ML_SERVICE_URL}/api/ml/ab/experiments/${id}`, {
+          const mlResponse = await httpClient.get(`${ML_SERVICE_URL}/api/ml/ab/experiments/${id}`, {
             timeout: 10000
           });
 
@@ -346,7 +346,7 @@ export function createABTestsRouter(pgPool: Pool): Router {
         console.log(`Determining A/B test winner: ${id}, confidence=${confidence_level}`);
 
         // Forward to ML service for Thompson Sampling winner calculation
-        const mlResponse = await axios.get(
+        const mlResponse = await httpClient.get(
           `${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/winner`,
           {
             params: { confidence_level },
@@ -449,7 +449,7 @@ export function createABTestsRouter(pgPool: Pool): Router {
         console.log(`Promoting variant ${variant_id} from experiment ${id}`);
 
         // Forward to ML service
-        const mlResponse = await axios.post(
+        const mlResponse = await httpClient.post(
           `${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/promote`,
           { variant_id, new_budget },
           { timeout: 30000 }
@@ -515,7 +515,7 @@ export function createABTestsRouter(pgPool: Pool): Router {
 
         // Notify ML service
         try {
-          await axios.post(
+          await httpClient.post(
             `${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/pause`,
             {},
             { timeout: 5000 }
@@ -559,7 +559,7 @@ export function createABTestsRouter(pgPool: Pool): Router {
         console.log(`Fetching A/B test results: ${id}`);
 
         // Forward to ML service for detailed statistical analysis
-        const mlResponse = await axios.get(
+        const mlResponse = await httpClient.get(
           `${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/results`,
           { timeout: 30000 }
         );
@@ -596,7 +596,7 @@ export function createABTestsRouter(pgPool: Pool): Router {
         console.log(`Fetching variant performance: ${id}`);
 
         // Forward to ML service
-        const mlResponse = await axios.get(
+        const mlResponse = await httpClient.get(
           `${ML_SERVICE_URL}/api/ml/ab/experiments/${id}/variants`,
           { timeout: 10000 }
         );

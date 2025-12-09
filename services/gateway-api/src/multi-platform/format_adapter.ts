@@ -290,7 +290,7 @@ export class FormatAdapter {
       // Call video-agent to perform format conversions
       const axios = require('axios');
 
-      const response = await axios.post(
+      const response = await httpClient.post(
         `${this.videoAgentUrl}/api/format/adapt`,
         {
           jobId,

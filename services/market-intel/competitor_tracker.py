@@ -287,9 +287,36 @@ def import_csv():
 
     file = request.files['file']
 
-    # Save temporarily
-    temp_path = f'/tmp/{file.filename}'
-    file.save(temp_path)
+    # SECURITY FIX: Sanitize filename to prevent path traversal
+    import os
+    from pathlib import Path
+    
+    # Get safe filename (remove path components)
+    safe_filename = os.path.basename(file.filename)
+    # Remove any dangerous characters
+    safe_filename = "".join(c for c in safe_filename if c.isalnum() or c in "._-")
+    
+    # Validate extension
+    allowed_extensions = {'.csv', '.json', '.txt', '.xlsx'}
+    ext = Path(safe_filename).suffix.lower()
+    if ext not in allowed_extensions:
+        return jsonify({'error': f'Invalid file extension: {ext}'}), 400
+    
+    # Create safe path
+    temp_dir = Path('/tmp/competitor_imports')
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_path = temp_dir / safe_filename
+    
+    # Resolve to absolute path and verify it's within temp_dir
+    temp_path = temp_path.resolve()
+    temp_dir_abs = temp_dir.resolve()
+    
+    if not str(temp_path).startswith(str(temp_dir_abs)):
+        return jsonify({'error': 'Path traversal detected'}), 403
+    
+    # Save file with secure permissions
+    file.save(str(temp_path))
+    os.chmod(temp_path, 0o600)  # Owner read/write only
 
     # Import ads
     ads = CSVImporter.import_competitor_ads(temp_path)

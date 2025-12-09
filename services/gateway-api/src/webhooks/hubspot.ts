@@ -69,7 +69,7 @@
 
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
-import axios from 'axios';
+import httpClient from 'axios';
 
 const router = Router();
 
@@ -170,7 +170,7 @@ async function calculateSyntheticRevenue(
   stageTo: string,
   dealValue?: number
 ): Promise<SyntheticRevenueResult> {
-  const response = await axios.post(
+  const response = await httpClient.post(
     `${ML_SERVICE_URL}/api/ml/synthetic-revenue/calculate`,
     {
       tenant_id: tenantId,
@@ -200,7 +200,7 @@ async function attributeConversion(
     ? crypto.createHash('sha256').update(contactEmail).digest('hex')
     : undefined;
 
-  const response = await axios.post(
+  const response = await httpClient.post(
     `${ML_SERVICE_URL}/api/ml/attribution/attribute-conversion`,
     {
       tenant_id: tenantId,
@@ -308,7 +308,7 @@ router.post('/webhook/hubspot', async (req: Request, res: Response) => {
     // Step 6: Send feedback to BattleHardenedSampler (Intelligence Loop)
     if (attribution.success && attribution.ad_id) {
       try {
-        await axios.post(
+        await httpClient.post(
           `${ML_SERVICE_URL}/api/ml/battle-hardened/feedback`,
           {
             ad_id: attribution.ad_id,
@@ -329,7 +329,7 @@ router.post('/webhook/hubspot', async (req: Request, res: Response) => {
 
       // OPTIMIZATION 1: Meta CAPI - 40% attribution recovery
       try {
-        await axios.post(
+        await httpClient.post(
           `${ML_SERVICE_URL}/api/ml/meta-capi/track`,
           {
             event_name: stageChange.stageTo === 'closedwon' ? 'Purchase' : 'Lead',
@@ -351,7 +351,7 @@ router.post('/webhook/hubspot', async (req: Request, res: Response) => {
 
       // OPTIMIZATION 5: Instant Learning - Real-time adaptation
       try {
-        await axios.post(
+        await httpClient.post(
           `${ML_SERVICE_URL}/api/ml/instant-learn/event`,
           {
             ad_id: attribution.ad_id,

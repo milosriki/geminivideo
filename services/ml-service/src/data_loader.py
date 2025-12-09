@@ -27,7 +27,18 @@ class TrainingDataLoader:
         if not self.database_url:
             raise ValueError("DATABASE_URL not set")
         
-        self.engine = create_engine(self.database_url)
+        # STABILITY FIX: Configure connection pool with proper limits
+        self.engine = create_engine(
+            self.database_url,
+            pool_size=10,  # Maximum number of connections
+            max_overflow=20,  # Additional connections beyond pool_size
+            pool_pre_ping=True,  # Verify connections before using
+            pool_recycle=3600,  # Recycle connections after 1 hour
+            connect_args={
+                "connect_timeout": 5,  # 5 second connection timeout
+                "application_name": "ml-service-data-loader"
+            }
+        )
         self.Session = sessionmaker(bind=self.engine)
     
     def fetch_training_data(self, min_impressions: int = 100) -> Tuple[np.ndarray, np.ndarray]:

@@ -23,7 +23,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import axios from 'axios';
+import { httpClient } from '../index';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -56,7 +56,7 @@ async function proxyToMl(
   timeout: number = 30000
 ): Promise<void> {
   try {
-    const response = await axios.post(
+    const response = await httpClient.post(
       `${ML_SERVICE_URL}${endpoint}`,
       req.body,
       {
@@ -185,7 +185,7 @@ router.post(
  */
 router.get('/artery/health', async (req: Request, res: Response) => {
   try {
-    const mlHealth = await axios.get(`${ML_SERVICE_URL}/health`, { timeout: 5000 });
+    const mlHealth = await httpClient.get(`${ML_SERVICE_URL}/health`, { timeout: 5000 });
 
     res.json({
       status: 'healthy',
