@@ -2559,6 +2559,78 @@ async def get_queue_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/ml/precompute/status")
+async def get_precomputation_status():
+    """
+    Get status of all precomputation workers
+    """
+    try:
+        status = {
+            "workers": [],
+            "queue_size": 0,
+            "completed_today": 0,
+            "failed_today": 0,
+            "avg_processing_time_ms": 0
+        }
+
+        # Get worker status from pool
+        data_loader = get_data_loader()
+        if not data_loader or not data_loader.pool:
+            return {"success": True, "data": status}
+
+        result = await data_loader.pool.fetch('''
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'pending') as pending,
+                COUNT(*) FILTER (WHERE status = 'processing') as processing,
+                COUNT(*) FILTER (WHERE status = 'completed' AND completed_at > NOW() - INTERVAL '24 hours') as completed_today,
+                COUNT(*) FILTER (WHERE status = 'failed' AND completed_at > NOW() - INTERVAL '24 hours') as failed_today,
+                AVG(EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000) FILTER (WHERE status = 'completed') as avg_time
+            FROM precomputation_jobs
+        ''')
+
+        if result and len(result) > 0:
+            row = result[0]
+            status['queue_size'] = int(row['pending'] or 0) + int(row['processing'] or 0)
+            status['completed_today'] = int(row['completed_today'] or 0)
+            status['failed_today'] = int(row['failed_today'] or 0)
+            status['avg_processing_time_ms'] = float(row['avg_time'] or 0)
+
+        return {"success": True, "data": status}
+    except Exception as e:
+        logger.error(f"Error getting precomputation status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/precompute/trigger/{job_type}")
+async def trigger_precomputation(job_type: str):
+    """
+    Manually trigger a precomputation job
+    """
+    try:
+        valid_types = ['embeddings', 'predictions', 'features', 'rankings']
+        if job_type not in valid_types:
+            raise HTTPException(status_code=400, detail=f"Invalid job type. Must be one of: {valid_types}")
+
+        # Get data loader
+        data_loader = get_data_loader()
+        if not data_loader or not data_loader.pool:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+
+        # Insert new job
+        result = await data_loader.pool.fetchrow('''
+            INSERT INTO precomputation_jobs (job_type, status, created_at)
+            VALUES ($1, 'pending', NOW())
+            RETURNING id
+        ''', job_type)
+
+        return {"success": True, "job_id": str(result['id']), "message": f"Precomputation job {job_type} queued"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error triggering precomputation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================
 # END PRECOMPUTATION ENDPOINTS
 # ============================================================
