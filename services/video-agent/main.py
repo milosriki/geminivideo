@@ -14,6 +14,14 @@ import json
 import time
 from datetime import datetime
 import uuid
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Track startup time for uptime calculation
 _start_time = time.time()
