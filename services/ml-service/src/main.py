@@ -168,21 +168,75 @@ class TrainingRequest(BaseModel):
 # Health check
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    uptime = int(time.time() - _start_time)
-    return {
+    """
+    Comprehensive health check with component status
+    """
+    health = {
         "status": "healthy",
-        "service": "ml-service",
-        "uptime": uptime,
-        "xgboost_loaded": ctr_predictor.is_trained,
-        "enhanced_xgboost_loaded": enhanced_ctr_predictor.is_trained,
-        "vowpal_wabbit_loaded": True,
-        "thompson_sampling_active": len(thompson_optimizer.get_all_variants_stats()) > 0,
-        "active_variants": len(thompson_optimizer.get_all_variants_stats()),
-        "model_metrics": ctr_predictor.training_metrics if ctr_predictor.is_trained else {},
-        "enhanced_model_metrics": enhanced_ctr_predictor.training_metrics if enhanced_ctr_predictor.is_trained else {},
-        "enhanced_features_count": len(enhanced_ctr_predictor.feature_names)
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0",
+        "components": {
+            "database": {"status": "unknown"},
+            "redis": {"status": "unknown"},
+            "rag_memory": {"status": "unknown"},
+            "thompson_optimizer": {"status": "unknown"},
+            "cross_learner": {"status": "unknown"},
+            "auto_promoter": {"status": "unknown"}
+        }
     }
+
+    try:
+        # Check database
+        data_loader = get_data_loader()
+        if data_loader and data_loader.pool:
+            result = await data_loader.pool.fetch('SELECT 1')
+            health["components"]["database"] = {"status": "healthy"}
+        else:
+            health["components"]["database"] = {"status": "not_configured"}
+    except Exception as e:
+        health["components"]["database"] = {"status": "unhealthy", "error": str(e)}
+        health["status"] = "degraded"
+
+    try:
+        # Check Redis
+        if rag_redis:
+            rag_redis.ping()
+            health["components"]["redis"] = {"status": "healthy"}
+        else:
+            health["components"]["redis"] = {"status": "not_configured"}
+    except Exception as e:
+        health["components"]["redis"] = {"status": "unhealthy", "error": str(e)}
+
+    # Check RAG memory (winner_index)
+    if winner_index:
+        health["components"]["rag_memory"] = {"status": "healthy"}
+    else:
+        health["components"]["rag_memory"] = {"status": "not_initialized"}
+
+    # Check Thompson optimizer
+    if thompson_optimizer:
+        health["components"]["thompson_optimizer"] = {"status": "healthy"}
+    else:
+        health["components"]["thompson_optimizer"] = {"status": "not_initialized"}
+
+    # Check cross learner
+    if cross_learner:
+        health["components"]["cross_learner"] = {"status": "healthy"}
+    else:
+        health["components"]["cross_learner"] = {"status": "not_initialized"}
+
+    # Check auto promoter
+    if auto_promoter:
+        health["components"]["auto_promoter"] = {"status": "healthy"}
+    else:
+        health["components"]["auto_promoter"] = {"status": "not_initialized"}
+
+    # Determine overall status
+    unhealthy_count = sum(1 for c in health["components"].values() if c.get("status") == "unhealthy")
+    if unhealthy_count > 0:
+        health["status"] = "degraded" if unhealthy_count < 3 else "unhealthy"
+
+    return health
 
 # Root endpoint
 @app.get("/")
