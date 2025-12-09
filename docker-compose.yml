@@ -51,18 +51,21 @@ services:
       dockerfile: Dockerfile
     container_name: geminivideo-ml-service
     environment:
-      PORT: 8003
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
-      REDIS_URL: redis://redis:6379
+      - PYTHONUNBUFFERED=1
+      - PORT=8004
+      - DATABASE_URL=postgres://user:pass@postgres:5432/geminivideo
+      - REDIS_URL=redis://redis:6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GCS_BUCKET=${GCS_BUCKET}
     ports:
-      - "8003:8003"
+      - "8004:8004"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8003/health" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8004/health" ]
       interval: 15s
       timeout: 10s
       retries: 3
@@ -90,7 +93,7 @@ services:
       META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID}
       META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
       META_APP_SECRET: ${META_APP_SECRET}
-      ML_SERVICE_URL: http://ml-service:8003
+      ML_SERVICE_URL: http://ml-service:8004
     ports:
       - "8084:8084"
     depends_on:
@@ -114,21 +117,21 @@ services:
       dockerfile: Dockerfile
     container_name: geminivideo-video-agent
     environment:
-      PORT: 8082
+      PORT: 8001
       DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
       REDIS_URL: redis://redis:6379
       ASSET_DIR: /tmp/assets
       VOICEOVER_DIR: /tmp/voiceovers
       OUTPUT_DIR: /tmp/outputs
     ports:
-      - "8082:8082"
+      - "8001:8001"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8001/health" ]
       interval: 15s
       timeout: 10s
       retries: 3
@@ -148,16 +151,16 @@ services:
     environment:
       DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
       REDIS_URL: redis://redis:6379
-      PORT: 8081
+      PORT: 8002
     ports:
-      - "8081:8081"
+      - "8002:8002"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8002/health" ]
       interval: 15s
       timeout: 10s
       retries: 3
@@ -180,7 +183,7 @@ services:
     container_name: geminivideo-meta-publisher
     environment:
       PORT: 8083
-      GATEWAY_URL: http://gateway-api:8080
+      GATEWAY_URL: http://gateway-api:8000
       META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
       META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID}
       META_PAGE_ID: ${META_PAGE_ID}
@@ -270,18 +273,24 @@ services:
       dockerfile: Dockerfile
     container_name: geminivideo-gateway-api
     environment:
-      PORT: 8080
-      DRIVE_INTEL_URL: http://drive-intel:8081
-      VIDEO_AGENT_URL: http://video-agent:8082
-      ML_SERVICE_URL: http://ml-service:8003
-      TITAN_CORE_URL: http://titan-core:8084
-      META_PUBLISHER_URL: http://meta-publisher:8083
-      TIKTOK_ADS_URL: http://tiktok-ads:8085
-      GOOGLE_ADS_URL: http://google-ads:8086
-      REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgresql://geminivideo:geminivideo@postgres:5432/geminivideo
+      - NODE_ENV=production
+      - PORT=8000
+      - DATABASE_URL=postgres://user:pass@postgres:5432/geminivideo
+      - REDIS_URL=redis://redis:6379
+      - ML_SERVICE_URL=http://ml-service:8004
+      - VIDEO_AGENT_URL=http://video-agent:8001
+      - DRIVE_INTEL_URL=http://drive-intel:8002
+      - RAG_SERVICE_URL=http://rag-service:8003
+      - TITAN_CORE_URL=http://titan-core:8084
+      - META_PUBLISHER_URL=http://meta-publisher:8083
+      - TIKTOK_ADS_URL=http://tiktok-ads:8085
+      - GOOGLE_ADS_URL=http://google-ads:8086
+      - JWT_SECRET=${JWT_SECRET}
+      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN}
+      - GOOGLE_ADS_CLIENT_ID=${GOOGLE_ADS_CLIENT_ID}
+      - TIKTOK_ACCESS_TOKEN=${TIKTOK_ACCESS_TOKEN}
     ports:
-      - "8080:8080"
+      - "8000:8000"
     depends_on:
       redis:
         condition: service_healthy
@@ -298,7 +307,7 @@ services:
       meta-publisher:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health" ]
       interval: 15s
       timeout: 10s
       retries: 3
@@ -314,10 +323,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://localhost:8080
+        VITE_API_BASE_URL: http://localhost:8000
     container_name: geminivideo-frontend
     environment:
-      VITE_API_BASE_URL: http://localhost:8080
+      VITE_API_BASE_URL: http://localhost:8000
     ports:
       - "3000:80"
     depends_on:
