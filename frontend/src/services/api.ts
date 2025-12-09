@@ -242,4 +242,57 @@ export const getPredictionHistory = async (limit = 50) => {
   return response.data;
 };
 
+// Additional Analytics Methods
+export const getAnalyticsOverview = async (params?: {
+  start_date?: string;
+  end_date?: string;
+  time_range?: 'today' | '7d' | '30d' | '90d' | 'all';
+}) => {
+  const queryParams = new URLSearchParams();
+  if (params?.start_date) queryParams.append('start_date', params.start_date);
+  if (params?.end_date) queryParams.append('end_date', params.end_date);
+  if (params?.time_range) queryParams.append('time_range', params.time_range);
+  const query = queryParams.toString();
+  return api.get(`/analytics/overview${query ? `?${query}` : ''}`);
+};
+
+export const getCampaignAnalytics = async (campaignId: string, params?: {
+  start_date?: string;
+  end_date?: string;
+}) => {
+  const queryParams = new URLSearchParams();
+  if (params?.start_date) queryParams.append('start_date', params.start_date);
+  if (params?.end_date) queryParams.append('end_date', params.end_date);
+  const query = queryParams.toString();
+  return api.get(`/analytics/campaigns/${campaignId}${query ? `?${query}` : ''}`);
+};
+
+export const getPerformanceTrends = async (params?: {
+  metric?: string;
+  days?: number;
+}) => {
+  const queryParams = new URLSearchParams();
+  if (params?.metric) queryParams.append('metric', params.metric);
+  if (params?.days) queryParams.append('days', String(params.days));
+  const query = queryParams.toString();
+  return api.get(`/analytics/trends${query ? `?${query}` : ''}`);
+};
+
+export const getPredictionsVsActual = async (params?: {
+  start_date?: string;
+  end_date?: string;
+  limit?: number;
+}) => {
+  const queryParams = new URLSearchParams();
+  if (params?.start_date) queryParams.append('start_date', params.start_date);
+  if (params?.end_date) queryParams.append('end_date', params.end_date);
+  if (params?.limit) queryParams.append('limit', String(params.limit));
+  const query = queryParams.toString();
+  return api.get(`/analytics/predictions-vs-actual${query ? `?${query}` : ''}`);
+};
+
+export const getRealTimeAnalytics = async () => {
+  return api.get('/analytics/real-time');
+};
+
 export default api;
