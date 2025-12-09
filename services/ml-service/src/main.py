@@ -2836,6 +2836,80 @@ async def clear_rag_cache():
         raise HTTPException(500, str(e))
 
 
+@app.delete("/api/ml/rag/winner/{ad_id}", tags=["RAG Memory"])
+async def delete_winner(ad_id: str):
+    """
+    Delete a winner from RAG memory
+    """
+    try:
+        if not winner_index:
+            raise HTTPException(503, "Winner index not available")
+
+        # Remove from index
+        result = winner_index.remove_winner(ad_id)
+
+        if not result:
+            raise HTTPException(404, f"Winner {ad_id} not found in index")
+
+        return {"success": True, "message": f"Winner {ad_id} deleted from RAG memory"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting winner {ad_id}: {e}", exc_info=True)
+        raise HTTPException(500, str(e))
+
+
+@app.put("/api/ml/rag/winner/{ad_id}", tags=["RAG Memory"])
+async def update_winner(ad_id: str, request: Dict[str, Any]):
+    """
+    Update a winner's data in RAG memory
+    """
+    try:
+        if not winner_index:
+            raise HTTPException(503, "Winner index not available")
+
+        ad_data = request.get('ad_data')
+        ctr = request.get('ctr')
+        roas = request.get('roas')
+
+        if not ad_data and not ctr and not roas:
+            raise HTTPException(400, "Must provide ad_data, ctr, or roas to update")
+
+        # Update in index
+        result = winner_index.update_winner(ad_id, ad_data=ad_data, ctr=ctr, roas=roas)
+
+        if not result:
+            raise HTTPException(404, f"Winner {ad_id} not found in index")
+
+        return {"success": True, "data": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating winner {ad_id}: {e}", exc_info=True)
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/ml/rag/search-history", tags=["RAG Memory"])
+async def get_rag_search_history(limit: int = 50):
+    """
+    Get recent RAG search history for debugging
+    """
+    try:
+        # Return from cache or log
+        history = []
+        if rag_redis:
+            keys = rag_redis.keys("rag:search:*")
+            for key in keys[:limit]:
+                data = rag_redis.get(key)
+                if data:
+                    history.append(json.loads(data))
+
+        return {"success": True, "data": history, "count": len(history)}
+    except Exception as e:
+        logger.error(f"Error getting search history: {e}", exc_info=True)
+        raise HTTPException(500, str(e))
+
+
 # ============================================================
 # CROSS-ACCOUNT LEARNING ENDPOINTS (Agent 49)
 # Network Effects Through Anonymized Pattern Sharing
