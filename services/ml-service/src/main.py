@@ -4728,6 +4728,122 @@ if ARTERY_MODULES_AVAILABLE:
             logger.error(f"Error attributing conversion: {e}", exc_info=True)
             raise HTTPException(500, str(e))
 
+    @app.get("/api/ml/attribution/touchpoints/{conversion_id}")
+    async def get_attribution_touchpoints(conversion_id: str):
+        """
+        Get all touchpoints for a conversion
+        """
+        try:
+            result = await data_loader.pool.fetch('''
+                SELECT
+                    touchpoint_id,
+                    channel,
+                    campaign_id,
+                    ad_id,
+                    touchpoint_time,
+                    position,
+                    attribution_weight
+                FROM attribution_touchpoints
+                WHERE conversion_id = $1
+                ORDER BY touchpoint_time
+            ''', conversion_id)
+
+            touchpoints = [dict(row) for row in result] if result else []
+
+            return {"success": True, "data": touchpoints, "conversion_id": conversion_id}
+        except Exception as e:
+            logger.error(f"Error getting attribution touchpoints: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/ml/attribution/model-comparison/{campaign_id}")
+    async def compare_attribution_models(campaign_id: str):
+        """
+        Compare different attribution models for a campaign
+        """
+        try:
+            comparison = {
+                "campaign_id": campaign_id,
+                "models": {
+                    "last_click": {"conversions": 0, "revenue": 0.0},
+                    "first_click": {"conversions": 0, "revenue": 0.0},
+                    "linear": {"conversions": 0, "revenue": 0.0},
+                    "time_decay": {"conversions": 0, "revenue": 0.0},
+                    "position_based": {"conversions": 0, "revenue": 0.0}
+                },
+                "recommendation": "linear"
+            }
+
+            # Query attribution data for each model
+            result = await data_loader.pool.fetch('''
+                SELECT
+                    attribution_model,
+                    COUNT(*) as conversions,
+                    SUM(attributed_revenue) as revenue
+                FROM campaign_attribution
+                WHERE campaign_id = $1
+                GROUP BY attribution_model
+            ''', campaign_id)
+
+            for row in result or []:
+                model = row['attribution_model']
+                if model in comparison['models']:
+                    comparison['models'][model] = {
+                        "conversions": int(row['conversions']),
+                        "revenue": float(row['revenue'] or 0)
+                    }
+
+            return {"success": True, "data": comparison}
+        except Exception as e:
+            logger.error(f"Error comparing attribution models: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/api/ml/attribution/calculate")
+    async def calculate_attribution(request: Dict[str, Any]):
+        """
+        Calculate attribution for a set of touchpoints
+        """
+        try:
+            touchpoints = request.get('touchpoints', [])
+            model = request.get('model', 'linear')
+            conversion_value = request.get('conversion_value', 1.0)
+
+            if not touchpoints:
+                raise HTTPException(status_code=400, detail="touchpoints array required")
+
+            # Calculate attribution based on model
+            n = len(touchpoints)
+            attributed = []
+
+            for i, tp in enumerate(touchpoints):
+                if model == 'last_click':
+                    weight = 1.0 if i == n - 1 else 0.0
+                elif model == 'first_click':
+                    weight = 1.0 if i == 0 else 0.0
+                elif model == 'linear':
+                    weight = 1.0 / n
+                elif model == 'time_decay':
+                    weight = (i + 1) / sum(range(1, n + 1))
+                elif model == 'position_based':
+                    if i == 0 or i == n - 1:
+                        weight = 0.4
+                    else:
+                        weight = 0.2 / (n - 2) if n > 2 else 0.0
+                else:
+                    weight = 1.0 / n
+
+                attributed.append({
+                    **tp,
+                    "weight": weight,
+                    "attributed_value": conversion_value * weight
+                })
+
+            return {"success": True, "data": attributed, "model": model}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error calculating attribution: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
     # ============================================================
     # CRM DATA INGESTION - HubSpot Batch Sync
     # ============================================================
