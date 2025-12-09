@@ -14,6 +14,8 @@ interface PredictionLog {
   actual_ctr?: number;
   actual_clicks?: number;
   actual_impressions?: number;
+  updated_at?: string;
+  trigger?: string;
 }
 
 export class ReliabilityLogger {
@@ -62,19 +64,44 @@ export class ReliabilityLogger {
     return predictionId;
   }
 
-  updateActualCTR(predictionId: string, actualCTR: number, clicks: number, impressions: number): boolean {
-    const prediction = this.predictions.get(predictionId);
-    
-    if (!prediction) {
-      return false;
+  updateActualCTR(predictionId: string, actualCTR: number, clicks: number, impressions: number): void {
+    try {
+      // Validate inputs
+      if (actualCTR < 0 || actualCTR > 1) {
+        console.error(`Invalid CTR value: ${actualCTR}. Must be between 0 and 1`);
+        return;
+      }
+      if (clicks < 0 || impressions < 0) {
+        console.error('Invalid clicks/impressions: must be non-negative');
+        return;
+      }
+
+      const prediction = this.predictions.get(predictionId);
+      if (!prediction) {
+        console.warn(`Prediction ${predictionId} not found`);
+        return;
+      }
+
+      prediction.actual_ctr = actualCTR;
+      prediction.actual_clicks = clicks;
+      prediction.actual_impressions = impressions;
+      prediction.updated_at = new Date().toISOString();
+
+      // Persist to file (append update record)
+      const updateLine = JSON.stringify({
+        type: 'update',
+        prediction_id: predictionId,
+        actual_ctr: actualCTR,
+        actual_clicks: clicks,
+        actual_impressions: impressions,
+        updated_at: prediction.updated_at
+      });
+      fs.appendFileSync(this.logFile, updateLine + '\n');
+
+      console.log(`Updated CTR for prediction ${predictionId}`);
+    } catch (error: any) {
+      console.error(`Error updating CTR: ${error.message}`);
     }
-
-    prediction.actual_ctr = actualCTR;
-    prediction.actual_clicks = clicks;
-    prediction.actual_impressions = impressions;
-
-    // Note: In a full implementation, would update the JSONL file or use a database
-    return true;
   }
 
   private loadPredictions(): void {
@@ -208,9 +235,37 @@ export class ReliabilityLogger {
     };
   }
 
-  detectFatigue(): any[] {
-    // Stub for fatigue detection
-    // Would track creatives exceeding predicted upper band then decaying below lower band
-    return [];
+  detectFatigue(): Array<{trigger: string, count: number, fatigue_score: number}> {
+    try {
+      const triggerCounts = new Map<string, number>();
+      const recentPredictions = Array.from(this.predictions.values())
+        .filter(p => {
+          const timestamp = new Date(p.timestamp);
+          const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          return timestamp > dayAgo;
+        });
+
+      // Count trigger usage
+      recentPredictions.forEach(p => {
+        const trigger = p.trigger || p.metadata?.trigger || 'unknown';
+        triggerCounts.set(trigger, (triggerCounts.get(trigger) || 0) + 1);
+      });
+
+      // Calculate fatigue scores (higher count = higher fatigue)
+      const totalPredictions = recentPredictions.length || 1;
+      const results: Array<{trigger: string, count: number, fatigue_score: number}> = [];
+
+      triggerCounts.forEach((count, trigger) => {
+        const fatigue_score = Math.min(1, count / (totalPredictions * 0.3)); // 30% threshold
+        if (fatigue_score > 0.5) { // Only report high fatigue
+          results.push({ trigger, count, fatigue_score });
+        }
+      });
+
+      return results.sort((a, b) => b.fatigue_score - a.fatigue_score);
+    } catch (error: any) {
+      console.error(`Error detecting fatigue: ${error.message}`);
+      return [];
+    }
   }
 }
