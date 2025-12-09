@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useToastStore } from '@/stores/toastStore'
 import { CheckCircleIcon, ExclamationCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Create a client
 const queryClient = new QueryClient({
