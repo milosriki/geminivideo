@@ -860,6 +860,107 @@ async def list_all_experiments():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Thompson Sampling Analytics Endpoints (GROUP-B)
+
+@app.get("/api/ml/thompson/exploration-stats")
+async def get_exploration_stats(days: int = 30):
+    """
+    Get exploration vs exploitation statistics
+    """
+    try:
+        # Use thompson sampler from main app
+        stats = {
+            "total_decisions": 0,
+            "exploration_rate": 0.0,
+            "exploitation_rate": 0.0,
+            "best_arms": [],
+            "improvement_over_random": 0.0
+        }
+
+        # Query from database or cache
+        try:
+            data_loader = get_data_loader()
+            if data_loader and hasattr(data_loader, 'pool'):
+                result = await data_loader.pool.fetch('''
+                    SELECT
+                        COUNT(*) as total,
+                        SUM(CASE WHEN was_exploration THEN 1 ELSE 0 END) as explorations,
+                        SUM(CASE WHEN NOT was_exploration THEN 1 ELSE 0 END) as exploitations
+                    FROM thompson_decisions
+                    WHERE created_at > NOW() - INTERVAL '$1 days'
+                ''', days)
+
+                if result and len(result) > 0:
+                    row = result[0]
+                    total = row['total'] or 1
+                    stats['total_decisions'] = total
+                    stats['exploration_rate'] = (row['explorations'] or 0) / total
+                    stats['exploitation_rate'] = (row['exploitations'] or 0) / total
+        except Exception as db_error:
+            logger.warning(f"Database query failed, using in-memory stats: {db_error}")
+            # Fallback to in-memory Thompson optimizer stats
+            all_variants = thompson_optimizer.get_all_variants_stats()
+            stats['total_decisions'] = sum(v.get('impressions', 0) for v in all_variants)
+            stats['best_arms'] = [v['id'] for v in all_variants[:3]] if all_variants else []
+
+        return {"success": True, "data": stats}
+    except Exception as e:
+        logger.error(f"Error getting exploration stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ml/thompson/arm-performance/{experiment_id}")
+async def get_arm_performance(experiment_id: str):
+    """
+    Get performance of all arms in an experiment
+    """
+    try:
+        result = []
+
+        try:
+            data_loader = get_data_loader()
+            if data_loader and hasattr(data_loader, 'pool'):
+                result = await data_loader.pool.fetch('''
+                    SELECT
+                        variant_id,
+                        successes,
+                        failures,
+                        successes::float / NULLIF(successes + failures, 0) as conversion_rate,
+                        SQRT(successes * failures / POWER(successes + failures, 3)) as uncertainty
+                    FROM thompson_arms
+                    WHERE experiment_id = $1
+                    ORDER BY conversion_rate DESC
+                ''', experiment_id)
+
+                result = [dict(row) for row in result]
+        except Exception as db_error:
+            logger.warning(f"Database query failed, using in-memory stats: {db_error}")
+            # Fallback to in-memory Thompson optimizer stats
+            all_variants = thompson_optimizer.get_all_variants_stats()
+            experiment_variants = [
+                v for v in all_variants
+                if v.get('metadata', {}).get('experiment_id') == experiment_id
+            ]
+
+            # Convert to arm performance format
+            result = []
+            for v in experiment_variants:
+                successes = v.get('conversions', 0)
+                failures = v.get('impressions', 0) - successes
+                total = successes + failures
+                result.append({
+                    'variant_id': v['id'],
+                    'successes': successes,
+                    'failures': failures,
+                    'conversion_rate': successes / total if total > 0 else 0.0,
+                    'uncertainty': np.sqrt(successes * failures / (total ** 3)) if total > 0 else 0.0
+                })
+
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Error getting arm performance: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Feedback Loop Endpoints (Agent 5)
 
 class FeedbackData(BaseModel):
