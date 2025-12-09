@@ -406,6 +406,97 @@ export function createPredictionsRouter(pgPool: Pool): Router {
     }
   );
 
+  /**
+   * GET /api/predictions/:id
+   * Get a single prediction by ID
+   */
+  router.get(
+    '/:id',
+    apiRateLimiter,
+    validateInput({ params: { id: { type: 'uuid', required: true } } }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const result = await pgPool.query(
+          'SELECT * FROM predictions WHERE id = $1',
+          [id]
+        );
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Prediction not found' });
+        }
+        res.json({ success: true, data: result.rows[0] });
+      } catch (error: any) {
+        console.error(`Error fetching prediction ${req.params.id}: ${error.message}`);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * DELETE /api/predictions/:id
+   * Delete a prediction by ID
+   */
+  router.delete(
+    '/:id',
+    apiRateLimiter,
+    validateInput({ params: { id: { type: 'uuid', required: true } } }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const result = await pgPool.query(
+          'DELETE FROM predictions WHERE id = $1 RETURNING id',
+          [id]
+        );
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Prediction not found' });
+        }
+        res.json({ success: true, message: 'Prediction deleted' });
+      } catch (error: any) {
+        console.error(`Error deleting prediction ${req.params.id}: ${error.message}`);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
+  /**
+   * GET /api/predictions/history
+   * Get prediction history with optional filters
+   */
+  router.get(
+    '/history',
+    apiRateLimiter,
+    validateInput({
+      query: {
+        campaign_id: { type: 'uuid', required: false },
+        days: { type: 'number', required: false, min: 1, max: 365 },
+        limit: { type: 'number', required: false, min: 1, max: 100 }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { campaign_id, days = 30, limit = 50 } = req.query;
+        let query = `
+        SELECT * FROM predictions
+        WHERE created_at > NOW() - INTERVAL '${days} days'
+      `;
+        const params: any[] = [];
+
+        if (campaign_id) {
+          params.push(campaign_id);
+          query += ` AND campaign_id = $${params.length}`;
+        }
+
+        query += ` ORDER BY created_at DESC LIMIT ${limit}`;
+
+        const result = await pgPool.query(query, params);
+        res.json({ success: true, data: result.rows });
+      } catch (error: any) {
+        console.error(`Error fetching prediction history: ${error.message}`);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
   return router;
 }
 
