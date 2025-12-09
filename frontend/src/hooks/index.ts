@@ -8,3 +8,4 @@ export * from './useAnalytics';
 export * from './useABTests';
 export * from './usePublishing';
 export * from './useStreaming';
+export * from './useDashboard';
