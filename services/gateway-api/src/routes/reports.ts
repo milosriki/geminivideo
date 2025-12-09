@@ -79,6 +79,13 @@ router.post(
 router.get(
   '/',
   apiRateLimiter,
+  validateInput({
+    query: {
+      limit: { type: 'number', required: false, min: 1, max: 100 },
+      offset: { type: 'number', required: false, min: 0 },
+      type: { type: 'string', required: false }
+    }
+  }),
   async (req: Request, res: Response) => {
     try {
       const { limit = 20 } = req.query;
@@ -113,6 +120,9 @@ router.get(
 router.get(
   '/:id/download',
   apiRateLimiter,
+  validateInput({
+    params: { id: { type: 'uuid', required: true } }
+  }),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -151,6 +161,9 @@ router.get(
 router.delete(
   '/:id',
   apiRateLimiter,
+  validateInput({
+    params: { id: { type: 'uuid', required: true } }
+  }),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
