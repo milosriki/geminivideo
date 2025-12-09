@@ -3213,6 +3213,42 @@ if SELF_LEARNING_MODULES_AVAILABLE:
             logger.error(f"Error scoring creative: {e}", exc_info=True)
             raise HTTPException(500, str(e))
 
+    @app.get("/api/ml/dna/top-patterns/{account_id}", tags=["Creative DNA"])
+    async def get_top_dna_patterns(account_id: str, limit: int = 10):
+        """
+        Get top N winning DNA patterns for an account
+        """
+        try:
+            creative_dna = get_creative_dna()
+            if not creative_dna:
+                raise HTTPException(status_code=503, detail="Creative DNA service not available")
+
+            patterns = await creative_dna.get_top_patterns(account_id, limit=limit)
+            return {"success": True, "data": patterns}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting top DNA patterns: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/ml/dna/formula/{account_id}", tags=["Creative DNA"])
+    async def get_dna_formula_metrics(account_id: str):
+        """
+        Get current winning formula metrics for an account
+        """
+        try:
+            creative_dna = get_creative_dna()
+            if not creative_dna:
+                raise HTTPException(status_code=503, detail="Creative DNA service not available")
+
+            formula = await creative_dna.get_formula(account_id)
+            return {"success": True, "data": formula}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting DNA formula: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
 
     # ============================================================
     # COMPOUND LEARNER (Loop 5) - Ensemble of 3 models
