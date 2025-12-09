@@ -2481,6 +2481,10 @@ import json
 winner_index: WinnerIndex = None
 rag_redis: redis.Redis = None
 
+# Initialize self-learning modules
+auto_promoter = None
+cross_learner = None
+
 def initialize_rag_memory():
     """Initialize RAG with GCS + Redis memory"""
     global winner_index, rag_redis
@@ -2524,8 +2528,27 @@ class RAGIndexRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup_rag():
-    """Initialize RAG memory on startup"""
+    """Initialize RAG memory and self-learning modules on startup"""
+    global auto_promoter, cross_learner
+
+    # Initialize RAG memory
     initialize_rag_memory()
+
+    # Initialize auto-promoter (Loop 7)
+    try:
+        auto_promoter = initialize_auto_promoter()
+        logger.info("Auto-promoter initialized successfully")
+    except Exception as e:
+        logger.warning(f"Auto-promoter initialization failed: {e}")
+        auto_promoter = None
+
+    # Initialize cross-learner (Agent 49)
+    try:
+        cross_learner = initialize_cross_learner()
+        logger.info("Cross-learner initialized successfully")
+    except Exception as e:
+        logger.warning(f"Cross-learner initialization failed: {e}")
+        cross_learner = None
 
 
 @app.post("/api/ml/rag/search-winners", tags=["RAG Memory"])
