@@ -655,6 +655,66 @@ export function createCampaignsRouter(pgPool: Pool): Router {
     }
   );
 
+  /**
+   * GET /api/campaigns/:id/performance
+   * Get campaign performance metrics and statistics
+   */
+  router.get(
+    '/:id/performance',
+    apiRateLimiter,
+    validateInput({
+      params: {
+        id: { type: 'uuid', required: true }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+
+        console.log(`Fetching campaign performance: ${id}`);
+
+        const result = await pgPool.query(
+          `SELECT
+            c.id,
+            c.name,
+            c.status,
+            c.budget,
+            c.start_date,
+            c.end_date,
+            COALESCE(SUM(pm.impressions), 0) as total_impressions,
+            COALESCE(SUM(pm.clicks), 0) as total_clicks,
+            COALESCE(SUM(pm.spend), 0) as total_spend,
+            COALESCE(SUM(pm.conversions), 0) as total_conversions,
+            CASE
+              WHEN SUM(pm.impressions) > 0
+              THEN ROUND((SUM(pm.clicks)::numeric / SUM(pm.impressions)::numeric) * 100, 2)
+              ELSE 0
+            END as ctr_percentage,
+            CASE
+              WHEN SUM(pm.spend) > 0
+              THEN ROUND(SUM(pm.conversions)::numeric / SUM(pm.spend)::numeric, 2)
+              ELSE 0
+            END as roas
+          FROM campaigns c
+          LEFT JOIN performance_metrics pm ON pm.campaign_id = c.id
+          WHERE c.id = $1
+          GROUP BY c.id, c.name, c.status, c.budget, c.start_date, c.end_date`,
+          [id]
+        );
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Campaign not found' });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+
+      } catch (error: any) {
+        console.error(`Error fetching campaign performance ${req.params.id}: ${error.message}`);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  );
+
   return router;
 }
 
