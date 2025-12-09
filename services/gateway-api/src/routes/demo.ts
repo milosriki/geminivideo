@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { demoDataGenerator } from '../demo/demo-data-generator';
 import { apiRateLimiter } from '../middleware/security';
+import { validateInput } from '../middleware/validation';
 
 const router = Router();
 
@@ -38,7 +39,17 @@ router.get('/status', (req: Request, res: Response) => {
  * GET /api/demo/campaigns
  * Get demo campaigns with impressive metrics
  */
-router.get('/campaigns', apiRateLimiter, (req: Request, res: Response) => {
+router.get(
+  '/campaigns',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      days: { type: 'number', required: false, min: 1, max: 365 },
+      count: { type: 'number', required: false, min: 1, max: 20 },
+      scenario: { type: 'string', required: false }
+    }
+  }),
+  (req: Request, res: Response) => {
   try {
     const { scenario, days = 30 } = req.query;
 
@@ -117,7 +128,16 @@ router.get('/campaigns/:id', apiRateLimiter, (req: Request, res: Response) => {
  * GET /api/demo/analytics
  * Get demo analytics data for dashboard
  */
-router.get('/analytics', apiRateLimiter, (req: Request, res: Response) => {
+router.get(
+  '/analytics',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      days: { type: 'number', required: false, min: 1, max: 365 },
+      scenario: { type: 'string', required: false }
+    }
+  }),
+  (req: Request, res: Response) => {
   try {
     const { days = 30 } = req.query;
     const analytics = demoDataGenerator.generateAnalytics(parseInt(days as string) || 30);
@@ -160,7 +180,15 @@ router.get('/ai-council', apiRateLimiter, (req: Request, res: Response) => {
  * GET /api/demo/ai-council/batch
  * Get multiple AI Council scores for showcase
  */
-router.get('/ai-council/batch', apiRateLimiter, (req: Request, res: Response) => {
+router.get(
+  '/ai-council/batch',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      count: { type: 'number', required: false, min: 1, max: 20 }
+    }
+  }),
+  (req: Request, res: Response) => {
   try {
     const { count = 5 } = req.query;
     const numScores = Math.min(parseInt(count as string) || 5, 20);
@@ -200,7 +228,15 @@ router.get('/ai-council/batch', apiRateLimiter, (req: Request, res: Response) =>
  * GET /api/demo/ab-tests
  * Get demo A/B test data with Thompson Sampling
  */
-router.get('/ab-tests', apiRateLimiter, (req: Request, res: Response) => {
+router.get(
+  '/ab-tests',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      count: { type: 'number', required: false, min: 1, max: 20 }
+    }
+  }),
+  (req: Request, res: Response) => {
   try {
     const { count = 3 } = req.query;
     const numTests = Math.min(parseInt(count as string) || 3, 10);
@@ -279,7 +315,16 @@ router.get('/ab-tests/:id', apiRateLimiter, (req: Request, res: Response) => {
  * GET /api/demo/performance-comparison
  * Multi-platform performance comparison
  */
-router.get('/performance-comparison', apiRateLimiter, (req: Request, res: Response) => {
+router.get(
+  '/performance-comparison',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      platforms: { type: 'string', required: false },
+      days: { type: 'number', required: false, min: 1, max: 365 }
+    }
+  }),
+  (req: Request, res: Response) => {
   try {
     const analytics = demoDataGenerator.generateAnalytics(30);
 
@@ -334,7 +379,15 @@ router.get('/performance-comparison', apiRateLimiter, (req: Request, res: Respon
  * GET /api/demo/live-metrics
  * Simulated live-updating metrics for presentation
  */
-router.get('/live-metrics', apiRateLimiter, (req: Request, res: Response) => {
+router.get(
+  '/live-metrics',
+  apiRateLimiter,
+  validateInput({
+    query: {
+      count: { type: 'number', required: false, min: 1, max: 20 }
+    }
+  }),
+  (req: Request, res: Response) => {
   try {
     const now = new Date();
     const campaign = demoDataGenerator.generateCampaign('successful_campaign', 1);
