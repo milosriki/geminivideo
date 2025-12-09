@@ -75,36 +75,45 @@ export class ScoringEngine {
   }
 
   async scoreStoryboard(scenes: any[], metadata: any = {}): Promise<any> {
-    // Parallelize AI calls for speed
-    const [psychologyScore, hookScore] = await Promise.all([
-      this.calculatePsychologyScore(scenes, metadata),
-      this.calculateHookStrength(scenes)
-    ]);
-    const technicalScore = this.calculateTechnicalScore(scenes);
-    const demographicScore = await this.calculateDemographicMatch(scenes, metadata);
-    const noveltyScore = this.calculateNoveltyScore(scenes);
+    try {
+      if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
+        throw new Error('Invalid scenes: must be non-empty array');
+      }
 
-    // Weighted composite score
-    const compositeScore =
-      psychologyScore * 0.3 +
-      hookScore * 0.25 +
-      technicalScore * 0.2 +
-      demographicScore * 0.15 +
-      noveltyScore * 0.1;
+      // Parallelize AI calls for speed
+      const [psychologyScore, hookScore] = await Promise.all([
+        this.calculatePsychologyScore(scenes, metadata),
+        this.calculateHookStrength(scenes)
+      ]);
+      const technicalScore = this.calculateTechnicalScore(scenes);
+      const demographicScore = await this.calculateDemographicMatch(scenes, metadata);
+      const noveltyScore = this.calculateNoveltyScore(scenes);
 
-    const winProbability = this.calculateWinProbability(compositeScore);
+      // Weighted composite score
+      const compositeScore =
+        psychologyScore * 0.3 +
+        hookScore * 0.25 +
+        technicalScore * 0.2 +
+        demographicScore * 0.15 +
+        noveltyScore * 0.1;
 
-    return {
-      psychology_score: psychologyScore,
-      hook_strength: hookScore,
-      technical_score: technicalScore,
-      demographic_match: demographicScore,
-      novelty_score: noveltyScore,
-      composite_score: compositeScore,
-      win_probability: winProbability,
-      predicted_band: winProbability.band,
-      confidence: winProbability.confidence
-    };
+      const winProbability = this.calculateWinProbability(compositeScore);
+
+      return {
+        psychology_score: psychologyScore,
+        hook_strength: hookScore,
+        technical_score: technicalScore,
+        demographic_match: demographicScore,
+        novelty_score: noveltyScore,
+        composite_score: compositeScore,
+        win_probability: winProbability,
+        predicted_band: winProbability.band,
+        confidence: winProbability.confidence
+      };
+    } catch (error: any) {
+      console.error(`Error scoring storyboard: ${error.message}`);
+      throw error;
+    }
   }
 
   private async calculatePsychologyScore(scenes: any[], metadata: any): Promise<number> {
@@ -166,25 +175,30 @@ Return JSON: {"pain_point": N, "transformation": N, "urgency": N, "authority": N
   }
 
   private async calculateHookStrength(scenes: any[]): Promise<number> {
-    const weights = this.weightsConfig.hook_weights;
+    try {
+      const weights = this.weightsConfig.hook_weights;
 
-    // Check first scene/clip for hook characteristics
-    if (!scenes.length) return 0;
+      // Check first scene/clip for hook characteristics
+      const firstScene = scenes[0];
+      if (!firstScene) return 0.5;
 
-    const firstScene = scenes[0];
-    const text = this.extractSceneText(firstScene);
+      const text = this.extractSceneText(firstScene);
 
-    // Call Gemini for Hook Analysis
-    const analysis = await this.geminiService.analyzeScene(text, "Hook Strength Analysis");
-    const aiHookScore = (analysis.hook_score || 0) / 10;
+      // Call Gemini for Hook Analysis
+      const analysis = await this.geminiService.analyzeScene(text, "Hook Strength Analysis");
+      const aiHookScore = (analysis.hook_score || 0) / 10;
 
-    // Hybrid: AI Score + Technical Signals (Motion)
-    let motionSpike = firstScene.features?.motion_score || 0;
+      // Hybrid: AI Score + Technical Signals (Motion)
+      let motionSpike = firstScene.features?.motion_score || 0;
 
-    // Blend AI judgment with raw signal
-    const finalHook = (aiHookScore * 0.7) + (Math.min(motionSpike * 2, 1) * 0.3);
+      // Blend AI judgment with raw signal
+      const finalHook = (aiHookScore * 0.7) + (Math.min(motionSpike * 2, 1) * 0.3);
 
-    return Math.min(finalHook, 1.0);
+      return Math.min(finalHook, 1.0);
+    } catch (error: any) {
+      console.error(`Error calculating hook strength: ${error.message}`);
+      return 0.5; // fallback score
+    }
   }
 
   private calculateTechnicalScore(scenes: any[]): number {
