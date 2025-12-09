@@ -336,7 +336,7 @@ async def train_model(request: TrainingRequest):
     try:
         if request.use_synthetic_data:
             logger.info(f"Generating {request.n_samples} synthetic training samples...")
-            X, y = generate_synthetic_training_data(n_samples=request.n_samples)
+            X, y = generate_enhanced_data(n_samples=request.n_samples)
             feature_names = feature_extractor.feature_names
         else:
             # Load real data from database
@@ -4315,6 +4315,7 @@ async def startup_event():
 
     # Start precomputation workers (Agent 45)
     try:
+        import asyncio
         precomputer = get_precomputer()
         num_workers = int(os.getenv("PRECOMPUTE_WORKERS", "3"))
         asyncio.create_task(precomputer.start_workers(num_workers=num_workers))

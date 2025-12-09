@@ -18,6 +18,8 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 import logging
 
+logger = logging.getLogger(__name__)
+
 try:
     from src.batch_processor import (
         BatchProcessor,
