@@ -2730,6 +2730,31 @@ app.use('/api/ml', mlProxyRouter);
 console.log('✅ Artery module endpoints mounted at /api/ml/*');
 
 // ============================================================================
+// CREDITS ENDPOINTS (GROUP A - Wired)
+// ============================================================================
+
+import { registerCreditsEndpoints } from './credits-endpoint';
+registerCreditsEndpoints(app, pgPool);
+console.log('✅ Credits endpoints mounted at /api/credits');
+
+// ============================================================================
+// ROAS DASHBOARD ENDPOINTS (GROUP A - Wired)
+// ============================================================================
+
+import { initializeROASRoutes } from './routes/roas-dashboard';
+const roasRouter = initializeROASRoutes(pgPool);
+app.use('/api/roas', roasRouter);
+console.log('✅ ROAS dashboard endpoints mounted at /api/roas');
+
+// ============================================================================
+// KNOWLEDGE MANAGEMENT ENDPOINTS (GROUP A - Wired)
+// ============================================================================
+
+import knowledgeRouter from './knowledge';
+app.use('/api/knowledge', knowledgeRouter);
+console.log('✅ Knowledge management endpoints mounted at /api/knowledge');
+
+// ============================================================================
 // HEALTH CHECK
 // ============================================================================
 
