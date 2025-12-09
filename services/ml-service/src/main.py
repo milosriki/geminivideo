@@ -3477,6 +3477,40 @@ if SELF_LEARNING_MODULES_AVAILABLE:
             logger.error(f"Error getting history: {e}", exc_info=True)
             raise HTTPException(500, str(e))
 
+    @app.get("/api/ml/compound/improvement-rate/{account_id}", tags=["Compound Learner"])
+    async def get_improvement_rate(account_id: str, days: int = 90):
+        """
+        Get compound improvement rate over time for an account
+        """
+        try:
+            if not compound_learner:
+                raise HTTPException(status_code=503, detail="Compound learner not available")
+
+            rate = await compound_learner.get_improvement_rate(account_id, days=days)
+            return {"success": True, "data": rate}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting improvement rate: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/ml/compound/milestones/{account_id}", tags=["Compound Learner"])
+    async def get_learning_milestones(account_id: str):
+        """
+        Get learning milestones achieved by an account
+        """
+        try:
+            if not compound_learner:
+                raise HTTPException(status_code=503, detail="Compound learner not available")
+
+            milestones = await compound_learner.get_milestones(account_id)
+            return {"success": True, "data": milestones}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting milestones: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
 
     # ============================================================
     # ACTUALS FETCHER (Loop 6) - Auto-validation
