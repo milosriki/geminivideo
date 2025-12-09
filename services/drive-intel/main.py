@@ -115,6 +115,11 @@ class SearchClipsRequest(BaseModel):
     filter_asset_id: Optional[str] = None
 
 
+class IngestSingleVideoRequest(BaseModel):
+    video_path: str
+    filename: Optional[str] = None
+
+
 @app.get("/")
 async def root():
     return {"service": "drive-intel", "status": "running", "version": "1.0.0"}
@@ -174,20 +179,30 @@ async def ingest_drive_folder(
         for file_info in ingested_files:
             # Process video through local ingestion pipeline
             if ingest_service:
-                asset_id = await ingest_service.ingest_single_video(
-                    video_path=file_info['local_path'],
-                    filename=file_info['name'],
-                    scene_detector=scene_detector,
-                    feature_extractor=feature_extractor,
-                    search_service=search_service
-                )
+                try:
+                    asset = await ingest_service._ingest_video(
+                        video_path=file_info['local_path'],
+                        scene_detector=scene_detector,
+                        feature_extractor=feature_extractor
+                    )
 
-                analysis_jobs.append({
-                    'asset_id': asset_id,
-                    'drive_file_id': file_info['file_id'],
-                    'name': file_info['name'],
-                    'size_mb': file_info['size_bytes'] / 1024 / 1024
-                })
+                    # Add clips to search index
+                    if asset.clips:
+                        search_service.add_clips(asset.clips)
+                        search_service.calculate_novelty_scores(asset.clips)
+
+                    # Save asset
+                    persistence.save_asset(asset)
+
+                    analysis_jobs.append({
+                        'asset_id': asset.id,
+                        'drive_file_id': file_info['file_id'],
+                        'name': file_info['name'],
+                        'size_mb': file_info['size_bytes'] / 1024 / 1024
+                    })
+                except Exception as e:
+                    print(f"Error processing {file_info['name']}: {e}")
+                    continue
 
         return {
             "status": "success",
@@ -215,6 +230,9 @@ async def ingest_local_folder(
     Ingest videos from local folder
     Performs shot detection and feature extraction
     """
+    if not ingest_service:
+        raise HTTPException(status_code=503, detail="Ingest service not available")
+
     try:
         result = await ingest_service.ingest_folder(
             folder_path=request.folder_path,
@@ -223,7 +241,69 @@ async def ingest_local_folder(
             search_service=search_service
         )
         return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import logging
+        logging.error(f"Local folder ingestion error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/ingest/single/video")
+async def ingest_single_video(
+    request: IngestSingleVideoRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Ingest a single video file
+    Performs shot detection and feature extraction
+    """
+    if not ingest_service:
+        raise HTTPException(status_code=503, detail="Ingest service not available")
+
+    if not scene_detector:
+        raise HTTPException(status_code=503, detail="Scene detector not available")
+
+    if not feature_extractor:
+        raise HTTPException(status_code=503, detail="Feature extractor not available")
+
+    try:
+        # Validate video path exists
+        if not os.path.exists(request.video_path):
+            raise HTTPException(status_code=404, detail=f"Video file not found: {request.video_path}")
+
+        # Process video
+        asset = await ingest_service._ingest_video(
+            video_path=request.video_path,
+            scene_detector=scene_detector,
+            feature_extractor=feature_extractor
+        )
+
+        # Override filename if provided
+        if request.filename:
+            asset.filename = request.filename
+
+        # Add clips to search index
+        if asset.clips and search_service:
+            search_service.add_clips(asset.clips)
+            search_service.calculate_novelty_scores(asset.clips)
+
+        # Save asset
+        persistence.save_asset(asset)
+
+        return {
+            "status": "success",
+            "asset_id": asset.id,
+            "filename": asset.filename,
+            "clips_count": len(asset.clips),
+            "duration": asset.duration,
+            "message": f"Successfully ingested video with {len(asset.clips)} clips"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.error(f"Single video ingestion error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -233,17 +313,83 @@ async def list_assets(
     limit: int = 100
 ):
     """
-    List all ingested assets
+    List all ingested assets with pagination
     """
+    if not persistence:
+        raise HTTPException(status_code=503, detail="Persistence layer not available")
+
     try:
         assets = persistence.list_assets(skip=skip, limit=limit)
+        total_count = len(persistence.assets) if hasattr(persistence, 'assets') else len(assets)
+
         return {
             "assets": [asset.dict() for asset in assets],
             "count": len(assets),
+            "total": total_count,
             "skip": skip,
             "limit": limit
         }
     except Exception as e:
+        import logging
+        logging.error(f"List assets error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/assets/{asset_id}")
+async def get_asset(asset_id: str):
+    """
+    Get a specific asset by ID
+    """
+    if not persistence:
+        raise HTTPException(status_code=503, detail="Persistence layer not available")
+
+    try:
+        asset = persistence.get_asset(asset_id)
+        if not asset:
+            raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+
+        return {
+            "asset": asset.dict(),
+            "clips_count": len(asset.clips)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.error(f"Get asset error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/assets/{asset_id}")
+async def delete_asset(asset_id: str):
+    """
+    Delete an asset and all its clips
+    """
+    if not persistence:
+        raise HTTPException(status_code=503, detail="Persistence layer not available")
+
+    try:
+        # Check if asset exists
+        asset = persistence.get_asset(asset_id)
+        if not asset:
+            raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+
+        # Delete the asset
+        success = persistence.delete_asset(asset_id)
+
+        if success:
+            return {
+                "status": "success",
+                "message": f"Asset {asset_id} deleted successfully",
+                "clips_deleted": len(asset.clips)
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to delete asset")
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.error(f"Delete asset error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -257,32 +403,102 @@ async def get_asset_clips(
     Get clips for a specific asset
     Optionally ranked and filtered to top N
     """
+    if not persistence:
+        raise HTTPException(status_code=503, detail="Persistence layer not available")
+
     try:
         asset = persistence.get_asset(asset_id)
         if not asset:
-            raise HTTPException(status_code=404, detail="Asset not found")
-        
+            raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+
         clips = asset.clips
-        
-        if ranked:
+
+        if ranked and ranking_service:
             # Apply ranking
             clips = ranking_service.rank_clips(clips)
-            
+
             # Apply clustering to remove duplicates
             clips = ranking_service.cluster_and_deduplicate(clips)
-        
+
         if top and top > 0:
             clips = clips[:top]
-        
+
         return {
             "asset_id": asset_id,
             "clips": [clip.dict() for clip in clips],
             "count": len(clips),
+            "total_clips": len(asset.clips),
             "ranked": ranked
         }
     except HTTPException:
         raise
     except Exception as e:
+        import logging
+        logging.error(f"Get asset clips error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/clips")
+async def list_clips(
+    asset_id: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100
+):
+    """
+    List all clips, optionally filtered by asset_id
+    """
+    if not persistence:
+        raise HTTPException(status_code=503, detail="Persistence layer not available")
+
+    try:
+        clips = persistence.list_clips(asset_id=asset_id)
+
+        # Apply pagination
+        total = len(clips)
+        clips_page = clips[skip:skip + limit]
+
+        return {
+            "clips": [clip.dict() for clip in clips_page],
+            "count": len(clips_page),
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+            "asset_id": asset_id
+        }
+    except Exception as e:
+        import logging
+        logging.error(f"List clips error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/clips/{clip_id}")
+async def get_clip(clip_id: str):
+    """
+    Get a specific clip by ID
+    """
+    if not persistence:
+        raise HTTPException(status_code=503, detail="Persistence layer not available")
+
+    try:
+        clip = persistence.get_clip(clip_id)
+        if not clip:
+            raise HTTPException(status_code=404, detail=f"Clip not found: {clip_id}")
+
+        # Get parent asset info
+        asset = persistence.get_asset(clip.asset_id)
+
+        return {
+            "clip": clip.dict(),
+            "asset": {
+                "id": asset.id,
+                "filename": asset.filename
+            } if asset else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.error(f"Get clip error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -291,18 +507,40 @@ async def search_clips(request: SearchClipsRequest):
     """
     Semantic search for clips using text query
     """
+    if not search_service:
+        raise HTTPException(status_code=503, detail="Search service not available")
+
     try:
         results = search_service.search(
             query=request.query,
             top_k=request.top_k,
-            filter_asset_id=request.filter_asset_id
+            filter_asset_id=request.filter_asset_id,
+            persistence=persistence
         )
+
+        # Enrich results with clip details if persistence available
+        if persistence and results:
+            enriched_results = []
+            for result in results:
+                clip = persistence.get_clip(result['clip_id'])
+                if clip:
+                    enriched_results.append({
+                        **result,
+                        "clip": clip.dict()
+                    })
+                else:
+                    enriched_results.append(result)
+            results = enriched_results
+
         return {
             "query": request.query,
             "results": results,
-            "count": len(results)
+            "count": len(results),
+            "top_k": request.top_k
         }
     except Exception as e:
+        import logging
+        logging.error(f"Search clips error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
