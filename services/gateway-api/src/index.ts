@@ -2679,11 +2679,59 @@ console.log('✅ Artery module endpoints mounted at /api/ml/*');
 // HEALTH CHECK
 // ============================================================================
 
-app.get('/health', (req: Request, res: Response) => {
-  res.json({
+app.get('/health', async (req: Request, res: Response) => {
+  const health = {
     status: 'healthy',
-    timestamp: new Date().toISOString()
-  });
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    services: {
+      database: { status: 'unknown' },
+      redis: { status: 'unknown' },
+      ml_service: { status: 'unknown' },
+      video_agent: { status: 'unknown' }
+    }
+  };
+
+  try {
+    // Check PostgreSQL
+    const dbResult = await pgPool.query('SELECT 1');
+    health.services.database = { status: dbResult ? 'healthy' : 'unhealthy' };
+  } catch (error: any) {
+    health.services.database = { status: 'unhealthy', error: error.message };
+    health.status = 'degraded';
+  }
+
+  try {
+    // Check Redis
+    if (redisClient && redisConnected) {
+      await redisClient.ping();
+      health.services.redis = { status: 'healthy' };
+    } else {
+      health.services.redis = { status: 'not_configured' };
+    }
+  } catch (error: any) {
+    health.services.redis = { status: 'unhealthy', error: error.message };
+  }
+
+  try {
+    // Check ML Service
+    const mlResponse = await axios.get(`${ML_SERVICE_URL}/health`, { timeout: 5000 });
+    health.services.ml_service = { status: mlResponse.status === 200 ? 'healthy' : 'unhealthy' };
+  } catch (error: any) {
+    health.services.ml_service = { status: 'unhealthy', error: error.message };
+    health.status = 'degraded';
+  }
+
+  try {
+    // Check Video Agent
+    const videoResponse = await axios.get(`${VIDEO_AGENT_URL}/health`, { timeout: 5000 });
+    health.services.video_agent = { status: videoResponse.status === 200 ? 'healthy' : 'unhealthy' };
+  } catch (error: any) {
+    health.services.video_agent = { status: 'unhealthy', error: error.message };
+  }
+
+  const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // Real-time stats endpoint
