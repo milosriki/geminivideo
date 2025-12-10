@@ -328,11 +328,38 @@ class AdPatternMiner:
     
     def _analyze_visual_patterns(self) -> Dict[str, Any]:
         """Analyze effective visual elements"""
->>>>>>> origin/claude/plan-video-editing-solution-01K1NVwMYwFHsZECx5H2RVTT
+        # Visual pattern analysis from real data
+        visual_elements = Counter()
+        
+        for ad in self.ads_data:
+            # Extract visual cues from ad data if available
+            if ad.get("has_video"):
+                visual_elements["video"] += 1
+            if ad.get("has_text_overlay"):
+                visual_elements["text_overlay"] += 1
+            if ad.get("has_product_shot"):
+                visual_elements["product_shot"] += 1
+        
         return {
-            'most_common': hook_types.most_common(5),
-            'success_rates_by_type': success_rates,
-            'total_hooks_analyzed': total_ads,
+            'most_common': visual_elements.most_common(5) if visual_elements else [],
+            'source': 'real_ad_analysis'
+        }
+    
+    def _analyze_cta_patterns(self) -> Dict[str, Any]:
+        """Analyze CTA patterns from real data"""
+        cta_types = Counter()
+        
+        for ad in self.ads_data:
+            cta = ad.get("cta", "").lower()
+            if "shop" in cta or "buy" in cta:
+                cta_types["purchase"] += 1
+            elif "learn" in cta or "more" in cta:
+                cta_types["learn_more"] += 1
+            elif "sign" in cta or "join" in cta:
+                cta_types["signup"] += 1
+        
+        return {
+            'top_ctas': cta_types.most_common(5),
             'source': 'real_ad_analysis'
         }
 
