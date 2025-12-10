@@ -93,3 +93,4 @@ frontend/dist/
 *.pt
 *.pth
 trees/
+supabase/.env.prod
