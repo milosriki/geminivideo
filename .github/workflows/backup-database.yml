@@ -1,0 +1,59 @@
+name: Database Backup
+
+on:
+  schedule:
+    # Every Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      
+      - name: Create backup directory
+        run: mkdir -p backups
+      
+      - name: Create database backup
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          DATE=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILE="backups/backup_${DATE}.sql"
+          
+          echo "📦 Creating backup..."
+          pg_dump "$DB_URL" --file="$BACKUP_FILE" --verbose
+          
+          echo "🗜️  Compressing..."
+          gzip "$BACKUP_FILE"
+          
+          echo "✅ Backup created: ${BACKUP_FILE}.gz"
+          ls -lh backups/
+      
+      - name: Upload backup as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-backup-${{ github.run_number }}
+          path: backups/*.sql.gz
+          retention-days: 30
+      
+      - name: Create GitHub Release (optional)
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: backup-${{ github.run_number }}
+          name: Database Backup ${{ github.run_number }}
+          files: backups/*.sql.gz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
