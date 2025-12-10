@@ -18,7 +18,6 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from collections import Counter
 
-<<<<<<< HEAD
 # Add market-intel service to path (hyphenated directory name)
 market_intel_path = Path(__file__).parent.parent / "services" / "market-intel"
 sys.path.insert(0, str(market_intel_path))
@@ -556,7 +555,6 @@ def main():
     base_path = Path(__file__).parent.parent
     config_path = base_path / 'shared' / 'config'
 
-<<<<<<< HEAD
     miner = AdPatternMiner(config_path)
 
     # Check for CSV data source
@@ -609,41 +607,6 @@ def main():
 
     brand_patterns = patterns.get('brand_patterns', {})
     print(f"  Competitors tracked: {brand_patterns.get('total_brands', 0)}")
-=======
-    # Initialize miner
-    use_real_api = not args.use_mock
-    miner = AdPatternMiner(config_path, use_real_api=use_real_api)
-
-    # Analyze patterns
-    if miner.use_real_api:
-        print(f"\nSearching for: {args.niche}")
-        print(f"Min impressions: {args.min_impressions:,}")
-        print(f"Ads to analyze: {args.limit}")
-
-    patterns = miner.analyze_ad_library_export(
-        niche_keywords=args.niche,
-        min_impressions=args.min_impressions,
-        limit=args.limit
-    )
-
-    print("\nDiscovered Patterns:")
-    print(f"  Hook patterns: {len(patterns['hook_patterns'])} analyzed")
-    print(f"  Duration patterns: {len(patterns['duration_patterns'])} segments")
-    print(f"  Visual patterns: {len(patterns['visual_patterns'])} elements")
-    print(f"  CTA patterns: {len(patterns['cta_patterns']['top_ctas'])} CTAs")
-
-    # Show real data stats if available
-    if 'real_data_stats' in patterns:
-        stats = patterns['real_data_stats']
-        print(f"\nReal API Data:")
-        print(f"  Total ads analyzed: {stats['total_ads']}")
-        if stats['date_range']:
-            print(f"  Date range: {stats['date_range'].get('earliest', 'N/A')} to {stats['date_range'].get('latest', 'N/A')}")
-        if stats['spend_analysis']:
-            spend = stats['spend_analysis']
-            print(f"  Avg spend: ${spend.get('avg', 0):,.2f}")
-            print(f"  Total spend: ${spend.get('total', 0):,.2f}")
->>>>>>> origin/claude/plan-video-editing-solution-01K1NVwMYwFHsZECx5H2RVTT
 
     miner.update_config_with_patterns(patterns)
 
