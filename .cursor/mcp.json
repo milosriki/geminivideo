@@ -2,6 +2,9 @@
   "mcpServers": {
     "supabase": {
       "url": "https://mcp.supabase.com/mcp?project_ref=akhirugwpozlxfvtqmvj&features=account%2Cdocs%2Cdatabase%2Cdebugging%2Cstorage%2Cbranching%2Cfunctions%2Cdevelopment"
+    },
+    "docs-langchain": {
+      "url": "https://docs.langchain.com/mcp"
     }
   }
 }
