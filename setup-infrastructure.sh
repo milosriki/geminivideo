@@ -1,128 +1,165 @@
 #!/bin/bash
+# setup-infrastructure.sh - Setup GCP Infrastructure for Production
+# Creates Cloud SQL, Memorystore, Storage, VPC Connector, etc.
+
 set -e
 
-# GeminVideo Infrastructure Setup Script
-# This script sets up Cloud SQL and Redis for the GeminVideo application
+PROJECT_ID=${GCP_PROJECT_ID:-"geminivideo-prod"}
+REGION=${GCP_REGION:-"us-central1"}
 
-PROJECT_ID="${GCP_PROJECT_ID:-ptd-fitness-demo}"
-REGION="${GCP_REGION:-us-central1}"
-SQL_INSTANCE="geminivideo-db"
-REDIS_INSTANCE="geminivideo-redis"
+echo "🏗️  Setting up GeminiVideo Infrastructure"
+echo "==========================================="
+echo "Project: $PROJECT_ID"
+echo "Region: $REGION"
+echo ""
 
-echo "========================================="
-echo "GeminVideo Infrastructure Setup"
-echo "========================================="
-echo ""
-echo "This script will create:"
-echo "  1. Cloud SQL PostgreSQL instance"
-echo "  2. Cloud Memorystore Redis instance"
-echo ""
-echo "Estimated time: 15-20 minutes"
-echo "Estimated cost: ~$65/month"
-echo ""
-read -p "Continue? (y/n) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
+# Check prerequisites
+if ! command -v gcloud &> /dev/null; then
+    echo "❌ gcloud CLI not found. Please install: https://cloud.google.com/sdk/docs/install"
     exit 1
 fi
 
-# Generate secure passwords
-DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
-echo "Generated secure database password: ${DB_PASSWORD}"
-echo "⚠️  Save this password securely!"
+# Set project
+gcloud config set project $PROJECT_ID
 
-# Step 1: Create Cloud SQL instance
+# Enable required APIs
+echo "📋 Enabling required APIs..."
+gcloud services enable \
+    run.googleapis.com \
+    sqladmin.googleapis.com \
+    redis.googleapis.com \
+    storage-component.googleapis.com \
+    cloudbuild.googleapis.com \
+    secretmanager.googleapis.com \
+    monitoring.googleapis.com \
+    logging.googleapis.com \
+    artifactregistry.googleapis.com \
+    compute.googleapis.com \
+    vpcaccess.googleapis.com \
+    --project=$PROJECT_ID
+
+# Create Artifact Registry
 echo ""
-echo "========================================="
-echo "Step 1: Creating Cloud SQL instance..."
-echo "========================================="
-echo "This will take ~10 minutes..."
+echo "📦 Creating Artifact Registry..."
+gcloud artifacts repositories create geminivideo-repo \
+    --repository-format=docker \
+    --location=$REGION \
+    --description="GeminiVideo Docker images" \
+    --project=$PROJECT_ID 2>/dev/null || echo "Repository already exists"
 
-gcloud sql instances create ${SQL_INSTANCE} \
-  --database-version=POSTGRES_15 \
-  --tier=db-f1-micro \
-  --region=${REGION} \
-  --root-password="${DB_PASSWORD}" \
-  --storage-type=SSD \
-  --storage-size=10GB \
-  --availability-type=zonal \
-  --project=${PROJECT_ID} \
-  --no-backup || echo "Instance may already exist"
+# Create Cloud SQL instance
+echo ""
+echo "🗄️  Creating Cloud SQL instance..."
+gcloud sql instances create geminivideo-db \
+    --database-version=POSTGRES_15 \
+    --tier=db-custom-4-16384 \
+    --region=$REGION \
+    --backup \
+    --enable-bin-log \
+    --maintenance-window-day=SUN \
+    --maintenance-window-hour=3 \
+    --storage-type=SSD \
+    --storage-size=100GB \
+    --storage-auto-increase \
+    --availability-type=REGIONAL \
+    --network=default \
+    --project=$PROJECT_ID 2>/dev/null || echo "Cloud SQL instance already exists"
 
 # Create database
 echo "Creating database..."
 gcloud sql databases create geminivideo \
-  --instance=${SQL_INSTANCE} \
-  --project=${PROJECT_ID} || echo "Database may already exist"
+    --instance=geminivideo-db \
+    --project=$PROJECT_ID 2>/dev/null || echo "Database already exists"
 
 # Create user
 echo "Creating database user..."
+DB_PASSWORD=$(openssl rand -base64 32)
 gcloud sql users create geminivideo \
-  --instance=${SQL_INSTANCE} \
-  --password="${DB_PASSWORD}" \
-  --project=${PROJECT_ID} || echo "User may already exist"
+    --instance=geminivideo-db \
+    --password=$DB_PASSWORD \
+    --project=$PROJECT_ID 2>/dev/null || echo "User already exists (password not changed)"
 
-# Get connection name
-CONNECTION_NAME=$(gcloud sql instances describe ${SQL_INSTANCE} \
-  --project=${PROJECT_ID} \
-  --format='value(connectionName)')
+# Store password in Secret Manager
+echo "Storing database password in Secret Manager..."
+echo -n "$DB_PASSWORD" | gcloud secrets create db-password --data-file=- --project=$PROJECT_ID 2>/dev/null || \
+    echo -n "$DB_PASSWORD" | gcloud secrets versions add db-password --data-file=- --project=$PROJECT_ID
 
-echo "✅ Cloud SQL instance created!"
-echo "Connection name: ${CONNECTION_NAME}"
-
-# Step 2: Create Redis instance
+# Create Memorystore Redis
 echo ""
-echo "========================================="
-echo "Step 2: Creating Redis instance..."
-echo "========================================="
-echo "This will take ~5 minutes..."
+echo "🔴 Creating Memorystore Redis..."
+gcloud redis instances create geminivideo-redis \
+    --size=5 \
+    --region=$REGION \
+    --network=default \
+    --redis-version=REDIS_7_0 \
+    --tier=STANDARD_HA \
+    --project=$PROJECT_ID 2>/dev/null || echo "Redis instance already exists"
 
-gcloud redis instances create ${REDIS_INSTANCE} \
-  --size=1 \
-  --region=${REGION} \
-  --redis-version=redis_7_0 \
-  --project=${PROJECT_ID} || echo "Redis may already exist"
+# Get Redis host
+REDIS_HOST=$(gcloud redis instances describe geminivideo-redis --region=$REGION --format="value(host)" --project=$PROJECT_ID)
+echo -n "$REDIS_HOST" | gcloud secrets create redis-host --data-file=- --project=$PROJECT_ID 2>/dev/null || \
+    echo -n "$REDIS_HOST" | gcloud secrets versions add redis-host --data-file=- --project=$PROJECT_ID
 
-# Get Redis details
-REDIS_HOST=$(gcloud redis instances describe ${REDIS_INSTANCE} \
-  --region=${REGION} \
-  --project=${PROJECT_ID} \
-  --format='value(host)')
+# Create Cloud Storage buckets
+echo ""
+echo "📦 Creating Cloud Storage buckets..."
+for bucket in geminivideo-models geminivideo-patterns geminivideo-assets geminivideo-videos geminivideo-knowledge; do
+    gsutil mb -p $PROJECT_ID -l $REGION gs://$bucket 2>/dev/null || echo "Bucket $bucket already exists"
+done
 
-REDIS_PORT=$(gcloud redis instances describe ${REDIS_INSTANCE} \
-  --region=${REGION} \
-  --project=${PROJECT_ID} \
-  --format='value(port)')
+# Create service account
+echo ""
+echo "👤 Creating service account..."
+gcloud iam service-accounts create geminivideo-sa \
+    --display-name="GeminiVideo Service Account" \
+    --project=$PROJECT_ID 2>/dev/null || echo "Service account already exists"
 
-echo "✅ Redis instance created!"
-echo "Redis host: ${REDIS_HOST}:${REDIS_PORT}"
+# Grant permissions
+echo "Granting permissions..."
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:geminivideo-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/cloudsql.client" \
+    --condition=None 2>/dev/null || true
 
-# Step 3: Generate connection strings
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:geminivideo-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/redis.editor" \
+    --condition=None 2>/dev/null || true
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:geminivideo-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/storage.objectAdmin" \
+    --condition=None 2>/dev/null || true
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:geminivideo-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor" \
+    --condition=None 2>/dev/null || true
+
+# Create VPC connector
 echo ""
-echo "========================================="
-echo "Step 3: GitHub Secrets Configuration"
-echo "========================================="
+echo "🔌 Creating VPC connector..."
+gcloud compute networks vpc-access connectors create geminivideo-connector \
+    --region=$REGION \
+    --subnet=default \
+    --subnet-project=$PROJECT_ID \
+    --min-instances=2 \
+    --max-instances=10 \
+    --machine-type=e2-micro \
+    --project=$PROJECT_ID 2>/dev/null || echo "VPC connector already exists"
+
 echo ""
-echo "Add these secrets to GitHub:"
-echo "https://github.com/milosriki/geminivideo/settings/secrets/actions"
-echo ""
-echo "SECRET NAME: DATABASE_URL"
-echo "VALUE:"
-echo "postgresql://geminivideo:${DB_PASSWORD}@/geminivideo?host=/cloudsql/${CONNECTION_NAME}"
-echo ""
-echo "SECRET NAME: REDIS_URL"
-echo "VALUE:"
-echo "redis://${REDIS_HOST}:${REDIS_PORT}"
-echo ""
-echo "========================================="
 echo "✅ Infrastructure setup complete!"
-echo "========================================="
 echo ""
-echo "Next steps:"
-echo "1. Add the secrets above to GitHub"
-echo "2. Run: gh secret set DATABASE_URL --body='<value>'"
-echo "3. Run: gh secret set REDIS_URL --body='<value>'"
-echo "4. Re-run the deployment workflow"
+echo "📋 Summary:"
+echo "  - Cloud SQL: geminivideo-db (PostgreSQL 15, HA)"
+echo "  - Memorystore: geminivideo-redis (5GB, HA)"
+echo "  - Storage: 5 buckets created"
+echo "  - Service Account: geminivideo-sa"
+echo "  - VPC Connector: geminivideo-connector"
 echo ""
-echo "Cost: ~$65/month for this infrastructure"
+echo "📝 Next steps:"
+echo "  1. Store API keys in Secret Manager:"
+echo "     echo -n 'YOUR_KEY' | gcloud secrets create gemini-api-key --data-file=-"
+echo "  2. Run ./deploy-production.sh to deploy services"
+echo ""
