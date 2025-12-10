@@ -53,6 +53,9 @@ services:
     environment:
       PORT: 8003
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       REDIS_URL: redis://redis:6379
     ports:
       - "8003:8003"
@@ -116,6 +119,9 @@ services:
     environment:
       PORT: 8082
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       REDIS_URL: redis://redis:6379
       ASSET_DIR: /tmp/assets
       VOICEOVER_DIR: /tmp/voiceovers
@@ -147,6 +153,9 @@ services:
     container_name: geminivideo-drive-intel
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       REDIS_URL: redis://redis:6379
       PORT: 8081
     ports:
@@ -188,6 +197,9 @@ services:
       META_CLIENT_TOKEN: ${META_CLIENT_TOKEN}
       META_APP_SECRET: ${META_APP_SECRET}
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
     ports:
       - "8083:8083"
     depends_on:
@@ -215,6 +227,9 @@ services:
       TIKTOK_ACCESS_TOKEN: ${TIKTOK_ACCESS_TOKEN:-}
       TIKTOK_ADVERTISER_ID: ${TIKTOK_ADVERTISER_ID:-}
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
     ports:
       - "8085:8085"
     depends_on:
@@ -245,6 +260,9 @@ services:
       GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN:-}
       GOOGLE_ADS_CUSTOMER_ID: ${GOOGLE_ADS_CUSTOMER_ID:-}
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
     ports:
       - "8086:8086"
     depends_on:
@@ -280,6 +298,9 @@ services:
       GOOGLE_ADS_URL: http://google-ads:8086
       REDIS_URL: redis://redis:6379
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
     ports:
       - "8080:8080"
     depends_on:
@@ -345,6 +366,9 @@ services:
     command: python worker.py
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
@@ -366,6 +390,9 @@ services:
     command: python worker.py
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
@@ -387,6 +414,9 @@ services:
     command: npm run worker:safe-executor:prod
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       REDIS_URL: redis://redis:6379
       META_ACCESS_TOKEN: ${META_ACCESS_TOKEN}
       META_API_VERSION: ${META_API_VERSION:-v18.0}
@@ -462,6 +492,9 @@ services:
     command: npm run worker:self-learning
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       REDIS_URL: redis://redis:6379
       ML_SERVICE_URL: http://ml-service:8003
     depends_on:
@@ -485,6 +518,9 @@ services:
     command: npm run worker:batch
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
