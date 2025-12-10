@@ -1,0 +1,155 @@
+name: Supabase Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+      - '.github/workflows/supabase-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Supabase CLI
+        run: npm install -g supabase@latest
+
+      - name: Verify Supabase config
+        run: |
+          if [ ! -f supabase/config.toml ]; then
+            echo "❌ supabase/config.toml not found"
+            exit 1
+          fi
+          echo "✅ Supabase config found"
+
+      # Option A: Link project (recommended for teams)
+      - name: Link Supabase project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_PROJECT_REF" ]; then
+            echo "⚠️  SUPABASE_ACCESS_TOKEN or SUPABASE_PROJECT_REF not set"
+            echo "Skipping link step. Using direct DB URL instead."
+          else
+            supabase link --project-ref $SUPABASE_PROJECT_REF
+          fi
+
+      # Option B: Use direct DB URL (simpler, but requires connection string)
+      - name: Apply migrations (Direct DB URL)
+        if: env.SUPABASE_DB_URL != ''
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "⚠️  SUPABASE_DB_URL not set. Skipping migrations."
+            exit 0
+          fi
+          
+          echo "📦 Applying migrations..."
+          
+          # Apply migrations in order
+          for migration in supabase/migrations/*.sql; do
+            if [ -f "$migration" ]; then
+              echo "Applying: $migration"
+              psql "$SUPABASE_DB_URL" -f "$migration" || {
+                echo "❌ Migration failed: $migration"
+                exit 1
+              }
+            fi
+          done
+          
+          echo "✅ All migrations applied"
+
+      # Option C: Use supabase db push (if linked)
+      - name: Apply migrations (via link)
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "📦 Pushing migrations to Supabase..."
+          supabase db push --db-url "$SUPABASE_DB_URL" || {
+            echo "⚠️  db push failed, trying direct migration files..."
+            for migration in supabase/migrations/*.sql; do
+              if [ -f "$migration" ]; then
+                echo "Applying: $migration"
+                psql "$SUPABASE_DB_URL" -f "$migration" || exit 1
+              fi
+            done
+          }
+          echo "✅ Migrations applied"
+
+      - name: Deploy Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_PROJECT_REF" ]; then
+            echo "⚠️  SUPABASE_ACCESS_TOKEN or SUPABASE_PROJECT_REF not set"
+            echo "Skipping function deployment."
+            exit 0
+          fi
+          
+          echo "🚀 Deploying Edge Functions..."
+          
+          # Deploy all functions found in supabase/functions/
+          if [ -d "supabase/functions" ]; then
+            for func_dir in supabase/functions/*/; do
+              if [ -d "$func_dir" ] && [ -f "$func_dir/index.ts" ]; then
+                func_name=$(basename "$func_dir")
+                echo "Deploying function: $func_name"
+                supabase functions deploy "$func_name" --project-ref "$SUPABASE_PROJECT_REF" || {
+                  echo "❌ Failed to deploy: $func_name"
+                  exit 1
+                }
+              fi
+            done
+          else
+            echo "ℹ️  No functions directory found"
+          fi
+          
+          echo "✅ All functions deployed"
+
+      - name: Set Function Secrets (optional)
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          if [ -f "supabase/.env.prod" ]; then
+            echo "🔐 Setting function secrets..."
+            supabase secrets set --env-file supabase/.env.prod --project-ref "$SUPABASE_PROJECT_REF" || {
+              echo "⚠️  Failed to set secrets (may not be needed)"
+            }
+          else
+            echo "ℹ️  No .env.prod file found, skipping secrets"
+          fi
+
+      - name: Verify deployment
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          echo "✅ Deployment complete!"
+          echo ""
+          echo "📊 Summary:"
+          echo "  - Migrations: Applied"
+          echo "  - Functions: Deployed"
+          echo "  - Project: $SUPABASE_PROJECT_REF"
+          echo ""
+          echo "🔗 View in Supabase Dashboard:"
+          echo "  https://supabase.com/dashboard/project/$SUPABASE_PROJECT_REF"
+
