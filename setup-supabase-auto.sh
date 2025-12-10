@@ -16,7 +16,31 @@ NC='\033[0m' # No Color
 # Check if Supabase CLI is installed
 if ! command -v supabase &> /dev/null; then
     echo "📦 Installing Supabase CLI..."
-    brew install supabase/tap/supabase
+    # Try to find brew
+    BREW_CMD=""
+    if command -v brew &> /dev/null; then
+        BREW_CMD="brew"
+    elif [ -f /opt/homebrew/bin/brew ]; then
+        BREW_CMD="/opt/homebrew/bin/brew"
+    elif [ -f /usr/local/bin/brew ]; then
+        BREW_CMD="/usr/local/bin/brew"
+    fi
+    
+    if [ -n "$BREW_CMD" ]; then
+        $BREW_CMD install supabase/tap/supabase
+    else
+        echo "   ⚠️  Homebrew not found. Installing Supabase CLI via npm..."
+        if command -v npm &> /dev/null; then
+            npm install -g supabase
+        else
+            echo "   ❌ Cannot install Supabase CLI automatically."
+            echo "   Please install manually:"
+            echo "   - macOS: brew install supabase/tap/supabase"
+            echo "   - Or: npm install -g supabase"
+            echo "   - Or: https://supabase.com/docs/guides/cli"
+            exit 1
+        fi
+    fi
 fi
 
 # Check if Docker is running
