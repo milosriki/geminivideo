@@ -156,10 +156,6 @@ class AdPatternMiner:
                 "avg_engagement": round(avg_engagement, 4)
             }
 
-=======
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / 'services' / 'titan-core'))
-
 # Import real Meta Ads Library implementation
 try:
     from meta_ads_library import RealMetaAdsLibrary, meta_ads_library
