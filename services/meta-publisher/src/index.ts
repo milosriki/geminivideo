@@ -742,7 +742,7 @@ app.post('/api/dco/generate-meta-variants', async (req: Request, res: Response) 
 
     } catch (videoAgentError: any) {
       // If video-agent is not available, return dry-run response
-      logger.error('Video agent error:', videoAgentError.message);
+      console.error('Video agent error:', videoAgentError.message);
 
       // Generate mock variants for testing
       const mockFormats = formats.map((fmt: string) => {
