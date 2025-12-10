@@ -1,8 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
-import * as path from 'path';
-import * as crypto from 'crypto';
 import {
   KnowledgeUploadRequest,
   KnowledgeUploadResponse,
@@ -29,6 +27,34 @@ const BUCKET_NAME = process.env.GCS_BUCKET || 'ai-studio-bucket-208288753973-us-
 const knowledgeRegistry: Map<string, any> = new Map();
 
 /**
+ * Sanitize GCS path to prevent path traversal attacks
+ * @param filename - The filename to sanitize
+ * @returns Sanitized filename safe for GCS storage
+ */
+function sanitizeGcsPath(filename: string): string {
+  if (!filename || typeof filename !== 'string') {
+    return 'sanitized-file';
+  }
+  
+  // Split by path separators and filter out dangerous parts
+  const parts = filename
+    .split(/[\/\\]/)
+    .filter(part => part !== '..' && part !== '.' && part.length > 0);
+  
+  // If all parts were filtered out, return a safe default
+  if (parts.length === 0) {
+    return 'sanitized-file';
+  }
+  
+  // Take only the last part (filename) and sanitize it
+  const safeName = parts[parts.length - 1]
+    .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace unsafe characters
+    .substring(0, 255); // Limit length
+  
+  return safeName || 'sanitized-file';
+}
+
+/**
  * POST /knowledge/upload
  * Upload knowledge content to GCS bucket
  */
@@ -43,38 +69,19 @@ router.post('/upload', async (req: Request, res: Response) => {
 
     const uploadId = uuidv4();
     const timestamp = new Date().toISOString();
-    
-    // SECURITY FIX: Sanitize filename to prevent path traversal
-    function sanitizeGcsPath(userPath: string): string {
-        // Remove any path traversal attempts
-        const normalized = path.normalize(userPath);
-        
-        // Remove any .. or . components
-        const parts = normalized.split(path.sep).filter(part => 
-            part !== '..' && part !== '.' && part !== ''
-        );
-        
-        // Generate safe filename
-        const safeFilename = parts[parts.length - 1];
-        const sanitized = safeFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
-        
-        // Add hash to prevent collisions
-        const hash = crypto.createHash('sha256')
-            .update(userPath + Date.now().toString())
-            .digest('hex')
-            .substring(0, 8);
-        
-        return `${sanitized}_${hash}`;
-    }
-    
     const rawFileName = file?.originalname || 'mock-file.json';
-    const safeFileName = sanitizeGcsPath(rawFileName);
-    const gcsPath = `gs://${BUCKET_NAME}/knowledge/${body.category}/${body.subcategory}/${safeFileName}`;
+    const fileName = sanitizeGcsPath(rawFileName);
+    
+    // Also sanitize category and subcategory to prevent path traversal
+    const sanitizedCategory = sanitizeGcsPath(body.category);
+    const sanitizedSubcategory = sanitizeGcsPath(body.subcategory);
+    
+    const gcsPath = `gs://${BUCKET_NAME}/knowledge/${sanitizedCategory}/${sanitizedSubcategory}/${fileName}`;
 
     // Upload to GCS if not in mock mode
     if (storage && file) {
       const bucket = storage.bucket(BUCKET_NAME);
-      const blob = bucket.file(`knowledge/${body.category}/${body.subcategory}/${safeFileName}`);
+      const blob = bucket.file(`knowledge/${sanitizedCategory}/${sanitizedSubcategory}/${fileName}`);
 
       await blob.save(file.buffer, {
         metadata: {
@@ -90,8 +97,8 @@ router.post('/upload', async (req: Request, res: Response) => {
     // Store in registry
     knowledgeRegistry.set(uploadId, {
       uploadId,
-      category: body.category,
-      subcategory: body.subcategory,
+      category: sanitizedCategory,
+      subcategory: sanitizedSubcategory,
       gcsPath,
       metadata: body.metadata,
       timestamp,

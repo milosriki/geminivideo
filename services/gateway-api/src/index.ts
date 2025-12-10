@@ -8,45 +8,7 @@ import cors from 'cors';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import axios, { AxiosRequestConfig } from 'axios';
-
-// STABILITY FIX: Configure axios with timeouts and retry logic
-const axiosConfig: AxiosRequestConfig = {
-  timeout: 30000, // 30 second timeout
-  headers: {
-    'Content-Type': 'application/json',
-  },
-};
-
-// Create axios instance with defaults
-const httpClient = axios.create(axiosConfig);
-
-// Add retry interceptor
-httpClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const config = error.config;
-    
-    // Don't retry if already retried or if it's a 4xx error (client error)
-    if (config?.retryCount >= 3 || (error.response?.status >= 400 && error.response?.status < 500)) {
-      return Promise.reject(error);
-    }
-    
-    // Initialize retry count
-    config.retryCount = config.retryCount || 0;
-    config.retryCount += 1;
-    
-    // Exponential backoff: wait 1s, 2s, 4s
-    const delay = Math.pow(2, config.retryCount - 1) * 1000;
-    
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
-    return httpClient(config);
-  }
-);
-
-// Export httpClient for use in other modules
-export { httpClient };
+import axios from 'axios';
 import { createClient } from 'redis';
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
@@ -141,15 +103,7 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-// STABILITY FIX: Configure connection pool with proper limits
-const pgPool = new Pool({
-  connectionString: DATABASE_URL,
-  max: 20, // Maximum number of clients in the pool
-  min: 5,  // Minimum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-  connectionTimeoutMillis: 5000, // Return an error after 5 seconds if connection could not be established
-  statement_timeout: 30000, // Query timeout of 30 seconds
-});
+const pgPool = new Pool({ connectionString: DATABASE_URL });
 pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
 
 // Verify database connection
@@ -218,7 +172,7 @@ app.get('/api/assets', async (req: Request, res: Response) => {
     if (!validateServiceUrl(DRIVE_INTEL_URL)) {
       throw new Error('Invalid service URL');
     }
-    const response = await httpClient.get(`${DRIVE_INTEL_URL}/assets`, {
+    const response = await axios.get(`${DRIVE_INTEL_URL}/assets`, {
       params: req.query
     });
     res.json(response.data);
@@ -422,7 +376,7 @@ app.post('/api/render/remix',
       if (!validateServiceUrl(VIDEO_AGENT_URL)) {
         throw new Error('Invalid service URL');
       }
-      const response = await httpClient.post(
+      const response = await axios.post(
         `${VIDEO_AGENT_URL}/render/remix`,
         req.body
       );
@@ -533,7 +487,7 @@ app.post('/api/render/story_arc',
 
 app.get('/api/render/status/:jobId', async (req: Request, res: Response) => {
   try {
-    const response = await httpClient.get(
+    const response = await axios.get(
       `${VIDEO_AGENT_URL}/render/status/${req.params.jobId}`
     );
     res.json(response.data);
@@ -651,48 +605,40 @@ app.post('/api/publish/meta',
         ad_id,
         userId,
         JSON.stringify({
-          video_path,
-          caption,
-          scheduled_time
-        })
-      ]);
+          // ====================================================================
 
-      // ====================================================================
-      // PUBLISH TO META
-      // ====================================================================
+          const response = await axios.post(
+            `${META_PUBLISHER_URL}/publish/meta`,
+            {
+              ad_id,
+              video_path,
+              caption,
+              scheduled_time
+            }
+          );
 
-      const response = await httpClient.post(
-        `${META_PUBLISHER_URL}/publish/meta`,
-        {
-          ad_id,
-          video_path,
-          caption,
-          scheduled_time
+          console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
+
+          res.json({
+            ...response.data,
+            security_check: {
+              approved: true,
+              approved_by: userId,
+              published_at: new Date().toISOString()
+            }
+          });
+
+        } catch (error: any) {
+          console.error('[ERROR] Publish failed:', error.message);
+          res.status(error.response?.status || 500).json({
+            error: error.message
+          });
         }
-      );
-
-      console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
-
-      res.json({
-        ...response.data,
-        security_check: {
-          approved: true,
-          approved_by: userId,
-          published_at: new Date().toISOString()
-        }
-      });
-
-    } catch (error: any) {
-      console.error('[ERROR] Publish failed:', error.message);
-      res.status(error.response?.status || 500).json({
-        error: error.message
-      });
-    }
-  });
+    });
 
 app.get('/api/insights', async (req: Request, res: Response) => {
   try {
-    const response = await httpClient.get(
+    const response = await axios.get(
       `${META_PUBLISHER_URL}/insights`,
       { params: req.query }
     );
@@ -1831,7 +1777,7 @@ app.post('/api/director/generate',
       console.log(`Director generation: brief_length=${brief.length}, assets=${assets?.length || 0}, style=${style || 'auto'}`);
 
       // Forward to Titan Core Director
-      const response = await httpClient.post(`${TITAN_CORE_URL}/director/generate`, {
+      const response = await axios.post(`${TITAN_CORE_URL}/director/generate`, {
         brief,
         assets: assets || [],
         style: style || 'auto',
@@ -2509,10 +2455,12 @@ app.get('/api/platforms/specs',
   async (req: Request, res: Response) => {
     try {
       const platformsQuery = req.query.platforms as string;
-      const validPlatforms: ('meta' | 'google' | 'tiktok')[] = ['meta', 'google', 'tiktok'];
-      const platforms = platformsQuery
-        ? (platformsQuery.split(',') as string[]).filter(p => validPlatforms.includes(p as any)) as ('meta' | 'google' | 'tiktok')[]
-        : validPlatforms;
+      const validPlatforms = ['meta', 'google', 'tiktok'] as const;
+      const platforms: ('meta' | 'google' | 'tiktok')[] = platformsQuery
+        ? (platformsQuery.split(',').map(p => p.trim()).filter(p => {
+            return p.length > 0 && validPlatforms.includes(p as typeof validPlatforms[number]);
+          }) as ('meta' | 'google' | 'tiktok')[])
+        : ['meta', 'google', 'tiktok'];
 
       const specs = multiPlatformPublisher.getPlatformSpecs(platforms);
 
@@ -2731,31 +2679,6 @@ app.use('/api/ml', mlProxyRouter);
 console.log('✅ Artery module endpoints mounted at /api/ml/*');
 
 // ============================================================================
-// CREDITS ENDPOINTS (GROUP A - Wired)
-// ============================================================================
-
-import { registerCreditsEndpoints } from './credits-endpoint';
-registerCreditsEndpoints(app, pgPool);
-console.log('✅ Credits endpoints mounted at /api/credits');
-
-// ============================================================================
-// ROAS DASHBOARD ENDPOINTS (GROUP A - Wired)
-// ============================================================================
-
-import { initializeROASRoutes } from './routes/roas-dashboard';
-const roasRouter = initializeROASRoutes(pgPool);
-app.use('/api/roas', roasRouter);
-console.log('✅ ROAS dashboard endpoints mounted at /api/roas');
-
-// ============================================================================
-// KNOWLEDGE MANAGEMENT ENDPOINTS (GROUP A - Wired)
-// ============================================================================
-
-import knowledgeRouter from './knowledge';
-app.use('/api/knowledge', knowledgeRouter);
-console.log('✅ Knowledge management endpoints mounted at /api/knowledge');
-
-// ============================================================================
 // HEALTH CHECK
 // ============================================================================
 
@@ -2805,16 +2728,6 @@ const server = app.listen(PORT, async () => {
     console.log('🎉 Real-time infrastructure ready!');
   } catch (error) {
     console.error('❌ Failed to initialize real-time infrastructure:', error);
-  }
-
-  // Initialize self-learning cycle worker
-  try {
-    console.log('🚀 Starting self-learning cycle worker...');
-    const { startSelfLearningCycleWorker } = require('./workers/self-learning-cycle');
-    startSelfLearningCycleWorker(pgPool);
-    console.log('✅ Self-learning cycle worker started');
-  } catch (error) {
-    console.error('❌ Failed to start self-learning cycle worker:', error);
   }
 });
 
