@@ -94,3 +94,4 @@ frontend/dist/
 *.pth
 trees/
 supabase/.env.prod
+geminivideo/
