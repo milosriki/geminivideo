@@ -712,9 +712,9 @@ const AdSpyDashboard: React.FC<AdSpyDashboardProps> = ({ onSaveAd, onRemixAd }) 
   // Save ad to collection
   const handleSaveAd = useCallback((ad: AdLibraryAd) => {
     const defaultCollectionId = 'default';
-    let updatedCollections = [...collections];
+    const existingCollections = [...collections];
 
-    let defaultCollection = updatedCollections.find(c => c.id === defaultCollectionId);
+    let defaultCollection = existingCollections.find(c => c.id === defaultCollectionId);
 
     if (!defaultCollection) {
       defaultCollection = {
@@ -724,7 +724,7 @@ const AdSpyDashboard: React.FC<AdSpyDashboardProps> = ({ onSaveAd, onRemixAd }) 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      updatedCollections.push(defaultCollection);
+      existingCollections.push(defaultCollection);
     }
 
     const isAlreadySaved = defaultCollection.ads.some(a => a.ad_archive_id === ad.ad_archive_id);
@@ -742,8 +742,8 @@ const AdSpyDashboard: React.FC<AdSpyDashboardProps> = ({ onSaveAd, onRemixAd }) 
       setSavedAdIds(prev => new Set(prev).add(ad.ad_archive_id));
     }
 
-    setCollections(updatedCollections);
-    saveCollectionsToStorage(updatedCollections);
+    setCollections(existingCollections);
+    saveCollectionsToStorage(existingCollections);
 
     if (onSaveAd) {
       onSaveAd(ad);
