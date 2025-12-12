@@ -59,12 +59,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd services/gateway-api && npm ci
-          cd ../meta-publisher && npm ci
+          cd $GITHUB_WORKSPACE/services/gateway-api && npm ci
+          cd $GITHUB_WORKSPACE/services/meta-publisher && npm ci
 
       - name: Run TypeScript unit tests
         run: |
-          cd services/meta-publisher
+          cd $GITHUB_WORKSPACE/services/meta-publisher
           npm test -- ../../tests/unit/test_meta_integration.ts || echo "Test file not found, skipping"
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/test_db
@@ -198,11 +198,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd services/gateway-api && npm ci
+          cd $GITHUB_WORKSPACE/services/gateway-api && npm ci
 
       - name: Start API server
         run: |
-          cd services/gateway-api
+          cd $GITHUB_WORKSPACE/services/gateway-api
           npm run build
           npm start &
           sleep 10
@@ -213,7 +213,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          cd services/gateway-api
+          cd $GITHUB_WORKSPACE/services/gateway-api
           npm test -- ../../tests/integration/test_api_endpoints.ts || echo "Test file not found, skipping"
         env:
           TEST_API_URL: http://localhost:8000
@@ -283,7 +283,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd services/gateway-api && npm ci
+          cd $GITHUB_WORKSPACE/services/gateway-api && npm ci
           cd $GITHUB_WORKSPACE/frontend && npm ci
 
       - name: Install Playwright browsers
@@ -291,13 +291,13 @@ jobs:
 
       - name: Build frontend
         run: |
-          cd frontend
+          cd $GITHUB_WORKSPACE/frontend
           npm run build
 
       - name: Start services
         run: |
           # Start backend
-          cd services/gateway-api
+          cd $GITHUB_WORKSPACE/services/gateway-api
           npm run build
           npm start &
 
@@ -386,7 +386,7 @@ jobs:
 
       - name: Start API server
         run: |
-          cd services/gateway-api
+          cd $GITHUB_WORKSPACE/services/gateway-api
           npm ci
           npm run build
           npm start &
@@ -430,7 +430,7 @@ jobs:
 
       - name: Install Node dependencies
         run: |
-          cd services/gateway-api && npm ci
+          cd $GITHUB_WORKSPACE/services/gateway-api && npm ci
 
       - name: Install Python dependencies
         run: |
@@ -438,13 +438,13 @@ jobs:
 
       - name: Run ESLint
         run: |
-          cd services/gateway-api && npm run lint || echo "Linting not configured"
+          cd $GITHUB_WORKSPACE/services/gateway-api && npm run lint || echo "Linting not configured"
           cd $GITHUB_WORKSPACE/services/meta-publisher && npm run lint || echo "Linting not configured"
         continue-on-error: true
 
       - name: Run TypeScript checks
         run: |
-          cd services/gateway-api && npx tsc --noEmit || echo "TypeScript check not configured"
+          cd $GITHUB_WORKSPACE/services/gateway-api && npx tsc --noEmit || echo "TypeScript check not configured"
           cd $GITHUB_WORKSPACE/services/meta-publisher && npx tsc --noEmit || echo "TypeScript check not configured"
         continue-on-error: true
 
