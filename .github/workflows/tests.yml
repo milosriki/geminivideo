@@ -197,12 +197,12 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          cd services/gateway-api && npm ci
 
       - name: Start API server
         run: |
           cd services/gateway-api
-          npm ci
           npm run build
           npm start &
           sleep 10
@@ -292,19 +292,17 @@ jobs:
       - name: Build frontend
         run: |
           cd frontend
-          npm ci
           npm run build
 
       - name: Start services
         run: |
           # Start backend
           cd services/gateway-api
-          npm ci
           npm run build
           npm start &
 
           # Start frontend
-          cd ../../frontend
+          cd $GITHUB_WORKSPACE/frontend
           npm start &
 
           # Wait for services
