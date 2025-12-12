@@ -1,0 +1,335 @@
+version: '3.8'
+
+# ============================================================================
+# AGENT 3: WORKER ACTIVATOR - Docker Compose for Background Workers
+# ============================================================================
+# This compose file defines all Celery workers for background task processing
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.workers.yml up -d
+#   docker-compose -f docker-compose.workers.yml up -d  # Workers only
+#
+# Workers configured:
+# 1. celery-ml-worker: ML service background tasks
+# 2. celery-ml-beat: ML service periodic scheduler
+# 3. celery-video-render: Video rendering worker
+# 4. celery-video-preview: Video preview generation
+# 5. celery-video-transcode: Video transcoding
+# 6. celery-video-caption: AI caption generation
+# 7. celery-video-beat: Video service periodic scheduler
+# 8. flower: Monitoring UI (optional)
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # ML SERVICE WORKERS
+  # ==========================================================================
+
+  celery-ml-worker:
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
+    container_name: geminivideo-celery-ml-worker
+    command: >
+      celery -A src.celery_app worker
+      --loglevel=info
+      --concurrency=4
+      --queues=hubspot-webhook-events,fatigue-monitoring,budget-optimization
+      --hostname=ml-worker@%h
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      ML_SERVICE_URL: http://ml-service:8003
+      PYTHONPATH: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared
+      - ./services/ml-service/models:/app/models
+    networks:
+      - geminivideo-network
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A src.celery_app inspect ping -d ml-worker@$$(hostname)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  celery-ml-beat:
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
+    container_name: geminivideo-celery-ml-beat
+    command: >
+      celery -A src.celery_app beat
+      --loglevel=info
+      --pidfile=/tmp/celerybeat.pid
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-geminivideo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geminivideo}}
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      ML_SERVICE_URL: http://ml-service:8003
+      PYTHONPATH: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared
+      - celery-beat-schedule:/app/celerybeat-schedule
+    networks:
+      - geminivideo-network
+
+  # ==========================================================================
+  # VIDEO AGENT WORKERS
+  # ==========================================================================
+
+  celery-video-render:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: geminivideo-celery-video-render
+    command: >
+      celery -A pro.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --queues=render_queue
+      --hostname=render@%h
+      --max-tasks-per-child=10
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      TEMP_DIR: /tmp/video-processing
+      RENDER_DIR: /app/renders
+      PREVIEW_DIR: /tmp/previews
+      RENDER_TIMEOUT: 3600
+      PYTHONPATH: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - video-renders:/app/renders
+      - video-temp:/tmp/video-processing
+      - video-previews:/tmp/previews
+    networks:
+      - geminivideo-network
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A pro.celery_app inspect ping -d render@$$(hostname)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Uncomment if GPU is available
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  celery-video-preview:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: geminivideo-celery-video-preview
+    command: >
+      celery -A pro.celery_app worker
+      --loglevel=info
+      --concurrency=4
+      --queues=preview_queue
+      --hostname=preview@%h
+      --max-tasks-per-child=50
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      TEMP_DIR: /tmp/video-processing
+      PREVIEW_DIR: /tmp/previews
+      PREVIEW_TIMEOUT: 300
+      PYTHONPATH: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - video-previews:/tmp/previews
+      - video-temp:/tmp/video-processing
+    networks:
+      - geminivideo-network
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A pro.celery_app inspect ping -d preview@$$(hostname)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  celery-video-transcode:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: geminivideo-celery-video-transcode
+    command: >
+      celery -A pro.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --queues=transcode_queue
+      --hostname=transcode@%h
+      --max-tasks-per-child=20
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      TEMP_DIR: /tmp/video-processing
+      RENDER_DIR: /app/renders
+      TRANSCODE_TIMEOUT: 1800
+      PYTHONPATH: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - video-renders:/app/renders
+      - video-temp:/tmp/video-processing
+    networks:
+      - geminivideo-network
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A pro.celery_app inspect ping -d transcode@$$(hostname)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  celery-video-caption:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: geminivideo-celery-video-caption
+    command: >
+      celery -A pro.celery_app worker
+      --loglevel=info
+      --concurrency=1
+      --queues=caption_queue
+      --hostname=caption@%h
+      --max-tasks-per-child=10
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      TEMP_DIR: /tmp/video-processing
+      RENDER_DIR: /app/renders
+      CAPTION_TIMEOUT: 900
+      PYTHONPATH: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - video-renders:/app/renders
+      - video-temp:/tmp/video-processing
+    networks:
+      - geminivideo-network
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A pro.celery_app inspect ping -d caption@$$(hostname)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  celery-video-beat:
+    build:
+      context: ./services/video-agent
+      dockerfile: Dockerfile
+    container_name: geminivideo-celery-video-beat
+    command: >
+      celery -A pro.celery_app beat
+      --loglevel=info
+      --pidfile=/tmp/celerybeat.pid
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      TEMP_DIR: /tmp/video-processing
+      RENDER_DIR: /app/renders
+      CLEANUP_AGE_DAYS: ${CLEANUP_AGE_DAYS:-7}
+      MAX_TEMP_SIZE_GB: ${MAX_TEMP_SIZE_GB:-50}
+      PYTHONPATH: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - video-renders:/app/renders
+      - video-temp:/tmp/video-processing
+      - celery-beat-schedule:/app/celerybeat-schedule
+    networks:
+      - geminivideo-network
+
+  # ==========================================================================
+  # MONITORING UI (OPTIONAL)
+  # ==========================================================================
+
+  flower:
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
+    container_name: geminivideo-flower
+    command: >
+      celery -A src.celery_app flower
+      --port=5555
+      --broker=redis://redis:6379/0
+      --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-changeme}
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - geminivideo-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5555 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+
+volumes:
+  celery-beat-schedule:
+    driver: local
+  video-renders:
+    driver: local
+  video-temp:
+    driver: local
+  video-previews:
+    driver: local
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+
+networks:
+  geminivideo-network:
+    external: true
+    name: geminivideo-network

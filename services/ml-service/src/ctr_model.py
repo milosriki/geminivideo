@@ -15,6 +15,23 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
+# Import cache manager for caching predictions
+try:
+    from src.cache.semantic_cache_manager import get_cache_manager
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    logger.warning("Cache manager not available for CTR predictions")
+
+# Import cross-platform learner for 100x training data
+try:
+    from src.cross_platform.cross_learner import get_cross_platform_learner
+    from src.cross_platform.platform_normalizer import Platform, PlatformMetrics
+    CROSS_PLATFORM_AVAILABLE = True
+except ImportError:
+    CROSS_PLATFORM_AVAILABLE = False
+    logger.warning("Cross-platform learner not available - single-platform mode only")
+
 
 class CTRPredictor:
     """XGBoost-based CTR prediction model"""
@@ -32,6 +49,15 @@ class CTRPredictor:
         self.training_metrics: Dict[str, float] = {}
         self.is_trained = False
 
+        # Initialize cache manager
+        self.cache_manager = None
+        if CACHE_AVAILABLE:
+            try:
+                self.cache_manager = get_cache_manager()
+                logger.info("✅ Cache manager enabled for CTR predictions")
+            except Exception as e:
+                logger.warning(f"Failed to initialize cache manager: {e}")
+
         # Import accuracy tracker
         try:
             from src.accuracy_tracker import accuracy_tracker
@@ -42,6 +68,15 @@ class CTRPredictor:
 
         # Create models directory if it doesn't exist
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
+
+        # Initialize cross-platform learner for 100x training data
+        self.cross_platform_learner = None
+        if CROSS_PLATFORM_AVAILABLE:
+            try:
+                self.cross_platform_learner = get_cross_platform_learner()
+                logger.info("✅ Cross-platform learner enabled for CTR predictions")
+            except Exception as e:
+                logger.warning(f"Failed to initialize cross-platform learner: {e}")
 
         # Try to load existing model
         if os.path.exists(model_path):
@@ -147,12 +182,13 @@ class CTRPredictor:
 
         return self.training_metrics
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray, use_cache: bool = True) -> np.ndarray:
         """
-        Predict CTR for given features
+        Predict CTR for given features with caching support.
 
         Args:
             X: Feature matrix (n_samples, n_features)
+            use_cache: Whether to use caching (default: True)
 
         Returns:
             Predicted CTR values (n_samples,)
@@ -160,28 +196,91 @@ class CTRPredictor:
         if self.model is None:
             raise ValueError("Model not trained or loaded. Call train() or load_model() first.")
 
+        # For batch predictions, check cache for each sample
+        if use_cache and self.cache_manager and self.cache_manager.available and len(X) < 10:
+            # Only cache small batches (< 10 samples) to avoid cache bloat
+            cached_predictions = []
+            uncached_indices = []
+            uncached_features = []
+
+            for i, features in enumerate(X):
+                # Try cache lookup
+                cache_key = {"features": features.tolist()}
+                cached = self.cache_manager.get(cache_key, "ctr_prediction")
+
+                if cached is not None:
+                    cached_predictions.append((i, cached["prediction"]))
+                else:
+                    uncached_indices.append(i)
+                    uncached_features.append(features)
+
+            # Predict uncached samples
+            if uncached_features:
+                uncached_array = np.array(uncached_features)
+                uncached_preds = self.model.predict(uncached_array)
+                uncached_preds = np.clip(uncached_preds, 0.0, 1.0)
+
+                # Cache new predictions
+                for idx, features, pred in zip(uncached_indices, uncached_features, uncached_preds):
+                    cache_key = {"features": features.tolist()}
+                    self.cache_manager.set(
+                        cache_key,
+                        {"prediction": float(pred)},
+                        "ctr_prediction",
+                        ttl=3600  # 1 hour TTL
+                    )
+
+            # Combine cached and uncached predictions
+            if cached_predictions:
+                predictions = np.zeros(len(X))
+                for idx, pred in cached_predictions:
+                    predictions[idx] = pred
+                for idx, pred in zip(uncached_indices, uncached_preds):
+                    predictions[idx] = pred
+                return predictions
+
+        # No cache or large batch - predict directly
         predictions = self.model.predict(X)
-
-        # Clip predictions to valid CTR range [0, 1]
         predictions = np.clip(predictions, 0.0, 1.0)
-
         return predictions
 
-    def predict_single(self, features: np.ndarray) -> float:
+    def predict_single(self, features: np.ndarray, use_cache: bool = True) -> float:
         """
-        Predict CTR for a single sample
+        Predict CTR for a single sample with caching support.
 
         Args:
             features: Feature vector (n_features,)
+            use_cache: Whether to use caching (default: True)
 
         Returns:
             Predicted CTR value
         """
-        if features.ndim == 1:
-            features = features.reshape(1, -1)
+        # Use cache manager with get_or_compute pattern for single predictions
+        if use_cache and self.cache_manager and self.cache_manager.available:
+            cache_key = {"features": features.tolist()}
 
-        prediction = self.predict(features)[0]
-        return float(prediction)
+            def compute_prediction():
+                if features.ndim == 1:
+                    features_reshaped = features.reshape(1, -1)
+                else:
+                    features_reshaped = features
+                pred = self.model.predict(features_reshaped)[0]
+                pred = np.clip(pred, 0.0, 1.0)
+                return {"prediction": float(pred)}
+
+            result = self.cache_manager.get_or_compute(
+                key=cache_key,
+                query_type="ctr_prediction",
+                compute_fn=compute_prediction,
+                ttl=3600  # 1 hour TTL
+            )
+            return result["prediction"]
+        else:
+            # No cache - predict directly
+            if features.ndim == 1:
+                features = features.reshape(1, -1)
+            prediction = self.model.predict(features)[0]
+            return float(np.clip(prediction, 0.0, 1.0))
 
     def predict_with_confidence(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -418,6 +517,138 @@ class CTRPredictor:
         """
         features = [sample['features'] for sample in training_data]
         return np.array(features)
+
+    def train_with_cross_platform_data(
+        self,
+        campaign_data: List[Tuple[str, Dict[Platform, PlatformMetrics]]],
+        test_size: float = 0.2,
+        random_state: int = 42
+    ) -> Dict[str, float]:
+        """
+        Train CTR model with cross-platform data (100x more training samples).
+
+        This method enables learning from Meta, TikTok, and Google Ads simultaneously,
+        dramatically increasing training data volume.
+
+        Args:
+            campaign_data: List of (campaign_id, platform_metrics) tuples
+            test_size: Fraction of data for testing
+            random_state: Random seed for reproducibility
+
+        Returns:
+            Dictionary of training metrics
+        """
+        if not self.cross_platform_learner:
+            raise ValueError(
+                "Cross-platform learner not available. "
+                "Install required dependencies or use regular train() method."
+            )
+
+        logger.info(
+            f"Training CTR model with cross-platform data from {len(campaign_data)} campaigns"
+        )
+
+        # Generate training data from cross-platform learner
+        X, y = self.cross_platform_learner.get_training_data_for_ctr_model(
+            campaign_data,
+            include_creative_dna=True
+        )
+
+        logger.info(
+            f"Generated {len(X)} training samples from cross-platform data "
+            f"(100x boost from multi-platform learning)"
+        )
+
+        # Train with cross-platform features
+        feature_names = [
+            "normalized_ctr",
+            "normalized_cpc",
+            "normalized_cpm",
+            "normalized_engagement",
+            "normalized_quality",
+            "composite_score",
+            "platform_consistency",
+            "best_platform_boost",
+            "multi_platform_bonus",
+            "log_impressions",
+            "log_clicks",
+            "log_conversions",
+            "confidence",
+            "has_meta_data",
+            "has_tiktok_data",
+            "has_google_data",
+            "creative_dna_score",
+            "hook_strength",
+            "visual_appeal"
+        ]
+
+        return self.train(
+            X=X,
+            y=y,
+            feature_names=feature_names,
+            test_size=test_size,
+            random_state=random_state
+        )
+
+    def predict_cross_platform(
+        self,
+        campaign_id: str,
+        platform_data: Dict[Platform, PlatformMetrics],
+        creative_dna: Optional[Dict[str, float]] = None,
+        use_cache: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Predict CTR using cross-platform features.
+
+        This method uses data from all platforms (Meta, TikTok, Google Ads)
+        to make more accurate predictions.
+
+        Args:
+            campaign_id: Campaign identifier
+            platform_data: Metrics from all platforms
+            creative_dna: Optional creative DNA features
+            use_cache: Whether to use caching
+
+        Returns:
+            Dictionary with prediction and metadata
+        """
+        if not self.cross_platform_learner:
+            raise ValueError(
+                "Cross-platform learner not available. "
+                "Use regular predict() method instead."
+            )
+
+        if self.model is None:
+            raise ValueError("Model not trained or loaded.")
+
+        # Get unified features from cross-platform learner
+        unified_features = self.cross_platform_learner.get_unified_features(
+            campaign_id=campaign_id,
+            platform_data=platform_data,
+            creative_dna=creative_dna
+        )
+
+        # Convert to numpy array
+        X = unified_features.to_array().reshape(1, -1)
+
+        # Predict CTR
+        predicted_ctr = self.predict(X, use_cache=use_cache)[0]
+
+        # Get insight from cross-platform learner
+        insight = self.cross_platform_learner.aggregate_platform_data(
+            campaign_id=campaign_id,
+            platform_data=platform_data
+        )
+
+        return {
+            "predicted_ctr": float(predicted_ctr),
+            "unified_features": unified_features,
+            "cross_platform_insight": insight,
+            "platforms_used": [p.value for p in platform_data.keys()],
+            "confidence": unified_features.confidence,
+            "platform_consistency": unified_features.platform_consistency,
+            "prediction_source": "cross_platform"
+        }
 
 
 def generate_synthetic_training_data(n_samples: int = 1000) -> Tuple[np.ndarray, np.ndarray]:

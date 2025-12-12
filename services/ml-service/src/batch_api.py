@@ -47,8 +47,6 @@ except ImportError as e:
     class BatchMonitor:
         pass
 
-logger = logging.getLogger(__name__)
-
 # Initialize components
 batch_processor = BatchProcessor()
 batch_scheduler = BatchScheduler(batch_processor=batch_processor)

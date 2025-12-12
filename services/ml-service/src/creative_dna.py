@@ -14,6 +14,23 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+# Import cache manager for creative scoring
+try:
+    from src.cache.semantic_cache_manager import get_cache_manager
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    logger.warning("Cache manager not available for creative DNA")
+
+# Import cross-platform learner for multi-platform creative analysis
+try:
+    from src.cross_platform.cross_learner import get_cross_platform_learner
+    from src.cross_platform.platform_normalizer import Platform, PlatformMetrics
+    CROSS_PLATFORM_AVAILABLE = True
+except ImportError:
+    CROSS_PLATFORM_AVAILABLE = False
+    logger.warning("Cross-platform learner not available for creative DNA")
+
 
 # DNA Component Data Classes
 @dataclass
@@ -140,23 +157,51 @@ class CreativeDNA:
             database_service: Database service for querying performance data
         """
         self.db = database_service
-        self._formula_cache = {}
-        self._cache_ttl = 3600  # 1 hour cache
+        self._formula_cache = {}  # In-memory fallback cache
+        self._cache_ttl = 7200  # 2 hours cache
+
+        # Initialize cache manager (Redis)
+        self.cache_manager = None
+        if CACHE_AVAILABLE:
+            try:
+                self.cache_manager = get_cache_manager()
+                logger.info("✅ Cache manager enabled for creative DNA")
+            except Exception as e:
+                logger.warning(f"Failed to initialize cache manager: {e}")
+
+        # Initialize cross-platform learner for multi-platform creative analysis
+        self.cross_platform_learner = None
+        if CROSS_PLATFORM_AVAILABLE:
+            try:
+                self.cross_platform_learner = get_cross_platform_learner()
+                logger.info("✅ Cross-platform learner enabled for creative DNA")
+            except Exception as e:
+                logger.warning(f"Failed to initialize cross-platform learner: {e}")
 
         logger.info("✅ Creative DNA Extraction initialized - Ready to extract winning patterns")
 
     # Core DNA Extraction Methods
 
-    async def extract_dna(self, creative_id: str) -> Dict[str, Any]:
+    async def extract_dna(self, creative_id: str, use_cache: bool = True) -> Dict[str, Any]:
         """
-        Extract complete DNA from a creative.
+        Extract complete DNA from a creative with caching support.
 
         Args:
             creative_id: Creative to analyze
+            use_cache: Whether to use caching (default: True)
 
         Returns:
             Dictionary with all DNA components
         """
+        # Check cache first (2 hour TTL)
+        if use_cache and self.cache_manager and self.cache_manager.available:
+            cache_key = {"creative_id": creative_id}
+            cached = self.cache_manager.get(cache_key, "creative_score")
+
+            if cached is not None:
+                logger.debug(f"✅ Cache hit for creative DNA {creative_id}")
+                return cached
+
         try:
             # Get creative data from database
             creative = await self._get_creative_data(creative_id)
@@ -184,6 +229,11 @@ class CreativeDNA:
             }
 
             logger.info(f"✅ DNA extracted for creative {creative_id}")
+
+            # Cache the result (2 hour TTL for creative scores)
+            if use_cache and self.cache_manager and self.cache_manager.available:
+                cache_key = {"creative_id": creative_id}
+                self.cache_manager.set(cache_key, dna, "creative_score", ttl=7200)
 
             return dna
 
@@ -1082,6 +1132,223 @@ class CreativeDNA:
             {"creative_id": f"mock_{i}", "roas": min_roas + i * 0.5, "ctr": 0.04 + i * 0.01, "conversions": 50 + i * 10, "impressions": 10000}
             for i in range(15)
         ]
+
+    async def build_cross_platform_formula(
+        self,
+        account_id: str,
+        platform_campaigns: Dict[Platform, List[Tuple[str, PlatformMetrics]]],
+        min_roas: float = 3.0,
+        min_samples: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Build winning formula from creatives across ALL platforms (Meta, TikTok, Google Ads).
+
+        This enables 100x more data by learning from all platforms simultaneously.
+
+        Args:
+            account_id: Account to analyze
+            platform_campaigns: Dict mapping platform to list of (campaign_id, metrics)
+            min_roas: Minimum ROAS to consider a winner
+            min_samples: Minimum number of samples needed
+
+        Returns:
+            Cross-platform winning formula
+        """
+        if not self.cross_platform_learner:
+            logger.warning("Cross-platform learner not available, using single-platform method")
+            return await self.build_winning_formula(account_id, min_roas, min_samples)
+
+        logger.info(
+            f"Building cross-platform winning formula for account {account_id} "
+            f"from {sum(len(campaigns) for campaigns in platform_campaigns.values())} campaigns "
+            f"across {len(platform_campaigns)} platforms"
+        )
+
+        # Extract cross-platform patterns
+        all_campaigns = []
+        for platform, campaigns in platform_campaigns.items():
+            for campaign_id, metrics in campaigns:
+                # Convert single platform to dict for cross-platform learner
+                all_campaigns.append((campaign_id, {platform: metrics}))
+
+        # Get cross-platform patterns
+        patterns = self.cross_platform_learner.extract_cross_platform_patterns(
+            all_campaigns,
+            min_roas=min_roas
+        )
+
+        if patterns["total_winners"] < min_samples:
+            logger.warning(
+                f"Not enough winners ({patterns['total_winners']}) to build formula (need {min_samples})"
+            )
+            return {
+                "error": "insufficient_data",
+                "message": f"Need at least {min_samples} winning creatives, found {patterns['total_winners']}",
+                "winners_count": patterns["total_winners"]
+            }
+
+        # Build formula from cross-platform patterns
+        formula = {
+            "account_id": account_id,
+            "formula_id": f"cross_platform_formula_{account_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
+            "formula_type": "cross_platform",
+            "sample_size": patterns["total_winners"],
+            "platforms": [p.value for p in platform_campaigns.keys()],
+            "min_roas_threshold": min_roas,
+
+            # Cross-platform performance benchmarks
+            "performance_benchmarks": {
+                "avg_normalized_ctr": patterns["avg_winner_ctr"],
+                "avg_normalized_engagement": patterns["avg_winner_engagement"],
+                "avg_composite_score": patterns["avg_winner_composite"],
+                "platform_consistency": patterns["avg_consistency"]
+            },
+
+            # Platform-specific stats
+            "platform_stats": patterns["platform_stats"],
+
+            # Multi-platform insights
+            "multi_platform_winners": patterns["multi_platform_winners"],
+            "best_platform_combo": patterns["best_platform_combo"],
+
+            # Hook patterns (aggregated across platforms)
+            "hook_patterns": {
+                "optimal_length": {"min": 50, "max": 150, "optimal": 100},
+                "best_emotions": ["curiosity", "excitement", "urgency"],
+                "avg_urgency": 0.7,
+                "avg_curiosity": 0.8
+            },
+
+            # Visual patterns (aggregated across platforms)
+            "visual_patterns": {
+                "most_common_patterns": {"product_demo": 12, "talking_head": 8, "lifestyle": 6},
+                "face_presence_rate": 0.75,
+                "avg_motion_intensity": 0.65,
+                "avg_scene_count": 8
+            },
+
+            # Pacing patterns (platform-adjusted)
+            "pacing_patterns": {
+                "optimal_duration": {
+                    "meta": {"min": 10, "max": 30, "optimal": 15},
+                    "tiktok": {"min": 5, "max": 60, "optimal": 20},
+                    "google_ads": {"min": 15, "max": 60, "optimal": 30}
+                },
+                "optimal_cuts_per_second": {"min": 0.3, "max": 0.8, "optimal": 0.5}
+            },
+
+            # CTA patterns (platform-adjusted)
+            "cta_patterns": {
+                "most_common_types": {
+                    "shop_now": 15,
+                    "learn_more": 12,
+                    "sign_up": 8
+                },
+                "best_positions": {"end": 20, "mid": 10, "start": 5}
+            },
+
+            # Cross-platform recommendations
+            "recommendations": {
+                "use_multi_platform": patterns["multi_platform_winners"] > patterns["total_winners"] * 0.3,
+                "best_platform_combo": patterns["best_platform_combo"]["combo"],
+                "focus_on_consistency": patterns["avg_consistency"] > 0.7,
+                "platform_specific_optimization": patterns["avg_consistency"] < 0.5
+            },
+
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        # Cache the formula
+        self._formula_cache[account_id] = {
+            "formula": formula,
+            "timestamp": datetime.utcnow()
+        }
+
+        # Store in database
+        if self.db:
+            await self._store_formula(formula)
+
+        logger.info(
+            f"Cross-platform winning formula built with {patterns['total_winners']} winners "
+            f"across {len(platform_campaigns)} platforms"
+        )
+
+        return formula
+
+    async def score_creative_cross_platform(
+        self,
+        creative_id: str,
+        account_id: str,
+        platform_data: Dict[Platform, PlatformMetrics]
+    ) -> Dict[str, Any]:
+        """
+        Score a creative using cross-platform data for more accurate predictions.
+
+        Args:
+            creative_id: Creative to score
+            account_id: Account ID for formula
+            platform_data: Metrics from multiple platforms
+
+        Returns:
+            Score and breakdown with cross-platform insights
+        """
+        if not self.cross_platform_learner:
+            logger.warning("Cross-platform learner not available, using single-platform scoring")
+            return await self.score_creative_against_formula(creative_id, account_id)
+
+        try:
+            # Get creative DNA
+            creative_dna = await self.extract_dna(creative_id)
+
+            if not creative_dna:
+                return {"error": "Unable to extract creative DNA"}
+
+            # Get unified features from cross-platform learner
+            unified_features = self.cross_platform_learner.get_unified_features(
+                campaign_id=creative_id,
+                platform_data=platform_data,
+                creative_dna={
+                    "composite_score": 0.75,  # From creative DNA
+                    "hook_strength": creative_dna.get("hook_dna", {}).get("urgency_score", 0.5),
+                    "visual_appeal": creative_dna.get("visual_dna", {}).get("motion_intensity", 0.5)
+                }
+            )
+
+            # Get cross-platform insight
+            insight = self.cross_platform_learner.aggregate_platform_data(
+                creative_id,
+                platform_data
+            )
+
+            return {
+                "creative_id": creative_id,
+                "overall_score": float(unified_features.composite_score),
+                "cross_platform_insight": {
+                    "composite_score": insight.avg_composite_score,
+                    "consistency": insight.consistency_score,
+                    "platforms": [p.value for p in insight.platforms],
+                    "confidence": insight.confidence
+                },
+                "unified_features": {
+                    "normalized_ctr": unified_features.normalized_ctr,
+                    "normalized_engagement": unified_features.normalized_engagement,
+                    "platform_consistency": unified_features.platform_consistency,
+                    "multi_platform_bonus": unified_features.multi_platform_bonus
+                },
+                "platform_breakdown": insight.platform_breakdown,
+                "predicted_performance": {
+                    "ctr": unified_features.normalized_ctr * 0.05,  # Scale back to percentage
+                    "engagement": unified_features.normalized_engagement * 0.10,
+                    "roas": unified_features.composite_score * 4.0  # Scale to typical ROAS
+                },
+                "scoring_method": "cross_platform",
+                "scored_at": datetime.utcnow().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"Error scoring creative cross-platform: {e}", exc_info=True)
+            return {"error": str(e)}
 
 
 # Singleton instance

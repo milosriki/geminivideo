@@ -11,7 +11,7 @@
 
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { httpClient } from "../index";
+import axios from 'axios';
 import { apiRateLimiter, validateInput } from '../middleware/security';
 
 const router = Router();

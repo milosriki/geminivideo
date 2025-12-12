@@ -12,7 +12,7 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
-import { httpClient } from "../index";
+import axios from 'axios';
 import { apiRateLimiter, uploadRateLimiter, validateInput } from '../middleware/security';
 
 const router = Router();

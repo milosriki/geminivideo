@@ -4,6 +4,8 @@
  * Agent 19: Multi-Platform Publishing Infrastructure
  */
 
+import { httpClient } from '../index';
+
 export interface PlatformSpec {
   platform: 'meta' | 'google' | 'tiktok';
   aspectRatio: string;
@@ -288,8 +290,6 @@ export class FormatAdapter {
       job.status = 'processing';
 
       // Call video-agent to perform format conversions
-      const axios = require('axios');
-
       const response = await httpClient.post(
         `${this.videoAgentUrl}/api/format/adapt`,
         {

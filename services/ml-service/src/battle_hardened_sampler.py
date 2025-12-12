@@ -32,32 +32,14 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Import Redis for synchronous caching (95% hit rate optimization)
+# Import semantic cache manager for 95% hit rate optimization
 try:
-    import redis
-    REDIS_AVAILABLE = True
-    # Initialize Redis connection for sync cache
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    try:
-        redis_client = redis.from_url(redis_url, decode_responses=True)
-        redis_client.ping()  # Test connection
-        logger.info("Redis cache enabled for BattleHardenedSampler")
-    except Exception as e:
-        logger.warning(f"Redis connection failed: {e}")
-        redis_client = None
-        REDIS_AVAILABLE = False
+    from src.cache.semantic_cache_manager import SemanticCacheManager, get_cache_manager
+    CACHE_MANAGER_AVAILABLE = True
+    logger.info("✅ Semantic cache manager imported successfully")
 except ImportError:
-    REDIS_AVAILABLE = False
-    redis_client = None
-    logger.warning("Redis not available - caching disabled")
-
-# Import semantic cache for 95% hit rate optimization (fallback)
-try:
-    from src.semantic_cache import SemanticCache, get_semantic_cache
-    SEMANTIC_CACHE_AVAILABLE = True
-except ImportError:
-    SEMANTIC_CACHE_AVAILABLE = False
-    logger.warning("Semantic cache not available - using Redis only")
+    CACHE_MANAGER_AVAILABLE = False
+    logger.warning("⚠️ Semantic cache manager not available - caching disabled")
 
 # Import cross-learner for 100x data boost
 try:
@@ -156,24 +138,20 @@ class BattleHardenedSampler:
         self.kill_pipeline_roas = kill_pipeline_roas
         self.scale_pipeline_roas = scale_pipeline_roas
 
-        # Initialize semantic cache for 95% hit rate optimization
-        self.semantic_cache = None
-        self.redis_cache = redis_client if REDIS_AVAILABLE else None
-        if SEMANTIC_CACHE_AVAILABLE:
+        # Initialize cache manager for 95% hit rate optimization
+        self.cache_manager = None
+        if CACHE_MANAGER_AVAILABLE:
             try:
-                self.semantic_cache = get_semantic_cache()
-                logger.info("Semantic cache enabled for BattleHardenedSampler")
+                self.cache_manager = get_cache_manager()
+                logger.info("✅ Cache manager enabled for BattleHardenedSampler")
             except Exception as e:
-                logger.warning(f"Failed to initialize semantic cache: {e}")
-        
-        if self.redis_cache:
-            logger.info("Redis cache enabled for BattleHardenedSampler (sync mode)")
+                logger.warning(f"⚠️ Failed to initialize cache manager: {e}")
 
         logger.info(
             f"BattleHardenedSampler initialized: "
             f"mode={mode}, decay={decay_constant}, min_impressions={min_impressions_for_decision}, "
             f"ignorance_zone_days={ignorance_zone_days}, min_spend_for_kill=${min_spend_for_kill}, "
-            f"semantic_cache={'enabled' if self.semantic_cache else 'disabled'}, "
+            f"cache={'enabled' if self.cache_manager else 'disabled'}, "
             f"cross_learner={'enabled' if CROSS_LEARNER_AVAILABLE else 'disabled'}"
         )
 
@@ -247,27 +225,42 @@ class BattleHardenedSampler:
 
         OPTIMIZATION: Uses semantic caching for 95% hit rate on similar ad states.
         """
-        # Generate cache key from ad state
-        cache_key = self._generate_cache_key(ad)
-        cache_key_redis = f"bhs:score:{cache_key}"
+        # Use cache manager with get_or_compute pattern
+        if self.cache_manager and self.cache_manager.available:
+            # Define compute function
+            def compute_score():
+                return self._compute_blended_score_uncached(ad, creative_dna_scores)
 
-        # Check Redis cache first (95% hit rate optimization - sync mode)
-        if self.redis_cache:
-            try:
-                cached_result = self.redis_cache.get(cache_key_redis)
-                if cached_result:
-                    logger.debug(f"Cache hit for ad {ad.ad_id}")
-                    return json.loads(cached_result)
-            except Exception as e:
-                logger.warning(f"Redis cache lookup failed: {e}")
+            # Generate cache key from ad state
+            cache_key_data = {
+                "ad_id": ad.ad_id,
+                "impressions": ad.impressions,
+                "clicks": ad.clicks,
+                "spend": round(ad.spend, 2),
+                "age_hours": round(ad.age_hours, 1)
+            }
 
-        # Check semantic cache (async fallback)
-        if self.semantic_cache and db_session:
-            try:
-                # For async semantic cache, skip in sync context
-                pass
-            except Exception as e:
-                logger.warning(f"Semantic cache lookup failed: {e}")
+            # Use get_or_compute with 30-minute TTL
+            return self.cache_manager.get_or_compute(
+                key=cache_key_data,
+                query_type="budget_allocation",
+                compute_fn=compute_score,
+                ttl=1800  # 30 minutes
+            )
+        else:
+            # No cache - compute directly
+            return self._compute_blended_score_uncached(ad, creative_dna_scores)
+
+    def _compute_blended_score_uncached(
+        self,
+        ad: AdState,
+        creative_dna_scores: Optional[Dict[str, float]] = None,
+    ) -> Dict:
+        """
+        Calculate blended score WITHOUT caching (internal method).
+
+        This method contains the actual computation logic.
+        """
 
         # Calculate base metrics
         ctr = ad.clicks / max(ad.impressions, 1)
@@ -301,7 +294,7 @@ class BattleHardenedSampler:
         cross_learner_boost = self._apply_cross_learner_boost(ad, blended_score_with_decay)
         final_score = blended_score_with_decay * dna_boost * cross_learner_boost
 
-        result = {
+        return {
             "ctr": ctr,
             "pipeline_roas": pipeline_roas,
             "cash_roas": cash_roas,
@@ -315,30 +308,6 @@ class BattleHardenedSampler:
             "cross_learner_boost": cross_learner_boost,
             "final_score": final_score,
         }
-
-        # Cache result for future similar queries (95% hit rate optimization)
-        # Use Redis for synchronous caching (30 minute TTL)
-        if self.redis_cache:
-            try:
-                cache_key_redis = f"bhs:score:{cache_key}"
-                self.redis_cache.setex(
-                    cache_key_redis,
-                    1800,  # 30 minutes TTL
-                    json.dumps(result, default=str)
-                )
-                logger.debug(f"Cached result for ad {ad.ad_id}")
-            except Exception as e:
-                logger.warning(f"Redis cache set failed: {e}")
-
-        # Also try semantic cache (async fallback)
-        if self.semantic_cache and db_session:
-            try:
-                # Cache will be set asynchronously in async version
-                pass
-            except Exception as e:
-                logger.warning(f"Semantic cache set failed: {e}")
-
-        return result
 
     def _generate_cache_key(self, ad: AdState) -> str:
         """Generate cache key from ad state for semantic caching."""
