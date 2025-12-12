@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Dict, List, Any
 
 class AlignmentChecker:
+    # Tolerance for weight sum validation
+    WEIGHT_SUM_TOLERANCE = 0.01
+    
     def __init__(self, root_path: Path):
         self.root_path = root_path
         self.issues = []
@@ -84,7 +87,7 @@ class AlignmentChecker:
             # Check psychology weights sum
             psych_weights = weights.get('psychology_weights', {})
             psych_sum = sum(psych_weights.values())
-            if abs(psych_sum - 1.0) > 0.01:
+            if abs(psych_sum - 1.0) > self.WEIGHT_SUM_TOLERANCE:
                 self.warnings.append(f"Psychology weights sum to {psych_sum:.2f}, not 1.0")
             else:
                 self.info.append(f"✓ Psychology weights sum to {psych_sum:.2f}")
@@ -92,7 +95,7 @@ class AlignmentChecker:
             # Check hook weights sum
             hook_weights = weights.get('hook_weights', {})
             hook_sum = sum(hook_weights.values())
-            if abs(hook_sum - 1.0) > 0.01:
+            if abs(hook_sum - 1.0) > self.WEIGHT_SUM_TOLERANCE:
                 self.warnings.append(f"Hook weights sum to {hook_sum:.2f}, not 1.0")
             else:
                 self.info.append(f"✓ Hook weights sum to {hook_sum:.2f}")
@@ -100,7 +103,7 @@ class AlignmentChecker:
             # Check scene ranking weights sum
             ranking_weights = scene_ranking.get('weights', {})
             ranking_sum = sum(ranking_weights.values())
-            if abs(ranking_sum - 1.0) > 0.01:
+            if abs(ranking_sum - 1.0) > self.WEIGHT_SUM_TOLERANCE:
                 self.warnings.append(f"Scene ranking weights sum to {ranking_sum:.2f}, not 1.0")
             else:
                 self.info.append(f"✓ Scene ranking weights sum to {ranking_sum:.2f}")
@@ -122,24 +125,38 @@ class AlignmentChecker:
             with open(scoring_engine_path) as f:
                 content = f.read()
                 
-                # Check for composite score calculation
-                if "psychologyScore * 0.3" in content:
-                    self.info.append("✓ Gateway uses psychology weight 0.3")
-                if "hookScore * 0.25" in content:
-                    self.info.append("✓ Gateway uses hook weight 0.25")
-                if "technicalScore * 0.2" in content:
-                    self.info.append("✓ Gateway uses technical weight 0.2")
-                if "demographicScore * 0.15" in content:
-                    self.info.append("✓ Gateway uses demographic weight 0.15")
-                if "noveltyScore * 0.1" in content:
-                    self.info.append("✓ Gateway uses novelty weight 0.1")
+                # More robust pattern matching using regex
+                import re
+                
+                # Look for the specific composite score calculation block
+                # This is more targeted than catching all multiplications
+                composite_pattern = r'const compositeScore\s*=\s*([\s\S]*?);'
+                composite_match = re.search(composite_pattern, content)
+                
+                if composite_match:
+                    composite_block = composite_match.group(1)
                     
-                # Verify sum
-                gateway_sum = 0.3 + 0.25 + 0.2 + 0.15 + 0.1
-                if abs(gateway_sum - 1.0) < 0.01:
-                    self.info.append(f"✓ Gateway composite weights sum to {gateway_sum:.2f}")
+                    # Now extract weights from this specific block
+                    weight_pattern = r'(\w+Score)\s*\*\s*(0\.\d+)'
+                    matches = re.findall(weight_pattern, composite_block)
+                    
+                    gateway_weights = {}
+                    for var_name, weight_str in matches:
+                        weight = float(weight_str)
+                        gateway_weights[var_name] = weight
+                        self.info.append(f"✓ Gateway uses {var_name} weight {weight}")
+                    
+                    # Verify sum if we found weights
+                    if gateway_weights:
+                        gateway_sum = sum(gateway_weights.values())
+                        if abs(gateway_sum - 1.0) < self.WEIGHT_SUM_TOLERANCE:
+                            self.info.append(f"✓ Gateway composite weights sum to {gateway_sum:.2f}")
+                        else:
+                            self.issues.append(f"Gateway composite weights sum to {gateway_sum:.2f}, not 1.0")
+                    else:
+                        self.warnings.append("Could not extract composite weights from gateway scoring-engine.ts")
                 else:
-                    self.issues.append(f"Gateway composite weights sum to {gateway_sum:.2f}, not 1.0")
+                    self.warnings.append("Could not find compositeScore calculation in scoring-engine.ts")
         else:
             self.warnings.append("scoring-engine.ts not found")
         
