@@ -712,7 +712,7 @@ const AdSpyDashboard: React.FC<AdSpyDashboardProps> = ({ onSaveAd, onRemixAd }) 
   // Save ad to collection
   const handleSaveAd = useCallback((ad: AdLibraryAd) => {
     const defaultCollectionId = 'default';
-    let updatedCollections = [...collections];
+    const updatedCollections = [...collections];
 
     let defaultCollection = updatedCollections.find(c => c.id === defaultCollectionId);
 

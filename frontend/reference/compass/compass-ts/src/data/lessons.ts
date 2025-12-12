@@ -23,7 +23,7 @@ export function getModules(): Module[] {
 export async function getLesson(
   slug: string,
 ): Promise<(Lesson & { module: Module; next: Lesson | null }) | null> {
-  let module = lessons.find(({ lessons }) =>
+  const module = lessons.find(({ lessons }) =>
     lessons.some(({ id }) => id === slug),
   );
 
@@ -31,7 +31,7 @@ export async function getLesson(
     return null;
   }
 
-  let index = module.lessons.findIndex(({ id }) => id === slug);
+  const index = module.lessons.findIndex(({ id }) => id === slug);
 
   return {
     ...module.lessons[index],

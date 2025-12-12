@@ -13,8 +13,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 function formatDuration(seconds: number): string {
-  let h = Math.floor(seconds / 3600);
-  let m = Math.floor((seconds % 3600) / 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
 
   return h > 0 ? (m > 0 ? `${h} hr ${m} min` : `${h} hr`) : `${m} min`;
 }
@@ -24,7 +24,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  let interview = await getInterview((await params).slug);
+  const interview = await getInterview((await params).slug);
 
   return {
     title: `Interview with ${interview?.name} - Compass`,
@@ -37,13 +37,13 @@ export default async function Page({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  let interview = await getInterview((await params).slug);
+  const interview = await getInterview((await params).slug);
 
   if (!interview) {
     notFound();
   }
 
-  let transcript = await getInterviewTranscript(interview.id);
+  const transcript = await getInterviewTranscript(interview.id);
 
   return (
     <CenteredPageLayout

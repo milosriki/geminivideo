@@ -293,7 +293,7 @@ function PricingTable({
                       {name}
                     </th>
                     {tiers.map((tier) => {
-                      let value = tier.features.find(
+                      const value = tier.features.find(
                         (feature) =>
                           feature.section === section && feature.name === name,
                       )?.value
@@ -494,8 +494,8 @@ export default async function Pricing({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  let params = await searchParams
-  let tier =
+  const params = await searchParams
+  const tier =
     typeof params.tier === 'string'
       ? tiers.find(({ slug }) => slug === params.tier)!
       : tiers[0]

@@ -95,7 +95,7 @@ function MobileNavigation({
 }
 
 function SiteNavigation() {
-  let [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <nav className="flex items-center">

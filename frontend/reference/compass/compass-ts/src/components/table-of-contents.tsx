@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 function useTableOfContents(contentId: string) {
-  let [headings, setHeadings] = useState<
+  const [headings, setHeadings] = useState<
     { id: string; text: string; level: number; active: boolean }[]
   >([]);
-  let pathname = usePathname();
+  const pathname = usePathname();
 
   useEffect(() => {
-    let root = document.getElementById(contentId);
+    const root = document.getElementById(contentId);
     if (!root) return;
 
     setHeadings(
@@ -23,7 +23,7 @@ function useTableOfContents(contentId: string) {
       })),
     );
 
-    let contentElements = new Map<Element, string>();
+    const contentElements = new Map<Element, string>();
     let currentHeadingId: string | null = null;
 
     Array.from(root.children).forEach((element) => {
@@ -37,9 +37,9 @@ function useTableOfContents(contentId: string) {
       contentElements.set(element, currentHeadingId);
     });
 
-    let visibleElements = new Set<Element>();
+    const visibleElements = new Set<Element>();
 
-    let observer = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
@@ -49,7 +49,7 @@ function useTableOfContents(contentId: string) {
           }
         });
 
-        let firstVisibleContentElement = Array.from(
+        const firstVisibleContentElement = Array.from(
           contentElements.entries(),
         ).find(([element]) => visibleElements.has(element));
 
@@ -76,7 +76,7 @@ function useTableOfContents(contentId: string) {
 }
 
 export default function TableOfContents({ contentId }: { contentId: string }) {
-  let headings = useTableOfContents(contentId);
+  const headings = useTableOfContents(contentId);
 
   return (
     <nav className="sticky top-16">

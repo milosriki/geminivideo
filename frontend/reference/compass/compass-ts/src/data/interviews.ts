@@ -20,13 +20,13 @@ export function getInterviews(): Interview[] {
 }
 
 export async function getInterview(slug: string) {
-  let index = interviews.findIndex(({ id }) => id === slug);
+  const index = interviews.findIndex(({ id }) => id === slug);
 
   if (index === -1) {
     return null;
   }
 
-  let interview = interviews[index];
+  const interview = interviews[index];
 
   return {
     ...interview,
@@ -35,14 +35,14 @@ export async function getInterview(slug: string) {
 }
 
 export async function getInterviewTranscript(slug: string) {
-  let transcript = await fs.readFile(
+  const transcript = await fs.readFile(
     path.join(process.cwd(), "src/data/interviews", `${slug}.vtt`),
     "utf-8",
   );
 
   return webvtt.parse(transcript).cues.map(({ text, start, end }) => {
-    let speaker = text.match(/<v (.*?)>/)?.[1];
-    let textWithoutSpeaker = text.replace(/<v (.*?)>/, "").split("\n");
+    const speaker = text.match(/<v (.*?)>/)?.[1];
+    const textWithoutSpeaker = text.replace(/<v (.*?)>/, "").split("\n");
     return {
       start,
       end,
