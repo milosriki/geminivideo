@@ -4,9 +4,9 @@ import { Feed } from 'feed'
 import assert from 'node:assert'
 
 export async function GET(req: Request) {
-  let siteUrl = new URL(req.url).origin
+  const siteUrl = new URL(req.url).origin
 
-  let feed = new Feed({
+  const feed = new Feed({
     title: 'The Radiant Blog',
     description:
       'Stay informed with product updates, company news, and insights on how to sell smarter at your company.',
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     },
   })
 
-  let { data: posts } = await getPostsForFeed()
+  const { data: posts } = await getPostsForFeed()
 
   posts.forEach((post) => {
     try {

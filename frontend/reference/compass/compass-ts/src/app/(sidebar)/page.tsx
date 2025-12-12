@@ -23,16 +23,16 @@ export const metadata: Metadata = {
 };
 
 function formatDuration(seconds: number): string {
-  let h = Math.floor(seconds / 3600);
-  let m = Math.floor((seconds % 3600) / 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
 
   return h > 0 ? (m > 0 ? `${h} hr ${m} min` : `${h} hr`) : `${m} min`;
 }
 
 export default async function Page() {
-  let modules = await getModules();
-  let lessons = modules.flatMap(({ lessons }) => lessons);
-  let duration = lessons.reduce(
+  const modules = await getModules();
+  const lessons = modules.flatMap(({ lessons }) => lessons);
+  const duration = lessons.reduce(
     (sum, { video }) => sum + (video?.duration ?? 0),
     0,
   );

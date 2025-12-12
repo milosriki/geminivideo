@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export default async function InterviewsPage() {
-  let interviews = await getInterviews();
+  const interviews = await getInterviews();
 
   return (
     <CenteredPageLayout

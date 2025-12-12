@@ -17,7 +17,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  let lesson = await getLesson((await params).slug);
+  const lesson = await getLesson((await params).slug);
 
   return {
     title: `${lesson?.title} - Compass`,
@@ -30,14 +30,14 @@ export default async function Page({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  let slug = (await params).slug;
-  let lesson = await getLesson(slug);
+  const slug = (await params).slug;
+  const lesson = await getLesson(slug);
 
   if (!lesson) {
     notFound();
   }
 
-  let Content = await getLessonContent(slug);
+  const Content = await getLessonContent(slug);
 
   return (
     <SidebarLayoutContent

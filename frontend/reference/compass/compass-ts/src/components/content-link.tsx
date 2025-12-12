@@ -4,8 +4,8 @@ import { CirclePlayIcon } from "@/icons/circle-play-icon";
 import Link from "next/link";
 
 function formatDuration(seconds: number): string {
-  let m = Math.floor(seconds / 60);
-  let s = seconds % 60;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
 
   return `${m}:${s.toString().padStart(2, "0")}`;
 }

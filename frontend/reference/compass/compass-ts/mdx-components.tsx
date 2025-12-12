@@ -43,7 +43,7 @@ async function getHighlighter() {
 }
 
 async function CodeBlock({ code, lang }: { code: string; lang: string }) {
-  let out = (await getHighlighter()).codeToHtml(code, {
+  const out = (await getHighlighter()).codeToHtml(code, {
     lang,
     theme: theme.name,
     transformers: [
@@ -70,23 +70,23 @@ const IMAGE_DIMENSION_REGEX = /^[^|]+\|\d+x\d+$/;
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
     h1: ({ children }) => {
-      let id = generateId(getTextContent(children));
+      const id = generateId(getTextContent(children));
       return <h1 id={id}>{children}</h1>;
     },
     h2: ({ children }) => {
-      let id = generateId(getTextContent(children));
+      const id = generateId(getTextContent(children));
       return <h2 id={id}>{children}</h2>;
     },
     h3: ({ children }) => {
-      let id = generateId(getTextContent(children));
+      const id = generateId(getTextContent(children));
       return <h3 id={id}>{children}</h3>;
     },
     h4: ({ children }) => {
-      let id = generateId(getTextContent(children));
+      const id = generateId(getTextContent(children));
       return <h4 id={id}>{children}</h4>;
     },
     img: ({ alt, ...props }) => {
-      let schemePlaceholder = encodeURIComponent("{scheme}");
+      const schemePlaceholder = encodeURIComponent("{scheme}");
       let width, height;
       if (IMAGE_DIMENSION_REGEX.test(alt)) {
         [width, height] = alt.split("|")[1].split("x").map(Number);
@@ -118,10 +118,10 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
       }
     },
     async pre(props) {
-      let child = React.Children.only(props.children);
+      const child = React.Children.only(props.children);
       if (!child) return null;
-      let { children: code, className } = child.props;
-      let lang = className ? className.replace("language-", "") : "";
+      const { children: code, className } = child.props;
+      const lang = className ? className.replace("language-", "") : "";
 
       return <CodeBlock code={code} lang={lang} />;
     },

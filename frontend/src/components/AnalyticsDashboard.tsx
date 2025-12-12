@@ -1169,7 +1169,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     </div>
   );
 
-  const renderAlertsTab = () => {
+  const RenderAlertsTab = () => {
     const [newAlert, setNewAlert] = useState<Partial<AlertConfig>>({
       type: 'roas_drop',
       threshold: 1.5,
@@ -1272,7 +1272,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     );
   };
 
-  const renderReportsTab = () => {
+  const RenderReportsTab = () => {
     const [newReport, setNewReport] = useState<Partial<ScheduledReport>>({
       name: '',
       frequency: 'weekly',
@@ -1535,8 +1535,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         {activeTab === 'overview' && renderOverviewTab()}
         {activeTab === 'creatives' && renderCreativesTab()}
         {activeTab === 'attribution' && renderAttributionTab()}
-        {activeTab === 'alerts' && renderAlertsTab()}
-        {activeTab === 'reports' && renderReportsTab()}
+        {activeTab === 'alerts' && <RenderAlertsTab />}
+        {activeTab === 'reports' && <RenderReportsTab />}
         {activeTab === 'roi' && (
           <div className="space-y-8 mt-6">
             <ROIDashboard />
