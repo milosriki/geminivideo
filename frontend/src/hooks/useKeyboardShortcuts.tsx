@@ -4,7 +4,7 @@
  * Manages keyboard shortcuts for demo mode and presentation navigation.
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 export interface KeyboardShortcut {
   key: string;
@@ -161,12 +161,18 @@ function formatShortcutKey(shortcut: KeyboardShortcut): string {
   if (shortcut.altKey) parts.push('Alt');
 
   // Format the main key
-  let key = shortcut.key;
-  if (key === ' ') key = 'Space';
-  else if (key === 'ArrowLeft') key = '←';
-  else if (key === 'ArrowRight') key = '→';
-  else if (key === 'ArrowUp') key = '↑';
-  else if (key === 'ArrowDown') key = '↓';
+  const key =
+    shortcut.key === ' '
+      ? 'Space'
+      : shortcut.key === 'ArrowLeft'
+      ? '←'
+      : shortcut.key === 'ArrowRight'
+      ? '→'
+      : shortcut.key === 'ArrowUp'
+      ? '↑'
+      : shortcut.key === 'ArrowDown'
+      ? '↓'
+      : shortcut.key;
 
   parts.push(key);
 
