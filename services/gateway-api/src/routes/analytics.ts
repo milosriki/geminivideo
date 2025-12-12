@@ -377,7 +377,12 @@ export function createAnalyticsRouter(pgPool: Pool): Router {
 
         console.log(`Fetching performance trends: metric=${metric}, days=${days}`);
 
-        // Query daily trends
+        // Query daily trends - SECURITY FIX: Use parameterized query
+        const daysNum = parseInt(days as string);
+        if (isNaN(daysNum) || daysNum < 1 || daysNum > 365) {
+          return res.status(400).json({ error: 'Invalid days parameter' });
+        }
+
         const trendQuery = `
           SELECT
             pm.date,
@@ -387,12 +392,12 @@ export function createAnalyticsRouter(pgPool: Pool): Router {
             COALESCE(SUM(pm.conversions), 0) as conversions,
             COALESCE(AVG(pm.ctr), 0) as ctr
           FROM performance_metrics pm
-          WHERE pm.date >= CURRENT_DATE - INTERVAL '${parseInt(days as string)} days'
+          WHERE pm.date >= CURRENT_DATE - $1 * INTERVAL '1 day'
           GROUP BY pm.date
           ORDER BY pm.date ASC
         `;
 
-        const trendResult = await pgPool.query(trendQuery);
+        const trendResult = await pgPool.query(trendQuery, [daysNum]);
 
         // Calculate week-over-week growth
         const nowData = trendResult.rows.slice(-7);
@@ -475,6 +480,23 @@ export function createAnalyticsRouter(pgPool: Pool): Router {
         console.log(`Fetching predictions vs actual comparison`);
 
         // Query ads with predictions and actual performance
+        // SECURITY FIX: Use parameterized queries for dates
+        const queryParams: any[] = [];
+        let paramIndex = 1;
+
+        let dateConditions = '';
+        if (start_date) {
+          dateConditions += ` AND a.created_at >= $${paramIndex}`;
+          queryParams.push(start_date);
+          paramIndex++;
+        }
+        if (end_date) {
+          dateConditions += ` AND a.created_at <= $${paramIndex}`;
+          queryParams.push(end_date);
+          paramIndex++;
+        }
+        queryParams.push(parseInt(limit as string));
+
         const query = `
           SELECT
             a.ad_id,
@@ -492,15 +514,14 @@ export function createAnalyticsRouter(pgPool: Pool): Router {
           LEFT JOIN performance_metrics pm ON v.id = pm.video_id
           LEFT JOIN campaigns c ON v.campaign_id = c.id
           WHERE a.predicted_ctr IS NOT NULL
-          ${start_date ? `AND a.created_at >= '${start_date}'` : ''}
-          ${end_date ? `AND a.created_at <= '${end_date}'` : ''}
+          ${dateConditions}
           GROUP BY a.ad_id, a.predicted_ctr, a.predicted_roas, a.created_at, c.name
           HAVING SUM(pm.impressions) > 100
           ORDER BY a.created_at DESC
-          LIMIT $1
+          LIMIT $${paramIndex}
         `;
 
-        const result = await pgPool.query(query, [parseInt(limit as string)]);
+        const result = await pgPool.query(query, queryParams);
 
         // Calculate accuracy metrics
         let totalCtrError = 0;

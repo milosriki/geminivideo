@@ -106,20 +106,26 @@ print(json.dumps(summary))
    * Reset a specific circuit breaker
    */
   async resetBreaker(name: string): Promise<void> {
+    // SECURITY FIX: Validate name to prevent command injection
+    const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (sanitizedName !== name || !name || name.length > 64) {
+      throw new Error('Invalid circuit breaker name');
+    }
+
     try {
       await execAsync(
         `${this.pythonPath} -c "
 import sys
 sys.path.insert(0, '${this.scriptPath}')
 from circuit_breaker import registry
-breaker = registry.get('${name}')
+breaker = registry.get('${sanitizedName}')
 if breaker:
     breaker.reset()
     print('Reset successful')
 "`
       );
     } catch (error: any) {
-      console.error(`Failed to reset breaker ${name}:`, error.message);
+      console.error(`Failed to reset breaker ${sanitizedName}:`, error.message);
       throw error;
     }
   }
