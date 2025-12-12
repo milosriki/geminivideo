@@ -283,8 +283,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd services/gateway-api && npm ci && cd ../..
-          cd frontend && npm ci && cd ..
+          cd services/gateway-api && npm ci
+          cd $GITHUB_WORKSPACE/frontend && npm ci
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -441,13 +441,13 @@ jobs:
       - name: Run ESLint
         run: |
           cd services/gateway-api && npm run lint || echo "Linting not configured"
-          cd ../../services/meta-publisher && npm run lint || echo "Linting not configured"
+          cd $GITHUB_WORKSPACE/services/meta-publisher && npm run lint || echo "Linting not configured"
         continue-on-error: true
 
       - name: Run TypeScript checks
         run: |
           cd services/gateway-api && npx tsc --noEmit || echo "TypeScript check not configured"
-          cd ../../services/meta-publisher && npx tsc --noEmit || echo "TypeScript check not configured"
+          cd $GITHUB_WORKSPACE/services/meta-publisher && npx tsc --noEmit || echo "TypeScript check not configured"
         continue-on-error: true
 
       - name: Run Python linters
