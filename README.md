@@ -246,6 +246,17 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for complete guide including:
 - Monitoring and logging setup
 - Cost optimization tips
 
+### 🔧 Vercel Deployment Troubleshooting
+
+Having issues with Vercel account connections? We've got you covered:
+
+- **[Vercel Account Diagnostic Guide](VERCEL_ACCOUNT_DIAGNOSTIC_GUIDE.md)** - Complete step-by-step troubleshooting
+- **[Quick Check Guide](VERCEL_ACCOUNT_QUICK_CHECK.md)** - Fast diagnosis in 5 minutes
+- **[Diagnostic Flowchart](VERCEL_ACCOUNT_FLOWCHART.md)** - Visual decision tree
+- **[Diagnostic Script](scripts/check-vercel-account.sh)** - Automated local checks
+
+See [docs/vercel-troubleshooting.md](docs/vercel-troubleshooting.md) for the complete troubleshooting index.
+
 ## 📝 License
 
 MIT License - see LICENSE file for details.
