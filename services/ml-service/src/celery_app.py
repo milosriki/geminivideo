@@ -22,8 +22,20 @@ celery_app.conf.task_routes = {
     'monitor_fatigue': {'queue': 'fatigue-monitoring'},
     'auto_index_winner': {'queue': 'budget-optimization'},
     'process_budget_optimization': {'queue': 'budget-optimization'},
+    # Agent 6: Precomputation tasks
+    'precompute_daily_predictions': {'queue': 'precomputation'},
+    'warm_cache_for_campaigns': {'queue': 'precomputation'},
+    'analyze_query_patterns': {'queue': 'precomputation'},
+    'precompute_top_campaigns': {'queue': 'precomputation'},
+    'precompute_scheduled_campaigns': {'queue': 'precomputation'},
+    'cleanup_old_query_logs': {'queue': 'precomputation'},
+    # Agent 10: Drift detection tasks
+    'check_drift_daily': {'queue': 'drift-monitoring'},
+    'check_drift_weekly': {'queue': 'drift-monitoring'},
+    'alert_on_drift': {'queue': 'drift-monitoring'},
+    'monitor_predictions_hourly': {'queue': 'drift-monitoring'},
 }
 
-# Import tasks (will be created by Agent 4)
-celery_app.autodiscover_tasks(['src.celery_tasks'])
+# Import tasks (Agent 3, 4, 6, and 10)
+celery_app.autodiscover_tasks(['src.celery_tasks', 'src.precompute.tasks', 'src.drift.drift_tasks'])
 

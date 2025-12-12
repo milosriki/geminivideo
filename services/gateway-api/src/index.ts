@@ -13,6 +13,9 @@ import { createClient } from 'redis';
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 
+// Export axios as httpClient for backward compatibility
+export const httpClient = axios;
+
 import { ScoringEngine } from './services/scoring-engine';
 import { ReliabilityLogger } from './services/reliability-logger';
 import { LearningService } from './services/learning-service';
@@ -605,36 +608,45 @@ app.post('/api/publish/meta',
         ad_id,
         userId,
         JSON.stringify({
-          // ====================================================================
+          ad_id,
+          video_path,
+          caption,
+          scheduled_time
+        })
+      ]);
 
-          const response = await axios.post(
-            `${META_PUBLISHER_URL}/publish/meta`,
-            {
-              ad_id,
-              video_path,
-              caption,
-              scheduled_time
-            }
-          );
+      // ====================================================================
+      // PUBLISH TO META
+      // ====================================================================
 
-          console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
-
-          res.json({
-            ...response.data,
-            security_check: {
-              approved: true,
-              approved_by: userId,
-              published_at: new Date().toISOString()
-            }
-          });
-
-        } catch (error: any) {
-          console.error('[ERROR] Publish failed:', error.message);
-          res.status(error.response?.status || 500).json({
-            error: error.message
-          });
+      const response = await axios.post(
+        `${META_PUBLISHER_URL}/publish/meta`,
+        {
+          ad_id,
+          video_path,
+          caption,
+          scheduled_time
         }
-    });
+      );
+
+      console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
+
+      res.json({
+        ...response.data,
+        security_check: {
+          approved: true,
+          approved_by: userId,
+          published_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error: any) {
+      console.error('[ERROR] Publish failed:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
+    }
+  });
 
 app.get('/api/insights', async (req: Request, res: Response) => {
   try {

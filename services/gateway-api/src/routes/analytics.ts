@@ -12,7 +12,7 @@
 
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { httpClient } from "../index";
+import { httpClient } from '../index';
 import { apiRateLimiter, validateInput } from '../middleware/security';
 
 const router = Router();
@@ -55,7 +55,8 @@ export function createAnalyticsRouter(pgPool: Pool): Router {
           dateParams.push(start_date, end_date);
         } else if (time_range !== 'all') {
           // SECURITY FIX: Use parameterized query instead of string interpolation
-          const days = time_range === 'today' ? 0 : parseInt(time_range.replace('d', ''));
+          const timeRangeStr = String(time_range);
+          const days = timeRangeStr === 'today' ? 0 : parseInt(timeRangeStr.replace('d', ''));
           
           // Validate days is a number
           if (isNaN(days) || days < 0 || days > 365) {

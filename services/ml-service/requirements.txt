@@ -54,3 +54,8 @@ python-dateutil==2.8.2
 
 # Precomputation (Agent 45)
 redis==5.0.1
+
+# Celery Worker System (Agent 3)
+celery[redis]==5.3.4
+kombu==5.3.4
+flower==2.0.1

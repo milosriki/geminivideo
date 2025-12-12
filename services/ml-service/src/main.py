@@ -9,6 +9,7 @@ from typing import List, Dict, Optional, Any
 import os
 import logging
 import time
+import asyncio
 import numpy as np
 from datetime import datetime
 
@@ -63,6 +64,14 @@ try:
 except ImportError:
     logger.warning("Creative DNA API not available - check dependencies")
     DNA_API_AVAILABLE = False
+
+# Import Day-Part Optimizer API (Agent 8)
+try:
+    from src.daypart import daypart_router
+    DAYPART_OPTIMIZER_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Day-Part Optimizer not available: {e}")
+    DAYPART_OPTIMIZER_AVAILABLE = False
 
 # Import 4 Self-Learning Modules (Loops 4-7)
 try:
@@ -150,6 +159,11 @@ if AUTO_SCALER_AVAILABLE:
 if DNA_API_AVAILABLE:
     app.include_router(dna_router)
     logger.info("✅ Creative DNA API endpoints enabled at /api/dna/*")
+
+# Include Day-Part Optimizer API router (Agent 8)
+if DAYPART_OPTIMIZER_AVAILABLE:
+    app.include_router(daypart_router)
+    logger.info("✅ Day-Part Optimizer API endpoints enabled at /daypart/*")
 
 # Pydantic models
 class CTRPredictionRequest(BaseModel):
@@ -4315,7 +4329,6 @@ async def startup_event():
 
     # Start precomputation workers (Agent 45)
     try:
-        import asyncio
         precomputer = get_precomputer()
         num_workers = int(os.getenv("PRECOMPUTE_WORKERS", "3"))
         asyncio.create_task(precomputer.start_workers(num_workers=num_workers))

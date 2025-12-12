@@ -4,6 +4,8 @@
  * Agent 19: Multi-Platform Publishing Infrastructure
  */
 
+import { httpClient } from '../index';
+
 export interface PlatformSpec {
   platform: 'meta' | 'google' | 'tiktok';
   aspectRatio: string;

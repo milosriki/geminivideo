@@ -20,6 +20,12 @@ opencv-python-headless>=4.9.0.80
 redis==5.0.1
 google-cloud-storage>=2.10.0
 
+# Celery Worker System
+celery[redis]==5.3.4
+kombu==5.3.4
+flower==2.0.1
+psutil>=5.9.0
+
 # Voice Generation (ElevenLabs + OpenAI TTS)
 aiohttp>=3.9.0
 elevenlabs>=0.2.27
