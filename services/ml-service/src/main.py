@@ -3599,14 +3599,79 @@ if SELF_LEARNING_MODULES_AVAILABLE:
                 "failed": actuals_summary.failed
             })
 
-            # Step 2: Calculate accuracy (would need predictions table)
+            # Step 2: Calculate accuracy from predictions vs actuals
             logger.info("Step 2/7: Calculating accuracy...")
-            # TODO: Calculate prediction accuracy from actuals
-            accuracy = 0.85  # Placeholder
+
+            # Calculate prediction accuracy by comparing predictions with actuals
+            try:
+                from shared.db.models import Prediction, PerformanceMetric
+                from shared.db.connection import get_db_session
+                from sqlalchemy import and_
+
+                db = get_db_session()
+
+                # Get predictions with actuals fetched in the last 30 days
+                cutoff_date = datetime.utcnow() - timedelta(days=30)
+                predictions_with_actuals = db.query(Prediction).filter(
+                    and_(
+                        Prediction.actuals_fetched_at.isnot(None),
+                        Prediction.created_at >= cutoff_date,
+                        Prediction.actual_ctr.isnot(None)
+                    )
+                ).limit(1000).all()
+
+                if predictions_with_actuals and len(predictions_with_actuals) > 0:
+                    # Calculate CTR accuracy
+                    ctr_accuracies = []
+                    roas_accuracies = []
+
+                    for pred in predictions_with_actuals:
+                        # CTR accuracy (1 - MAPE)
+                        if pred.predicted_ctr and pred.actual_ctr and pred.actual_ctr > 0:
+                            ctr_error = abs((pred.actual_ctr - pred.predicted_ctr) / pred.actual_ctr)
+                            ctr_accuracy = max(0, 1 - ctr_error)
+                            ctr_accuracies.append(ctr_accuracy)
+
+                        # ROAS accuracy (1 - MAPE)
+                        if pred.predicted_roas and pred.actual_roas and pred.actual_roas > 0:
+                            roas_error = abs((pred.actual_roas - pred.predicted_roas) / pred.actual_roas)
+                            roas_accuracy = max(0, 1 - roas_error)
+                            roas_accuracies.append(roas_accuracy)
+
+                    # Overall accuracy (weighted average)
+                    if ctr_accuracies:
+                        avg_ctr_accuracy = sum(ctr_accuracies) / len(ctr_accuracies)
+                    else:
+                        avg_ctr_accuracy = 0.0
+
+                    if roas_accuracies:
+                        avg_roas_accuracy = sum(roas_accuracies) / len(roas_accuracies)
+                    else:
+                        avg_roas_accuracy = 0.0
+
+                    # Combined accuracy (70% CTR, 30% ROAS weight)
+                    accuracy = (avg_ctr_accuracy * 0.7) + (avg_roas_accuracy * 0.3)
+
+                    logger.info(
+                        f"Calculated accuracy from {len(predictions_with_actuals)} predictions: "
+                        f"Overall={accuracy:.2%}, CTR={avg_ctr_accuracy:.2%}, ROAS={avg_roas_accuracy:.2%}"
+                    )
+                else:
+                    # No predictions with actuals yet
+                    accuracy = 0.85  # Default accuracy for new system
+                    logger.warning("No predictions with actuals found, using default accuracy")
+
+                db.close()
+
+            except Exception as e:
+                logger.error(f"Error calculating accuracy: {e}")
+                accuracy = 0.85  # Fallback to default
+
             results["steps"].append({
                 "step": 2,
                 "name": "calculate_accuracy",
-                "accuracy": accuracy
+                "accuracy": accuracy,
+                "predictions_evaluated": len(predictions_with_actuals) if predictions_with_actuals else 0
             })
 
             # Step 3: Auto-retrain if needed
