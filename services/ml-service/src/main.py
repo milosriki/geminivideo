@@ -4413,6 +4413,113 @@ if ARTERY_MODULES_AVAILABLE:
                 "error": str(e)
             }
 
+    # ============================================================
+    # WINNER REPLICATION ENDPOINTS (Agent 03)
+    # ============================================================
+
+    @app.post("/api/ml/winners/replicate-top", tags=["Winner Replication"])
+    async def replicate_top_winners(
+        limit: int = 5,
+        min_ctr: float = 0.03,
+        min_roas: float = 3.0,
+        variations_per_winner: int = 3
+    ):
+        """
+        Replicate top winners automatically.
+
+        Args:
+            limit: Number of top winners to replicate (default: 5)
+            min_ctr: Minimum CTR threshold (default: 0.03 = 3%)
+            min_roas: Minimum ROAS threshold (default: 3.0 = 3x)
+            variations_per_winner: Variations to create per winner (default: 3)
+
+        Returns:
+            List of replicated ad variations with Creative DNA
+        """
+        try:
+            from src.winner_replicator import get_winner_replicator
+
+            replicator = get_winner_replicator()
+            replicated = await replicator.replicate_top_winners(
+                limit=limit,
+                min_ctr=min_ctr,
+                min_roas=min_roas,
+                variations_per_winner=variations_per_winner
+            )
+
+            return {
+                "status": "success",
+                "message": f"Replicated {len(replicated)} variations from top {limit} winners",
+                "criteria": {
+                    "limit": limit,
+                    "min_ctr": min_ctr,
+                    "min_roas": min_roas,
+                    "variations_per_winner": variations_per_winner
+                },
+                "replicated_count": len(replicated),
+                "replicated_ads": replicated
+            }
+
+        except Exception as e:
+            logger.error(f"Error in replicate_top_winners: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/api/ml/winners/replicate/{winner_id}", tags=["Winner Replication"])
+    async def replicate_specific_winner(winner_id: str, variations: int = 3):
+        """
+        Replicate a specific winner with variations.
+
+        Args:
+            winner_id: ID of the winner ad to replicate
+            variations: Number of variations to create (default: 3, max: 5)
+
+        Returns:
+            List of replicated ad variations
+        """
+        try:
+            from src.winner_replicator import get_winner_replicator
+
+            replicator = get_winner_replicator()
+            replicated = await replicator.replicate_similar_to_winner(
+                winner_id=winner_id,
+                variations=min(variations, 5)  # Cap at 5 variations
+            )
+
+            return {
+                "status": "success",
+                "message": f"Created {len(replicated)} variations of winner {winner_id}",
+                "source_winner_id": winner_id,
+                "replicated_count": len(replicated),
+                "replicated_ads": replicated
+            }
+
+        except Exception as e:
+            logger.error(f"Error replicating winner {winner_id}: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/ml/winners/replication-stats", tags=["Winner Replication"])
+    async def get_replication_stats():
+        """
+        Get statistics about winner replication potential.
+
+        Returns:
+            Statistics including performance tiers and replication potential
+        """
+        try:
+            from src.winner_replicator import get_winner_replicator
+
+            replicator = get_winner_replicator()
+            stats = await replicator.get_replication_stats()
+
+            return {
+                "status": "success",
+                "stats": stats
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting replication stats: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
 
 # ============================================================
 # END SELF-LEARNING LOOPS 4-7 + ARTERY MODULES
