@@ -1082,3 +1082,679 @@ class HubSpotIntegration:
                 "status": "error",
                 "error": str(e)
             }
+
+
+# ============================================================================
+# HubSpot CRM API v3 Direct Integration with Ad Performance Tracking
+# ============================================================================
+
+import httpx
+import asyncio
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type
+)
+
+
+class HubSpotAPIError(Exception):
+    """Custom exception for HubSpot API errors."""
+    pass
+
+
+class HubSpotCRM:
+    """
+    HubSpot CRM API v3 direct integration for ad performance tracking.
+
+    Features:
+    - Sync deals with ad performance metrics
+    - Track 5-day sales cycles
+    - Update deal stages based on ad performance
+    - Create/update contacts with retry logic
+    - Proper error handling and exponential backoff
+
+    Agent 21 - Complete HubSpot CRM Integration
+    """
+
+    BASE_URL = "https://api.hubapi.com"
+    MAX_RETRIES = 3
+    RETRY_WAIT_MIN = 1  # seconds
+    RETRY_WAIT_MAX = 10  # seconds
+
+    def __init__(self, access_token: str):
+        """
+        Initialize HubSpot CRM client with API access token.
+
+        Args:
+            access_token: HubSpot private app access token
+        """
+        self.access_token = access_token
+        self.headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        self.client = httpx.AsyncClient(
+            timeout=30.0,
+            headers=self.headers
+        )
+        logger.info("HubSpot CRM API v3 client initialized")
+
+    async def close(self):
+        """Close the HTTP client."""
+        await self.client.aclose()
+
+    @retry(
+        stop=stop_after_attempt(MAX_RETRIES),
+        wait=wait_exponential(multiplier=RETRY_WAIT_MIN, max=RETRY_WAIT_MAX),
+        retry=retry_if_exception_type((httpx.HTTPError, HubSpotAPIError)),
+        reraise=True
+    )
+    async def _make_request(
+        self,
+        method: str,
+        endpoint: str,
+        data: Optional[Dict] = None,
+        params: Optional[Dict] = None
+    ) -> Dict:
+        """
+        Make HTTP request to HubSpot API with retry logic.
+
+        Args:
+            method: HTTP method (GET, POST, PATCH, PUT, DELETE)
+            endpoint: API endpoint path
+            data: Request body data
+            params: Query parameters
+
+        Returns:
+            Dict: Response JSON
+
+        Raises:
+            HubSpotAPIError: If API returns error response
+        """
+        url = f"{self.BASE_URL}{endpoint}"
+
+        try:
+            response = await self.client.request(
+                method=method,
+                url=url,
+                json=data,
+                params=params
+            )
+
+            # Handle rate limiting
+            if response.status_code == 429:
+                retry_after = int(response.headers.get('Retry-After', 5))
+                logger.warning(f"Rate limited. Retrying after {retry_after}s")
+                await asyncio.sleep(retry_after)
+                raise HubSpotAPIError("Rate limit exceeded")
+
+            # Handle errors
+            if response.status_code >= 400:
+                error_data = response.json() if response.text else {}
+                error_msg = error_data.get('message', f'HTTP {response.status_code}')
+                logger.error(f"HubSpot API error: {error_msg}")
+                raise HubSpotAPIError(f"API error: {error_msg}")
+
+            return response.json() if response.text else {}
+
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error during request to {endpoint}: {e}")
+            raise
+
+    # ============================================================================
+    # Deal Management
+    # ============================================================================
+
+    async def get_deal(self, deal_id: str) -> Dict:
+        """
+        Get deal by ID.
+
+        Args:
+            deal_id: HubSpot deal ID
+
+        Returns:
+            Dict: Deal properties and metadata
+        """
+        endpoint = f"/crm/v3/objects/deals/{deal_id}"
+        params = {
+            "properties": [
+                "dealname", "amount", "dealstage", "pipeline", "closedate",
+                "createdate", "campaign_id", "meta_ad_id", "ad_spend",
+                "ad_impressions", "ad_clicks", "ad_ctr", "ad_cpc", "ad_roas"
+            ],
+            "associations": ["contacts"]
+        }
+
+        try:
+            response = await self._make_request("GET", endpoint, params=params)
+            logger.info(f"Retrieved deal {deal_id}")
+            return response
+        except Exception as e:
+            logger.error(f"Error getting deal {deal_id}: {e}")
+            raise
+
+    async def create_deal(
+        self,
+        properties: Dict[str, Any],
+        contact_id: Optional[str] = None
+    ) -> Dict:
+        """
+        Create new deal.
+
+        Args:
+            properties: Deal properties
+            contact_id: Optional contact ID to associate
+
+        Returns:
+            Dict: Created deal data
+        """
+        endpoint = "/crm/v3/objects/deals"
+
+        # Set default 5-day close date if not provided
+        if "closedate" not in properties:
+            close_date = datetime.now() + timedelta(days=5)
+            properties["closedate"] = close_date.strftime("%Y-%m-%d")
+
+        data = {"properties": properties}
+
+        # Add contact association if provided
+        if contact_id:
+            data["associations"] = [
+                {
+                    "to": {"id": contact_id},
+                    "types": [
+                        {
+                            "associationCategory": "HUBSPOT_DEFINED",
+                            "associationTypeId": 3  # Deal to Contact
+                        }
+                    ]
+                }
+            ]
+
+        try:
+            response = await self._make_request("POST", endpoint, data=data)
+            deal_id = response.get("id")
+            logger.info(f"Created deal {deal_id}: {properties.get('dealname')}")
+            return response
+        except Exception as e:
+            logger.error(f"Error creating deal: {e}")
+            raise
+
+    async def update_deal(self, deal_id: str, properties: Dict[str, Any]) -> Dict:
+        """
+        Update deal properties.
+
+        Args:
+            deal_id: Deal ID to update
+            properties: Properties to update
+
+        Returns:
+            Dict: Updated deal data
+        """
+        endpoint = f"/crm/v3/objects/deals/{deal_id}"
+        data = {"properties": properties}
+
+        try:
+            response = await self._make_request("PATCH", endpoint, data=data)
+            logger.info(f"Updated deal {deal_id}")
+            return response
+        except Exception as e:
+            logger.error(f"Error updating deal {deal_id}: {e}")
+            raise
+
+    async def sync_ad_performance_to_deal(
+        self,
+        deal_id: str,
+        ad_metrics: Dict[str, Any]
+    ) -> bool:
+        """
+        Sync ad performance metrics to deal.
+
+        Args:
+            deal_id: Deal ID
+            ad_metrics: Ad performance data
+                {
+                    "campaign_id": str,
+                    "ad_spend": float,
+                    "impressions": int,
+                    "clicks": int,
+                    "conversions": int,
+                    "ctr": float,
+                    "cpc": float,
+                    "roas": float
+                }
+
+        Returns:
+            bool: True if successful
+        """
+        try:
+            # Map ad metrics to HubSpot deal properties
+            properties = {
+                "campaign_id": ad_metrics.get("campaign_id", ""),
+                "ad_spend": str(ad_metrics.get("ad_spend", 0)),
+                "ad_impressions": str(ad_metrics.get("impressions", 0)),
+                "ad_clicks": str(ad_metrics.get("clicks", 0)),
+                "ad_ctr": str(ad_metrics.get("ctr", 0)),
+                "ad_cpc": str(ad_metrics.get("cpc", 0)),
+                "ad_roas": str(ad_metrics.get("roas", 0))
+            }
+
+            await self.update_deal(deal_id, properties)
+            logger.info(f"Synced ad performance to deal {deal_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error syncing ad performance to deal {deal_id}: {e}")
+            return False
+
+    async def update_deal_stage_based_on_performance(
+        self,
+        deal_id: str,
+        ad_metrics: Dict[str, Any],
+        performance_thresholds: Optional[Dict[str, float]] = None
+    ) -> bool:
+        """
+        Update deal stage based on ad performance metrics.
+
+        Args:
+            deal_id: Deal ID
+            ad_metrics: Ad performance data
+            performance_thresholds: Custom thresholds for stage progression
+                {
+                    "high_engagement_ctr": 0.05,  # 5% CTR
+                    "qualified_roas": 2.0,  # 2x ROAS
+                    "winning_roas": 5.0  # 5x ROAS
+                }
+
+        Returns:
+            bool: True if stage updated
+        """
+        # Default thresholds
+        thresholds = performance_thresholds or {
+            "high_engagement_ctr": 0.05,
+            "qualified_roas": 2.0,
+            "winning_roas": 5.0
+        }
+
+        try:
+            # Get current deal
+            deal = await self.get_deal(deal_id)
+            current_stage = deal.get("properties", {}).get("dealstage")
+
+            # Determine new stage based on performance
+            ctr = ad_metrics.get("ctr", 0)
+            roas = ad_metrics.get("roas", 0)
+
+            new_stage = None
+
+            # High ROAS indicates strong performance
+            if roas >= thresholds["winning_roas"]:
+                new_stage = DealStage.CLOSED_WON.value
+            elif roas >= thresholds["qualified_roas"]:
+                new_stage = DealStage.CONTRACT_SENT.value
+            elif ctr >= thresholds["high_engagement_ctr"]:
+                new_stage = DealStage.QUALIFIED_TO_BUY.value
+
+            # Only update if stage should progress
+            if new_stage and new_stage != current_stage:
+                properties = {"dealstage": new_stage}
+
+                # Set close date if moving to closed won
+                if new_stage == DealStage.CLOSED_WON.value:
+                    properties["closedate"] = datetime.now().strftime("%Y-%m-%d")
+
+                await self.update_deal(deal_id, properties)
+                logger.info(
+                    f"Updated deal {deal_id} from {current_stage} to {new_stage} "
+                    f"(CTR: {ctr:.2%}, ROAS: {roas:.2f}x)"
+                )
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"Error updating deal stage for {deal_id}: {e}")
+            return False
+
+    # ============================================================================
+    # Sales Cycle Tracking
+    # ============================================================================
+
+    async def track_sales_cycle(self, deal_id: str) -> Dict[str, Any]:
+        """
+        Calculate 5-day sales cycle metrics for a deal.
+
+        Args:
+            deal_id: Deal ID
+
+        Returns:
+            Dict: Sales cycle metrics
+                {
+                    "deal_id": str,
+                    "created_at": datetime,
+                    "closed_at": datetime,
+                    "cycle_days": int,
+                    "target_days": 5,
+                    "on_track": bool,
+                    "stage_history": List[Dict],
+                    "current_stage": str,
+                    "velocity_score": float  # 0-100, higher is better
+                }
+        """
+        try:
+            # Get deal details
+            deal = await self.get_deal(deal_id)
+            props = deal.get("properties", {})
+
+            created_at = datetime.fromisoformat(
+                props.get("createdate", "").replace("Z", "+00:00")
+            )
+            close_date = props.get("closedate")
+            current_stage = props.get("dealstage", "")
+
+            # Calculate cycle metrics
+            now = datetime.now(created_at.tzinfo)
+            cycle_days = (now - created_at).days
+
+            # Check if deal is closed
+            is_closed = current_stage in [
+                DealStage.CLOSED_WON.value,
+                DealStage.CLOSED_LOST.value
+            ]
+
+            if is_closed and close_date:
+                closed_at = datetime.fromisoformat(
+                    close_date.replace("Z", "+00:00")
+                )
+                cycle_days = (closed_at - created_at).days
+            else:
+                closed_at = None
+
+            # Calculate velocity score (0-100)
+            # Perfect score if closed won in <= 5 days
+            target_days = 5
+            if is_closed and current_stage == DealStage.CLOSED_WON.value:
+                velocity_score = max(0, 100 - ((cycle_days - target_days) * 10))
+            elif cycle_days <= target_days:
+                # Partial score for in-progress deals
+                velocity_score = 50 + (cycle_days / target_days * 50)
+            else:
+                # Penalty for overdue deals
+                velocity_score = max(0, 50 - ((cycle_days - target_days) * 5))
+
+            metrics = {
+                "deal_id": deal_id,
+                "deal_name": props.get("dealname", ""),
+                "created_at": created_at.isoformat(),
+                "closed_at": closed_at.isoformat() if closed_at else None,
+                "cycle_days": cycle_days,
+                "target_days": target_days,
+                "on_track": cycle_days <= target_days,
+                "current_stage": current_stage,
+                "is_closed": is_closed,
+                "velocity_score": round(velocity_score, 2),
+                "amount": float(props.get("amount", 0)),
+                "campaign_id": props.get("campaign_id", "")
+            }
+
+            logger.info(
+                f"Sales cycle for deal {deal_id}: {cycle_days} days "
+                f"(velocity: {velocity_score:.1f})"
+            )
+
+            return metrics
+
+        except Exception as e:
+            logger.error(f"Error tracking sales cycle for deal {deal_id}: {e}")
+            raise
+
+    async def get_deals_by_cycle_status(
+        self,
+        status: str = "on_track"
+    ) -> List[Dict]:
+        """
+        Get deals filtered by sales cycle status.
+
+        Args:
+            status: Filter status ('on_track', 'overdue', 'closed')
+
+        Returns:
+            List[Dict]: Deals matching status
+        """
+        try:
+            # Search for open deals
+            endpoint = "/crm/v3/objects/deals/search"
+
+            filters = [
+                {
+                    "propertyName": "dealstage",
+                    "operator": "NEQ",
+                    "value": DealStage.CLOSED_LOST.value
+                }
+            ]
+
+            # Add status-specific filters
+            cutoff_date = datetime.now() - timedelta(days=5)
+
+            if status == "on_track":
+                # Created within last 5 days, not closed
+                filters.append({
+                    "propertyName": "createdate",
+                    "operator": "GTE",
+                    "value": int(cutoff_date.timestamp() * 1000)
+                })
+                filters.append({
+                    "propertyName": "dealstage",
+                    "operator": "NEQ",
+                    "value": DealStage.CLOSED_WON.value
+                })
+            elif status == "overdue":
+                # Created more than 5 days ago, not closed
+                filters.append({
+                    "propertyName": "createdate",
+                    "operator": "LT",
+                    "value": int(cutoff_date.timestamp() * 1000)
+                })
+                filters.append({
+                    "propertyName": "dealstage",
+                    "operator": "NEQ",
+                    "value": DealStage.CLOSED_WON.value
+                })
+            elif status == "closed":
+                filters = [{
+                    "propertyName": "dealstage",
+                    "operator": "EQ",
+                    "value": DealStage.CLOSED_WON.value
+                }]
+
+            data = {
+                "filterGroups": [{"filters": filters}],
+                "properties": [
+                    "dealname", "amount", "dealstage", "createdate",
+                    "closedate", "campaign_id"
+                ],
+                "limit": 100
+            }
+
+            response = await self._make_request("POST", endpoint, data=data)
+            deals = response.get("results", [])
+
+            logger.info(f"Found {len(deals)} deals with status '{status}'")
+            return deals
+
+        except Exception as e:
+            logger.error(f"Error getting deals by cycle status: {e}")
+            return []
+
+    # ============================================================================
+    # Contact Management
+    # ============================================================================
+
+    async def create_contact(self, properties: Dict[str, Any]) -> Dict:
+        """
+        Create new contact.
+
+        Args:
+            properties: Contact properties (must include email)
+
+        Returns:
+            Dict: Created contact data
+        """
+        endpoint = "/crm/v3/objects/contacts"
+
+        if "email" not in properties:
+            raise ValueError("Email is required to create contact")
+
+        data = {"properties": properties}
+
+        try:
+            response = await self._make_request("POST", endpoint, data=data)
+            contact_id = response.get("id")
+            logger.info(f"Created contact {contact_id}: {properties.get('email')}")
+            return response
+        except Exception as e:
+            logger.error(f"Error creating contact: {e}")
+            raise
+
+    async def update_contact(
+        self,
+        contact_id: str,
+        properties: Dict[str, Any]
+    ) -> Dict:
+        """
+        Update contact properties.
+
+        Args:
+            contact_id: Contact ID
+            properties: Properties to update
+
+        Returns:
+            Dict: Updated contact data
+        """
+        endpoint = f"/crm/v3/objects/contacts/{contact_id}"
+        data = {"properties": properties}
+
+        try:
+            response = await self._make_request("PATCH", endpoint, data=data)
+            logger.info(f"Updated contact {contact_id}")
+            return response
+        except Exception as e:
+            logger.error(f"Error updating contact {contact_id}: {e}")
+            raise
+
+    async def get_contact_by_email(self, email: str) -> Optional[Dict]:
+        """
+        Get contact by email address.
+
+        Args:
+            email: Contact email
+
+        Returns:
+            Optional[Dict]: Contact data if found
+        """
+        endpoint = "/crm/v3/objects/contacts/search"
+
+        data = {
+            "filterGroups": [
+                {
+                    "filters": [
+                        {
+                            "propertyName": "email",
+                            "operator": "EQ",
+                            "value": email
+                        }
+                    ]
+                }
+            ],
+            "properties": [
+                "email", "firstname", "lastname", "phone", "company",
+                "lifecyclestage", "utm_campaign", "utm_source"
+            ],
+            "limit": 1
+        }
+
+        try:
+            response = await self._make_request("POST", endpoint, data=data)
+            results = response.get("results", [])
+
+            if results:
+                contact = results[0]
+                logger.info(f"Found contact by email: {email}")
+                return contact
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error searching for contact {email}: {e}")
+            return None
+
+    async def sync_contact(
+        self,
+        email: str,
+        properties: Dict[str, Any]
+    ) -> str:
+        """
+        Create or update contact by email.
+
+        Args:
+            email: Contact email
+            properties: Contact properties to set/update
+
+        Returns:
+            str: Contact ID
+        """
+        properties["email"] = email
+
+        try:
+            # Check if contact exists
+            existing = await self.get_contact_by_email(email)
+
+            if existing:
+                # Update existing
+                contact_id = existing.get("id")
+                await self.update_contact(contact_id, properties)
+                logger.info(f"Updated existing contact: {email}")
+                return contact_id
+            else:
+                # Create new
+                contact = await self.create_contact(properties)
+                contact_id = contact.get("id")
+                logger.info(f"Created new contact: {email}")
+                return contact_id
+
+        except Exception as e:
+            logger.error(f"Error syncing contact {email}: {e}")
+            raise
+
+    # ============================================================================
+    # Association Management
+    # ============================================================================
+
+    async def associate_deal_with_contact(
+        self,
+        deal_id: str,
+        contact_id: str
+    ) -> bool:
+        """
+        Associate deal with contact.
+
+        Args:
+            deal_id: Deal ID
+            contact_id: Contact ID
+
+        Returns:
+            bool: True if successful
+        """
+        endpoint = (
+            f"/crm/v3/objects/deals/{deal_id}/associations/"
+            f"contacts/{contact_id}/deal_to_contact"
+        )
+
+        try:
+            await self._make_request("PUT", endpoint)
+            logger.info(f"Associated deal {deal_id} with contact {contact_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error associating deal with contact: {e}")
+            return False

@@ -34,6 +34,34 @@ import {
   validateApiKey
 } from './middleware/security';
 
+// API Versioning middleware imports (Agent 24)
+import {
+  API_VERSION,
+  API_PREFIX,
+  apiVersionMiddleware,
+  validateApiVersion,
+  versionInfoHandler
+} from './middleware/api-versioning';
+
+// Monitoring & Observability imports (Agent 28)
+import {
+  register,
+  metricsMiddleware,
+  getMetrics
+} from './monitoring/metrics';
+import {
+  checkHealth,
+  checkReadiness,
+  checkLiveness,
+  setDatabasePool,
+  setRedisClient
+} from './monitoring/health';
+import {
+  initTracing,
+  tracingMiddleware,
+  getTracingConfig
+} from './monitoring/tracing';
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 
@@ -62,6 +90,16 @@ app.use(sqlInjectionProtection);
 
 // 7. XSS Protection - Sanitize HTML
 app.use(xssProtection);
+
+// 8. API Versioning - Add version management (Agent 24)
+app.use(apiVersionMiddleware);
+app.use(validateApiVersion(['v1']));
+
+// 9. Metrics Collection - Track HTTP metrics (Agent 28)
+app.use(metricsMiddleware);
+
+// 10. Distributed Tracing - OpenTelemetry (Agent 28)
+app.use(tracingMiddleware);
 
 // Initialize security Redis for distributed rate limiting
 initializeSecurityRedis().catch(err => {
@@ -108,11 +146,24 @@ pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
 
 // Verify database connection
 pgPool.query('SELECT NOW()')
-  .then(() => console.log('✅ PostgreSQL connected'))
+  .then(() => {
+    console.log('✅ PostgreSQL connected');
+    // Initialize monitoring health checks (Agent 28)
+    setDatabasePool(pgPool);
+  })
   .catch((err) => {
     console.error('❌ PostgreSQL connection failed:', err.message);
     process.exit(1);
   });
+
+// Initialize monitoring with Redis client (Agent 28)
+if (redisClient) {
+  setRedisClient(redisClient);
+}
+
+// Initialize distributed tracing (Agent 28)
+const tracingConfig = getTracingConfig();
+initTracing(tracingConfig);
 
 // Load configuration
 const configPath = process.env.CONFIG_PATH || '../../shared/config';
@@ -146,6 +197,63 @@ app.get('/', (req: Request, res: Response) => {
     status: 'running',
     version: '1.0.0'
   });
+});
+
+// ============================================================================
+// MONITORING & OBSERVABILITY ENDPOINTS (Agent 28)
+// ============================================================================
+
+// Prometheus metrics endpoint - Grafana-compatible
+app.get('/metrics', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getMetrics();
+    res.set('Content-Type', register.contentType);
+    res.send(metrics);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health check endpoint - comprehensive health status
+app.get('/health', async (req: Request, res: Response) => {
+  try {
+    const health = await checkHealth();
+    const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error: any) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Readiness probe - is the service ready to accept traffic?
+app.get('/health/ready', async (req: Request, res: Response) => {
+  try {
+    const readiness = await checkReadiness();
+    const statusCode = readiness.ready ? 200 : 503;
+    res.status(statusCode).json(readiness);
+  } catch (error: any) {
+    res.status(503).json({
+      ready: false,
+      error: error.message
+    });
+  }
+});
+
+// Liveness probe - is the service alive?
+app.get('/health/live', (req: Request, res: Response) => {
+  try {
+    const liveness = checkLiveness();
+    res.status(200).json(liveness);
+  } catch (error: any) {
+    res.status(503).json({
+      alive: false,
+      error: error.message
+    });
+  }
 });
 
 // Helper function to validate service URLs
@@ -605,36 +713,45 @@ app.post('/api/publish/meta',
         ad_id,
         userId,
         JSON.stringify({
-          // ====================================================================
+          ad_id,
+          video_path,
+          caption,
+          scheduled_time
+        })
+      ]);
 
-          const response = await axios.post(
-            `${META_PUBLISHER_URL}/publish/meta`,
-            {
-              ad_id,
-              video_path,
-              caption,
-              scheduled_time
-            }
-          );
+      // ====================================================================
+      // Publish to Meta
+      // ====================================================================
 
-          console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
-
-          res.json({
-            ...response.data,
-            security_check: {
-              approved: true,
-              approved_by: userId,
-              published_at: new Date().toISOString()
-            }
-          });
-
-        } catch (error: any) {
-          console.error('[ERROR] Publish failed:', error.message);
-          res.status(error.response?.status || 500).json({
-            error: error.message
-          });
+      const response = await axios.post(
+        `${META_PUBLISHER_URL}/publish/meta`,
+        {
+          ad_id,
+          video_path,
+          caption,
+          scheduled_time
         }
-    });
+      );
+
+      console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
+
+      res.json({
+        ...response.data,
+        security_check: {
+          approved: true,
+          approved_by: userId,
+          published_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error: any) {
+      console.error('[ERROR] Publish failed:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
+    }
+  });
 
 app.get('/api/insights', async (req: Request, res: Response) => {
   try {
@@ -2588,27 +2705,27 @@ app.get('/api/publish/summary',
 // Campaign Management Routes
 import { createCampaignsRouter } from './routes/campaigns';
 const campaignsRouter = createCampaignsRouter(pgPool);
-app.use('/api/campaigns', campaignsRouter);
+app.use(`${API_PREFIX}/campaigns`, campaignsRouter);
 
 // Analytics Routes
 import { createAnalyticsRouter } from './routes/analytics';
 const analyticsRouter = createAnalyticsRouter(pgPool);
-app.use('/api/analytics', analyticsRouter);
+app.use(`${API_PREFIX}/analytics`, analyticsRouter);
 
 // A/B Testing Routes
 import { createABTestsRouter } from './routes/ab-tests';
 const abTestsRouter = createABTestsRouter(pgPool);
-app.use('/api/ab-tests', abTestsRouter);
+app.use(`${API_PREFIX}/ab-tests`, abTestsRouter);
 
 // Ads Management Routes
 import { createAdsRouter } from './routes/ads';
 const adsRouter = createAdsRouter(pgPool);
-app.use('/api/ads', adsRouter);
+app.use(`${API_PREFIX}/ads`, adsRouter);
 
 // Predictions Routes
 import { createPredictionsRouter } from './routes/predictions';
 const predictionsRouter = createPredictionsRouter(pgPool);
-app.use('/api/predictions', predictionsRouter);
+app.use(`${API_PREFIX}/predictions`, predictionsRouter);
 
 // ============================================================================
 // ONBOARDING ENDPOINTS
@@ -2616,35 +2733,35 @@ app.use('/api/predictions', predictionsRouter);
 
 import { createOnboardingRouter } from './routes/onboarding';
 const onboardingRouter = createOnboardingRouter(pgPool);
-app.use('/api/onboarding', onboardingRouter);
+app.use(`${API_PREFIX}/onboarding`, onboardingRouter);
 
 // ============================================================================
 // DEMO MODE ENDPOINTS (Agent 20 - Investor Demo Mode)
 // ============================================================================
 
 import demoRouter from './routes/demo';
-app.use('/api/demo', demoRouter);
+app.use(`${API_PREFIX}/demo`, demoRouter);
 
 // ============================================================================
 // ALERT SYSTEM ENDPOINTS (Agent 16 - Real-Time Performance Alerts)
 // ============================================================================
 
 import alertsRouter, { initializeAlertWebSocket } from './routes/alerts';
-app.use('/api/alerts', alertsRouter);
+app.use(`${API_PREFIX}/alerts`, alertsRouter);
 
 // ============================================================================
 // REPORT GENERATION ENDPOINTS (Agent 18 - Campaign Performance Reports)
 // ============================================================================
 
 import reportRoutes from './routes/reports';
-app.use('/api/reports', reportRoutes);
+app.use(`${API_PREFIX}/reports`, reportRoutes);
 
 // ============================================================================
 // REAL-TIME STREAMING ENDPOINTS (Agent 38 - SSE/WebSocket)
 // ============================================================================
 
 import streamingRoutes from './routes/streaming';
-app.use('/api', streamingRoutes);
+app.use(API_PREFIX, streamingRoutes);
 
 // Import real-time infrastructure
 import {
@@ -2662,7 +2779,16 @@ import {
 
 import { createImageGenerationRouter } from './routes/image-generation';
 const imageGenerationRouter = createImageGenerationRouter(pgPool);
-app.use('/api/image', imageGenerationRouter);
+app.use(`${API_PREFIX}/image`, imageGenerationRouter);
+
+// ============================================================================
+// ROAS DASHBOARD ENDPOINTS (Agent 14 - ROAS Tracking Dashboard)
+// ============================================================================
+
+import { initializeROASRoutes } from './routes/roas-dashboard';
+const roasDashboardRouter = initializeROASRoutes(pgPool);
+app.use(`${API_PREFIX}/roas-dashboard`, roasDashboardRouter);
+console.log('✅ ROAS Dashboard endpoints mounted at /api/v1/roas-dashboard/*');
 
 // ============================================================================
 // ARTERY MODULES - Service Business Intelligence
@@ -2670,27 +2796,32 @@ app.use('/api/image', imageGenerationRouter);
 
 // HubSpot Webhook (Artery #1: HubSpot → ML-Service)
 import hubspotWebhookRouter from './webhooks/hubspot';
-app.use('/api', hubspotWebhookRouter);
-console.log('✅ HubSpot webhook handler mounted at /api/webhook/hubspot');
+app.use(API_PREFIX, hubspotWebhookRouter);
+console.log('✅ HubSpot webhook handler mounted at /api/v1/webhook/hubspot');
 
 // ML Proxy Routes (Artery Module Endpoints)
 import mlProxyRouter from './routes/ml-proxy';
-app.use('/api/ml', mlProxyRouter);
-console.log('✅ Artery module endpoints mounted at /api/ml/*');
+app.use(`${API_PREFIX}/ml`, mlProxyRouter);
+console.log('✅ Artery module endpoints mounted at /api/v1/ml/*');
 
 // ============================================================================
-// HEALTH CHECK
+// HEALTH CHECK & VERSION INFO
 // ============================================================================
 
 app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    version: API_VERSION
   });
 });
 
+// API Version Information Endpoint
+app.get('/api/version', versionInfoHandler);
+app.get(`${API_PREFIX}/version`, versionInfoHandler);
+
 // Real-time stats endpoint
-app.get('/api/realtime/stats', (req: Request, res: Response) => {
+app.get(`${API_PREFIX}/realtime/stats`, (req: Request, res: Response) => {
   const sseManager = getSSEManager();
   const channelManager = require('./realtime').getChannelManager();
 

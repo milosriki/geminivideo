@@ -33,6 +33,25 @@ const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const HelpPage = lazy(() => import('@/pages/HelpPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
+// Market Intelligence & Analysis
+const MarketIntelPage = lazy(() => import('@/pages/MarketIntelPage'))
+const CompetitorAnalysisPage = lazy(() => import('@/pages/CompetitorAnalysisPage'))
+const TrendAnalysisPage = lazy(() => import('@/pages/TrendAnalysisPage'))
+
+// Creative Asset Management
+const AdLibraryPage = lazy(() => import('@/pages/AdLibraryPage'))
+const CreativeLibraryPage = lazy(() => import('@/pages/CreativeLibraryPage'))
+const AssetManagerPage = lazy(() => import('@/pages/AssetManagerPage'))
+
+// Brand Management
+const BrandKitPage = lazy(() => import('@/pages/BrandKitPage'))
+const StyleGuidePage = lazy(() => import('@/pages/StyleGuidePage'))
+
+// Collaboration & Workflow
+const CollaborationPage = lazy(() => import('@/pages/CollaborationPage'))
+const ApprovalWorkflowPage = lazy(() => import('@/pages/ApprovalWorkflowPage'))
+const NotificationCenterPage = lazy(() => import('@/pages/NotificationCenterPage'))
+
 // Auth Pages (standalone, no dashboard layout)
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'))
@@ -292,6 +311,22 @@ function App() {
                   </Suspense>
                 }
               />
+              <Route
+                path="creative-library"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <CreativeLibraryPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="asset-manager"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <AssetManagerPage />
+                  </Suspense>
+                }
+              />
 
               {/* Analytics */}
               <Route
@@ -303,12 +338,46 @@ function App() {
                 }
               />
 
+              {/* Market Intelligence & Analysis */}
+              <Route
+                path="market-intel"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <MarketIntelPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="competitor-analysis"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <CompetitorAnalysisPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="trend-analysis"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <TrendAnalysisPage />
+                  </Suspense>
+                }
+              />
+
               {/* Ad Spy */}
               <Route
                 path="spy"
                 element={
                   <Suspense fallback={<PageLoader />}>
                     <AdSpyPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="ad-library"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <AdLibraryPage />
                   </Suspense>
                 }
               />
@@ -327,6 +396,50 @@ function App() {
                 element={
                   <Suspense fallback={<PageLoader />}>
                     <StudioPage />
+                  </Suspense>
+                }
+              />
+
+              {/* Brand Management */}
+              <Route
+                path="brand-kit"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <BrandKitPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="style-guide"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <StyleGuidePage />
+                  </Suspense>
+                }
+              />
+
+              {/* Collaboration & Workflow */}
+              <Route
+                path="collaboration"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <CollaborationPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="approvals"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ApprovalWorkflowPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="notifications"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <NotificationCenterPage />
                   </Suspense>
                 }
               />
