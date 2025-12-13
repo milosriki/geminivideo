@@ -1,0 +1,342 @@
+# Prometheus Alert Rules for GeminiVideo
+# Agent 14: Monitoring & Alerting Setup
+# Created: 2025-12-13
+
+groups:
+  # ============================================================================
+  # Winner Ads Alerts
+  # ============================================================================
+  - name: winner_ads
+    interval: 60s
+    rules:
+      - alert: NoWinnersDetected
+        expr: increase(winners_detected_total[24h]) == 0
+        for: 24h
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "No winners detected in 24 hours"
+          description: "The winner detection system has not identified any winning ads in the past 24 hours. This may indicate issues with the detection algorithm or data pipeline."
+          runbook: "Check ML service logs and verify actuals fetcher is running."
+
+      - alert: WinnerDetectionRateDropped
+        expr: rate(winners_detected_total[1h]) < rate(winners_detected_total[24h]) * 0.5
+        for: 2h
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "Winner detection rate dropped significantly"
+          description: "Winner detection rate has dropped to less than 50% of the 24-hour average."
+
+      - alert: WinnerReplicationFailed
+        expr: rate(winners_replicated_failed_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: critical
+          team: ml
+        annotations:
+          summary: "Winner replication failures detected"
+          description: "Winner ad replication is failing. Check replicator service and Meta API connectivity."
+
+      - alert: BudgetReallocationFailed
+        expr: rate(budget_reallocation_failed_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: critical
+          team: ml
+        annotations:
+          summary: "Budget reallocation failures detected"
+          description: "Automatic budget reallocation is failing. Check budget allocator logs."
+
+  # ============================================================================
+  # HTTP & API Alerts
+  # ============================================================================
+  - name: http_alerts
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High error rate detected (>10%)"
+          description: "More than 10% of HTTP requests are failing with 5xx errors. Current rate: {{ $value | printf \"%.2f\" }}%"
+          runbook: "Check gateway-api logs for error details."
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile latency exceeds 2 seconds. Current: {{ $value | printf \"%.2f\" }}s"
+
+      - alert: HighRequestRate
+        expr: sum(rate(http_requests_total[1m])) > 1000
+        for: 5m
+        labels:
+          severity: info
+          team: platform
+        annotations:
+          summary: "High request rate detected"
+          description: "Request rate exceeds 1000 req/min. Consider scaling."
+
+      - alert: EndpointDown
+        expr: up{job="gateway-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Gateway API is down"
+          description: "Gateway API endpoint is not responding."
+
+  # ============================================================================
+  # Service Health Alerts
+  # ============================================================================
+  - name: service_health
+    interval: 30s
+    rules:
+      - alert: MLServiceDown
+        expr: up{job="ml-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: ml
+        annotations:
+          summary: "ML Service is down"
+          description: "ML Service is not responding. Check Cloud Run deployment."
+
+      - alert: MetaPublisherDown
+        expr: up{job="meta-publisher"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: integrations
+        annotations:
+          summary: "Meta Publisher is down"
+          description: "Meta Publisher service is not responding."
+
+      - alert: TitanCoreDown
+        expr: up{job="titan-core"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "Titan Core is down"
+          description: "Titan Core service is not responding."
+
+  # ============================================================================
+  # Circuit Breaker Alerts
+  # ============================================================================
+  - name: circuit_breaker
+    interval: 30s
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state{state="open"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.service }}"
+          description: "Circuit breaker for {{ $labels.service }} has been open for 5+ minutes. The service may be degraded."
+
+      - alert: CircuitBreakerHalfOpen
+        expr: circuit_breaker_state{state="half_open"} == 1
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Circuit breaker half-open for {{ $labels.service }}"
+          description: "Circuit breaker for {{ $labels.service }} is in half-open state for 10+ minutes."
+
+  # ============================================================================
+  # ROI & Business Metrics Alerts
+  # ============================================================================
+  - name: business_metrics
+    interval: 5m
+    rules:
+      - alert: LowROI
+        expr: roi_improvement_percent < -10
+        for: 1h
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "ROI decreased significantly"
+          description: "ROI improvement has dropped below -10%. Current: {{ $value }}%"
+
+      - alert: HighSpendNoConversions
+        expr: |
+          (sum(ad_spend_total) > 1000)
+          and
+          (sum(conversions_total) == 0)
+        for: 4h
+        labels:
+          severity: critical
+          team: business
+        annotations:
+          summary: "High spend with no conversions"
+          description: "Over $1000 spent with zero conversions in the past 4 hours."
+
+      - alert: ROASBelowTarget
+        expr: avg(actual_roas) < 2.0
+        for: 6h
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "ROAS below target"
+          description: "Average ROAS is below 2.0 target. Current: {{ $value }}"
+
+  # ============================================================================
+  # Database & Cache Alerts
+  # ============================================================================
+  - name: infrastructure
+    interval: 30s
+    rules:
+      - alert: DatabaseConnectionPoolExhausted
+        expr: database_pool_available == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database connection pool exhausted"
+          description: "No available database connections. Queries will fail."
+
+      - alert: CacheMissRateHigh
+        expr: |
+          (sum(rate(cache_operations_total{result="miss"}[5m]))
+          /
+          sum(rate(cache_operations_total[5m]))) > 0.8
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High cache miss rate"
+          description: "Cache miss rate exceeds 80%. Consider increasing cache size or TTL."
+
+      - alert: DatabaseLatencyHigh
+        expr: histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High database latency"
+          description: "95th percentile database query latency exceeds 1 second."
+
+  # ============================================================================
+  # Meta API Alerts
+  # ============================================================================
+  - name: meta_api
+    interval: 60s
+    rules:
+      - alert: MetaAPIRateLimited
+        expr: rate(meta_api_rate_limit_hits_total[15m]) > 5
+        for: 15m
+        labels:
+          severity: warning
+          team: integrations
+        annotations:
+          summary: "Meta API rate limiting detected"
+          description: "Meta API is rate limiting requests. Consider reducing request frequency."
+
+      - alert: MetaAPITokenExpiring
+        expr: meta_api_token_expires_in_seconds < 86400
+        for: 1h
+        labels:
+          severity: warning
+          team: integrations
+        annotations:
+          summary: "Meta API token expiring soon"
+          description: "Meta API access token expires in less than 24 hours. Refresh token."
+
+      - alert: MetaAPIErrors
+        expr: rate(meta_api_errors_total[15m]) > 10
+        for: 15m
+        labels:
+          severity: critical
+          team: integrations
+        annotations:
+          summary: "High Meta API error rate"
+          description: "Meta API is returning many errors. Check API status and credentials."
+
+  # ============================================================================
+  # Resource Alerts
+  # ============================================================================
+  - name: resources
+    interval: 30s
+    rules:
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes / 1024 / 1024 / 1024) > 14
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage exceeds 14GB. Consider scaling."
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage exceeds 80%."
+
+# ============================================================================
+# Recording Rules for Dashboards
+# ============================================================================
+recording_rules:
+  - name: winner_metrics
+    interval: 60s
+    rules:
+      - record: winner:detection_rate:1h
+        expr: sum(rate(winners_detected_total[1h]))
+
+      - record: winner:replication_success_rate:1h
+        expr: |
+          sum(rate(winners_replicated_total[1h]))
+          /
+          (sum(rate(winners_replicated_total[1h])) + sum(rate(winners_replicated_failed_total[1h])))
+
+      - record: winner:average_ctr
+        expr: avg(winner_ctr)
+
+      - record: winner:average_roas
+        expr: avg(winner_roas)
+
+  - name: api_metrics
+    interval: 30s
+    rules:
+      - record: api:request_rate:5m
+        expr: sum(rate(http_requests_total[5m]))
+
+      - record: api:error_rate:5m
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m]))
+
+      - record: api:p99_latency:5m
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))
