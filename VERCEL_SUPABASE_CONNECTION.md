@@ -170,7 +170,7 @@ If you have Vercel Serverless Functions (in `api/` folder), they can access:
 
 - **Vercel Dashboard:** https://vercel.com/dashboard
 - **Supabase Dashboard:** https://supabase.com/dashboard/project/akhirugwpozlxfvtqmvj
-- **Your Project:** https://geminivideo-milos-projects-d46729ec.vercel.app
+- **Your Vercel Project:** Check your Vercel dashboard for the correct URL
 
 ---
 
