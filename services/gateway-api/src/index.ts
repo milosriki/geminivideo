@@ -65,6 +65,9 @@ import {
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+// Configuration constants
+const DEFAULT_AI_CREDITS = parseInt(process.env.DEFAULT_AI_CREDITS || '10000', 10);
+
 // ============================================================================
 // SECURITY MIDDLEWARE LAYER (Agent 5 - OWASP Best Practices)
 // ============================================================================
@@ -150,11 +153,12 @@ pgPool.query('SELECT NOW()')
     console.log('✅ PostgreSQL connected');
     
     // Initialize AI Credits tables (GROUP A)
+    // Note: In production, this should ideally be managed through database migrations
     try {
       const createCreditsTablesQuery = `
         CREATE TABLE IF NOT EXISTS ai_credits (
           user_id VARCHAR(255) PRIMARY KEY,
-          total_credits INTEGER NOT NULL DEFAULT 10000,
+          total_credits INTEGER NOT NULL DEFAULT ${DEFAULT_AI_CREDITS},
           used_credits INTEGER NOT NULL DEFAULT 0,
           created_at TIMESTAMP DEFAULT NOW(),
           updated_at TIMESTAMP DEFAULT NOW()
@@ -179,14 +183,17 @@ pgPool.query('SELECT NOW()')
       // Initialize default user with credits if not exists
       const initDefaultUserQuery = `
         INSERT INTO ai_credits (user_id, total_credits, used_credits)
-        VALUES ('default_user', 10000, 0)
+        VALUES ('default_user', $1, 0)
         ON CONFLICT (user_id) DO NOTHING;
       `;
 
-      await pgPool.query(initDefaultUserQuery);
-      console.log('✅ Default user credits initialized');
+      await pgPool.query(initDefaultUserQuery, [DEFAULT_AI_CREDITS]);
+      console.log(`✅ Default user credits initialized (${DEFAULT_AI_CREDITS} credits)`);
     } catch (error) {
+      // Log warning but allow application to continue
+      // Credits endpoints will fail gracefully if tables don't exist
       console.error('⚠️  Credits table initialization failed:', error);
+      console.error('⚠️  Credits endpoints may not function correctly');
     }
     
     // Initialize monitoring health checks (Agent 28)
