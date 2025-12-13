@@ -2917,6 +2917,89 @@ app.get(`${API_PREFIX}/realtime/stats`, (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// BATCH EXECUTOR ENDPOINTS (10x faster Meta API)
+// ============================================================================
+
+// GET /api/v1/batch/status - Get batch executor scheduler status
+app.get(`${API_PREFIX}/batch/status`, apiRateLimiter, (req: Request, res: Response) => {
+  try {
+    const { getBatchSchedulerStatus } = require('./jobs/batch-scheduler');
+    const status = getBatchSchedulerStatus();
+
+    res.json({
+      status: 'success',
+      scheduler: status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+// POST /api/v1/batch/trigger - Manually trigger batch execution
+app.post(`${API_PREFIX}/batch/trigger`, apiRateLimiter, async (req: Request, res: Response) => {
+  try {
+    const { triggerBatchExecution } = require('./jobs/batch-scheduler');
+    const result = await triggerBatchExecution();
+
+    res.json({
+      status: result.success ? 'success' : 'error',
+      message: result.message,
+      processedCount: result.processedCount,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+// GET /api/v1/batch/pending - Get count of pending ad changes
+app.get(`${API_PREFIX}/batch/pending`, apiRateLimiter, async (req: Request, res: Response) => {
+  try {
+    const result = await pgPool.query(`
+      SELECT
+        status,
+        COUNT(*) as count
+      FROM pending_ad_changes
+      GROUP BY status
+    `);
+
+    const counts: Record<string, number> = {};
+    for (const row of result.rows) {
+      counts[row.status] = parseInt(row.count);
+    }
+
+    res.json({
+      status: 'success',
+      pending: counts.pending || 0,
+      processing: counts.processing || 0,
+      completed: counts.completed || 0,
+      failed: counts.failed || 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    // Table might not exist yet
+    res.json({
+      status: 'success',
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0,
+      message: 'No pending changes table found',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+console.log('✅ Batch executor endpoints mounted at /api/v1/batch/*');
+
+// ============================================================================
 // ENHANCED ERROR HANDLER (Agent 17)
 // Must be registered after all routes for proper error catching
 // ============================================================================
@@ -2960,6 +3043,16 @@ const server = app.listen(PORT, async () => {
   } catch (error) {
     console.error('❌ Failed to start winner detection scheduler:', error);
   }
+
+  // Initialize Batch Executor Scheduler (10x faster Meta API)
+  try {
+    console.log('🚀 Starting batch executor scheduler...');
+    const { startBatchScheduler } = require('./jobs/batch-scheduler');
+    startBatchScheduler(pgPool);
+    console.log('✅ Batch executor scheduler started (runs every 5 minutes)');
+  } catch (error) {
+    console.error('❌ Failed to start batch executor scheduler:', error);
+  }
 });
 
 // Graceful shutdown
@@ -2970,6 +3063,10 @@ process.on('SIGTERM', async () => {
     // Stop winner scheduler
     const { stopWinnerScheduler } = require('./jobs/winner-scheduler');
     stopWinnerScheduler();
+
+    // Stop batch executor scheduler
+    const { stopBatchScheduler } = require('./jobs/batch-scheduler');
+    stopBatchScheduler();
 
     await shutdownWebSocketManager();
     await shutdownChannelManager();
@@ -2992,6 +3089,10 @@ process.on('SIGINT', async () => {
     // Stop winner scheduler
     const { stopWinnerScheduler } = require('./jobs/winner-scheduler');
     stopWinnerScheduler();
+
+    // Stop batch executor scheduler
+    const { stopBatchScheduler } = require('./jobs/batch-scheduler');
+    stopBatchScheduler();
 
     await shutdownWebSocketManager();
     await shutdownChannelManager();

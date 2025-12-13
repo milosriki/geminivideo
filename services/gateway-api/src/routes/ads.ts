@@ -729,6 +729,295 @@ export function createAdsRouter(pgPool: Pool): Router {
     }
   );
 
+  /**
+   * GET /api/ads/trending
+   * Get trending ads by category with real performance data
+   */
+  router.get(
+    '/trending',
+    apiRateLimiter,
+    validateInput({
+      query: {
+        category: { type: 'string', required: false },
+        limit: { type: 'number', required: false, min: 1, max: 50 }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const { category = 'fitness', limit = 8 } = req.query;
+
+        console.log(`Fetching trending ads: category=${category}, limit=${limit}`);
+
+        // Query for top performing ads ordered by engagement/CTR
+        const query = `
+          SELECT
+            a.ad_id as id,
+            COALESCE(c.name, 'Top Brand') as brand,
+            COALESCE(v.title, a.arc_name, 'High Performance Ad') as title,
+            CASE
+              WHEN COALESCE(SUM(pm.impressions), 0) > 1000000 THEN ROUND(COALESCE(SUM(pm.impressions), 0)::numeric / 1000000, 1)::text || 'M'
+              WHEN COALESCE(SUM(pm.impressions), 0) > 1000 THEN ROUND(COALESCE(SUM(pm.impressions), 0)::numeric / 1000, 1)::text || 'K'
+              ELSE COALESCE(SUM(pm.impressions), 0)::text
+            END as views,
+            CASE
+              WHEN COALESCE(SUM(pm.impressions), 0) > 0
+              THEN ROUND((COALESCE(SUM(pm.clicks), 0)::numeric / SUM(pm.impressions) * 100), 1)::text || '%'
+              ELSE '0%'
+            END as engagement,
+            COALESCE(
+              CASE
+                WHEN v.video_url LIKE '%tiktok%' THEN 'TikTok'
+                WHEN v.video_url LIKE '%youtube%' THEN 'YouTube'
+                WHEN v.video_url LIKE '%instagram%' THEN 'Instagram'
+                WHEN v.video_url LIKE '%facebook%' THEN 'Facebook'
+                ELSE 'Meta'
+              END,
+              'Meta'
+            ) as platform,
+            v.thumbnail_url as thumbnail,
+            v.video_url as "videoUrl",
+            a.created_at as "datePublished",
+            $1 as category
+          FROM ads a
+          LEFT JOIN videos v ON a.asset_id::text = v.id::text
+          LEFT JOIN campaigns c ON v.campaign_id = c.id
+          LEFT JOIN performance_metrics pm ON v.id = pm.video_id
+          WHERE a.status IN ('approved', 'published')
+            AND a.approved = true
+          GROUP BY a.ad_id, c.name, v.title, a.arc_name, v.thumbnail_url, v.video_url, a.created_at
+          HAVING COALESCE(SUM(pm.impressions), 0) > 0
+          ORDER BY
+            CASE
+              WHEN COALESCE(SUM(pm.impressions), 0) > 0
+              THEN COALESCE(SUM(pm.clicks), 0)::float / SUM(pm.impressions)
+              ELSE a.predicted_ctr
+            END DESC,
+            a.predicted_ctr DESC
+          LIMIT $2
+        `;
+
+        const result = await pgPool.query(query, [category, parseInt(limit as string)]);
+
+        console.log(`Found ${result.rows.length} trending ads`);
+
+        res.json({
+          status: 'success',
+          ads: result.rows,
+          count: result.rows.length,
+          category
+        });
+
+      } catch (error: any) {
+        console.error('Error fetching trending ads:', error);
+        // Return empty array on error rather than failing
+        res.json({
+          status: 'success',
+          ads: [],
+          count: 0,
+          message: 'No trending ads available'
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/ads/search
+   * Search ads with filters - pro implementation
+   */
+  router.get(
+    '/search',
+    apiRateLimiter,
+    validateInput({
+      query: {
+        q: { type: 'string', required: false, max: 200, sanitize: true },
+        platform: { type: 'string', required: false, enum: ['all', 'meta', 'tiktok', 'youtube', 'google'] },
+        category: { type: 'string', required: false },
+        minEngagement: { type: 'string', required: false },
+        dateRange: { type: 'string', required: false },
+        sortBy: { type: 'string', required: false, enum: ['engagement', 'views', 'recent', 'relevance'] },
+        limit: { type: 'number', required: false, min: 1, max: 100 },
+        offset: { type: 'number', required: false, min: 0 }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const {
+          q: searchQuery = '',
+          platform = 'all',
+          category = 'all',
+          minEngagement = '0',
+          dateRange = '30',
+          sortBy = 'engagement',
+          limit = 20,
+          offset = 0
+        } = req.query;
+
+        console.log(`Searching ads: q="${searchQuery}", platform=${platform}, category=${category}`);
+
+        // Build dynamic query with filters
+        const conditions: string[] = ['a.status IN (\'approved\', \'published\')'];
+        const values: any[] = [];
+        let paramIndex = 1;
+
+        // Text search on brand name, ad title, arc name
+        if (searchQuery && (searchQuery as string).trim()) {
+          conditions.push(`(
+            LOWER(c.name) LIKE LOWER($${paramIndex}) OR
+            LOWER(v.title) LIKE LOWER($${paramIndex}) OR
+            LOWER(a.arc_name) LIKE LOWER($${paramIndex}) OR
+            LOWER(v.description) LIKE LOWER($${paramIndex})
+          )`);
+          values.push(`%${searchQuery}%`);
+          paramIndex++;
+        }
+
+        // Platform filter
+        if (platform && platform !== 'all') {
+          const platformPatterns: Record<string, string> = {
+            meta: '%facebook%|%instagram%',
+            tiktok: '%tiktok%',
+            youtube: '%youtube%',
+            google: '%google%'
+          };
+          if (platformPatterns[platform as string]) {
+            conditions.push(`(v.video_url ~* $${paramIndex})`);
+            values.push(platformPatterns[platform as string]);
+            paramIndex++;
+          }
+        }
+
+        // Date range filter
+        if (dateRange && dateRange !== 'all') {
+          const days = parseInt(dateRange as string);
+          if (!isNaN(days) && days > 0) {
+            conditions.push(`a.created_at >= NOW() - INTERVAL '${days} days'`);
+          }
+        }
+
+        // Build ORDER BY clause
+        let orderBy = '';
+        switch (sortBy) {
+          case 'views':
+            orderBy = 'COALESCE(SUM(pm.impressions), 0) DESC';
+            break;
+          case 'recent':
+            orderBy = 'a.created_at DESC';
+            break;
+          case 'relevance':
+            orderBy = searchQuery ? `
+              CASE
+                WHEN LOWER(c.name) LIKE LOWER('%${searchQuery}%') THEN 1
+                WHEN LOWER(v.title) LIKE LOWER('%${searchQuery}%') THEN 2
+                ELSE 3
+              END, a.predicted_ctr DESC` : 'a.predicted_ctr DESC';
+            break;
+          case 'engagement':
+          default:
+            orderBy = `
+              CASE
+                WHEN COALESCE(SUM(pm.impressions), 0) > 0
+                THEN COALESCE(SUM(pm.clicks), 0)::float / SUM(pm.impressions)
+                ELSE a.predicted_ctr
+              END DESC`;
+        }
+
+        const query = `
+          SELECT
+            a.ad_id as id,
+            COALESCE(c.name, 'Brand') as brand,
+            COALESCE(v.title, a.arc_name, 'Ad Creative') as title,
+            CASE
+              WHEN COALESCE(SUM(pm.impressions), 0) > 1000000 THEN ROUND(COALESCE(SUM(pm.impressions), 0)::numeric / 1000000, 1)::text || 'M'
+              WHEN COALESCE(SUM(pm.impressions), 0) > 1000 THEN ROUND(COALESCE(SUM(pm.impressions), 0)::numeric / 1000, 1)::text || 'K'
+              ELSE COALESCE(SUM(pm.impressions), 0)::text
+            END as views,
+            CASE
+              WHEN COALESCE(SUM(pm.impressions), 0) > 0
+              THEN ROUND((COALESCE(SUM(pm.clicks), 0)::numeric / SUM(pm.impressions) * 100), 1)::text || '%'
+              ELSE ROUND(a.predicted_ctr * 100, 1)::text || '%'
+            END as engagement,
+            COALESCE(
+              CASE
+                WHEN v.video_url LIKE '%tiktok%' THEN 'TikTok'
+                WHEN v.video_url LIKE '%youtube%' THEN 'YouTube'
+                WHEN v.video_url LIKE '%instagram%' THEN 'Instagram'
+                WHEN v.video_url LIKE '%facebook%' THEN 'Facebook'
+                ELSE 'Meta'
+              END,
+              'Meta'
+            ) as platform,
+            v.thumbnail_url as thumbnail,
+            v.video_url as "videoUrl",
+            a.created_at as "datePublished",
+            $${paramIndex} as category
+          FROM ads a
+          LEFT JOIN videos v ON a.asset_id::text = v.id::text
+          LEFT JOIN campaigns c ON v.campaign_id = c.id
+          LEFT JOIN performance_metrics pm ON v.id = pm.video_id
+          WHERE ${conditions.join(' AND ')}
+          GROUP BY a.ad_id, c.name, v.title, a.arc_name, v.thumbnail_url, v.video_url, a.created_at, a.predicted_ctr
+          ${minEngagement && parseFloat(minEngagement as string) > 0 ? `
+            HAVING (
+              CASE
+                WHEN COALESCE(SUM(pm.impressions), 0) > 0
+                THEN COALESCE(SUM(pm.clicks), 0)::float / SUM(pm.impressions) * 100
+                ELSE a.predicted_ctr * 100
+              END
+            ) >= ${parseFloat(minEngagement as string)}
+          ` : ''}
+          ORDER BY ${orderBy}
+          LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+        `;
+
+        values.push(category, parseInt(limit as string), parseInt(offset as string));
+
+        const result = await pgPool.query(query, values);
+
+        // Get total count for pagination
+        const countQuery = `
+          SELECT COUNT(DISTINCT a.ad_id) as total
+          FROM ads a
+          LEFT JOIN videos v ON a.asset_id::text = v.id::text
+          LEFT JOIN campaigns c ON v.campaign_id = c.id
+          WHERE ${conditions.join(' AND ')}
+        `;
+
+        const countResult = await pgPool.query(countQuery, values.slice(0, -3));
+        const totalCount = parseInt(countResult.rows[0]?.total || '0');
+
+        console.log(`Search found ${result.rows.length} ads (total: ${totalCount})`);
+
+        res.json({
+          status: 'success',
+          ads: result.rows,
+          count: result.rows.length,
+          pagination: {
+            total: totalCount,
+            limit: parseInt(limit as string),
+            offset: parseInt(offset as string),
+            hasMore: parseInt(offset as string) + result.rows.length < totalCount
+          },
+          filters: {
+            query: searchQuery,
+            platform,
+            category,
+            minEngagement,
+            dateRange,
+            sortBy
+          }
+        });
+
+      } catch (error: any) {
+        console.error('Error searching ads:', error);
+        res.status(500).json({
+          error: 'Search failed',
+          message: error.message,
+          ads: []
+        });
+      }
+    }
+  );
+
   return router;
 }
 

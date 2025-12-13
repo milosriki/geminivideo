@@ -32,7 +32,7 @@
 // Or: Allow manual CSV upload of competitor ad data
 // ============================================================================
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
   MagnifyingGlassIcon,
@@ -40,6 +40,8 @@ import {
   PlayIcon,
   BookmarkIcon,
   ArrowTrendingUpIcon,
+  FunnelIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { Button } from '@/components/catalyst/button'
 import { Input } from '@/components/catalyst/input'
@@ -56,6 +58,18 @@ interface TrendingAd {
   views: string;
   engagement: string;
   platform: string;
+  thumbnail?: string;
+  videoUrl?: string;
+  datePublished?: string;
+  category?: string;
+}
+
+interface SearchFilters {
+  platform: string;
+  category: string;
+  minEngagement: string;
+  dateRange: string;
+  sortBy: string;
 }
 
 function TrendingAdCard({ ad }: { ad: TrendingAd }) {
@@ -88,12 +102,26 @@ function TrendingAdCard({ ad }: { ad: TrendingAd }) {
   )
 }
 
+const DEFAULT_FILTERS: SearchFilters = {
+  platform: 'all',
+  category: 'all',
+  minEngagement: '0',
+  dateRange: '30',
+  sortBy: 'engagement',
+};
+
 export function AdSpyPage() {
   const [search, setSearch] = useState('')
   const [trendingAds, setTrendingAds] = useState<TrendingAd[]>([])
+  const [searchResults, setSearchResults] = useState<TrendingAd[]>([])
   const [loading, setLoading] = useState(true)
+  const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS)
+  const [hasSearched, setHasSearched] = useState(false)
 
+  // Fetch trending ads on mount
   useEffect(() => {
     const fetchTrendingAds = async () => {
       try {
@@ -116,6 +144,71 @@ export function AdSpyPage() {
     fetchTrendingAds()
   }, [])
 
+  // Search ads with filters
+  const handleSearch = useCallback(async () => {
+    if (!search.trim() && filters.platform === 'all' && filters.category === 'all') {
+      setSearchResults([])
+      setHasSearched(false)
+      return
+    }
+
+    setSearching(true)
+    setError(null)
+    setHasSearched(true)
+
+    try {
+      const queryParams = new URLSearchParams({
+        q: search.trim(),
+        platform: filters.platform,
+        category: filters.category,
+        minEngagement: filters.minEngagement,
+        dateRange: filters.dateRange,
+        sortBy: filters.sortBy,
+      })
+
+      const response = await fetch(`${API_BASE_URL}/api/ads/search?${queryParams}`)
+
+      if (response.ok) {
+        const data = await response.json()
+        setSearchResults(data.ads || [])
+      } else if (response.status === 404) {
+        // No results found
+        setSearchResults([])
+      } else {
+        throw new Error(`Search failed with status ${response.status}`)
+      }
+    } catch (err: any) {
+      console.error('Search failed:', err)
+      setError(`Search failed: ${err.message}`)
+      setSearchResults([])
+    } finally {
+      setSearching(false)
+    }
+  }, [search, filters])
+
+  // Handle Enter key in search input
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch()
+    }
+  }
+
+  // Clear search and reset
+  const clearSearch = () => {
+    setSearch('')
+    setSearchResults([])
+    setHasSearched(false)
+    setFilters(DEFAULT_FILTERS)
+  }
+
+  // Update filter
+  const updateFilter = (key: keyof SearchFilters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }))
+  }
+
+  // Determine which ads to display
+  const displayedAds = hasSearched ? searchResults : trendingAds
+
   return (
     <div className="p-6 lg:p-8 space-y-6">
       <div>
@@ -124,29 +217,166 @@ export function AdSpyPage() {
       </div>
 
       {/* Search Bar */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by brand, keyword, or URL..."
-            className="pl-10"
-          />
+      <div className="space-y-4">
+        <div className="flex gap-4">
+          <div className="relative flex-1">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search by brand, keyword, or URL..."
+              className="pl-10"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+          <Button
+            color="violet"
+            onClick={handleSearch}
+            disabled={searching}
+          >
+            {searching ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Searching...
+              </div>
+            ) : (
+              'Search'
+            )}
+          </Button>
+          <Button
+            outline
+            onClick={() => setShowFilters(!showFilters)}
+            className={showFilters ? 'border-violet-500 text-violet-400' : ''}
+          >
+            <FunnelIcon className="h-5 w-5" />
+          </Button>
         </div>
-        <Button color="violet">Search</Button>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="rounded-xl bg-zinc-900 border border-zinc-800 p-4"
+          >
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Platform</label>
+                <select
+                  value={filters.platform}
+                  onChange={(e) => updateFilter('platform', e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm"
+                >
+                  <option value="all">All Platforms</option>
+                  <option value="meta">Meta (FB/IG)</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="google">Google Ads</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Category</label>
+                <select
+                  value={filters.category}
+                  onChange={(e) => updateFilter('category', e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="fitness">Fitness</option>
+                  <option value="ecommerce">E-commerce</option>
+                  <option value="saas">SaaS</option>
+                  <option value="finance">Finance</option>
+                  <option value="education">Education</option>
+                  <option value="health">Health</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Min Engagement</label>
+                <select
+                  value={filters.minEngagement}
+                  onChange={(e) => updateFilter('minEngagement', e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm"
+                >
+                  <option value="0">Any</option>
+                  <option value="1">1%+</option>
+                  <option value="3">3%+</option>
+                  <option value="5">5%+</option>
+                  <option value="10">10%+</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Date Range</label>
+                <select
+                  value={filters.dateRange}
+                  onChange={(e) => updateFilter('dateRange', e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm"
+                >
+                  <option value="7">Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                  <option value="365">Last year</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Sort By</label>
+                <select
+                  value={filters.sortBy}
+                  onChange={(e) => updateFilter('sortBy', e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm"
+                >
+                  <option value="engagement">Engagement</option>
+                  <option value="views">Views</option>
+                  <option value="recent">Most Recent</option>
+                  <option value="relevance">Relevance</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end mt-4 gap-2">
+              <Button plain onClick={() => setFilters(DEFAULT_FILTERS)} className="text-zinc-400">
+                Reset Filters
+              </Button>
+              <Button color="violet" onClick={handleSearch}>
+                Apply Filters
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Search results info */}
+        {hasSearched && (
+          <div className="flex items-center justify-between">
+            <Text className="text-zinc-400">
+              {searching ? 'Searching...' : `Found ${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`}
+              {search && ` for "${search}"`}
+            </Text>
+            <Button plain onClick={clearSearch} className="text-zinc-400 hover:text-white">
+              Clear Search
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Trending Section */}
+      {/* Results Section */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <Heading level={2} className="text-white">Trending in Fitness</Heading>
-          {trendingAds.length > 0 && (
+          <Heading level={2} className="text-white">
+            {hasSearched ? 'Search Results' : 'Trending in Fitness'}
+          </Heading>
+          {displayedAds.length > 0 && !hasSearched && (
             <Button plain className="text-violet-400">View All</Button>
           )}
         </div>
 
-        {loading && (
+        {(loading || searching) && (
           <div className="flex items-center justify-center py-16 rounded-xl bg-zinc-900 border border-zinc-800">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-500"></div>
           </div>
@@ -164,23 +394,35 @@ export function AdSpyPage() {
           </div>
         )}
 
-        {!loading && !error && trendingAds.length === 0 && (
+        {!loading && !searching && !error && displayedAds.length === 0 && (
           <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-8 text-center">
             <GlobeAltIcon className="h-12 w-12 text-zinc-700 mx-auto" />
-            <p className="text-white mt-4 font-medium">No trending ads available</p>
-            <p className="text-zinc-400 text-sm mt-2">Connect a data source to start tracking competitor ads.</p>
-            <Button color="violet" className="mt-4">Connect Data Source</Button>
+            <p className="text-white mt-4 font-medium">
+              {hasSearched ? 'No ads found matching your search' : 'No trending ads available'}
+            </p>
+            <p className="text-zinc-400 text-sm mt-2">
+              {hasSearched
+                ? 'Try different keywords or adjust your filters.'
+                : 'Connect a data source to start tracking competitor ads.'}
+            </p>
+            {hasSearched ? (
+              <Button color="violet" className="mt-4" onClick={clearSearch}>
+                Clear Search
+              </Button>
+            ) : (
+              <Button color="violet" className="mt-4">Connect Data Source</Button>
+            )}
           </div>
         )}
 
-        {!loading && !error && trendingAds.length > 0 && (
+        {!loading && !searching && !error && displayedAds.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {trendingAds.map((ad, index) => (
+            {displayedAds.map((ad, index) => (
               <motion.div
                 key={ad.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                transition={{ delay: index * 0.05 }}
               >
                 <TrendingAdCard ad={ad} />
               </motion.div>

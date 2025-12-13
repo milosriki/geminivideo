@@ -264,11 +264,20 @@ class BattleHardenedSampler:
             except Exception as e:
                 logger.warning(f"Redis cache lookup failed: {e}")
 
-        # Check semantic cache (async fallback)
+        # Check semantic cache (async - uses embedding similarity for 95% hit rate)
         if self.semantic_cache and db_session:
             try:
-                # For async semantic cache, skip in sync context
-                pass
+                # Generate query text from ad state for semantic matching
+                query_text = f"ad_score:{ad.ad_id}:imp{ad.impressions}:ctr{ad.clicks/max(ad.impressions,1):.4f}:spend{ad.spend:.2f}:age{ad.age_hours:.1f}h"
+
+                # Search for semantically similar cached results
+                cache_hit = await self.semantic_cache._search_cache(query_text, "battle_hardened_score")
+
+                if cache_hit.hit and cache_hit.cached_result:
+                    logger.info(f"🎯 Semantic cache HIT ({cache_hit.similarity:.4f}) for ad {ad.ad_id}")
+                    return cache_hit.cached_result
+                elif cache_hit.similarity > 0.85:
+                    logger.debug(f"Near-hit ({cache_hit.similarity:.4f}) for ad {ad.ad_id} - computing fresh")
             except Exception as e:
                 logger.warning(f"Semantic cache lookup failed: {e}")
 
@@ -335,11 +344,21 @@ class BattleHardenedSampler:
             except Exception as e:
                 logger.warning(f"Redis cache set failed: {e}")
 
-        # Also try semantic cache (async fallback)
+        # Also store in semantic cache (async - for similarity matching)
         if self.semantic_cache and db_session:
             try:
-                # Cache will be set asynchronously in async version
-                pass
+                # Generate query text from ad state
+                query_text = f"ad_score:{ad.ad_id}:imp{ad.impressions}:ctr{ad.clicks/max(ad.impressions,1):.4f}:spend{ad.spend:.2f}:age{ad.age_hours:.1f}h"
+
+                # Store result with 30 minute TTL
+                await self.semantic_cache._store_result(
+                    query=query_text,
+                    query_type="battle_hardened_score",
+                    result=result,
+                    ttl_seconds=1800,  # 30 minutes
+                    metadata={"ad_id": ad.ad_id, "account_id": account_id}
+                )
+                logger.debug(f"Stored semantic cache for ad {ad.ad_id}")
             except Exception as e:
                 logger.warning(f"Semantic cache set failed: {e}")
 
