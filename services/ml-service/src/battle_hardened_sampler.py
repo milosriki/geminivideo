@@ -177,11 +177,13 @@ class BattleHardenedSampler:
             f"cross_learner={'enabled' if CROSS_LEARNER_AVAILABLE else 'disabled'}"
         )
 
-    def select_budget_allocation(
+    async def select_budget_allocation(
         self,
         ad_states: List[AdState],
         total_budget: float,
         creative_dna_scores: Optional[Dict[str, float]] = None,
+        account_id: Optional[str] = None,
+        db_session=None,
     ) -> List[BudgetRecommendation]:
         """
         Allocate budget across ads using blended scoring.
@@ -203,7 +205,7 @@ class BattleHardenedSampler:
         # Step 1: Calculate blended scores for each ad
         ad_scores = []
         for ad in ad_states:
-            score = self._calculate_blended_score(ad, creative_dna_scores)
+            score = await self._calculate_blended_score(ad, creative_dna_scores, db_session, account_id)
             ad_scores.append((ad, score))
 
         # Step 2: Sample from Thompson distributions
@@ -231,11 +233,12 @@ class BattleHardenedSampler:
         logger.info(f"Generated {len(recommendations)} budget recommendations")
         return recommendations
 
-    def _calculate_blended_score(
+    async def _calculate_blended_score(
         self,
         ad: AdState,
         creative_dna_scores: Optional[Dict[str, float]] = None,
         db_session=None,  # For semantic cache
+        account_id: Optional[str] = None,  # For cross-learner boost
     ) -> Dict:
         """
         Calculate blended score combining CTR and Pipeline ROAS based on age.
@@ -298,7 +301,9 @@ class BattleHardenedSampler:
             dna_boost = 1.0 + (dna_score * 0.2)  # Up to 20% boost for perfect DNA match
 
         # Apply cross-learner boost (100x data optimization)
-        cross_learner_boost = self._apply_cross_learner_boost(ad, blended_score_with_decay)
+        cross_learner_boost = await self._apply_cross_learner_boost_async(
+            ad, blended_score_with_decay, account_id or "unknown", db_session
+        )
         final_score = blended_score_with_decay * dna_boost * cross_learner_boost
 
         result = {
@@ -352,32 +357,45 @@ class BattleHardenedSampler:
         }, sort_keys=True)
         return hashlib.md5(state_str.encode()).hexdigest()
 
-    def _apply_cross_learner_boost(self, ad: AdState, base_score: float) -> float:
+    async def _apply_cross_learner_boost_async(
+        self,
+        ad: AdState,
+        base_score: float,
+        account_id: str,
+        db_session
+    ) -> float:
         """
         Apply cross-learner boost if similar patterns won in other accounts.
-        
+
         OPTIMIZATION: 100x more learning data from cross-account patterns.
-        
-        Note: Cross-learner methods are async, so we use a simplified sync approach.
-        For full cross-learner integration, this should be called from async context.
+        Now with full async integration for niche detection and insights.
         """
         if not CROSS_LEARNER_AVAILABLE or not cross_learner:
             return 1.0
 
         try:
-            # Check if ad is performing well (high base_score indicates winner pattern)
-            # If base_score > 0.7, it's likely a winning pattern that could benefit from cross-learner boost
-            if base_score > 0.7:
-                # Apply a conservative boost (5-10%) for high-performing ads
-                # This approximates cross-learner boost without async calls
-                boost = 1.0 + (base_score - 0.7) * 0.33  # Up to 10% boost
-                boost = min(boost, 1.1)  # Max 10% boost
-                logger.debug(f"Cross-learner boost (simplified): {boost:.2f}x for ad {ad.ad_id} (base_score: {base_score:.2f})")
-                return boost
-            
-            # For async cross-learner integration, use:
-            # niche_insights = await cross_learner.get_niche_insights(niche)
-            # This requires making _apply_cross_learner_boost async
+            # Detect niche for this account
+            niche, confidence = await cross_learner.detect_niche(account_id)
+            if niche == "unknown" or confidence < 0.7:
+                logger.debug(f"Niche detection confidence too low ({confidence:.2f}) for account {account_id}")
+                return 1.0
+
+            # Get niche insights with wisdom from other accounts
+            niche_insights = await cross_learner.get_niche_insights(niche, force_refresh=False)
+            if not niche_insights:
+                logger.debug(f"No niche insights available for niche: {niche}")
+                return 1.0
+
+            # Apply boost based on niche wisdom
+            boost = self._apply_niche_wisdom(ad, niche_insights, base_score)
+            final_boost = min(boost, 1.2)  # Max 20% boost
+
+            logger.debug(
+                f"Cross-learner boost: {final_boost:.2f}x for ad {ad.ad_id} "
+                f"(niche: {niche}, confidence: {confidence:.2f}, base_score: {base_score:.2f})"
+            )
+
+            return final_boost
 
         except AttributeError as e:
             # Method doesn't exist - cross-learner not fully integrated
@@ -386,6 +404,53 @@ class BattleHardenedSampler:
             logger.warning(f"Cross-learner boost failed: {e}")
 
         return 1.0
+
+    def _apply_niche_wisdom(self, ad: AdState, niche_insights: Dict, base_score: float) -> float:
+        """
+        Apply niche wisdom boost based on cross-account learnings.
+
+        Args:
+            ad: Ad state
+            niche_insights: Insights from cross-learner for this niche
+            base_score: Current blended score
+
+        Returns:
+            Boost factor (1.0 = no boost, up to 1.2 = 20% boost)
+        """
+        boost = 1.0
+
+        try:
+            # Extract winning patterns from niche insights
+            winning_patterns = niche_insights.get("winning_patterns", {})
+            avg_ctr = niche_insights.get("avg_ctr", 0.02)
+            avg_roas = niche_insights.get("avg_roas", 1.5)
+
+            # Calculate ad metrics
+            ad_ctr = ad.clicks / max(ad.impressions, 1)
+            ad_roas = ad.pipeline_value / max(ad.spend, 0.01)
+
+            # Boost if ad outperforms niche averages
+            ctr_ratio = ad_ctr / max(avg_ctr, 0.001)
+            roas_ratio = ad_roas / max(avg_roas, 0.001)
+
+            # Weight CTR and ROAS based on ad age (similar to blended scoring)
+            if ad.age_hours < 24:
+                # Early stage: prioritize CTR
+                boost = 1.0 + (ctr_ratio - 1.0) * 0.15  # Up to 15% boost from CTR
+            else:
+                # Later stage: prioritize ROAS
+                boost = 1.0 + (roas_ratio - 1.0) * 0.10  # Up to 10% boost from ROAS
+                # Add CTR bonus
+                boost += (ctr_ratio - 1.0) * 0.05  # Up to 5% additional boost from CTR
+
+            # Ensure boost is in valid range
+            boost = max(1.0, min(boost, 1.2))
+
+        except Exception as e:
+            logger.warning(f"Failed to apply niche wisdom: {e}")
+            boost = 1.0
+
+        return boost
 
     def _calculate_blended_weight(self, ad: AdState) -> float:
         """

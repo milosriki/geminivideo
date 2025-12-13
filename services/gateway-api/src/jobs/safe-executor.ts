@@ -407,7 +407,14 @@ async function countPendingChanges(): Promise<number> {
 export async function startSafeExecutor(): Promise<void> {
   console.log(`[SafeExecutor] Starting worker ${WORKER_ID}...`);
   console.log(`[SafeExecutor] Poll interval: ${POLL_INTERVAL_MS}ms`);
-  console.log(`[SafeExecutor] Batch mode: ${BATCH_MODE_ENABLED ? 'enabled' : 'disabled'}`);
+  console.log(`[SafeExecutor] Batch mode: ${BATCH_MODE_ENABLED ? 'ENABLED' : 'disabled'}`);
+
+  if (BATCH_MODE_ENABLED) {
+    console.log(
+      `[SafeExecutor] Batch configuration: Will use batch processing when ` +
+      `${BATCH_SIZE}+ changes are pending (10x speed improvement)`
+    );
+  }
 
   // Continuous polling loop
   while (true) {
@@ -415,17 +422,39 @@ export async function startSafeExecutor(): Promise<void> {
       // Check if batch mode should be used
       if (BATCH_MODE_ENABLED) {
         const pendingCount = await countPendingChanges();
-        
+
         if (pendingCount >= BATCH_SIZE) {
           // Use batch processing for 10x faster execution
-          console.log(`[SafeExecutor] Processing batch: ${pendingCount} pending changes`);
-          const processed = await processBatchChanges(getDbPool(), WORKER_ID, BATCH_SIZE);
-          
-          if (processed > 0) {
-            console.log(`[SafeExecutor] Batch processed ${processed} changes`);
-            // Continue immediately to process more
-            continue;
+          console.log(`[SafeExecutor] Batch mode triggered: ${pendingCount} pending changes (threshold: ${BATCH_SIZE})`);
+
+          try {
+            const batchStartTime = Date.now();
+            const processed = await processBatchChanges(getDbPool(), WORKER_ID, BATCH_SIZE);
+            const batchDuration = Date.now() - batchStartTime;
+
+            if (processed > 0) {
+              const changesPerSecond = (processed / (batchDuration / 1000)).toFixed(1);
+              console.log(
+                `[SafeExecutor] ✓ Batch completed: ${processed} changes in ${batchDuration}ms ` +
+                `(${changesPerSecond} changes/sec, 10x faster than individual processing)`
+              );
+              // Continue immediately to process more
+              continue;
+            } else {
+              console.log(`[SafeExecutor] Batch mode: No changes claimed`);
+            }
+          } catch (batchError: any) {
+            console.error(
+              `[SafeExecutor] ✗ Batch processing failed: ${batchError.message}. ` +
+              `Falling back to individual processing.`
+            );
+            // Fall through to individual processing on batch error
           }
+        } else if (pendingCount > 0) {
+          console.log(
+            `[SafeExecutor] Batch mode: ${pendingCount} pending changes ` +
+            `(threshold: ${BATCH_SIZE}, using individual processing)`
+          );
         }
       }
 

@@ -53,7 +53,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# Gemini 2.0 Model Constants (December 2024)
+# Gemini Model Constants - Agent 7 Upgrade (December 2024)
+GEMINI_MODEL = "gemini-3-pro"  # Primary model - Gemini 3 Pro
+GEMINI_MODEL_FALLBACK = "gemini-2.0-flash-exp"  # Fallback model
+
+# Additional Gemini Models
 GEMINI_2_0_FLASH_THINKING = "gemini-2.0-flash-thinking-exp-1219"  # Extended reasoning
 GEMINI_2_0_FLASH = "gemini-2.0-flash-exp"  # Fast, general purpose
 GEMINI_2_0_PRO = "gemini-2.0-pro-exp"  # Most powerful (if available)
@@ -84,7 +88,7 @@ class VertexAIService:
     Vertex AI integration for Gemini, Imagen, and video analysis.
 
     This service provides real implementations for:
-    - Video analysis with Gemini 2.0
+    - Video analysis with Gemini 3 Pro (with fallback to Gemini 2.0 Flash)
     - Image generation with Imagen
     - Text embeddings for similarity search
     - Multimodal analysis
@@ -95,16 +99,16 @@ class VertexAIService:
         self,
         project_id: Optional[str] = None,
         location: str = "us-central1",
-        gemini_model: str = GEMINI_2_0_FLASH,
+        gemini_model: str = GEMINI_MODEL,
         imagen_model: str = "imagen-3.0-generate-001"
     ):
         """
-        Initialize Vertex AI client with Gemini 2.0 models.
+        Initialize Vertex AI client with Gemini 3 Pro model.
 
         Args:
             project_id: GCP project ID (defaults to env var GOOGLE_CLOUD_PROJECT)
             location: GCP region (default: us-central1)
-            gemini_model: Default Gemini model (defaults to 2.0 Flash)
+            gemini_model: Default Gemini model (defaults to Gemini 3 Pro)
             imagen_model: Imagen model version to use
         """
         if not VERTEXAI_AVAILABLE:
@@ -194,7 +198,7 @@ class VertexAIService:
 
     def _get_model(self, model_name: str) -> GenerativeModel:
         """
-        Get or create a Gemini model instance with caching.
+        Get or create a Gemini model instance with caching and fallback support.
 
         Args:
             model_name: Gemini model identifier
@@ -208,10 +212,17 @@ class VertexAIService:
                 logger.info(f"🔄 Loaded model: {model_name}")
             except Exception as e:
                 logger.error(f"❌ Failed to load {model_name}: {e}")
-                # Fallback to stable model
-                fallback_model = GEMINI_1_5_FLASH
+                # Fallback to GEMINI_MODEL_FALLBACK first, then to stable model
+                fallback_model = GEMINI_MODEL_FALLBACK
                 logger.warning(f"⚠️ Falling back to {fallback_model}")
-                self._model_cache[model_name] = GenerativeModel(fallback_model)
+                try:
+                    self._model_cache[model_name] = GenerativeModel(fallback_model)
+                except Exception as e2:
+                    logger.error(f"❌ Fallback model {fallback_model} also failed: {e2}")
+                    # Final fallback to stable Gemini 1.5 Flash
+                    final_fallback = GEMINI_1_5_FLASH
+                    logger.warning(f"⚠️ Using final fallback: {final_fallback}")
+                    self._model_cache[model_name] = GenerativeModel(final_fallback)
 
         return self._model_cache[model_name]
 
@@ -226,12 +237,12 @@ class VertexAIService:
             Tuple of (model_name, generation_config)
         """
         model_selection = {
-            "simple": (GEMINI_2_0_FLASH, self.config_fast),
+            "simple": (GEMINI_MODEL, self.config_fast),
             "complex": (GEMINI_2_0_FLASH_THINKING, self.config_thinking),
             "critical": (GEMINI_2_0_PRO, self.config_precise),
         }
 
-        selected = model_selection.get(task_complexity, (GEMINI_2_0_FLASH, self.config_fast))
+        selected = model_selection.get(task_complexity, (GEMINI_MODEL, self.config_fast))
         logger.info(f"📋 Task complexity '{task_complexity}' → Model: {selected[0]}")
         return selected
 
@@ -247,7 +258,7 @@ class VertexAIService:
         use_streaming: bool = False
     ) -> VideoAnalysis:
         """
-        Analyze video using Gemini 2.0 with multimodal understanding.
+        Analyze video using Gemini 3 Pro with multimodal understanding.
 
         Args:
             video_gcs_uri: GCS URI (gs://bucket/video.mp4) or local file path
@@ -398,7 +409,7 @@ class VertexAIService:
         task_complexity: str = "complex"
     ) -> Dict[str, Any]:
         """
-        Analyze video with structured JSON schema output (Gemini 2.0 feature).
+        Analyze video with structured JSON schema output (Gemini 3 Pro feature).
 
         Args:
             video_gcs_uri: GCS URI or local file path

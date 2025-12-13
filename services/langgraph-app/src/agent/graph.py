@@ -1,16 +1,16 @@
 from typing import Any, Dict, List, Literal
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import create_react_agent
 
 from src.agent.state import CEOAgentState, Context
 from src.agent.tools import ALL_TOOLS
+from src.agent.core import llm, get_specialist_llm, PRIMARY_MODEL, FALLBACK_MODEL
 
 # --- LLM Setup ---
-# Using GPT-4o as the "CEO Brain"
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
+# Using GPT-5.1-instant as primary with GPT-4o fallback via base_agent
+# The llm instance is imported from core.base_agent with intelligent fallback
 
 # --- Specialist Agents (Sub-Graphs) ---
 
