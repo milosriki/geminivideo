@@ -65,10 +65,10 @@ export function AssetsPage() {
       const driveAssets = files.map(f => ({
         asset_id: f.id,
         filename: f.name,
-        url: f.downloadUrl || f.thumbnailLink,
+        url: f.webContentLink || f.thumbnailLink || '',
         format: f.mimeType.split('/')[1] || 'video',
-        size_bytes: 0,
-        duration_seconds: 0,
+        size_bytes: parseInt(f.size || '0', 10),
+        duration_seconds: f.videoMediaMetadata?.durationMillis ? parseInt(f.videoMediaMetadata.durationMillis, 10) / 1000 : 0,
         source: 'google_drive'
       }))
 

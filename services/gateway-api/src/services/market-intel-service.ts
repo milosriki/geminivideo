@@ -78,16 +78,57 @@ export async function updateMarketIntelOnScaling(
  */
 async function getCompetitorPageIds(campaignId: string): Promise<string[]> {
   try {
-    // This would query the database for campaign metadata
-    // For now, return empty - will be implemented based on your schema
-    // Example:
-    // const campaign = await db.query('SELECT competitor_pages FROM campaigns WHERE id = $1', [campaignId]);
-    // return campaign.competitor_pages || [];
-    
-    // TODO: Implement based on your campaign schema
-    return [];
-  } catch (error) {
-    console.error(`[MarketIntel] Failed to get competitor pages: ${error}`);
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 5,
+    });
+
+    const client = await pool.connect();
+
+    try {
+      // Query campaign metadata from target_audience JSONB field
+      const result = await client.query(
+        `SELECT target_audience FROM campaigns WHERE id = $1 OR campaign_id = $1 LIMIT 1`,
+        [campaignId]
+      );
+
+      if (result.rows.length === 0) {
+        console.log(`[MarketIntel] Campaign ${campaignId} not found`);
+        return [];
+      }
+
+      const targetAudience = result.rows[0].target_audience;
+
+      // Extract competitor_pages from target_audience JSONB
+      // Expected structure: { competitor_pages: ['page_id_1', 'page_id_2', ...] }
+      if (targetAudience && targetAudience.competitor_pages) {
+        const competitorPages = Array.isArray(targetAudience.competitor_pages)
+          ? targetAudience.competitor_pages
+          : [];
+
+        console.log(`[MarketIntel] Found ${competitorPages.length} competitor pages for campaign ${campaignId}`);
+        return competitorPages.filter((id: any) => typeof id === 'string' && id.length > 0);
+      }
+
+      // Fallback: Check if competitor_pages is stored at root level (legacy support)
+      if (targetAudience && Array.isArray(targetAudience)) {
+        const validPages = targetAudience.filter((id: any) => typeof id === 'string' && id.length > 0);
+        if (validPages.length > 0) {
+          console.log(`[MarketIntel] Found ${validPages.length} competitor pages (legacy format) for campaign ${campaignId}`);
+          return validPages;
+        }
+      }
+
+      console.log(`[MarketIntel] No competitor pages configured for campaign ${campaignId}`);
+      return [];
+
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  } catch (error: any) {
+    console.error(`[MarketIntel] Failed to get competitor pages: ${error.message}`);
     return [];
   }
 }
