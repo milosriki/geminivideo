@@ -2610,6 +2610,16 @@ import { createPredictionsRouter } from './routes/predictions';
 const predictionsRouter = createPredictionsRouter(pgPool);
 app.use('/api/predictions', predictionsRouter);
 
+// Winner Replication Routes
+import { createWinnersRouter } from './routes/winners';
+const winnersRouter = createWinnersRouter(pgPool);
+app.use('/api/winners', winnersRouter);
+
+// Pro Video Module Proxy Routes
+import { createVideoProxyRouter } from './routes/video-proxy';
+const videoProxyRouter = createVideoProxyRouter(pgPool);
+app.use('/api/video-pro', videoProxyRouter);
+
 // ============================================================================
 // ONBOARDING ENDPOINTS
 // ============================================================================
