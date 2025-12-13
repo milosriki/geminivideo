@@ -19,7 +19,11 @@ import shutil
 
 # Import ML modules
 import sys
-sys.path.insert(0, '/home/user/geminivideo/services/ml-service')
+
+# Add ml-service to path based on repository location
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ML_SERVICE_PATH = REPO_ROOT / "services" / "ml-service"
+sys.path.insert(0, str(ML_SERVICE_PATH))
 
 from roas_predictor import (
     ROASPredictor,
