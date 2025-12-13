@@ -1,7 +1,9 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import { ErrorBoundary } from '../layout/ErrorBoundary';
 import { PageWrapper } from '../layout/PageWrapper';
 import AICreativeStudio from '../AICreativeStudio';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiUrl } from '@/config/api';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-[400px]">
@@ -20,8 +22,68 @@ interface AICreativeStudioWrapperProps {
 }
 
 export const AICreativeStudioWrapper: React.FC<AICreativeStudioWrapperProps> = ({ projectId }) => {
-  const handleCreativeGenerated = (creative: any) => {
-    // TODO: Implement asset library integration
+  const { currentUser, getIdToken } = useAuth();
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleCreativeGenerated = async (creative: any) => {
+    if (!currentUser) {
+      console.warn('User not authenticated, cannot save creative to asset library');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const token = await getIdToken();
+      const response = await fetch(apiUrl('/assets'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          userId: currentUser.uid,
+          projectId,
+          creative: {
+            type: creative.type || 'image',
+            url: creative.url,
+            thumbnail: creative.thumbnail,
+            prompt: creative.prompt,
+            metadata: {
+              style: creative.style,
+              platform: creative.platform,
+              dimensions: creative.dimensions,
+              generatedAt: new Date().toISOString(),
+              ...creative.metadata
+            }
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save creative to asset library');
+      }
+
+      const savedAsset = await response.json();
+      console.log('Creative saved to asset library:', savedAsset);
+
+      // Show success notification
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('asset-saved', {
+          detail: { asset: savedAsset, message: 'Creative saved to asset library' }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to save creative to asset library:', error);
+      // Show error notification
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('asset-save-error', {
+          detail: { error, message: error instanceof Error ? error.message : 'Failed to save creative' }
+        }));
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

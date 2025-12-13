@@ -4,6 +4,8 @@ import { SparklesIcon, RocketLaunchIcon, ChartBarIcon, BoltIcon } from '@heroico
 import { ProgressIndicator } from '@/components/onboarding/ProgressIndicator'
 import { VideoTutorial } from '@/components/onboarding/VideoTutorial'
 import { LiveChatWidget } from '@/components/onboarding/LiveChatWidget'
+import { useAuth } from '@/contexts/AuthContext'
+import { apiUrl } from '@/config/api'
 
 const ONBOARDING_STEPS = [
   { id: 'welcome', name: 'Welcome', description: 'Get started' },
@@ -39,28 +41,43 @@ const FEATURES = [
 
 export default function WelcomePage() {
   const navigate = useNavigate()
+  const { currentUser, getIdToken } = useAuth()
 
   const handleContinue = async () => {
     // Initialize onboarding session
     try {
-      const userId = 'demo-user-id' // TODO: Get from auth context
-      await fetch('/api/onboarding/start', {
+      if (!currentUser) {
+        // Redirect to login if not authenticated
+        navigate('/login')
+        return
+      }
+
+      const token = await getIdToken()
+      const userId = currentUser.uid
+
+      await fetch(apiUrl('/onboarding/start'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({ userId }),
       })
 
       // Mark welcome step as complete
-      await fetch('/api/onboarding/step/welcome', {
+      await fetch(apiUrl('/onboarding/step/welcome'), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({ userId }),
       })
 
       navigate('/onboarding/connect-meta')
     } catch (error) {
       console.error('Error starting onboarding:', error)
-      // Continue anyway for demo
+      // Continue to next step even if API fails
       navigate('/onboarding/connect-meta')
     }
   }

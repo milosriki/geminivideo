@@ -29,6 +29,7 @@ from batch_processor import (
     BatchProvider,
     BatchStatus
 )
+from alerts.alert_notifier import AlertNotifier, NotificationConfig, NotificationChannel
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,8 @@ class BatchScheduler:
         self,
         batch_processor: Optional[BatchProcessor] = None,
         schedule_time: dt_time = dt_time(2, 0),  # 2 AM
-        check_interval_seconds: int = 60  # Check every minute
+        check_interval_seconds: int = 60,  # Check every minute
+        notifier: Optional[AlertNotifier] = None
     ):
         """
         Initialize batch scheduler.
@@ -53,12 +55,14 @@ class BatchScheduler:
             batch_processor: BatchProcessor instance
             schedule_time: Time to run batches (default 2 AM)
             check_interval_seconds: How often to check schedule
+            notifier: AlertNotifier instance for notifications
         """
         self.batch_processor = batch_processor or BatchProcessor()
         self.schedule_time = schedule_time
         self.check_interval_seconds = check_interval_seconds
         self.running = False
         self.last_run_date = None
+        self.notifier = notifier or AlertNotifier()
 
         logger.info(f"BatchScheduler initialized (schedule: {schedule_time})")
 
@@ -209,9 +213,7 @@ class BatchScheduler:
             duration: Processing duration
         """
         try:
-            # TODO: Integrate with notification service (Slack, email, etc.)
-            message = f"""
-🎯 Batch Processing Complete
+            message = f"""🎯 Batch Processing Complete
 
 📊 Summary:
 - Batches: {total_batches}
@@ -223,9 +225,24 @@ class BatchScheduler:
 """
             logger.info(f"Notification: {message}")
 
-            # Could send to Slack, email, etc.
-            # await send_slack_notification(message)
-            # await send_email_notification(message)
+            # Send notifications via configured channels
+            alert_data = {
+                "title": "Batch Processing Complete",
+                "message": message,
+                "severity": "info",
+                "category": "batch_processing",
+                "timestamp": datetime.now().isoformat(),
+                "metadata": {
+                    "total_batches": total_batches,
+                    "total_jobs": total_jobs,
+                    "cost_savings": total_savings,
+                    "duration_seconds": duration
+                }
+            }
+
+            # Send to Slack and Email if configured
+            channels = [NotificationChannel.SLACK, NotificationChannel.EMAIL]
+            await self.notifier.notify(alert_data, channels=channels)
 
         except Exception as e:
             logger.error(f"Failed to send notification: {e}")
@@ -307,12 +324,21 @@ class BatchScheduler:
                     results = await self.batch_processor.retrieve_batch_results(batch_id)
                     logger.info(f"Retrieved {len(results)} results from {batch_id}")
 
-                    # TODO: Process results (store in DB, trigger callbacks, etc.)
+                    # Process results: store in database and trigger callbacks
+                    try:
+                        await self._process_batch_results(batch_id, batch, results)
+                        logger.info(f"Successfully processed results for batch {batch_id}")
+                    except Exception as e:
+                        logger.error(f"Error processing results for batch {batch_id}: {e}", exc_info=True)
 
                 elif status.get("status") == "failed":
                     logger.error(f"❌ Batch failed: {batch_id}")
 
-                    # TODO: Handle failure (retry, notify, etc.)
+                    # Handle failure: retry or notify
+                    try:
+                        await self._handle_batch_failure(batch_id, batch, status)
+                    except Exception as e:
+                        logger.error(f"Error handling failure for batch {batch_id}: {e}", exc_info=True)
 
                 else:
                     logger.debug(f"⏳ Batch in progress: {batch_id} ({status.get('status')})")
@@ -334,6 +360,118 @@ class BatchScheduler:
                 await asyncio.sleep(300)  # Check every 5 minutes
         except Exception as e:
             logger.error(f"Monitoring loop error: {e}", exc_info=True)
+
+    async def _process_batch_results(self, batch_id: str, batch: dict, results: list):
+        """
+        Process completed batch results.
+
+        Args:
+            batch_id: Batch ID
+            batch: Batch metadata
+            results: List of batch results
+        """
+        from shared.db.connection import get_db_context
+        from sqlalchemy import text
+
+        job_type = batch.get("job_type")
+        logger.info(f"Processing {len(results)} results for batch {batch_id} (type: {job_type})")
+
+        # Store results in database
+        async with get_db_context() as db:
+            for result in results:
+                try:
+                    # Store based on job type
+                    if job_type == "ctr_prediction":
+                        # Update predictions table
+                        await db.execute(
+                            text("""
+                                INSERT INTO batch_results (batch_id, job_type, result_data, created_at)
+                                VALUES (:batch_id, :job_type, :result_data, NOW())
+                            """),
+                            {
+                                "batch_id": batch_id,
+                                "job_type": job_type,
+                                "result_data": str(result)
+                            }
+                        )
+                    # Add more job types as needed
+                except Exception as e:
+                    logger.error(f"Error storing result: {e}")
+
+            await db.commit()
+
+        # Send success notification
+        alert_data = {
+            "title": f"Batch {batch_id} Completed",
+            "message": f"Successfully processed {len(results)} results from batch {batch_id}",
+            "severity": "info",
+            "category": "batch_completion",
+            "timestamp": datetime.now().isoformat(),
+            "metadata": {
+                "batch_id": batch_id,
+                "job_type": job_type,
+                "result_count": len(results)
+            }
+        }
+        await self.notifier.notify(alert_data, channels=[NotificationChannel.DATABASE])
+
+    async def _handle_batch_failure(self, batch_id: str, batch: dict, status: dict):
+        """
+        Handle failed batch processing.
+
+        Args:
+            batch_id: Batch ID
+            batch: Batch metadata
+            status: Batch status information
+        """
+        job_type = batch.get("job_type")
+        retry_count = batch.get("retry_count", 0)
+        max_retries = int(os.getenv("BATCH_MAX_RETRIES", "3"))
+
+        logger.error(f"Batch {batch_id} failed (retry {retry_count}/{max_retries})")
+
+        # Retry logic
+        if retry_count < max_retries:
+            logger.info(f"Scheduling retry for batch {batch_id}")
+            # Update batch metadata with retry count
+            batch["retry_count"] = retry_count + 1
+
+            # Resubmit batch after delay
+            await asyncio.sleep(60 * (retry_count + 1))  # Exponential backoff
+
+            # Resubmit using batch processor
+            try:
+                provider = BatchProvider(batch.get("provider", "openai"))
+                job_type_enum = BatchJobType(job_type)
+                new_batch_id = await self.batch_processor.process_batch(
+                    job_type=job_type_enum,
+                    provider=provider
+                )
+                logger.info(f"Resubmitted as batch {new_batch_id}")
+            except Exception as e:
+                logger.error(f"Failed to resubmit batch: {e}")
+        else:
+            # Max retries exceeded - send alert
+            logger.error(f"Batch {batch_id} exceeded max retries ({max_retries})")
+
+        # Send failure notification
+        alert_data = {
+            "title": f"Batch {batch_id} Failed",
+            "message": f"Batch {batch_id} failed after {retry_count} retries. Error: {status.get('error', 'Unknown error')}",
+            "severity": "high",
+            "category": "batch_failure",
+            "timestamp": datetime.now().isoformat(),
+            "metadata": {
+                "batch_id": batch_id,
+                "job_type": job_type,
+                "retry_count": retry_count,
+                "error": status.get("error", "Unknown error")
+            }
+        }
+        await self.notifier.notify(
+            alert_data,
+            channels=[NotificationChannel.SLACK, NotificationChannel.EMAIL, NotificationChannel.DATABASE]
+        )
 
 
 # ============================================================================
