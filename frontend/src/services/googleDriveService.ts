@@ -1,20 +1,13 @@
 // Google Drive Service
 // Uses the Google Identity Services SDK and Google API Client Library.
 
+import { GoogleDriveFile } from '../types';
+
 declare global {
     interface Window {
         gapi: any;
         google: any;
     }
-}
-
-export interface MockDriveFile {
-    id: string;
-    name: string;
-    mimeType: string;
-    thumbnailLink: string;
-    embedLink?: string;
-    downloadUrl?: string;
 }
 
 const API_KEY = (import.meta as any).env.VITE_GOOGLE_API_KEY;
@@ -157,14 +150,14 @@ export const googleDriveService = {
     },
 
     // List video files from Drive
-    listFiles: async (): Promise<MockDriveFile[]> => {
+    listFiles: async (): Promise<GoogleDriveFile[]> => {
         if (!accessToken) throw new Error("Not authenticated. Please sign in first.");
 
         try {
 
             const response = await window.gapi.client.drive.files.list({
                 'pageSize': 20,
-                'fields': "nextPageToken, files(id, name, mimeType, thumbnailLink, webContentLink, videoMediaMetadata)",
+                'fields': "nextPageToken, files(id, name, mimeType, thumbnailLink, webContentLink, videoMediaMetadata, size, createdTime, modifiedTime, trashed)",
                 'q': "mimeType contains 'video/' and trashed = false"
             });
 
@@ -174,13 +167,21 @@ export const googleDriveService = {
                 return [];
             }
 
-            return files.map((file: any) => ({
+            return files.map((file: any): GoogleDriveFile => ({
                 id: file.id,
                 name: file.name,
                 mimeType: file.mimeType,
                 thumbnailLink: file.thumbnailLink || 'https://placehold.co/160x90/1a202c/9ca3af?text=No+Thumbnail',
-                downloadUrl: file.webContentLink,
-                duration: file.videoMediaMetadata?.durationMillis ? (file.videoMediaMetadata.durationMillis / 1000) + 's' : undefined
+                webContentLink: file.webContentLink,
+                videoMediaMetadata: file.videoMediaMetadata ? {
+                    durationMillis: file.videoMediaMetadata.durationMillis,
+                    width: file.videoMediaMetadata.width,
+                    height: file.videoMediaMetadata.height
+                } : undefined,
+                size: file.size,
+                createdTime: file.createdTime,
+                modifiedTime: file.modifiedTime,
+                trashed: file.trashed
             }));
         } catch (err: any) {
             console.error("Error listing files from Drive:", err);
@@ -192,7 +193,7 @@ export const googleDriveService = {
     },
 
     // Download a file from Drive
-    downloadFile: async (file: MockDriveFile): Promise<File> => {
+    downloadFile: async (file: GoogleDriveFile): Promise<File> => {
         if (!accessToken) throw new Error("Not authenticated");
 
         // We need to fetch the file content using the access token

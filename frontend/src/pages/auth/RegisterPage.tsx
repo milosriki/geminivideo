@@ -1,9 +1,10 @@
 import { useState, FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/salient/Button'
 import { TextField } from '@/components/salient/Fields'
 import { Logo } from '@/components/salient/Logo'
 import { SlimLayout } from '@/components/salient/SlimLayout'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface RegisterFormData {
   firstName: string
@@ -15,6 +16,8 @@ interface RegisterFormData {
 }
 
 export default function RegisterPage() {
+  const navigate = useNavigate()
+  const { signup, loginWithGoogle } = useAuth()
   const [formData, setFormData] = useState<RegisterFormData>({
     firstName: '',
     lastName: '',
@@ -25,6 +28,8 @@ export default function RegisterPage() {
   })
 
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterFormData, string>>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof RegisterFormData, string>> = {}
@@ -70,13 +75,41 @@ export default function RegisterPage() {
       return
     }
 
-    // TODO: Implement registration logic
-    console.log('Registration data:', formData)
+    setIsSubmitting(true)
+    setApiError(null)
+
+    try {
+      const displayName = `${formData.firstName} ${formData.lastName}`.trim()
+      await signup(formData.email, formData.password, displayName)
+
+      // Navigate to OTP verification page with email in state
+      navigate('/auth/otp', {
+        state: { email: formData.email }
+      })
+    } catch (error: any) {
+      console.error('Registration error:', error)
+      setApiError(error.message || 'Failed to create account. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleSocialSignup = (provider: string) => {
-    // TODO: Implement social signup logic
-    console.log(`Signup with ${provider}`)
+  const handleSocialSignup = async (provider: string) => {
+    setApiError(null)
+
+    try {
+      if (provider === 'google') {
+        await loginWithGoogle()
+        // On successful Google login, navigate to dashboard or onboarding
+        navigate('/')
+      } else if (provider === 'github') {
+        // GitHub OAuth not implemented in AuthContext yet
+        setApiError('GitHub signup is not available yet. Please use Google or email.')
+      }
+    } catch (error: any) {
+      console.error(`${provider} signup error:`, error)
+      setApiError(error.message || `Failed to sign up with ${provider}. Please try again.`)
+    }
   }
 
   return (
@@ -159,6 +192,32 @@ export default function RegisterPage() {
                 <span className="bg-zinc-900 px-4 text-zinc-500">Or continue with email</span>
               </div>
             </div>
+
+            {/* Error Message */}
+            {apiError && (
+              <div className="mt-8 rounded-lg bg-red-900/20 border border-red-800 p-4">
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="h-5 w-5 text-red-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth="1.5"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                      />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-red-400">{apiError}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Registration form */}
             <form
@@ -300,10 +359,39 @@ export default function RegisterPage() {
               <div className="col-span-full">
                 <button
                   type="submit"
-                  className="w-full flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  Create account
-                  <span aria-hidden="true" className="ml-1">&rarr;</span>
+                  {isSubmitting ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                      Creating account...
+                    </>
+                  ) : (
+                    <>
+                      Create account
+                      <span aria-hidden="true" className="ml-1">&rarr;</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent, ClipboardEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { clsx } from 'clsx';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiUrl } from '@/config/api';
 
 interface OTPInputProps {
   length?: number;
@@ -125,9 +127,13 @@ function OTPInput({ length = 6, onComplete }: OTPInputProps) {
 
 export default function OTPPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { currentUser, getIdToken } = useAuth();
   const [isResending, setIsResending] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const email = location.state?.email || currentUser?.email || 'your email';
 
   useEffect(() => {
     if (countdown > 0) {
@@ -140,13 +146,28 @@ export default function OTPPage() {
     if (countdown > 0) return;
 
     setIsResending(true);
+    setError(null);
 
     try {
-      // TODO: Implement actual resend logic
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const token = await getIdToken();
+      const response = await fetch(apiUrl('/auth/otp/resend'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ email })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to resend verification code');
+      }
+
       setCountdown(60); // Start 60 second countdown
     } catch (error) {
       console.error('Failed to resend code:', error);
+      setError(error instanceof Error ? error.message : 'Failed to resend verification code. Please try again.');
     } finally {
       setIsResending(false);
     }
@@ -154,17 +175,35 @@ export default function OTPPage() {
 
   const handleOTPComplete = async (otp: string) => {
     setIsVerifying(true);
+    setError(null);
 
     try {
-      // TODO: Implement actual verification logic
-      console.log('Verifying OTP:', otp);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const token = await getIdToken();
+      const response = await fetch(apiUrl('/auth/otp/verify'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ email, otp })
+      });
 
-      // Navigate to dashboard on success
-      navigate('/');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Invalid verification code');
+      }
+
+      const data = await response.json();
+
+      // Navigate to onboarding or dashboard based on user status
+      if (data.isNewUser) {
+        navigate('/onboarding/welcome');
+      } else {
+        navigate('/');
+      }
     } catch (error) {
       console.error('Failed to verify OTP:', error);
-      // TODO: Show error message to user
+      setError(error instanceof Error ? error.message : 'Invalid verification code. Please try again.');
     } finally {
       setIsVerifying(false);
     }
@@ -185,7 +224,7 @@ export default function OTPPage() {
           </h1>
           <p className="mt-3 text-sm leading-6 text-zinc-400">
             A 6-digit verification code has been sent to{' '}
-            <span className="font-semibold text-white">adam@example.com</span>
+            <span className="font-semibold text-white">{email}</span>
           </p>
         </div>
 
@@ -197,6 +236,32 @@ export default function OTPPage() {
             </label>
             <OTPInput length={6} onComplete={handleOTPComplete} />
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="rounded-lg bg-red-900/20 border border-red-800 p-4">
+              <div className="flex gap-3">
+                <div className="flex-shrink-0">
+                  <svg
+                    className="h-5 w-5 text-red-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth="1.5"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-red-400">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Resend Code */}
           <div className="text-center">

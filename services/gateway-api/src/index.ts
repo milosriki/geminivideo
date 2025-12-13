@@ -62,6 +62,14 @@ import {
   getTracingConfig
 } from './monitoring/tracing';
 
+// Swagger API Documentation (Agent 15)
+import { setupSwagger } from './swagger';
+
+// Enhanced Error Handler (Agent 17)
+import { enhancedErrorHandler } from './middleware/enhanced-error-handler';
+
+// Winner API Routes (Agent 11) - mounted below with createWinnersRouter(pgPool)
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 
@@ -2765,6 +2773,11 @@ import { createABTestsRouter } from './routes/ab-tests';
 const abTestsRouter = createABTestsRouter(pgPool);
 app.use(`${API_PREFIX}/ab-tests`, abTestsRouter);
 
+// Winner Detection Routes (Agent 02 - Automated Winner Detection)
+import { createWinnersRouter } from './routes/winners';
+const winnersRouter = createWinnersRouter(pgPool);
+app.use(`${API_PREFIX}/winners`, winnersRouter);
+
 // Ads Management Routes
 import { createAdsRouter } from './routes/ads';
 const adsRouter = createAdsRouter(pgPool);
@@ -2868,6 +2881,12 @@ import mlProxyRouter from './routes/ml-proxy';
 app.use(`${API_PREFIX}/ml`, mlProxyRouter);
 console.log('✅ Artery module endpoints mounted at /api/v1/ml/*');
 
+// Winner API Routes (Agent 11) - already mounted above at line 2779
+
+// Setup Swagger API Documentation (Agent 15)
+setupSwagger(app);
+console.log('✅ Swagger API documentation available at /api/docs');
+
 // ============================================================================
 // HEALTH CHECK & VERSION INFO
 // ============================================================================
@@ -2897,6 +2916,13 @@ app.get(`${API_PREFIX}/realtime/stats`, (req: Request, res: Response) => {
   });
 });
 
+// ============================================================================
+// ENHANCED ERROR HANDLER (Agent 17)
+// Must be registered after all routes for proper error catching
+// ============================================================================
+app.use(enhancedErrorHandler);
+console.log('✅ Enhanced error handler with fallbacks registered');
+
 const server = app.listen(PORT, async () => {
   console.log(`Gateway API listening on port ${PORT}`);
 
@@ -2924,6 +2950,16 @@ const server = app.listen(PORT, async () => {
   } catch (error) {
     console.error('❌ Failed to initialize real-time infrastructure:', error);
   }
+
+  // Initialize Winner Detection Scheduler (Agent 02)
+  try {
+    console.log('🚀 Starting winner detection scheduler...');
+    const { startWinnerScheduler } = require('./jobs/winner-scheduler');
+    startWinnerScheduler(pgPool);
+    console.log('✅ Winner detection scheduler started (runs every 6 hours)');
+  } catch (error) {
+    console.error('❌ Failed to start winner detection scheduler:', error);
+  }
 });
 
 // Graceful shutdown
@@ -2931,6 +2967,10 @@ process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully...');
 
   try {
+    // Stop winner scheduler
+    const { stopWinnerScheduler } = require('./jobs/winner-scheduler');
+    stopWinnerScheduler();
+
     await shutdownWebSocketManager();
     await shutdownChannelManager();
     shutdownSSEManager();
@@ -2949,6 +2989,10 @@ process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, shutting down gracefully...');
 
   try {
+    // Stop winner scheduler
+    const { stopWinnerScheduler } = require('./jobs/winner-scheduler');
+    stopWinnerScheduler();
+
     await shutdownWebSocketManager();
     await shutdownChannelManager();
     shutdownSSEManager();
