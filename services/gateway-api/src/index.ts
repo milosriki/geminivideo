@@ -63,13 +63,12 @@ import {
 } from './monitoring/tracing';
 
 // Swagger API Documentation (Agent 15)
-import { setupSwagger } from './docs/swagger';
+import { setupSwagger } from './swagger';
 
 // Enhanced Error Handler (Agent 17)
 import { enhancedErrorHandler } from './middleware/enhanced-error-handler';
 
-// Winner API Routes (Agent 11)
-import winnersRouter from './routes/winners';
+// Winner API Routes (Agent 11) - mounted below with createWinnersRouter(pgPool)
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -2882,9 +2881,7 @@ import mlProxyRouter from './routes/ml-proxy';
 app.use(`${API_PREFIX}/ml`, mlProxyRouter);
 console.log('✅ Artery module endpoints mounted at /api/v1/ml/*');
 
-// Winner API Routes (Agent 11)
-app.use(`${API_PREFIX}/winners`, winnersRouter);
-console.log('✅ Winner API endpoints mounted at /api/v1/winners/*');
+// Winner API Routes (Agent 11) - already mounted above at line 2779
 
 // Setup Swagger API Documentation (Agent 15)
 setupSwagger(app);
