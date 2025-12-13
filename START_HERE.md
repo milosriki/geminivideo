@@ -6,7 +6,7 @@
 
 ## 📖 Read This First (5 minutes)
 
-👉 **[WHAT_I_CHECKED_SUMMARY.md](./WHAT_I_CHECKED_SUMMARY.md)**
+👉 **[WHAT_I_CHECKED_SUMMARY.md](WHAT_I_CHECKED_SUMMARY.md)**
 
 Get a complete overview of:
 - What was analyzed
@@ -19,17 +19,17 @@ Get a complete overview of:
 ## 🎯 Then Choose Your Path
 
 ### For Developers 👨‍💻
-1. **[REBASE_GUIDE.md](./REBASE_GUIDE.md)** - Learn git rebase (10 min)
-2. **[QUICKSTART.md](./QUICKSTART.md)** - Get the system running (15 min)
+1. **[REBASE_GUIDE.md](REBASE_GUIDE.md)** - Learn git rebase (10 min)
+2. **[QUICKSTART.md](QUICKSTART.md)** - Get the system running (15 min)
 3. Run: `./scripts/pre-flight.sh` - Validate everything
 
 ### For Project Managers 👔
-1. **[REBASE_AND_AGENT_HISTORY.md](./REBASE_AND_AGENT_HISTORY.md)** - See what 60+ agents built
-2. **[AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md](./AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md)** - Production status
-3. **[INVESTOR_DEMO.md](./INVESTOR_DEMO.md)** - Demo preparation
+1. **[REBASE_AND_AGENT_HISTORY.md](REBASE_AND_AGENT_HISTORY.md)** - See what 60+ agents built
+2. **[AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md](AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md)** - Production status
+3. **[INVESTOR_DEMO.md](INVESTOR_DEMO.md)** - Demo preparation
 
 ### For DevOps/QA 🔧
-1. **[BEST_THINGS_TO_CHECK.md](./BEST_THINGS_TO_CHECK.md)** - Priority checklist
+1. **[BEST_THINGS_TO_CHECK.md](BEST_THINGS_TO_CHECK.md)** - Priority checklist
 2. Run: `./scripts/pre-flight.sh` - System validation
 3. Check: Environment variables and secrets
 
@@ -86,21 +86,21 @@ This checks 32 critical aspects and tells you if you're ready to launch. ✅
 ## 📚 Full Documentation Index
 
 ### Essential Reading
-- [README.md](./README.md) - Project overview
-- [WHAT_I_CHECKED_SUMMARY.md](./WHAT_I_CHECKED_SUMMARY.md) ⭐ **START HERE**
-- [QUICKSTART.md](./QUICKSTART.md) - Get running in 15 minutes
+- [README.md](README.md) - Project overview
+- [WHAT_I_CHECKED_SUMMARY.md](WHAT_I_CHECKED_SUMMARY.md) ⭐ **START HERE**
+- [QUICKSTART.md](QUICKSTART.md) - Get running in 15 minutes
 
 ### Git & Collaboration
-- [REBASE_GUIDE.md](./REBASE_GUIDE.md) - Complete rebase tutorial
-- [REBASE_AND_AGENT_HISTORY.md](./REBASE_AND_AGENT_HISTORY.md) - Agent contributions
+- [REBASE_GUIDE.md](REBASE_GUIDE.md) - Complete rebase tutorial
+- [REBASE_AND_AGENT_HISTORY.md](REBASE_AND_AGENT_HISTORY.md) - Agent contributions
 
 ### System Analysis
-- [BEST_THINGS_TO_CHECK.md](./BEST_THINGS_TO_CHECK.md) - Priority checklist
-- [AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md](./AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md) - Production status
+- [BEST_THINGS_TO_CHECK.md](BEST_THINGS_TO_CHECK.md) - Priority checklist
+- [AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md](AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md) - Production status
 
 ### Deployment
-- [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - Production deployment
-- [INVESTOR_DEMO.md](./INVESTOR_DEMO.md) - Demo preparation
+- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Production deployment
+- [INVESTOR_DEMO.md](INVESTOR_DEMO.md) - Demo preparation
 
 ---
 
@@ -115,13 +115,13 @@ A: YES! Run `./scripts/pre-flight.sh` to verify.
 A: `docker-compose up -d`
 
 **Q: What did previous agents do?**  
-A: Read [REBASE_AND_AGENT_HISTORY.md](./REBASE_AND_AGENT_HISTORY.md)
+A: Read [REBASE_AND_AGENT_HISTORY.md](REBASE_AND_AGENT_HISTORY.md)
 
 **Q: How do I use git rebase?**  
-A: Read [REBASE_GUIDE.md](./REBASE_GUIDE.md)
+A: Read [REBASE_GUIDE.md](REBASE_GUIDE.md)
 
 **Q: What should I check first?**  
-A: Read [BEST_THINGS_TO_CHECK.md](./BEST_THINGS_TO_CHECK.md)
+A: Read [BEST_THINGS_TO_CHECK.md](BEST_THINGS_TO_CHECK.md)
 
 ---
 
@@ -150,7 +150,7 @@ A: Read [BEST_THINGS_TO_CHECK.md](./BEST_THINGS_TO_CHECK.md)
 
 ## 🎯 Your First 30 Minutes
 
-**Minutes 1-5:** Read [WHAT_I_CHECKED_SUMMARY.md](./WHAT_I_CHECKED_SUMMARY.md)
+**Minutes 1-5:** Read [WHAT_I_CHECKED_SUMMARY.md](WHAT_I_CHECKED_SUMMARY.md)
 
 **Minutes 6-10:** Run `./scripts/pre-flight.sh`
 

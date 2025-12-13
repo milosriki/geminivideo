@@ -417,13 +417,13 @@ cat > DOCUMENTATION_INDEX.md << 'EOF'
 # Documentation Index
 
 ## Essential Reading
-- [README.md](./README.md) - Project overview
-- [QUICKSTART.md](./QUICKSTART.md) - Get started in 5 minutes
-- [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - Production deployment
+- [README.md](README.md) - Project overview
+- [QUICKSTART.md](QUICKSTART.md) - Get started in 5 minutes
+- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Production deployment
 
 ## Architecture
-- [REBASE_AND_AGENT_HISTORY.md](./REBASE_AND_AGENT_HISTORY.md) - Agent work history
-- [AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md](./AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md) - Final deployment status
+- [REBASE_AND_AGENT_HISTORY.md](REBASE_AND_AGENT_HISTORY.md) - Agent work history
+- [AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md](AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md) - Final deployment status
 
 ## Archive
 - See `/docs/archive/` for historical documentation

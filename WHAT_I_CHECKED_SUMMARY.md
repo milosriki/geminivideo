@@ -32,7 +32,7 @@
 
 ## 📚 Documents Created
 
-### 1. [REBASE_GUIDE.md](./REBASE_GUIDE.md)
+### 1. [REBASE_GUIDE.md](REBASE_GUIDE.md)
 **Purpose:** Complete tutorial on git rebase
 
 **Contents:**
@@ -48,7 +48,7 @@
 
 ---
 
-### 2. [REBASE_AND_AGENT_HISTORY.md](./REBASE_AND_AGENT_HISTORY.md)
+### 2. [REBASE_AND_AGENT_HISTORY.md](REBASE_AND_AGENT_HISTORY.md)
 **Purpose:** Historical context of agent work and rebase operations
 
 **Contents:**
@@ -64,7 +64,7 @@
 
 ---
 
-### 3. [BEST_THINGS_TO_CHECK.md](./BEST_THINGS_TO_CHECK.md)
+### 3. [BEST_THINGS_TO_CHECK.md](BEST_THINGS_TO_CHECK.md)
 **Purpose:** Comprehensive analysis with actionable recommendations
 
 **Contents:**
@@ -301,13 +301,13 @@ This single command will:
 ## 📞 Questions Answered
 
 ### Q: What did previous agents do?
-**A:** See [REBASE_AND_AGENT_HISTORY.md](./REBASE_AND_AGENT_HISTORY.md) - Complete breakdown of 60+ agent contributions across 4 phases.
+**A:** See [REBASE_AND_AGENT_HISTORY.md](REBASE_AND_AGENT_HISTORY.md) - Complete breakdown of 60+ agent contributions across 4 phases.
 
 ### Q: How do I use git rebase?
-**A:** See [REBASE_GUIDE.md](./REBASE_GUIDE.md) - Step-by-step tutorial with examples and best practices.
+**A:** See [REBASE_GUIDE.md](REBASE_GUIDE.md) - Step-by-step tutorial with examples and best practices.
 
 ### Q: What should I check in this repository?
-**A:** See [BEST_THINGS_TO_CHECK.md](./BEST_THINGS_TO_CHECK.md) - Prioritized analysis with actionable recommendations.
+**A:** See [BEST_THINGS_TO_CHECK.md](BEST_THINGS_TO_CHECK.md) - Prioritized analysis with actionable recommendations.
 
 ### Q: Is this production ready?
 **A:** **YES!** Run `./scripts/pre-flight.sh` to verify. Agent 60 validated 32 checks and gave "GO FOR LAUNCH" status.

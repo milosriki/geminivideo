@@ -380,10 +380,10 @@ Since this project has 60+ agents working on different features:
 
 ## 🔗 Related Documentation
 
-- [REBASE_GUIDE.md](./REBASE_GUIDE.md) - Comprehensive rebase tutorial
-- [INVESTOR_DEMO.md](./INVESTOR_DEMO.md) - Demo preparation guide
-- [AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md](./AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md) - Final deployment checklist
-- [README.md](./README.md) - Project overview and quick start
+- [REBASE_GUIDE.md](REBASE_GUIDE.md) - Comprehensive rebase tutorial
+- [INVESTOR_DEMO.md](INVESTOR_DEMO.md) - Demo preparation guide
+- [AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md](AGENT_60_FINAL_DEPLOYMENT_SUMMARY.md) - Final deployment checklist
+- [README.md](README.md) - Project overview and quick start
 
 ---
 
