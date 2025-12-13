@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { apiClient } from '../services/apiClient';
 import { extractFramesFromVideo, generateVideoThumbnail } from '../utils/video';
-import { AdCreative, CampaignStrategy, VideoFile, CampaignBrief, Avatar } from '../types';
+import { AdCreative, CampaignStrategy, VideoFile, CampaignBrief, Avatar, GoogleDriveFile } from '../types';
 import { WandIcon, FilmIcon, SparklesIcon, VideoIcon, GoogleDriveIcon, CheckIcon, UploadIcon } from './icons';
 import VideoEditor from './VideoEditor';
 import AdvancedEditor from './AdvancedEditor';
@@ -9,9 +9,7 @@ import { formatErrorMessage } from '../utils/error';
 import { extractAudio } from '../services/videoProcessor';
 import { transcribeAudio } from '../services/geminiService';
 import AudioCutterDashboard from './AudioCutterDashboard';
-import { googleDriveService, MockDriveFile } from '../services/googleDriveService';
-// TODO: [CRITICAL] Replace MockDriveFile with real Google Drive API types
-// The current implementation uses simulated data for the demo.
+import { googleDriveService } from '../services/googleDriveService';
 import AnalysisResultCard from './AnalysisResultCard';
 
 const AdCreativeCard: React.FC<{
@@ -227,8 +225,8 @@ const AdWorkflow: React.FC = () => {
   const [isAdvancedEditorOpen, setIsAdvancedEditorOpen] = useState(false);
   const [videoForEditing, setVideoForEditing] = useState<File | null>(null);
   const [isDrivePickerOpen, setIsDrivePickerOpen] = useState(false);
-  const [driveFiles, setDriveFiles] = useState<MockDriveFile[]>([]);
-  const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, MockDriveFile>>({});
+  const [driveFiles, setDriveFiles] = useState<GoogleDriveFile[]>([]);
+  const [selectedDriveFiles, setSelectedDriveFiles] = useState<Record<string, GoogleDriveFile>>({});
   const [isConnecting, setIsConnecting] = useState(false);
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [selectedAvatar, setSelectedAvatar] = useState('');
@@ -283,7 +281,7 @@ const AdWorkflow: React.FC = () => {
     }
   };
 
-  const handleDriveFileToggle = (file: MockDriveFile) => {
+  const handleDriveFileToggle = (file: GoogleDriveFile) => {
     setSelectedDriveFiles(prev => {
       const newSelection = { ...prev };
       if (newSelection[file.id]) {
@@ -358,7 +356,7 @@ const AdWorkflow: React.FC = () => {
   };
 
   const handleSelectFromDrive = async () => {
-    const filesToDownload = Object.values(selectedDriveFiles) as MockDriveFile[];
+    const filesToDownload = Object.values(selectedDriveFiles) as GoogleDriveFile[];
     if (filesToDownload.length === 0) return;
     setIsDrivePickerOpen(false);
     setIsProcessing(true);
@@ -468,7 +466,7 @@ const AdWorkflow: React.FC = () => {
               </button>
               <button onClick={() => {
                 // Smart Scan Simulation: Select first 3 files automatically
-                const newSelection: Record<string, MockDriveFile> = {};
+                const newSelection: Record<string, GoogleDriveFile> = {};
                 driveFiles.slice(0, 3).forEach(f => newSelection[f.id] = f);
                 setSelectedDriveFiles(newSelection);
                 // Then trigger download automatically after a short delay to show selection
