@@ -9,19 +9,23 @@ CREATE TABLE IF NOT EXISTS pending_jobs (
     job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_type VARCHAR(100) NOT NULL,
     payload JSONB NOT NULL DEFAULT '{}',
-    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
+    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     error_message TEXT,
-    retry_count INTEGER DEFAULT 0,
-    max_retries INTEGER DEFAULT 3
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    max_retries INTEGER NOT NULL DEFAULT 3
 );
 
 -- Indexes for efficient job processing
-CREATE INDEX IF NOT EXISTS idx_pending_jobs_status ON pending_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_pending_jobs_status ON pending_jobs(status) WHERE status IN ('pending', 'processing');
 CREATE INDEX IF NOT EXISTS idx_pending_jobs_type ON pending_jobs(job_type);
 CREATE INDEX IF NOT EXISTS idx_pending_jobs_created ON pending_jobs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pending_jobs_retry ON pending_jobs(retry_count, status) WHERE status = 'failed' AND retry_count < max_retries;
+
+-- Composite index for job processing query optimization
+CREATE INDEX IF NOT EXISTS idx_pending_jobs_processing ON pending_jobs(status, job_type, created_at) WHERE status = 'pending';
 
 -- ============================================================================
 -- WINNER DETECTION FUNCTION

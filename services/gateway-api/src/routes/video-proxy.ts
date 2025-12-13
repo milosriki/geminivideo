@@ -465,7 +465,7 @@ export function createVideoProxyRouter(pgPool: Pool): Router {
     uploadRateLimiter,
     validateInput({
       body: {
-        text: { type: 'string', required: true, max: 5000, sanitize: true },
+        text: { type: 'string', required: true, min: 1, max: 5000, sanitize: true },
         voice_id: { type: 'string', required: false, max: 100 },
         provider: { type: 'string', required: false, enum: ['elevenlabs', 'openai', 'google'] },
         settings: { type: 'object', required: false }
@@ -473,6 +473,14 @@ export function createVideoProxyRouter(pgPool: Pool): Router {
     }),
     async (req: Request, res: Response) => {
       try {
+        // Additional validation for text content
+        const { text } = req.body;
+        
+        // Check text length for rate limiting purposes
+        if (text.length > 3000) {
+          console.warn(`Long text request: ${text.length} characters`);
+        }
+
         const response = await axios.post(
           `${VIDEO_AGENT_URL}/pro/voice-generator/generate`,
           req.body,

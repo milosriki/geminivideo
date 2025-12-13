@@ -97,14 +97,10 @@ export function createWinnersRouter(pgPool: Pool): Router {
           paramIndex++;
         }
 
+        // Simplified ordering for better performance
         query += ` ORDER BY 
-          CASE
-            WHEN pm.ctr > $1 AND (pm.raw_data->>'roas')::FLOAT > $2 THEN 1
-            WHEN (pm.raw_data->>'roas')::FLOAT > $2 THEN 2
-            ELSE 3
-          END,
-          pm.ctr DESC,
-          (pm.raw_data->>'roas')::FLOAT DESC
+          (pm.raw_data->>'roas')::FLOAT DESC NULLS LAST,
+          pm.ctr DESC
           LIMIT $${paramIndex}
         `;
         params.push(limit);
