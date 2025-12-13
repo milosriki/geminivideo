@@ -222,8 +222,8 @@ class CrossAccountLearner:
             total_campaigns = len(campaigns)
             total_conversions = sum([w.get('conversions', 0) for w in winners])
 
-            # Check if account opted in to sharing (default True for now)
-            opted_in = True  # TODO: Check user settings
+            # Check if account opted in to sharing
+            opted_in = await self._get_user_opt_in_status(account_id)
 
             insights = AccountInsights(
                 account_id=account_id,
@@ -696,30 +696,44 @@ Respond with JSON:
             winners = []
             for campaign, avg_ctr in result:
                 # Get full metrics for this campaign
-                metrics_result = await self.db_session.execute(
-                    select(
-                        func.sum(PerformanceMetric.impressions).label('impressions'),
-                        func.sum(PerformanceMetric.clicks).label('clicks'),
-                        func.sum(PerformanceMetric.conversions).label('conversions'),
-                        func.sum(PerformanceMetric.spend).label('spend')
-                    )
+                # Get aggregated metrics including conversion value from raw_data
+                metrics_raw_result = await self.db_session.execute(
+                    select(PerformanceMetric)
                     .join(Video, PerformanceMetric.video_id == Video.id)
                     .where(Video.campaign_id == campaign.id)
                 )
 
-                metrics = metrics_result.first()
+                metrics_list = metrics_raw_result.scalars().all()
 
-                if metrics and metrics.impressions:
+                # Calculate totals
+                impressions = sum(m.impressions or 0 for m in metrics_list)
+                clicks = sum(m.clicks or 0 for m in metrics_list)
+                conversions = sum(m.conversions or 0 for m in metrics_list)
+                spend = sum(float(m.spend or 0) for m in metrics_list)
+
+                # Calculate conversion value from raw_data
+                conversion_value = 0.0
+                for m in metrics_list:
+                    if m.raw_data and isinstance(m.raw_data, dict):
+                        # Try to extract conversion value from raw_data
+                        conv_val = m.raw_data.get('conversion_value', 0) or m.raw_data.get('action_values', 0)
+                        if conv_val:
+                            conversion_value += float(conv_val)
+
+                # Calculate ROAS
+                roas = (conversion_value / spend) if spend > 0 else 0.0
+
+                if impressions:
                     winners.append({
                         'campaign_id': campaign.id,
                         'campaign_name': campaign.name,
                         'ctr': float(avg_ctr or 0),
-                        'impressions': metrics.impressions or 0,
-                        'clicks': metrics.clicks or 0,
-                        'conversions': metrics.conversions or 0,
-                        'spend': float(metrics.spend or 0),
-                        'conversion_rate': (metrics.conversions / metrics.clicks * 100) if metrics.clicks else 0,
-                        'roas': 0.0  # TODO: Calculate from conversion value
+                        'impressions': impressions,
+                        'clicks': clicks,
+                        'conversions': conversions,
+                        'spend': spend,
+                        'conversion_rate': (conversions / clicks * 100) if clicks else 0,
+                        'roas': roas
                     })
 
             return winners
@@ -768,6 +782,39 @@ Respond with JSON:
             return 90  # Mock: 90 days
         except Exception:
             return 0
+
+    async def _get_user_opt_in_status(self, account_id: str) -> bool:
+        """
+        Get user opt-in status for cross-account learning.
+
+        Args:
+            account_id: User/account ID
+
+        Returns:
+            True if user opted in, False otherwise (default True)
+        """
+        try:
+            from db.models import AccountInsights as AccountInsightsModel
+
+            # Check if there's an existing AccountInsights record
+            result = await self.db_session.execute(
+                select(AccountInsightsModel.opted_in)
+                .where(AccountInsightsModel.account_id == account_id)
+                .order_by(desc(AccountInsightsModel.created_at))
+                .limit(1)
+            )
+
+            opted_in_row = result.first()
+            if opted_in_row:
+                return opted_in_row[0]
+
+            # Default to True (opt-in by default, user can opt-out later)
+            return True
+
+        except Exception as e:
+            logger.error(f"Error fetching opt-in status for account {account_id}: {str(e)}")
+            # Default to True if there's an error
+            return True
 
     async def _get_accounts_by_niche(self, niche: str) -> List[str]:
         """Get all account IDs in a specific niche."""

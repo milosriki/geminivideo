@@ -21,6 +21,7 @@
 import cron from 'node-cron';
 import { logger } from '../utils/logger';
 import { Pool } from 'pg';
+import axios from 'axios';
 
 // Environment variables
 const BUDGET_SCHEDULE = process.env.BUDGET_SCHEDULE || '0 */12 * * *'; // Every 12 hours
@@ -457,15 +458,11 @@ async function sendBudgetReport(result: BudgetOptimizationResult, accountId: str
       safetyLimits: DEFAULT_LIMITS,
     };
 
-    // Log the report (could also send via email/Slack/webhook)
+    // Log the report
     logger.info('Budget Optimization Report', report);
 
-    // TODO: Integrate with notification service (email, Slack, etc.)
-    // await notificationService.send({
-    //   channel: 'budget-alerts',
-    //   subject: 'Budget Optimization Report',
-    //   body: JSON.stringify(report, null, 2),
-    // });
+    // Send notifications via configured channels
+    await sendNotifications(report, budgetDelta, budgetChangePercent);
 
     logger.info('Budget report sent successfully');
 
@@ -479,16 +476,252 @@ async function sendBudgetReport(result: BudgetOptimizationResult, accountId: str
 }
 
 /**
+ * Send notifications via configured channels (Slack, Email, Webhook)
+ */
+async function sendNotifications(report: any, budgetDelta: number, budgetChangePercent: number): Promise<void> {
+  const notificationPromises: Promise<void>[] = [];
+
+  // Slack notification
+  const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL;
+  if (slackWebhookUrl) {
+    notificationPromises.push(
+      sendSlackNotification(slackWebhookUrl, report, budgetDelta, budgetChangePercent)
+    );
+  }
+
+  // Email notification via SendGrid
+  const sendgridApiKey = process.env.SENDGRID_API_KEY;
+  const budgetAlertEmail = process.env.BUDGET_ALERT_EMAIL;
+  if (sendgridApiKey && budgetAlertEmail) {
+    notificationPromises.push(
+      sendEmailNotification(sendgridApiKey, budgetAlertEmail, report, budgetDelta)
+    );
+  }
+
+  // Generic webhook notification
+  const budgetWebhookUrl = process.env.BUDGET_WEBHOOK_URL;
+  if (budgetWebhookUrl) {
+    notificationPromises.push(
+      sendWebhookNotification(budgetWebhookUrl, report)
+    );
+  }
+
+  // Execute all notifications in parallel
+  if (notificationPromises.length > 0) {
+    await Promise.allSettled(notificationPromises);
+  } else {
+    logger.debug('No notification channels configured for budget reports');
+  }
+}
+
+/**
+ * Send Slack notification
+ */
+async function sendSlackNotification(
+  webhookUrl: string,
+  report: any,
+  budgetDelta: number,
+  budgetChangePercent: number
+): Promise<void> {
+  try {
+    const emoji = budgetDelta > 0 ? ':chart_with_upwards_trend:' : ':chart_with_downwards_trend:';
+    const color = budgetDelta > 0 ? '#36a64f' : '#ff9900';
+
+    const slackPayload = {
+      text: `${emoji} Budget Optimization Report`,
+      attachments: [
+        {
+          color: color,
+          fields: [
+            {
+              title: 'Account ID',
+              value: report.accountId,
+              short: true
+            },
+            {
+              title: 'Changes Applied',
+              value: `${report.summary.changesApplied} of ${report.summary.totalChangesProposed}`,
+              short: true
+            },
+            {
+              title: 'Current Budget',
+              value: report.summary.totalCurrentBudget,
+              short: true
+            },
+            {
+              title: 'New Budget',
+              value: report.summary.totalNewBudget,
+              short: true
+            },
+            {
+              title: 'Budget Delta',
+              value: `${report.summary.budgetDelta} (${budgetChangePercent.toFixed(2)}%)`,
+              short: true
+            },
+            {
+              title: 'Skipped Changes',
+              value: report.summary.changesSkipped.toString(),
+              short: true
+            }
+          ],
+          footer: 'Budget Scheduler',
+          ts: Math.floor(new Date(report.timestamp).getTime() / 1000)
+        }
+      ]
+    };
+
+    const response = await axios.post(webhookUrl, slackPayload, {
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    logger.info('Slack notification sent successfully', {
+      statusCode: response.status
+    });
+  } catch (error: any) {
+    logger.error('Failed to send Slack notification', {
+      error: error.message,
+      url: webhookUrl
+    });
+  }
+}
+
+/**
+ * Send email notification via SendGrid
+ */
+async function sendEmailNotification(
+  apiKey: string,
+  toEmail: string,
+  report: any,
+  budgetDelta: number
+): Promise<void> {
+  try {
+    const subject = `Budget Optimization Report - ${budgetDelta > 0 ? 'Increase' : 'Decrease'} of ${report.summary.budgetDelta}`;
+
+    const htmlContent = `
+      <h2>Budget Optimization Report</h2>
+      <p><strong>Account:</strong> ${report.accountId}</p>
+      <p><strong>Timestamp:</strong> ${report.timestamp}</p>
+
+      <h3>Summary</h3>
+      <ul>
+        <li><strong>Total Changes Proposed:</strong> ${report.summary.totalChangesProposed}</li>
+        <li><strong>Changes Applied:</strong> ${report.summary.changesApplied}</li>
+        <li><strong>Changes Skipped:</strong> ${report.summary.changesSkipped}</li>
+        <li><strong>Current Budget:</strong> ${report.summary.totalCurrentBudget}</li>
+        <li><strong>New Budget:</strong> ${report.summary.totalNewBudget}</li>
+        <li><strong>Budget Delta:</strong> ${report.summary.budgetDelta} (${report.summary.budgetChangePercent})</li>
+      </ul>
+
+      <h3>Safety Limits</h3>
+      <ul>
+        <li><strong>Max Daily Change:</strong> ${(report.safetyLimits.maxDailyChangePercent * 100)}%</li>
+        <li><strong>Min Budget Per Ad:</strong> $${report.safetyLimits.minBudgetPerAd}</li>
+        <li><strong>Max Budget Per Ad:</strong> $${report.safetyLimits.maxBudgetPerAd}</li>
+      </ul>
+
+      <h3>Applied Changes (Top 10)</h3>
+      <table border="1" cellpadding="5" cellspacing="0">
+        <tr>
+          <th>Campaign ID</th>
+          <th>Action</th>
+          <th>Current Budget</th>
+          <th>New Budget</th>
+          <th>Reason</th>
+        </tr>
+        ${report.appliedChanges.map((change: BudgetChange) => `
+          <tr>
+            <td>${change.campaignId}</td>
+            <td>${change.action}</td>
+            <td>$${change.currentBudget.toFixed(2)}</td>
+            <td>$${change.newBudget.toFixed(2)}</td>
+            <td>${change.reason}</td>
+          </tr>
+        `).join('')}
+      </table>
+    `;
+
+    const emailPayload = {
+      personalizations: [
+        {
+          to: [{ email: toEmail }],
+          subject: subject
+        }
+      ],
+      from: {
+        email: process.env.BUDGET_ALERT_FROM_EMAIL || 'noreply@geminivideo.ai',
+        name: 'Budget Scheduler'
+      },
+      content: [
+        {
+          type: 'text/html',
+          value: htmlContent
+        }
+      ]
+    };
+
+    const response = await axios.post(
+      'https://api.sendgrid.com/v3/mail/send',
+      emailPayload,
+      {
+        timeout: 10000,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    logger.info('Email notification sent successfully', {
+      to: toEmail,
+      statusCode: response.status
+    });
+  } catch (error: any) {
+    logger.error('Failed to send email notification', {
+      error: error.message,
+      to: toEmail
+    });
+  }
+}
+
+/**
+ * Send generic webhook notification
+ */
+async function sendWebhookNotification(webhookUrl: string, report: any): Promise<void> {
+  try {
+    const response = await axios.post(
+      webhookUrl,
+      {
+        event: 'budget_optimization_completed',
+        ...report
+      },
+      {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'GeminiVideo-BudgetScheduler/1.0'
+        }
+      }
+    );
+
+    logger.info('Webhook notification sent successfully', {
+      url: webhookUrl,
+      statusCode: response.status
+    });
+  } catch (error: any) {
+    logger.error('Failed to send webhook notification', {
+      error: error.message,
+      url: webhookUrl
+    });
+  }
+}
+
+/**
  * Manual trigger for budget optimization (for testing or admin use)
  */
 export async function triggerBudgetOptimization(accountId: string): Promise<BudgetOptimizationResult> {
   logger.info('Manual budget optimization triggered', { accountId });
   return runBudgetOptimization(accountId);
 }
-
-// Export for use in other modules
-export {
-  startBudgetScheduler,
-  runBudgetOptimization,
-  triggerBudgetOptimization,
-};

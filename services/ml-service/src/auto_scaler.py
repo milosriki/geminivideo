@@ -711,10 +711,7 @@ class BudgetAutoScaler:
             return {"success": False, "error": "Meta API not initialized"}
 
         try:
-            # Get all active campaigns
-            # Note: This is simplified - in production you'd query your database for tracked campaigns
-            # For now, we'll need campaigns passed in or stored in database
-
+            # Get all active campaigns from database
             results = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "account_id": account_id,
@@ -725,9 +722,52 @@ class BudgetAutoScaler:
                 "details": []
             }
 
-            # TODO: Get campaign list from database or Meta API
-            # For now, return placeholder
-            logger.warning("Campaign list retrieval not implemented - add campaigns to database")
+            # Get active campaigns from database
+            try:
+                from shared.db.models import Campaign
+                campaigns = self.db.query(Campaign).filter(
+                    Campaign.status.in_(['active', 'running'])
+                ).all()
+
+                if not campaigns:
+                    logger.info("No active campaigns found in database")
+                    return results
+
+                logger.info(f"Found {len(campaigns)} active campaigns to evaluate")
+
+                # Evaluate each campaign
+                for campaign in campaigns:
+                    # Get campaign ID - check for meta_platform_id or use campaign id
+                    campaign_id = getattr(campaign, 'meta_platform_id', str(campaign.id))
+                    if not campaign_id:
+                        logger.warning(f"Campaign {campaign.id} has no Meta platform ID, skipping")
+                        continue
+
+                    try:
+                        # Evaluate and potentially scale this campaign
+                        recommendation = await self.evaluate_campaign(account_id, campaign_id)
+                        results["campaigns_evaluated"] += 1
+
+                        if recommendation and recommendation.action != ScalingAction.MAINTAIN:
+                            results["details"].append({
+                                "campaign_id": campaign_id,
+                                "campaign_name": campaign.name,
+                                "action": recommendation.action.value,
+                                "reason": recommendation.reason
+                            })
+
+                            if recommendation.requires_approval:
+                                results["actions_pending_approval"] += 1
+                            else:
+                                results["actions_taken"] += 1
+
+                    except Exception as e:
+                        logger.error(f"Error evaluating campaign {campaign_id}: {e}")
+                        results["errors"] += 1
+
+            except Exception as e:
+                logger.error(f"Error fetching campaigns from database: {e}")
+                results["errors"] += 1
 
             return results
 

@@ -1,6 +1,9 @@
 import React, { Fragment, useState } from 'react';
 import { Dialog, Transition, Tab } from '@headlessui/react';
+import { useNavigate } from 'react-router-dom';
 import { BoardSelector } from './BoardSelector';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiUrl } from '@/config/api';
 
 interface AdDetail {
   id: string;
@@ -124,7 +127,11 @@ export const AdDetailModal: React.FC<AdDetailModalProps> = ({
   onSaveToBoard,
   onCreateBoard,
 }) => {
+  const navigate = useNavigate();
+  const { currentUser, getIdToken } = useAuth();
   const [copiedScript, setCopiedScript] = useState(false);
+  const [isCreatingSimilar, setIsCreatingSimilar] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!ad) return null;
 
@@ -138,8 +145,48 @@ export const AdDetailModal: React.FC<AdDetailModalProps> = ({
     }
   };
 
-  const handleCreateSimilar = () => {
-    // TODO: Implement create similar ad functionality
+  const handleCreateSimilar = async () => {
+    setIsCreatingSimilar(true);
+    setError(null);
+
+    try {
+      if (!currentUser) {
+        throw new Error('You must be logged in to create ads');
+      }
+
+      const token = await getIdToken();
+      const response = await fetch(apiUrl('/ads/create-similar'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          sourceAdId: ad.id,
+          platform: ad.platform,
+          style: ad.style,
+          hook: ad.hook,
+          userId: currentUser.uid
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create similar ad');
+      }
+
+      const newAd = await response.json();
+
+      // Navigate to the AI creative studio with the new ad as template
+      navigate('/studio/ai-creative', {
+        state: { templateAd: newAd }
+      });
+    } catch (error) {
+      console.error('Failed to create similar ad:', error);
+      setError(error instanceof Error ? error.message : 'Failed to create similar ad. Please try again.');
+    } finally {
+      setIsCreatingSimilar(false);
+    }
   };
 
   return (

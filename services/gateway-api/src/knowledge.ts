@@ -12,16 +12,52 @@ import {
 
 const router = Router();
 
-// Initialize GCS client - can be mocked for local development
-// TODO: [CRITICAL] Ensure GCS_MOCK_MODE is false in production
-// Real GCS bucket credentials must be configured in .env
-const storage = process.env.GCS_MOCK_MODE === 'true'
+// Initialize GCS client with production safety checks
+// GCS_MOCK_MODE should ONLY be 'true' in local development
+// In production, this MUST be 'false' or undefined
+const GCS_MOCK_MODE = process.env.GCS_MOCK_MODE === 'true';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const IS_PRODUCTION = NODE_ENV === 'production';
+
+// CRITICAL: Validate GCS configuration in production
+if (IS_PRODUCTION && GCS_MOCK_MODE) {
+  const errorMsg = '[CRITICAL] GCS_MOCK_MODE is enabled in production environment. This is not allowed. Set GCS_MOCK_MODE=false or remove it from environment variables.';
+  console.error(errorMsg);
+  throw new Error(errorMsg);
+}
+
+// Warn if mock mode is enabled in non-production
+if (GCS_MOCK_MODE && !IS_PRODUCTION) {
+  console.warn('[WARNING] GCS_MOCK_MODE is enabled. Using mock storage for local development. This should NEVER happen in production.');
+}
+
+// Initialize Google Cloud Storage client
+// In production: GCS_MOCK_MODE must be false, and real credentials must be configured
+// In development: GCS_MOCK_MODE can be true for testing without GCS access
+const storage = GCS_MOCK_MODE
   ? null
   : new Storage({
     projectId: process.env.PROJECT_ID || 'gen-lang-client-0427673522'
   });
 
 const BUCKET_NAME = process.env.GCS_BUCKET || 'ai-studio-bucket-208288753973-us-west1';
+
+// Validate GCS configuration in production
+if (IS_PRODUCTION) {
+  if (!storage) {
+    throw new Error('[CRITICAL] Google Cloud Storage is not initialized in production. Check GCS_MOCK_MODE and credentials.');
+  }
+  if (!process.env.PROJECT_ID) {
+    console.warn('[WARNING] PROJECT_ID environment variable is not set. Using default project ID.');
+  }
+  if (!process.env.GCS_BUCKET) {
+    console.warn('[WARNING] GCS_BUCKET environment variable is not set. Using default bucket name.');
+  }
+  console.log('[INFO] Google Cloud Storage initialized successfully for production', {
+    projectId: process.env.PROJECT_ID || 'default',
+    bucket: BUCKET_NAME
+  });
+}
 
 // In-memory store for development/testing (replace with database in production)
 const knowledgeRegistry: Map<string, any> = new Map();
