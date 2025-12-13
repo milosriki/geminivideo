@@ -3552,6 +3552,177 @@ if SELF_LEARNING_MODULES_AVAILABLE:
 
 
     # ============================================================
+    # TRAINING ENDPOINTS - Explicit train/run endpoints for ML modules
+    # ============================================================
+
+    class CrossLearnerTrainRequest(BaseModel):
+        """Request to trigger cross-learner training/refresh"""
+        force_refresh: bool = False
+
+    @app.post("/api/ml/cross-learner/train", tags=["Cross-Learning", "Training"])
+    async def train_cross_learner(request: CrossLearnerTrainRequest):
+        """
+        Train/refresh cross-learner wisdom cache
+        
+        Extracts anonymized insights from all accounts and updates niche wisdom.
+        This is the "training" process for cross-account learning.
+        """
+        try:
+            if not cross_learner:
+                raise HTTPException(503, "Cross-learner not initialized")
+
+            logger.info("🔄 Starting cross-learner training/refresh...")
+            
+            # Get all unique niches that have data
+            total_accounts = await cross_learner._get_total_account_count()
+            active_niches = await cross_learner._get_active_niche_count()
+            
+            # Refresh wisdom for all active niches
+            refreshed_niches = []
+            for niche in ["fitness", "beauty", "fashion", "tech", "ecommerce", 
+                          "food", "saas", "health", "education"]:
+                try:
+                    wisdom = await cross_learner.get_niche_insights(
+                        niche=niche, 
+                        force_refresh=request.force_refresh
+                    )
+                    if wisdom:
+                        refreshed_niches.append(niche)
+                except Exception as e:
+                    logger.warning(f"Could not refresh {niche}: {e}")
+                    continue
+
+            logger.info(f"✅ Cross-learner training complete: {len(refreshed_niches)} niches updated")
+
+            return {
+                "status": "success",
+                "message": "Cross-learner training completed",
+                "metrics": {
+                    "total_accounts": total_accounts,
+                    "active_niches": active_niches,
+                    "refreshed_niches": len(refreshed_niches),
+                    "niche_list": refreshed_niches
+                },
+                "cache_size": len(cross_learner._wisdom_cache),
+                "force_refresh": request.force_refresh,
+                "timestamp": datetime.now().isoformat()
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error training cross-learner: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+
+    class CompoundLearnerTrainRequest(BaseModel):
+        """Request to trigger compound learner training"""
+        account_id: Optional[str] = None
+
+    @app.post("/api/ml/compound/train", tags=["Compound Learner", "Training"])
+    async def train_compound_learner(request: CompoundLearnerTrainRequest):
+        """
+        Train compound learner (run learning cycle)
+        
+        Alias for /api/ml/compound/learning-cycle for consistency with other train endpoints.
+        Collects data, extracts patterns, updates knowledge, retrains models.
+        """
+        try:
+            if not compound_learner:
+                raise HTTPException(503, "Compound learner not initialized")
+
+            logger.info("📚 Starting compound learner training...")
+            
+            result = await compound_learner.learning_cycle(account_id=request.account_id)
+
+            logger.info(f"✅ Compound learner training complete: {result.new_patterns} new patterns")
+
+            return {
+                "status": "success",
+                "message": "Compound learner training completed",
+                "cycle_id": result.cycle_id,
+                "metrics": {
+                    "new_data_points": result.new_data_points,
+                    "new_patterns": result.new_patterns,
+                    "new_knowledge_nodes": result.new_knowledge_nodes,
+                    "models_retrained": result.models_retrained,
+                    "improvement_rate": round(result.improvement_rate * 100, 2),
+                    "cumulative_improvement": round(result.cumulative_improvement * 100, 2)
+                },
+                "duration_seconds": result.duration_seconds,
+                "timestamp": datetime.now().isoformat()
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error training compound learner: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+
+    class AutoPromoterRunRequest(BaseModel):
+        """Request to run auto-promoter"""
+        experiment_id: Optional[str] = None  # If None, check all
+        force_promotion: bool = False
+
+    @app.post("/api/ml/auto-promoter/run", tags=["Auto-Promoter", "Training"])
+    async def run_auto_promoter(request: AutoPromoterRunRequest):
+        """
+        Run auto-promoter to check and promote experiments
+        
+        If experiment_id provided, checks that specific experiment.
+        If None, checks all active experiments for promotion opportunities.
+        """
+        try:
+            if not auto_promoter:
+                raise HTTPException(503, "Auto-promoter not initialized")
+
+            logger.info("🎯 Running auto-promoter...")
+
+            if request.experiment_id:
+                # Check specific experiment
+                result = await auto_promoter.check_and_promote(
+                    experiment_id=request.experiment_id,
+                    force_promotion=request.force_promotion
+                )
+                
+                logger.info(f"✅ Auto-promoter check complete for experiment {request.experiment_id}")
+                
+                return {
+                    "status": "success",
+                    "message": f"Auto-promoter check completed for experiment {request.experiment_id}",
+                    "result": result.to_dict(),
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                # Check all active experiments
+                results = await auto_promoter.check_all_active_experiments()
+                
+                promoted_count = len([r for r in results if r.status.value == "promoted"])
+                continue_testing_count = len([r for r in results if r.status.value == "continue_testing"])
+                
+                logger.info(f"✅ Auto-promoter check complete: {promoted_count} promoted, {continue_testing_count} continuing")
+
+                return {
+                    "status": "success",
+                    "message": "Auto-promoter run completed for all active experiments",
+                    "summary": {
+                        "total_checked": len(results),
+                        "promoted": promoted_count,
+                        "continue_testing": continue_testing_count
+                    },
+                    "results": [r.to_dict() for r in results],
+                    "timestamp": datetime.now().isoformat()
+                }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error running auto-promoter: {e}", exc_info=True)
+            raise HTTPException(500, str(e))
+
+
+    # ============================================================
     # SELF-LEARNING CYCLE - All 7 loops together
     # ============================================================
 

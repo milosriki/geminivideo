@@ -711,10 +711,7 @@ class BudgetAutoScaler:
             return {"success": False, "error": "Meta API not initialized"}
 
         try:
-            # Get all active campaigns
-            # Note: This is simplified - in production you'd query your database for tracked campaigns
-            # For now, we'll need campaigns passed in or stored in database
-
+            # Get all active campaigns from database
             results = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "account_id": account_id,
@@ -725,9 +722,86 @@ class BudgetAutoScaler:
                 "details": []
             }
 
-            # TODO: Get campaign list from database or Meta API
-            # For now, return placeholder
-            logger.warning("Campaign list retrieval not implemented - add campaigns to database")
+            # Get active campaigns from scaling rules or performance snapshots
+            # Query recent campaigns that have been actively tracked
+            try:
+                # Import Campaign model if available
+                sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'shared'))
+                from db.models import Campaign, PerformanceMetric
+                
+                # Get campaigns with recent activity (last 7 days)
+                recent_date = datetime.utcnow() - timedelta(days=7)
+                
+                # Query campaigns from performance_metrics table
+                campaign_ids = self.db.query(PerformanceMetric.campaign_id).distinct()\
+                    .filter(PerformanceMetric.created_at >= recent_date)\
+                    .filter(PerformanceMetric.campaign_id.isnot(None))\
+                    .all()
+                
+                campaign_ids = [cid[0] for cid in campaign_ids if cid[0]]
+                
+                logger.info(f"Found {len(campaign_ids)} campaigns with recent activity")
+                
+            except Exception as e:
+                logger.warning(f"Could not query campaigns from database: {e}")
+                # Fallback: Get campaigns from scaling_rules
+                try:
+                    rule_campaigns = self.db.query(ScalingRule.campaign_id).distinct()\
+                        .filter(ScalingRule.account_id == account_id)\
+                        .filter(ScalingRule.enabled == True)\
+                        .filter(ScalingRule.campaign_id.isnot(None))\
+                        .all()
+                    campaign_ids = [cid[0] for cid in rule_campaigns if cid[0]]
+                    logger.info(f"Using {len(campaign_ids)} campaigns from scaling rules")
+                except Exception as e2:
+                    logger.error(f"Could not get campaigns from scaling rules: {e2}")
+                    campaign_ids = []
+
+            # Evaluate each campaign for scaling opportunities
+            for campaign_id in campaign_ids:
+                try:
+                    recommendation = await self.recommend_scaling_action(account_id, campaign_id)
+                    
+                    results["campaigns_evaluated"] += 1
+                    
+                    if recommendation["action"] != ScalingAction.MAINTAIN.value:
+                        # Create scaling action
+                        action_result = await self.execute_scaling_action(
+                            account_id=account_id,
+                            campaign_id=campaign_id,
+                            action_type=ScalingAction[recommendation["action"].upper()],
+                            reason=recommendation.get("reason", "Auto-scaler recommendation"),
+                            current_budget=recommendation.get("current_budget", 0),
+                            new_budget=recommendation.get("new_budget", 0),
+                            auto_approve=False  # Require manual approval for safety
+                        )
+                        
+                        if action_result.get("status") == "pending_approval":
+                            results["actions_pending_approval"] += 1
+                        elif action_result.get("status") == "executed":
+                            results["actions_taken"] += 1
+                        
+                        results["details"].append({
+                            "campaign_id": campaign_id,
+                            "action": recommendation["action"],
+                            "reason": recommendation.get("reason"),
+                            "status": action_result.get("status"),
+                            "metrics": recommendation.get("metrics", {})
+                        })
+                        
+                    logger.debug(f"Evaluated campaign {campaign_id}: {recommendation['action']}")
+                    
+                except Exception as e:
+                    logger.error(f"Error evaluating campaign {campaign_id}: {e}")
+                    results["errors"] += 1
+                    results["details"].append({
+                        "campaign_id": campaign_id,
+                        "error": str(e)
+                    })
+
+            logger.info(f"Hourly optimization complete: {results['campaigns_evaluated']} campaigns evaluated, "
+                       f"{results['actions_pending_approval']} actions pending approval, "
+                       f"{results['actions_taken']} actions executed")
 
             return results
 
