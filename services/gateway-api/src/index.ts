@@ -34,8 +34,47 @@ import {
   validateApiKey
 } from './middleware/security';
 
+// API Versioning middleware imports (Agent 24)
+import {
+  API_VERSION,
+  API_PREFIX,
+  apiVersionMiddleware,
+  validateApiVersion,
+  versionInfoHandler
+} from './middleware/api-versioning';
+
+// Monitoring & Observability imports (Agent 28)
+import {
+  register,
+  metricsMiddleware,
+  getMetrics
+} from './monitoring/metrics';
+import {
+  checkHealth,
+  checkReadiness,
+  checkLiveness,
+  setDatabasePool,
+  setRedisClient
+} from './monitoring/health';
+import {
+  initTracing,
+  tracingMiddleware,
+  getTracingConfig
+} from './monitoring/tracing';
+
+// Swagger API Documentation (Agent 15)
+import { setupSwagger } from './swagger';
+
+// Enhanced Error Handler (Agent 17)
+import { enhancedErrorHandler } from './middleware/enhanced-error-handler';
+
+// Winner API Routes (Agent 11) - mounted below with createWinnersRouter(pgPool)
+
 const app = express();
 const PORT = process.env.PORT || 8000;
+
+// Configuration constants
+const DEFAULT_AI_CREDITS = parseInt(process.env.DEFAULT_AI_CREDITS || '10000', 10);
 
 // ============================================================================
 // SECURITY MIDDLEWARE LAYER (Agent 5 - OWASP Best Practices)
@@ -62,6 +101,16 @@ app.use(sqlInjectionProtection);
 
 // 7. XSS Protection - Sanitize HTML
 app.use(xssProtection);
+
+// 8. API Versioning - Add version management (Agent 24)
+app.use(apiVersionMiddleware);
+app.use(validateApiVersion(['v1']));
+
+// 9. Metrics Collection - Track HTTP metrics (Agent 28)
+app.use(metricsMiddleware);
+
+// 10. Distributed Tracing - OpenTelemetry (Agent 28)
+app.use(tracingMiddleware);
 
 // Initialize security Redis for distributed rate limiting
 initializeSecurityRedis().catch(err => {
@@ -106,13 +155,71 @@ if (!DATABASE_URL) {
 const pgPool = new Pool({ connectionString: DATABASE_URL });
 pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
 
-// Verify database connection
+// Verify database connection and initialize tables
 pgPool.query('SELECT NOW()')
-  .then(() => console.log('✅ PostgreSQL connected'))
+  .then(async () => {
+    console.log('✅ PostgreSQL connected');
+    
+    // Initialize AI Credits tables (GROUP A)
+    // Note: In production, this should ideally be managed through database migrations
+    try {
+      const createCreditsTablesQuery = `
+        CREATE TABLE IF NOT EXISTS ai_credits (
+          user_id VARCHAR(255) PRIMARY KEY,
+          total_credits INTEGER NOT NULL DEFAULT ${DEFAULT_AI_CREDITS},
+          used_credits INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS ai_credit_usage (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          credits_used INTEGER NOT NULL,
+          operation VARCHAR(100) NOT NULL,
+          metadata JSONB DEFAULT '{}',
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_credit_usage_user ON ai_credit_usage(user_id);
+        CREATE INDEX IF NOT EXISTS idx_credit_usage_created ON ai_credit_usage(created_at DESC);
+      `;
+
+      await pgPool.query(createCreditsTablesQuery);
+      console.log('✅ AI credits tables initialized');
+
+      // Initialize default user with credits if not exists
+      const initDefaultUserQuery = `
+        INSERT INTO ai_credits (user_id, total_credits, used_credits)
+        VALUES ('default_user', $1, 0)
+        ON CONFLICT (user_id) DO NOTHING;
+      `;
+
+      await pgPool.query(initDefaultUserQuery, [DEFAULT_AI_CREDITS]);
+      console.log(`✅ Default user credits initialized (${DEFAULT_AI_CREDITS} credits)`);
+    } catch (error) {
+      // Log warning but allow application to continue
+      // Credits endpoints will fail gracefully if tables don't exist
+      console.error('⚠️  Credits table initialization failed:', error);
+      console.error('⚠️  Credits endpoints may not function correctly');
+    }
+    
+    // Initialize monitoring health checks (Agent 28)
+    setDatabasePool(pgPool);
+  })
   .catch((err) => {
     console.error('❌ PostgreSQL connection failed:', err.message);
     process.exit(1);
   });
+
+// Initialize monitoring with Redis client (Agent 28)
+if (redisClient) {
+  setRedisClient(redisClient);
+}
+
+// Initialize distributed tracing (Agent 28)
+const tracingConfig = getTracingConfig();
+initTracing(tracingConfig);
 
 // Load configuration
 const configPath = process.env.CONFIG_PATH || '../../shared/config';
@@ -146,6 +253,63 @@ app.get('/', (req: Request, res: Response) => {
     status: 'running',
     version: '1.0.0'
   });
+});
+
+// ============================================================================
+// MONITORING & OBSERVABILITY ENDPOINTS (Agent 28)
+// ============================================================================
+
+// Prometheus metrics endpoint - Grafana-compatible
+app.get('/metrics', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getMetrics();
+    res.set('Content-Type', register.contentType);
+    res.send(metrics);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health check endpoint - comprehensive health status
+app.get('/health', async (req: Request, res: Response) => {
+  try {
+    const health = await checkHealth();
+    const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error: any) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Readiness probe - is the service ready to accept traffic?
+app.get('/health/ready', async (req: Request, res: Response) => {
+  try {
+    const readiness = await checkReadiness();
+    const statusCode = readiness.ready ? 200 : 503;
+    res.status(statusCode).json(readiness);
+  } catch (error: any) {
+    res.status(503).json({
+      ready: false,
+      error: error.message
+    });
+  }
+});
+
+// Liveness probe - is the service alive?
+app.get('/health/live', (req: Request, res: Response) => {
+  try {
+    const liveness = checkLiveness();
+    res.status(200).json(liveness);
+  } catch (error: any) {
+    res.status(503).json({
+      alive: false,
+      error: error.message
+    });
+  }
 });
 
 // Helper function to validate service URLs
@@ -605,36 +769,45 @@ app.post('/api/publish/meta',
         ad_id,
         userId,
         JSON.stringify({
-          // ====================================================================
+          ad_id,
+          video_path,
+          caption,
+          scheduled_time
+        })
+      ]);
 
-          const response = await axios.post(
-            `${META_PUBLISHER_URL}/publish/meta`,
-            {
-              ad_id,
-              video_path,
-              caption,
-              scheduled_time
-            }
-          );
+      // ====================================================================
+      // Publish to Meta
+      // ====================================================================
 
-          console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
-
-          res.json({
-            ...response.data,
-            security_check: {
-              approved: true,
-              approved_by: userId,
-              published_at: new Date().toISOString()
-            }
-          });
-
-        } catch (error: any) {
-          console.error('[ERROR] Publish failed:', error.message);
-          res.status(error.response?.status || 500).json({
-            error: error.message
-          });
+      const response = await axios.post(
+        `${META_PUBLISHER_URL}/publish/meta`,
+        {
+          ad_id,
+          video_path,
+          caption,
+          scheduled_time
         }
-    });
+      );
+
+      console.log(`[SUCCESS] Ad published to Meta: ad_id=${ad_id}, meta_response=${response.status}`);
+
+      res.json({
+        ...response.data,
+        security_check: {
+          approved: true,
+          approved_by: userId,
+          published_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error: any) {
+      console.error('[ERROR] Publish failed:', error.message);
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
+    }
+  });
 
 app.get('/api/insights', async (req: Request, res: Response) => {
   try {
@@ -2588,27 +2761,32 @@ app.get('/api/publish/summary',
 // Campaign Management Routes
 import { createCampaignsRouter } from './routes/campaigns';
 const campaignsRouter = createCampaignsRouter(pgPool);
-app.use('/api/campaigns', campaignsRouter);
+app.use(`${API_PREFIX}/campaigns`, campaignsRouter);
 
 // Analytics Routes
 import { createAnalyticsRouter } from './routes/analytics';
 const analyticsRouter = createAnalyticsRouter(pgPool);
-app.use('/api/analytics', analyticsRouter);
+app.use(`${API_PREFIX}/analytics`, analyticsRouter);
 
 // A/B Testing Routes
 import { createABTestsRouter } from './routes/ab-tests';
 const abTestsRouter = createABTestsRouter(pgPool);
-app.use('/api/ab-tests', abTestsRouter);
+app.use(`${API_PREFIX}/ab-tests`, abTestsRouter);
+
+// Winner Detection Routes (Agent 02 - Automated Winner Detection)
+import { createWinnersRouter } from './routes/winners';
+const winnersRouter = createWinnersRouter(pgPool);
+app.use(`${API_PREFIX}/winners`, winnersRouter);
 
 // Ads Management Routes
 import { createAdsRouter } from './routes/ads';
 const adsRouter = createAdsRouter(pgPool);
-app.use('/api/ads', adsRouter);
+app.use(`${API_PREFIX}/ads`, adsRouter);
 
 // Predictions Routes
 import { createPredictionsRouter } from './routes/predictions';
 const predictionsRouter = createPredictionsRouter(pgPool);
-app.use('/api/predictions', predictionsRouter);
+app.use(`${API_PREFIX}/predictions`, predictionsRouter);
 
 // ============================================================================
 // ONBOARDING ENDPOINTS
@@ -2616,35 +2794,35 @@ app.use('/api/predictions', predictionsRouter);
 
 import { createOnboardingRouter } from './routes/onboarding';
 const onboardingRouter = createOnboardingRouter(pgPool);
-app.use('/api/onboarding', onboardingRouter);
+app.use(`${API_PREFIX}/onboarding`, onboardingRouter);
 
 // ============================================================================
 // DEMO MODE ENDPOINTS (Agent 20 - Investor Demo Mode)
 // ============================================================================
 
 import demoRouter from './routes/demo';
-app.use('/api/demo', demoRouter);
+app.use(`${API_PREFIX}/demo`, demoRouter);
 
 // ============================================================================
 // ALERT SYSTEM ENDPOINTS (Agent 16 - Real-Time Performance Alerts)
 // ============================================================================
 
 import alertsRouter, { initializeAlertWebSocket } from './routes/alerts';
-app.use('/api/alerts', alertsRouter);
+app.use(`${API_PREFIX}/alerts`, alertsRouter);
 
 // ============================================================================
 // REPORT GENERATION ENDPOINTS (Agent 18 - Campaign Performance Reports)
 // ============================================================================
 
 import reportRoutes from './routes/reports';
-app.use('/api/reports', reportRoutes);
+app.use(`${API_PREFIX}/reports`, reportRoutes);
 
 // ============================================================================
 // REAL-TIME STREAMING ENDPOINTS (Agent 38 - SSE/WebSocket)
 // ============================================================================
 
 import streamingRoutes from './routes/streaming';
-app.use('/api', streamingRoutes);
+app.use(API_PREFIX, streamingRoutes);
 
 // Import real-time infrastructure
 import {
@@ -2662,7 +2840,32 @@ import {
 
 import { createImageGenerationRouter } from './routes/image-generation';
 const imageGenerationRouter = createImageGenerationRouter(pgPool);
-app.use('/api/image', imageGenerationRouter);
+app.use(`${API_PREFIX}/image`, imageGenerationRouter);
+
+// ============================================================================
+// ROAS DASHBOARD ENDPOINTS (Agent 14 - ROAS Tracking Dashboard)
+// ============================================================================
+
+import { initializeROASRoutes } from './routes/roas-dashboard';
+const roasDashboardRouter = initializeROASRoutes(pgPool);
+app.use(`${API_PREFIX}/roas-dashboard`, roasDashboardRouter);
+console.log('✅ ROAS Dashboard endpoints mounted at /api/v1/roas-dashboard/*');
+
+// ============================================================================
+// AI CREDITS ENDPOINTS (GROUP A - Credits Management)
+// ============================================================================
+
+import { registerCreditsEndpoints } from './credits-endpoint';
+registerCreditsEndpoints(app, pgPool);
+console.log('✅ AI Credits endpoints mounted at /api/v1/credits/*');
+
+// ============================================================================
+// KNOWLEDGE MANAGEMENT ENDPOINTS (GROUP A - Knowledge Upload/Activation)
+// ============================================================================
+
+import knowledgeRouter from './knowledge';
+app.use(`${API_PREFIX}/knowledge`, knowledgeRouter);
+console.log('✅ Knowledge Management endpoints mounted at /api/v1/knowledge/*');
 
 // ============================================================================
 // ARTERY MODULES - Service Business Intelligence
@@ -2670,27 +2873,38 @@ app.use('/api/image', imageGenerationRouter);
 
 // HubSpot Webhook (Artery #1: HubSpot → ML-Service)
 import hubspotWebhookRouter from './webhooks/hubspot';
-app.use('/api', hubspotWebhookRouter);
-console.log('✅ HubSpot webhook handler mounted at /api/webhook/hubspot');
+app.use(API_PREFIX, hubspotWebhookRouter);
+console.log('✅ HubSpot webhook handler mounted at /api/v1/webhook/hubspot');
 
 // ML Proxy Routes (Artery Module Endpoints)
 import mlProxyRouter from './routes/ml-proxy';
-app.use('/api/ml', mlProxyRouter);
-console.log('✅ Artery module endpoints mounted at /api/ml/*');
+app.use(`${API_PREFIX}/ml`, mlProxyRouter);
+console.log('✅ Artery module endpoints mounted at /api/v1/ml/*');
+
+// Winner API Routes (Agent 11) - already mounted above at line 2779
+
+// Setup Swagger API Documentation (Agent 15)
+setupSwagger(app);
+console.log('✅ Swagger API documentation available at /api/docs');
 
 // ============================================================================
-// HEALTH CHECK
+// HEALTH CHECK & VERSION INFO
 // ============================================================================
 
 app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    version: API_VERSION
   });
 });
 
+// API Version Information Endpoint
+app.get('/api/version', versionInfoHandler);
+app.get(`${API_PREFIX}/version`, versionInfoHandler);
+
 // Real-time stats endpoint
-app.get('/api/realtime/stats', (req: Request, res: Response) => {
+app.get(`${API_PREFIX}/realtime/stats`, (req: Request, res: Response) => {
   const sseManager = getSSEManager();
   const channelManager = require('./realtime').getChannelManager();
 
@@ -2701,6 +2915,13 @@ app.get('/api/realtime/stats', (req: Request, res: Response) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// ============================================================================
+// ENHANCED ERROR HANDLER (Agent 17)
+// Must be registered after all routes for proper error catching
+// ============================================================================
+app.use(enhancedErrorHandler);
+console.log('✅ Enhanced error handler with fallbacks registered');
 
 const server = app.listen(PORT, async () => {
   console.log(`Gateway API listening on port ${PORT}`);
@@ -2729,6 +2950,16 @@ const server = app.listen(PORT, async () => {
   } catch (error) {
     console.error('❌ Failed to initialize real-time infrastructure:', error);
   }
+
+  // Initialize Winner Detection Scheduler (Agent 02)
+  try {
+    console.log('🚀 Starting winner detection scheduler...');
+    const { startWinnerScheduler } = require('./jobs/winner-scheduler');
+    startWinnerScheduler(pgPool);
+    console.log('✅ Winner detection scheduler started (runs every 6 hours)');
+  } catch (error) {
+    console.error('❌ Failed to start winner detection scheduler:', error);
+  }
 });
 
 // Graceful shutdown
@@ -2736,6 +2967,10 @@ process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully...');
 
   try {
+    // Stop winner scheduler
+    const { stopWinnerScheduler } = require('./jobs/winner-scheduler');
+    stopWinnerScheduler();
+
     await shutdownWebSocketManager();
     await shutdownChannelManager();
     shutdownSSEManager();
@@ -2754,6 +2989,10 @@ process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, shutting down gracefully...');
 
   try {
+    // Stop winner scheduler
+    const { stopWinnerScheduler } = require('./jobs/winner-scheduler');
+    stopWinnerScheduler();
+
     await shutdownWebSocketManager();
     await shutdownChannelManager();
     shutdownSSEManager();

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '@/contexts/AuthContext'
+import { apiUrl } from '@/config/api'
 import {
   CheckIcon,
   ArrowLeftIcon,
@@ -361,21 +363,61 @@ function ReviewStep() {
 // Main Wizard Component
 export function CreateCampaignPage() {
   const navigate = useNavigate()
+  const { currentUser, getIdToken } = useAuth()
   const { wizardStep, wizardData, setWizardStep, resetWizard } = useCampaignStore()
+  const [isCreating, setIsCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const wizard = { step: wizardStep, ...wizardData };
   const nextStep = () => setWizardStep(wizardStep + 1);
   const prevStep = () => setWizardStep(wizardStep - 1);
   const steps = ['Setup', 'Creative', 'Review']
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (wizard.step < 3) {
       nextStep()
     } else {
-      // Launch campaign
-      // console.log('Launching campaign:', wizard)
-      // TODO: API call to create campaign
-      resetWizard()
-      navigate('/campaigns')
+      // Launch campaign with API call
+      setIsCreating(true)
+      setError(null)
+
+      try {
+        if (!currentUser) {
+          throw new Error('You must be logged in to create a campaign')
+        }
+
+        const token = await getIdToken()
+        const response = await fetch(apiUrl('/campaigns'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({
+            name: wizardData.name,
+            objective: wizardData.objective,
+            budget: wizardData.budget,
+            platforms: wizardData.platforms,
+            targetAudience: wizardData.targetAudience,
+            creativeStyle: wizardData.creativeStyle,
+            hookStyle: wizardData.hookStyle,
+            variants: wizardData.variants,
+            userId: currentUser.uid
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.message || 'Failed to create campaign')
+        }
+
+        const campaign = await response.json()
+        resetWizard()
+        navigate(`/campaigns/${campaign.id}`)
+      } catch (error) {
+        console.error('Failed to create campaign:', error)
+        setError(error instanceof Error ? error.message : 'Failed to create campaign. Please try again.')
+        setIsCreating(false)
+      }
     }
   }
 
@@ -391,6 +433,31 @@ export function CreateCampaignPage() {
     <div className="p-6 lg:p-8 max-w-4xl mx-auto">
       <WizardProgress currentStep={wizard.step} steps={steps} />
 
+      {error && (
+        <div className="mb-6 rounded-lg bg-red-900/20 border border-red-800 p-4">
+          <div className="flex gap-3">
+            <div className="flex-shrink-0">
+              <svg
+                className="h-5 w-5 text-red-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth="1.5"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-zinc-900/50 rounded-2xl border border-zinc-800 p-8">
         <AnimatePresence mode="wait">
           {wizard.step === 1 && <SetupStep key="setup" />}
@@ -404,12 +471,38 @@ export function CreateCampaignPage() {
             <ArrowLeftIcon className="h-4 w-4" />
             {wizard.step === 1 ? 'Cancel' : 'Back'}
           </Button>
-          <Button color="violet" onClick={handleNext} className="gap-2">
+          <Button color="violet" onClick={handleNext} disabled={isCreating} className="gap-2">
             {wizard.step === 3 ? (
-              <>
-                <SparklesIcon className="h-4 w-4" />
-                Launch Campaign
-              </>
+              isCreating ? (
+                <>
+                  <svg
+                    className="animate-spin h-4 w-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Launching...
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="h-4 w-4" />
+                  Launch Campaign
+                </>
+              )
             ) : (
               <>
                 Next

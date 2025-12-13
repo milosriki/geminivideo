@@ -130,3 +130,36 @@ export interface StoryboardPanel {
   image_prompt: string;
   imageUrl?: string;
 }
+
+// Google Drive API v3 File Resource Types
+// Based on: https://developers.google.com/drive/api/v3/reference/files#resource
+
+export interface GoogleDriveFile {
+  /** The ID of the file */
+  id: string;
+  /** The name of the file */
+  name: string;
+  /** The MIME type of the file */
+  mimeType: string;
+  /** A link to the file's thumbnail (if available) */
+  thumbnailLink?: string;
+  /** A link for downloading the file's content */
+  webContentLink?: string;
+  /** Video media metadata (if the file is a video) */
+  videoMediaMetadata?: {
+    /** The duration of the video in milliseconds */
+    durationMillis?: string;
+    /** The width of the video in pixels */
+    width?: number;
+    /** The height of the video in pixels */
+    height?: number;
+  };
+  /** The size of the file in bytes */
+  size?: string;
+  /** The time at which the file was created (RFC 3339 date-time) */
+  createdTime?: string;
+  /** The last time the file was modified by anyone (RFC 3339 date-time) */
+  modifiedTime?: string;
+  /** Whether the file has been trashed */
+  trashed?: boolean;
+}

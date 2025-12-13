@@ -222,12 +222,12 @@ class ScoreSchema:
 
 class CouncilOfTitans:
     """
-    The Ultimate AI Council - November 2025 Edition
+    The Ultimate AI Council - December 2025 Edition
 
     Model Strategy:
-    1. Gemini 2.0 Flash Thinking (Extended Reasoning) - 40%
+    1. Gemini 3 Pro (Extended Reasoning) - 40%
     2. OpenAI o1 (Complex Logic/Structure) - 20%
-    3. Claude 3.5 Sonnet (Nuance/Psychology) - 30%
+    3. Claude Sonnet 4.5 (Nuance/Psychology) - 30%
     4. DeepCTR (Data/Heuristics) - 10%
 
     OpenAI Upgrades (November 2025):
@@ -239,6 +239,12 @@ class CouncilOfTitans:
     - Vision API: Video thumbnail/frame analysis
     - Batch API: 50% cost savings for non-urgent tasks
     """
+
+    # Model Configuration with Fallbacks
+    GEMINI_MODEL = "gemini-3-pro"
+    GEMINI_MODEL_FALLBACK = "gemini-2.0-flash-thinking-exp-1219"
+    CLAUDE_MODEL = "claude-sonnet-4-5-20250514"
+    CLAUDE_MODEL_FALLBACK = "claude-3-5-sonnet-20241022"
 
     def __init__(self):
         # Initialize Clients with proper error handling
@@ -253,9 +259,14 @@ class CouncilOfTitans:
         if genai and gemini_key:
             genai.configure(api_key=gemini_key)
 
-        # Use Gemini 2.0 Flash Thinking (December 2024 - Extended Reasoning)
-        self.gemini_model = os.getenv("GEMINI_MODEL_ID", "gemini-2.0-flash-thinking-exp-1219")
-        self.display_name = "Gemini 2.0 Flash Thinking"
+        # Use Gemini 3 Pro (December 2025 - Extended Reasoning) with fallback
+        self.gemini_model = os.getenv("GEMINI_MODEL_ID", self.GEMINI_MODEL)
+        self.gemini_model_fallback = self.GEMINI_MODEL_FALLBACK
+        self.display_name = "Gemini 3 Pro"
+
+        # Configure Claude Sonnet 4.5 with fallback
+        self.claude_model = os.getenv("CLAUDE_MODEL_ID", self.CLAUDE_MODEL)
+        self.claude_model_fallback = self.CLAUDE_MODEL_FALLBACK
 
         # Configure generation settings for thinking mode
         self.generation_config = {
@@ -272,7 +283,9 @@ class CouncilOfTitans:
         # Prompt caching enabled (10x cost reduction)
         self.caching_enabled = os.getenv("PROMPT_CACHING_ENABLED", "true").lower() == "true"
 
-        print(f"🏛️ COUNCIL: Initialized with {self.display_name} + OpenAI November 2025 Models")
+        print(f"🏛️ COUNCIL: Initialized with {self.display_name} + Claude Sonnet 4.5 + OpenAI November 2025 Models")
+        print(f"   - Gemini: {self.gemini_model} (Fallback: {self.gemini_model_fallback})")
+        print(f"   - Claude: {self.claude_model} (Fallback: {self.claude_model_fallback})")
         print(f"   - o1: Complex reasoning")
         print(f"   - GPT-4o (2024-11-20): Latest multimodal")
         print(f"   - GPT-4o-mini: Cost-optimized scoring")
@@ -322,44 +335,33 @@ class CouncilOfTitans:
 
     async def get_gemini_critique(self, script: str) -> Dict[str, Any]:
         """
-        Gemini 2.0 Flash Thinking - Extended reasoning with chain-of-thought
+        Gemini 3 Pro - Extended reasoning with chain-of-thought
 
         WITH CONTEXT CACHING: Gemini supports caching for repeated context (coming soon)
         Currently using optimized system prompts for consistency
+        Includes automatic fallback to Gemini 2.0 Flash Thinking if primary model fails
         """
         if not genai:
             return {"score": 75.0, "source": "Gemini (Not Installed)"}
 
-        try:
-            # Create model with generation config for thinking mode
-            model = genai.GenerativeModel(
-                self.gemini_model,
-                generation_config=self.generation_config
-            )
+        # Try primary model first, then fallback
+        models_to_try = [
+            (self.gemini_model, "Gemini 3 Pro"),
+            (self.gemini_model_fallback, "Gemini 2.0 Flash Thinking (Fallback)")
+        ]
 
-            # Use cached system prompt for consistency (Gemini will auto-cache in future)
-            if self.caching_enabled:
-                system_context = get_cached_system_prompt("viral_ad_expert", provider="gemini")
-                enhanced_prompt = f"""{system_context}
+        for model_id, model_name in models_to_try:
+            try:
+                # Create model with generation config for thinking mode
+                model = genai.GenerativeModel(
+                    model_id,
+                    generation_config=self.generation_config
+                )
 
-TASK: Analyze this ad script and provide a viral potential score (0-100).
-
-Use chain-of-thought reasoning:
-1. First, identify the hook type and strength
-2. Analyze psychological triggers deployed
-3. Evaluate pacing and emotional arc
-4. Consider viral pattern matching (2025 trends)
-5. Assess clarity of call-to-action
-
-After your analysis, return ONLY the final score as a number (0-100).
-
-SCRIPT:
-{script}
-
-FINAL SCORE (number only):"""
-            else:
-                # Fallback to simple prompt
-                enhanced_prompt = f"""You are an Elite Viral Ad Strategist with deep analytical reasoning.
+                # Use cached system prompt for consistency (Gemini will auto-cache in future)
+                if self.caching_enabled:
+                    system_context = get_cached_system_prompt("viral_ad_expert", provider="gemini")
+                    enhanced_prompt = f"""{system_context}
 
 TASK: Analyze this ad script and provide a viral potential score (0-100).
 
@@ -376,36 +378,60 @@ SCRIPT:
 {script}
 
 FINAL SCORE (number only):"""
+                else:
+                    # Fallback to simple prompt
+                    enhanced_prompt = f"""You are an Elite Viral Ad Strategist with deep analytical reasoning.
 
-            response = model.generate_content(enhanced_prompt)
+TASK: Analyze this ad script and provide a viral potential score (0-100).
 
-            # Handle thinking models which may have different response structure
-            score_text = response.text.strip()
+Use chain-of-thought reasoning:
+1. First, identify the hook type and strength
+2. Analyze psychological triggers deployed
+3. Evaluate pacing and emotional arc
+4. Consider viral pattern matching (2025 trends)
+5. Assess clarity of call-to-action
 
-            # Extract the final number from thinking output
-            # Look for numbers that appear to be scores (0-100 range)
-            numbers = re.findall(r'(?<![.\d])\d{1,3}(?:\.\d+)?(?![.\d])', score_text)
+After your analysis, return ONLY the final score as a number (0-100).
 
-            # Filter for valid scores in 0-100 range
-            valid_scores = [float(n) for n in numbers if 0 <= float(n) <= 100]
-            score = valid_scores[-1] if valid_scores else 75.0  # Use last valid score
+SCRIPT:
+{script}
 
-            # Clamp to valid range
-            score = max(0.0, min(100.0, score))
+FINAL SCORE (number only):"""
 
-            return {
-                "score": score,
-                "source": "Gemini 2.0 Flash Thinking",
-                "reasoning_used": True
-            }
+                response = model.generate_content(enhanced_prompt)
 
-        except Exception as e:
-            print(f"⚠️ Gemini Error: {e}")
-            return {
-                "score": 75.0,
-                "source": "Gemini 2.0 Thinking (Fallback)",
-                "error": str(e)
-            }
+                # Handle thinking models which may have different response structure
+                score_text = response.text.strip()
+
+                # Extract the final number from thinking output
+                # Look for numbers that appear to be scores (0-100 range)
+                numbers = re.findall(r'(?<![.\d])\d{1,3}(?:\.\d+)?(?![.\d])', score_text)
+
+                # Filter for valid scores in 0-100 range
+                valid_scores = [float(n) for n in numbers if 0 <= float(n) <= 100]
+                score = valid_scores[-1] if valid_scores else 75.0  # Use last valid score
+
+                # Clamp to valid range
+                score = max(0.0, min(100.0, score))
+
+                return {
+                    "score": score,
+                    "source": model_name,
+                    "reasoning_used": True,
+                    "model": model_id
+                }
+
+            except Exception as e:
+                print(f"⚠️ {model_name} Error: {e}")
+                # Continue to next model in the loop
+                continue
+
+        # If all models failed, return fallback score
+        return {
+            "score": 75.0,
+            "source": "Gemini (All Models Failed)",
+            "error": "All Gemini models failed"
+        }
 
     async def get_openai_o1_critique(self, script: str, mode: Literal["full", "mini"] = "full") -> Dict[str, Any]:
         """
@@ -628,63 +654,81 @@ Provide detailed structured analysis."""
 
     async def get_claude_critique(self, script: str) -> Dict[str, Any]:
         """
-        Claude 3.5 Sonnet - Psychology and emotional resonance expert
+        Claude Sonnet 4.5 - Psychology and emotional resonance expert
 
         WITH PROMPT CACHING:
         - 90% cost reduction on cached tokens
         - System prompt (~2000 tokens) cached automatically
         - Only script content (~500 tokens) sent fresh each time
+        Includes automatic fallback to Claude 3.5 Sonnet if primary model fails
         """
         if not self.anthropic_client:
-            return {"score": 75.0, "source": "Claude 3.5 (Disabled)"}
+            return {"score": 75.0, "source": "Claude Sonnet (Disabled)"}
 
-        try:
-            # Use cached system prompt for 90% cost reduction
-            if self.caching_enabled:
-                system_prompt = get_cached_system_prompt("psychology_expert", provider="anthropic")
-            else:
-                # Fallback to simple prompt
-                system_prompt = [
-                    {
-                        "type": "text",
-                        "text": "You are a Psychology Expert. Rate ad scripts 0-100 based on emotional resonance and persuasion."
-                    }
-                ]
+        # Try primary model first, then fallback
+        models_to_try = [
+            (self.claude_model, "Claude Sonnet 4.5"),
+            (self.claude_model_fallback, "Claude 3.5 Sonnet (Fallback)")
+        ]
 
-            response = await self.anthropic_client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=100,
-                system=system_prompt,  # CACHED system prompt
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"Rate this ad script 0-100 based on emotional resonance and persuasion. Return ONLY a number.\n\nSCRIPT:\n{script}"
-                    }
-                ]
-            )
+        for model_id, model_name in models_to_try:
+            try:
+                # Use cached system prompt for 90% cost reduction
+                if self.caching_enabled:
+                    system_prompt = get_cached_system_prompt("psychology_expert", provider="anthropic")
+                else:
+                    # Fallback to simple prompt
+                    system_prompt = [
+                        {
+                            "type": "text",
+                            "text": "You are a Psychology Expert. Rate ad scripts 0-100 based on emotional resonance and persuasion."
+                        }
+                    ]
 
-            # Extract score
-            score = float(response.content[0].text.strip())
-
-            # Track cache performance
-            if self.caching_enabled and hasattr(response, 'usage'):
-                usage = response.usage
-                cache_monitor.record_anthropic_request(
-                    input_tokens=usage.input_tokens,
-                    cached_tokens=getattr(usage, 'cache_read_input_tokens', 0),
-                    output_tokens=usage.output_tokens,
-                    cache_hit=getattr(usage, 'cache_read_input_tokens', 0) > 0
+                response = await self.anthropic_client.messages.create(
+                    model=model_id,
+                    max_tokens=100,
+                    system=system_prompt,  # CACHED system prompt
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": f"Rate this ad script 0-100 based on emotional resonance and persuasion. Return ONLY a number.\n\nSCRIPT:\n{script}"
+                        }
+                    ]
                 )
 
-            return {
-                "score": score,
-                "source": "Claude 3.5 (Cached)" if self.caching_enabled else "Claude 3.5",
-                "cached_tokens": getattr(response.usage, 'cache_read_input_tokens', 0) if hasattr(response, 'usage') else 0
-            }
+                # Extract score
+                score = float(response.content[0].text.strip())
 
-        except Exception as e:
-            print(f"⚠️ Claude Error: {e}")
-            return {"score": 75.0, "source": "Claude 3.5 (Fallback)"}
+                # Track cache performance
+                if self.caching_enabled and hasattr(response, 'usage'):
+                    usage = response.usage
+                    cache_monitor.record_anthropic_request(
+                        input_tokens=usage.input_tokens,
+                        cached_tokens=getattr(usage, 'cache_read_input_tokens', 0),
+                        output_tokens=usage.output_tokens,
+                        cache_hit=getattr(usage, 'cache_read_input_tokens', 0) > 0
+                    )
+
+                cached_suffix = " (Cached)" if self.caching_enabled else ""
+                return {
+                    "score": score,
+                    "source": f"{model_name}{cached_suffix}",
+                    "cached_tokens": getattr(response.usage, 'cache_read_input_tokens', 0) if hasattr(response, 'usage') else 0,
+                    "model": model_id
+                }
+
+            except Exception as e:
+                print(f"⚠️ {model_name} Error: {e}")
+                # Continue to next model in the loop
+                continue
+
+        # If all models failed, return fallback score
+        return {
+            "score": 75.0,
+            "source": "Claude (All Models Failed)",
+            "error": "All Claude models failed"
+        }
 
     async def batch_create_job(self, scripts: List[str]) -> Optional[str]:
         """
@@ -819,7 +863,7 @@ Provide detailed structured analysis."""
         # 1. Run ALL LLMs in Parallel
         tasks = []
 
-        # Gemini 2.0 Flash Thinking (40% weight) - Extended Reasoning
+        # Gemini 3 Pro (40% weight) - Extended Reasoning
         tasks.append(self.get_gemini_critique(script))
 
         # OpenAI Selection: o1 (complex reasoning) OR gpt-4o-mini (cost-optimized)
@@ -830,7 +874,7 @@ Provide detailed structured analysis."""
             print("   💰 Using GPT-4o-mini for cost-optimized scoring...")
             tasks.append(self.get_gpt4o_critique_simple(script))
 
-        # Claude 3.5 Sonnet (30% weight) - Psychology
+        # Claude Sonnet 4.5 (30% weight) - Psychology
         tasks.append(self.get_claude_critique(script))
 
         # Optional: Vision Analysis
@@ -869,10 +913,10 @@ Provide detailed structured analysis."""
         response = {
             "final_score": round(final_score, 1),
             "breakdown": {
-                "gemini_2_0_thinking": gemini_res['score'],
+                "gemini_3_pro": gemini_res['score'],
                 "openai": openai_res['score'],
                 "openai_model": openai_res.get('model', 'gpt-4o-mini'),
-                "claude_3_5": claude_res['score'],
+                "claude_sonnet_4_5": claude_res['score'],
                 "deep_ctr": deep_ctr_score
             },
             "verdict": "APPROVE" if final_score > 85 else "REJECT",
@@ -894,9 +938,9 @@ Provide detailed structured analysis."""
 
         # Print detailed breakdown
         print(f"\n📊 COUNCIL VERDICT: {response['verdict']} (Score: {final_score:.1f}/100)")
-        print(f"   - Gemini 2.0 Thinking: {gemini_res['score']:.1f}")
+        print(f"   - {gemini_res.get('source', 'Gemini 3 Pro')}: {gemini_res['score']:.1f}")
         print(f"   - {openai_res.get('source', 'OpenAI')}: {openai_res['score']:.1f}")
-        print(f"   - Claude 3.5: {claude_res['score']:.1f}")
+        print(f"   - {claude_res.get('source', 'Claude Sonnet 4.5')}: {claude_res['score']:.1f}")
         print(f"   - DeepCTR: {deep_ctr_score:.1f}")
         if vision_res:
             print(f"   - Vision Score: {vision_res.get('visual_score', 0):.1f}")

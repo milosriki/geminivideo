@@ -1,20 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { monitoring } from '../services/monitoring';
+import { AppError, ErrorCode } from '../types/errors';
 
-/**
- * Custom error class with additional properties
- */
-export class AppError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number = 500,
-    public isOperational: boolean = true,
-    public code?: string
-  ) {
-    super(message);
-    this.name = this.constructor.name;
-    Error.captureStackTrace(this, this.constructor);
-  }
+export interface ErrorResponse {
+  success: false;
+  error: {
+    code: ErrorCode;
+    message: string;
+    details?: Record<string, any>;
+    requestId?: string;
+  };
 }
 
 /**
@@ -40,52 +35,47 @@ export type RequestHandler = (
  * Catches all errors and sends appropriate responses
  */
 export const errorHandler = (
-  err: Error | AppError,
+  err: Error,
   req: Request,
   res: Response,
   next: NextFunction
 ): void => {
+  // Log error
+  console.error('Error:', err);
+
   // Default to 500 server error
   let statusCode = 500;
-  let message = 'Internal Server Error';
-  let code = 'INTERNAL_ERROR';
-  let isOperational = false;
+  let errorCode: ErrorCode = ErrorCode.INTERNAL_ERROR;
+  let message = err.message || 'Internal Server Error';
+  let details: Record<string, any> | undefined;
 
   // Extract error details
   if (err instanceof AppError) {
     statusCode = err.statusCode;
+    errorCode = err.code;
     message = err.message;
-    code = err.code || code;
-    isOperational = err.isOperational;
+    details = err.details;
   } else if (err.name === 'ValidationError') {
     statusCode = 400;
+    errorCode = ErrorCode.VALIDATION_ERROR;
     message = err.message;
-    code = 'VALIDATION_ERROR';
-    isOperational = true;
-  } else if (err.name === 'UnauthorizedError') {
+  } else if (err.name === 'UnauthorizedError' || err.name === 'JsonWebTokenError') {
     statusCode = 401;
+    errorCode = ErrorCode.UNAUTHORIZED;
     message = 'Unauthorized';
-    code = 'UNAUTHORIZED';
-    isOperational = true;
-  } else if (err.name === 'JsonWebTokenError') {
-    statusCode = 401;
-    message = 'Invalid token';
-    code = 'INVALID_TOKEN';
-    isOperational = true;
   } else if (err.name === 'TokenExpiredError') {
     statusCode = 401;
+    errorCode = ErrorCode.UNAUTHORIZED;
     message = 'Token expired';
-    code = 'TOKEN_EXPIRED';
-    isOperational = true;
   }
 
-  // Log error
+  // Log error with monitoring
   const errorContext = {
-    requestId: (req as any).id,
+    requestId: (req as any).id || req.headers['x-request-id'],
     method: req.method,
     path: req.path,
     statusCode,
-    code,
+    code: errorCode,
     stack: err.stack,
   };
 
@@ -99,21 +89,26 @@ export const errorHandler = (
   // Record error metric
   monitoring.recordError(err.name, req.path);
 
-  // Send error response
-  const errorResponse: any = {
+  // Build response
+  const response: ErrorResponse = {
+    success: false,
     error: {
+      code: errorCode,
       message,
-      code,
-      statusCode,
+      details,
+      requestId: req.headers['x-request-id'] as string,
     },
   };
 
   // Include stack trace in development
-  if (process.env.NODE_ENV === 'development') {
-    errorResponse.error.stack = err.stack;
+  if (process.env.NODE_ENV === 'development' && err.stack) {
+    response.error.details = {
+      ...response.error.details,
+      stack: err.stack,
+    };
   }
 
-  res.status(statusCode).json(errorResponse);
+  res.status(statusCode).json(response);
 };
 
 /**
@@ -123,18 +118,21 @@ export const notFoundHandler = (req: Request, res: Response): void => {
   const message = `Route not found: ${req.method} ${req.path}`;
 
   monitoring.log('warn', message, {
-    requestId: (req as any).id,
+    requestId: (req as any).id || req.headers['x-request-id'],
     method: req.method,
     path: req.path,
   });
 
-  res.status(404).json({
+  const response: ErrorResponse = {
+    success: false,
     error: {
+      code: ErrorCode.NOT_FOUND,
       message,
-      code: 'NOT_FOUND',
-      statusCode: 404,
+      requestId: req.headers['x-request-id'] as string,
     },
-  });
+  };
+
+  res.status(404).json(response);
 };
 
 /**
@@ -199,10 +197,10 @@ export class CircuitBreaker {
     if (this.state === CircuitState.OPEN) {
       if (Date.now() < this.nextAttempt) {
         throw new AppError(
+          ErrorCode.INTERNAL_ERROR,
           `Circuit breaker is OPEN for ${this.name}`,
           503,
-          true,
-          'CIRCUIT_BREAKER_OPEN'
+          { circuitBreaker: this.name }
         );
       }
       // Try to recover
@@ -394,13 +392,15 @@ export class RateLimiter {
       const key = req.ip || 'unknown';
 
       if (!this.check(key)) {
-        res.status(429).json({
+        const response: ErrorResponse = {
+          success: false,
           error: {
+            code: ErrorCode.FORBIDDEN,
             message: this.message,
-            code: 'RATE_LIMIT_EXCEEDED',
-            statusCode: 429,
+            requestId: req.headers['x-request-id'] as string,
           },
-        });
+        };
+        res.status(429).json(response);
         return;
       }
 

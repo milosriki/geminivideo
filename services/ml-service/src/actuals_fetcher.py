@@ -499,8 +499,44 @@ class ActualsFetcher:
         Returns:
             PredictionActualsComparison object
         """
-        # TODO: Fetch predictions from database if not provided
-        # This would query a predictions table with video_id and prediction_date
+        # Fetch predictions from database if not provided
+        session = self._get_session()
+        days_since_prediction = 0
+
+        try:
+            if predicted_ctr is None or predicted_roas is None:
+                # Import Prediction model
+                from shared.db.models import Prediction
+
+                # Query for the most recent prediction for this video/ad
+                prediction = session.query(Prediction).filter(
+                    and_(
+                        Prediction.video_id == actuals.video_id,
+                        Prediction.ad_id == actuals.ad_id
+                    )
+                ).order_by(Prediction.created_at.desc()).first()
+
+                if prediction:
+                    if predicted_ctr is None:
+                        predicted_ctr = prediction.predicted_ctr
+                    if predicted_roas is None:
+                        predicted_roas = prediction.predicted_roas
+
+                    # Calculate days since prediction
+                    if prediction.created_at:
+                        days_since_prediction = (datetime.utcnow() - prediction.created_at).days
+
+                    logger.info(
+                        f"Fetched prediction for video {actuals.video_id}: "
+                        f"CTR={predicted_ctr:.2f}, ROAS={predicted_roas:.2f}, "
+                        f"Age={days_since_prediction} days"
+                    )
+                else:
+                    logger.warning(f"No prediction found for video {actuals.video_id}")
+        except Exception as e:
+            logger.error(f"Error fetching prediction: {e}")
+        finally:
+            self._close_session_if_owned(session)
 
         # Calculate errors
         ctr_error = None
@@ -526,7 +562,7 @@ class ActualsFetcher:
             roas_error=roas_error,
             ctr_accuracy=ctr_accuracy,
             roas_accuracy=roas_accuracy,
-            days_since_prediction=0,  # TODO: Calculate from DB
+            days_since_prediction=days_since_prediction,
             comparison_date=datetime.utcnow()
         )
 

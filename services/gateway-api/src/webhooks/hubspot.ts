@@ -71,6 +71,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import httpClient from 'axios';
 import Redis from 'ioredis';
+import { Pool } from 'pg';
 
 const router = Router();
 
@@ -78,11 +79,21 @@ const router = Router();
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const redisClient = new Redis(REDIS_URL);
 
+// PostgreSQL Pool for database operations
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error('[HubSpot Webhook] DATABASE_URL environment variable is required');
+}
+const pgPool = new Pool({ connectionString: DATABASE_URL });
+pgPool.on('error', (err: Error) => console.error('[HubSpot Webhook] PostgreSQL Pool Error', err));
+
 // Async mode flag - enables Celery queueing for high-volume scenarios
 const ASYNC_MODE = process.env.HUBSPOT_ASYNC_MODE === 'true';
 
 // Environment variables
 const HUBSPOT_CLIENT_SECRET = process.env.HUBSPOT_CLIENT_SECRET || '';
+const HUBSPOT_ACCESS_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN || '';
+const HUBSPOT_API_BASE_URL = 'https://api.hubapi.com';
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
 
 interface HubSpotEvent {
@@ -183,9 +194,77 @@ function verifyHubSpotSignature(req: Request, clientSecret: string): boolean {
 }
 
 /**
- * Parse HubSpot event to deal stage change
+ * Fetch previous deal stage from HubSpot API
+ * This enables proper stage transition tracking (e.g., "qualified" -> "proposal")
+ *
+ * Strategy:
+ * 1. Query HubSpot API for deal property history
+ * 2. Find the previous dealstage value
+ * 3. Fall back to local cache/database if API fails
  */
-function parseDealStageChange(events: HubSpotEvent[]): DealStageChange | null {
+async function fetchPreviousDealStage(dealId: string): Promise<string | null> {
+  try {
+    // Try HubSpot API first
+    if (HUBSPOT_ACCESS_TOKEN) {
+      const response = await httpClient.get(
+        `${HUBSPOT_API_BASE_URL}/crm/v3/objects/deals/${dealId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${HUBSPOT_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          params: {
+            properties: 'dealstage',
+            propertiesWithHistory: 'dealstage',
+          },
+          timeout: 5000,
+        }
+      );
+
+      // Extract property history
+      const propertyHistory = response.data?.propertiesWithHistory?.dealstage;
+
+      if (propertyHistory && Array.isArray(propertyHistory) && propertyHistory.length > 1) {
+        // propertyHistory is sorted newest first, so [1] is the previous value
+        const previousStage = propertyHistory[1]?.value;
+
+        if (previousStage) {
+          console.log(`[HubSpot Webhook] Fetched previous stage for deal ${dealId}: ${previousStage}`);
+          return previousStage;
+        }
+      }
+    }
+
+    // Fallback: Check local database cache (if you're storing deal history)
+    if (pgPool) {
+      const result = await pgPool.query(
+        `SELECT previous_stage
+         FROM deal_stage_history
+         WHERE deal_id = $1
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [dealId]
+      );
+
+      if (result.rows.length > 0) {
+        return result.rows[0].previous_stage;
+      }
+    }
+
+    // No previous stage found (likely a new deal)
+    return null;
+
+  } catch (error: any) {
+    console.warn(`[HubSpot Webhook] Failed to fetch previous deal stage for ${dealId}: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Parse HubSpot event to deal stage change
+ * Now async to fetch previous stage from HubSpot API
+ */
+async function parseDealStageChange(events: HubSpotEvent[]): Promise<DealStageChange | null> {
   // Find deal stage change event
   const stageEvent = events.find(e =>
     e.eventType === 'deal.propertyChange' &&
@@ -199,12 +278,12 @@ function parseDealStageChange(events: HubSpotEvent[]): DealStageChange | null {
   // Extract tenant ID from portal ID (you may need to map this)
   const tenantId = `hubspot_${stageEvent.portalId}`;
 
-  // TODO: Fetch previous stage from HubSpot API or database
-  // For now, we'll set it to null (new deal)
-  const stageFrom = null;
+  // Fetch previous stage from HubSpot API or database
+  const dealId = stageEvent.objectId.toString();
+  const stageFrom = await fetchPreviousDealStage(dealId);
 
   return {
-    dealId: stageEvent.objectId.toString(),
+    dealId,
     tenantId,
     stageFrom,
     stageTo: stageEvent.propertyValue,
@@ -270,33 +349,142 @@ async function attributeConversion(
 
 /**
  * Queue ad change job if optimization is needed
- * (This would trigger budget reallocation based on performance)
+ * Inserts into pending_ad_changes table for SafeExecutor to process
+ *
+ * Strategy:
+ * 1. Check if conversion value and confidence justify budget optimization
+ * 2. Calculate recommended budget adjustment (5-15% increase for high performers)
+ * 3. Insert into pending_ad_changes with jitter (3-18 seconds)
+ * 4. SafeExecutor worker will claim and execute the change
+ *
+ * This completes the attribution loop:
+ * HubSpot Deal → Synthetic Revenue → Attribution → Ad Change → Meta API
  */
 async function queueAdChangeIfNeeded(
   attribution: any,
   syntheticRevenue: SyntheticRevenueResult,
-  tenantId: string
+  tenantId: string,
+  dealId: string,
+  stageTo: string
 ): Promise<void> {
-  // Only queue if attribution was successful
-  if (!attribution.success) {
+  // Only queue if attribution was successful and we have an ad ID
+  if (!attribution.success || !attribution.ad_id) {
     return;
   }
 
   // Check if this conversion should trigger optimization
-  // (e.g., significant value, high confidence)
-  if (syntheticRevenue.calculated_value > 1000 && syntheticRevenue.confidence > 0.7) {
-    // TODO: Queue pg-boss job for budget optimization
-    // This would be handled by SafeExecutor worker
-    console.log(`[HubSpot Webhook] Queuing optimization for ad ${attribution.ad_id}`);
+  // High-value conversions (>$1000) with high confidence (>70%) warrant budget increases
+  const shouldOptimize =
+    syntheticRevenue.calculated_value > 1000 &&
+    syntheticRevenue.confidence > 0.7 &&
+    attribution.attribution_confidence > 0.6;
 
-    // Example (requires pg-boss setup):
-    // await pgBoss.send('budget-optimization', {
-    //   tenant_id: tenantId,
-    //   ad_id: attribution.ad_id,
-    //   campaign_id: attribution.campaign_id,
-    //   trigger: 'high_value_conversion',
-    //   conversion_value: syntheticRevenue.calculated_value,
-    // });
+  if (!shouldOptimize) {
+    console.log(
+      `[HubSpot Webhook] Skipping optimization for ad ${attribution.ad_id} ` +
+      `(value: $${syntheticRevenue.calculated_value}, confidence: ${syntheticRevenue.confidence})`
+    );
+    return;
+  }
+
+  try {
+    // Calculate budget increase recommendation (5-15% based on confidence and value)
+    const confidenceMultiplier = Math.min(syntheticRevenue.confidence * 1.5, 1.0);
+    const valueMultiplier = Math.min(syntheticRevenue.calculated_value / 10000, 1.0);
+    const budgetIncreasePercent = 0.05 + (0.10 * confidenceMultiplier * valueMultiplier);
+
+    // Get current budget from attribution data (if available)
+    const currentBudget = attribution.campaign_budget || 100; // Default to $100/day if unknown
+    const requestedBudget = currentBudget * (1 + budgetIncreasePercent);
+
+    // Calculate jitter (3-18 seconds) to prevent thundering herd
+    const jitterMin = 3000; // 3 seconds
+    const jitterMax = 18000; // 18 seconds
+    const jitterMs = Math.floor(Math.random() * (jitterMax - jitterMin + 1)) + jitterMin;
+    const earliestExecuteAt = new Date(Date.now() + jitterMs);
+
+    // Insert into pending_ad_changes table
+    const result = await pgPool.query(
+      `INSERT INTO pending_ad_changes (
+        tenant_id,
+        ad_entity_id,
+        entity_type,
+        change_type,
+        current_value,
+        requested_value,
+        jitter_ms_min,
+        jitter_ms_max,
+        status,
+        earliest_execute_at,
+        confidence_score,
+        created_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW()
+      ) RETURNING id`,
+      [
+        tenantId,
+        attribution.campaign_id, // Change budget at campaign level
+        'campaign', // entity_type
+        'budget', // change_type
+        currentBudget,
+        requestedBudget,
+        jitterMin,
+        jitterMax,
+        'pending', // status
+        earliestExecuteAt,
+        syntheticRevenue.confidence * attribution.attribution_confidence, // Combined confidence
+      ]
+    );
+
+    const changeId = result.rows[0]?.id;
+
+    console.log(
+      `[HubSpot Webhook] ✅ Queued budget optimization for campaign ${attribution.campaign_id} ` +
+      `(change_id: ${changeId}, deal: ${dealId}, stage: ${stageTo}) ` +
+      `$${currentBudget.toFixed(2)} → $${requestedBudget.toFixed(2)} ` +
+      `(+${(budgetIncreasePercent * 100).toFixed(1)}%, confidence: ${(syntheticRevenue.confidence * 100).toFixed(0)}%, ` +
+      `execute in ${(jitterMs / 1000).toFixed(0)}s)`
+    );
+
+    // Optional: Log the attribution loop completion (if table exists)
+    try {
+      await pgPool.query(
+        `INSERT INTO attribution_loop_log (
+          tenant_id,
+          deal_id,
+          deal_stage,
+          ad_id,
+          campaign_id,
+          synthetic_revenue,
+          attribution_method,
+          attribution_confidence,
+          pending_change_id,
+          created_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()
+        )
+        ON CONFLICT DO NOTHING`,
+        [
+          tenantId,
+          dealId,
+          stageTo,
+          attribution.ad_id,
+          attribution.campaign_id,
+          syntheticRevenue.calculated_value,
+          attribution.attribution_method,
+          attribution.attribution_confidence,
+          changeId,
+        ]
+      );
+    } catch (logError: any) {
+      // Table may not exist yet - non-critical
+      console.debug(`[HubSpot Webhook] Attribution loop logging skipped: ${logError.message}`);
+    }
+
+  } catch (error: any) {
+    // Non-critical: log and continue
+    console.error(`[HubSpot Webhook] Failed to queue ad change: ${error.message}`);
+    console.error(error.stack);
   }
 }
 
@@ -323,7 +511,7 @@ router.post('/webhook/hubspot', async (req: Request, res: Response) => {
     }
 
     // Step 3: Extract deal stage change
-    const stageChange = parseDealStageChange(events);
+    const stageChange = await parseDealStageChange(events);
 
     if (!stageChange) {
       // Not a deal stage change, ignore
@@ -461,7 +649,13 @@ router.post('/webhook/hubspot', async (req: Request, res: Response) => {
 
     // Step 7: Queue optimization if needed
     if (attribution.success) {
-      await queueAdChangeIfNeeded(attribution, syntheticRevenue, stageChange.tenantId);
+      await queueAdChangeIfNeeded(
+        attribution,
+        syntheticRevenue,
+        stageChange.tenantId,
+        stageChange.dealId,
+        stageChange.stageTo
+      );
     }
 
     // Return success

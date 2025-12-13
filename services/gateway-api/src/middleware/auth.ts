@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { FirebaseAuthService } from '../services/firebase-auth';
+import { AppError, ErrorCode } from '../types/errors';
+import { ErrorResponse } from './error-handler';
 
 /**
  * User role types for role-based access control (RBAC)
@@ -23,21 +25,6 @@ export interface AuthenticatedRequest extends Request {
     role: UserRole;
     customClaims?: Record<string, any>;
   };
-}
-
-/**
- * Authentication error class for better error handling
- */
-export class AuthenticationError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number = 401,
-    public code: string = 'AUTH_ERROR'
-  ) {
-    super(message);
-    this.name = 'AuthenticationError';
-    Object.setPrototypeOf(this, AuthenticationError.prototype);
-  }
 }
 
 /**
@@ -104,10 +91,10 @@ export async function authenticateUser(
     const token = extractToken(req.headers.authorization);
 
     if (!token) {
-      throw new AuthenticationError(
+      throw new AppError(
+        ErrorCode.UNAUTHORIZED,
         'No authentication token provided',
-        401,
-        'NO_TOKEN'
+        401
       );
     }
 
@@ -118,10 +105,10 @@ export async function authenticateUser(
     const userRecord = await authService.getUserById(decodedToken.uid);
 
     if (!userRecord) {
-      throw new AuthenticationError(
+      throw new AppError(
+        ErrorCode.NOT_FOUND,
         'User not found',
-        404,
-        'USER_NOT_FOUND'
+        404
       );
     }
 
@@ -143,39 +130,57 @@ export async function authenticateUser(
   } catch (error: any) {
     // Handle Firebase-specific errors
     if (error.code === 'auth/id-token-expired') {
-      res.status(401).json({
-        error: 'Token expired',
-        code: 'TOKEN_EXPIRED',
-        message: 'Your session has expired. Please login again.'
-      });
+      const response: ErrorResponse = {
+        success: false,
+        error: {
+          code: ErrorCode.UNAUTHORIZED,
+          message: 'Your session has expired. Please login again.',
+          requestId: req.headers['x-request-id'] as string,
+        },
+      };
+      res.status(401).json(response);
       return;
     }
 
     if (error.code === 'auth/argument-error') {
-      res.status(401).json({
-        error: 'Invalid token format',
-        code: 'INVALID_TOKEN',
-        message: 'The authentication token is malformed.'
-      });
+      const response: ErrorResponse = {
+        success: false,
+        error: {
+          code: ErrorCode.UNAUTHORIZED,
+          message: 'The authentication token is malformed.',
+          requestId: req.headers['x-request-id'] as string,
+        },
+      };
+      res.status(401).json(response);
       return;
     }
 
-    if (error instanceof AuthenticationError) {
-      res.status(error.statusCode).json({
-        error: error.message,
-        code: error.code
-      });
+    if (error instanceof AppError) {
+      const response: ErrorResponse = {
+        success: false,
+        error: {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          requestId: req.headers['x-request-id'] as string,
+        },
+      };
+      res.status(error.statusCode).json(response);
       return;
     }
 
     // Log unexpected errors
     console.error('Authentication error:', error);
 
-    res.status(401).json({
-      error: 'Authentication failed',
-      code: 'AUTH_FAILED',
-      message: error.message || 'Unable to authenticate request'
-    });
+    const response: ErrorResponse = {
+      success: false,
+      error: {
+        code: ErrorCode.UNAUTHORIZED,
+        message: error.message || 'Unable to authenticate request',
+        requestId: req.headers['x-request-id'] as string,
+      },
+    };
+    res.status(401).json(response);
   }
 }
 
@@ -192,22 +197,32 @@ export function requireRole(...allowedRoles: UserRole[]) {
     const user = (req as AuthenticatedRequest).user;
 
     if (!user) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        code: 'NO_USER',
-        message: 'User not authenticated. Please use authenticateUser middleware first.'
-      });
+      const response: ErrorResponse = {
+        success: false,
+        error: {
+          code: ErrorCode.UNAUTHORIZED,
+          message: 'User not authenticated. Please use authenticateUser middleware first.',
+          requestId: req.headers['x-request-id'] as string,
+        },
+      };
+      res.status(401).json(response);
       return;
     }
 
     if (!allowedRoles.includes(user.role)) {
-      res.status(403).json({
-        error: 'Forbidden',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        message: `This action requires one of the following roles: ${allowedRoles.join(', ')}`,
-        requiredRoles: allowedRoles,
-        currentRole: user.role
-      });
+      const response: ErrorResponse = {
+        success: false,
+        error: {
+          code: ErrorCode.FORBIDDEN,
+          message: `This action requires one of the following roles: ${allowedRoles.join(', ')}`,
+          details: {
+            requiredRoles: allowedRoles,
+            currentRole: user.role,
+          },
+          requestId: req.headers['x-request-id'] as string,
+        },
+      };
+      res.status(403).json(response);
       return;
     }
 
@@ -278,20 +293,28 @@ export function requireEmailVerification(
   const user = (req as AuthenticatedRequest).user;
 
   if (!user) {
-    res.status(401).json({
-      error: 'Unauthorized',
-      code: 'NO_USER',
-      message: 'User not authenticated'
-    });
+    const response: ErrorResponse = {
+      success: false,
+      error: {
+        code: ErrorCode.UNAUTHORIZED,
+        message: 'User not authenticated',
+        requestId: req.headers['x-request-id'] as string,
+      },
+    };
+    res.status(401).json(response);
     return;
   }
 
   if (!user.emailVerified) {
-    res.status(403).json({
-      error: 'Email not verified',
-      code: 'EMAIL_NOT_VERIFIED',
-      message: 'Please verify your email address to access this resource'
-    });
+    const response: ErrorResponse = {
+      success: false,
+      error: {
+        code: ErrorCode.FORBIDDEN,
+        message: 'Please verify your email address to access this resource',
+        requestId: req.headers['x-request-id'] as string,
+      },
+    };
+    res.status(403).json(response);
     return;
   }
 

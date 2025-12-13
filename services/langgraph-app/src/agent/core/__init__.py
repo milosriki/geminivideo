@@ -1,28 +1,23 @@
-"""Core agent infrastructure."""
+"""
+Core agent module for LangGraph application.
 
-from agent.core.base_agent import (
-    AgentError,
-    AgentMemory,
-    AgentResult,
-    AgentStatus,
-    BaseAgent,
-)
-from agent.core.orchestrator import (
-    AgentOrchestrator,
-    AgentTask,
-    OrchestrationResult,
-    OrchestrationStrategy,
+This module provides base agent functionality and model configuration.
+"""
+
+from src.agent.core.base_agent import (
+    llm,
+    get_llm,
+    get_specialist_llm,
+    PRIMARY_MODEL,
+    FALLBACK_MODEL,
+    ModelNotAvailableError,
 )
 
 __all__ = [
-    "BaseAgent",
-    "AgentResult",
-    "AgentStatus",
-    "AgentError",
-    "AgentMemory",
-    "AgentOrchestrator",
-    "AgentTask",
-    "OrchestrationResult",
-    "OrchestrationStrategy",
+    "llm",
+    "get_llm",
+    "get_specialist_llm",
+    "PRIMARY_MODEL",
+    "FALLBACK_MODEL",
+    "ModelNotAvailableError",
 ]
-

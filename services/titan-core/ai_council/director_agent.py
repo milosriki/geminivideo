@@ -1,7 +1,7 @@
 """
 DIRECTOR AGENT 🎬
 Purpose: Create winning ad scripts
-- Use Gemini 2.0 Flash Thinking with Reflexion Loop
+- Use Gemini 3 Pro (fallback: Gemini 2.0 Flash Thinking) with Reflexion Loop
 - Generate 50+ hook variations using RAG
 - Rank variations by predicted ROAS
 - Create complete ad blueprints with scenes, captions, CTAs
@@ -15,7 +15,9 @@ import json
 import os
 
 # Configuration from environment variables
-GEMINI_MODEL_ID = os.getenv("GEMINI_MODEL_ID", "gemini-2.0-flash-thinking-exp")
+# Primary model: Gemini 3 Pro for advanced reasoning
+GEMINI_MODEL_ID = os.getenv("GEMINI_MODEL_ID", "gemini-3-pro")
+GEMINI_MODEL_FALLBACK = os.getenv("GEMINI_MODEL_FALLBACK", "gemini-2.0-flash-thinking-exp")
 GEMINI_FLASH_MODEL_ID = os.getenv("GEMINI_FLASH_MODEL_ID", "gemini-2.0-flash-exp")
 API_VERSION = "v1"
 
@@ -91,7 +93,8 @@ class DirectorAgentV2:
         if api_key:
             genai.configure(api_key=api_key)
 
-        self.thinking_model = GEMINI_MODEL_ID  # Thinking model for deep reasoning
+        self.thinking_model = GEMINI_MODEL_ID  # Primary: Gemini 3 Pro for deep reasoning
+        self.thinking_model_fallback = GEMINI_MODEL_FALLBACK  # Fallback: Gemini 2.0 Flash Thinking
         self.fast_model = GEMINI_FLASH_MODEL_ID  # Flash for variations
         
         # Hook templates from historical winners
@@ -196,27 +199,58 @@ class DirectorAgentV2:
                     response_mime_type="application/json",
                 )
             )
-            
+
             if not response.text:
                 raise ValueError("Empty response from Gemini")
-            
+
             # Parse response
             data = json.loads(response.text)
-            
+
             blueprints = []
             if isinstance(data, list):
                 for i, item in enumerate(data):
                     bp = self._parse_blueprint(item, i + 1, request)
                     if bp:
                         blueprints.append(bp)
-            
-            print(f"🎬 DIRECTOR: Generated {len(blueprints)} initial variations")
+
+            print(f"🎬 DIRECTOR: Generated {len(blueprints)} initial variations using {self.thinking_model}")
             return blueprints
-            
+
         except Exception as e:
-            print(f"❌ DIRECTOR ERROR in initial generation: {e}")
-            # Fallback to template-based generation
-            return self._generate_template_variations(request)
+            print(f"⚠️ DIRECTOR: Primary model ({self.thinking_model}) failed: {e}")
+            print(f"🔄 DIRECTOR: Attempting fallback to {self.thinking_model_fallback}")
+
+            # Try fallback model
+            try:
+                model = genai.GenerativeModel(self.thinking_model_fallback)
+                response = model.generate_content(
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        response_mime_type="application/json",
+                    )
+                )
+
+                if not response.text:
+                    raise ValueError("Empty response from fallback model")
+
+                # Parse response
+                data = json.loads(response.text)
+
+                blueprints = []
+                if isinstance(data, list):
+                    for i, item in enumerate(data):
+                        bp = self._parse_blueprint(item, i + 1, request)
+                        if bp:
+                            blueprints.append(bp)
+
+                print(f"✅ DIRECTOR: Generated {len(blueprints)} variations using fallback model")
+                return blueprints
+
+            except Exception as fallback_error:
+                print(f"❌ DIRECTOR: Fallback model also failed: {fallback_error}")
+                print(f"🔄 DIRECTOR: Using template-based generation as last resort")
+                # Final fallback to template-based generation
+                return self._generate_template_variations(request)
     
     def _parse_blueprint(
         self, 
