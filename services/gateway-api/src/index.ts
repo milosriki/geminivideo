@@ -2765,6 +2765,11 @@ import { createABTestsRouter } from './routes/ab-tests';
 const abTestsRouter = createABTestsRouter(pgPool);
 app.use(`${API_PREFIX}/ab-tests`, abTestsRouter);
 
+// Winner Detection Routes (Agent 02 - Automated Winner Detection)
+import { createWinnersRouter } from './routes/winners';
+const winnersRouter = createWinnersRouter(pgPool);
+app.use(`${API_PREFIX}/winners`, winnersRouter);
+
 // Ads Management Routes
 import { createAdsRouter } from './routes/ads';
 const adsRouter = createAdsRouter(pgPool);
@@ -2924,6 +2929,16 @@ const server = app.listen(PORT, async () => {
   } catch (error) {
     console.error('❌ Failed to initialize real-time infrastructure:', error);
   }
+
+  // Initialize Winner Detection Scheduler (Agent 02)
+  try {
+    console.log('🚀 Starting winner detection scheduler...');
+    const { startWinnerScheduler } = require('./jobs/winner-scheduler');
+    startWinnerScheduler(pgPool);
+    console.log('✅ Winner detection scheduler started (runs every 6 hours)');
+  } catch (error) {
+    console.error('❌ Failed to start winner detection scheduler:', error);
+  }
 });
 
 // Graceful shutdown
@@ -2931,6 +2946,10 @@ process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully...');
 
   try {
+    // Stop winner scheduler
+    const { stopWinnerScheduler } = require('./jobs/winner-scheduler');
+    stopWinnerScheduler();
+
     await shutdownWebSocketManager();
     await shutdownChannelManager();
     shutdownSSEManager();
@@ -2949,6 +2968,10 @@ process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, shutting down gracefully...');
 
   try {
+    // Stop winner scheduler
+    const { stopWinnerScheduler } = require('./jobs/winner-scheduler');
+    stopWinnerScheduler();
+
     await shutdownWebSocketManager();
     await shutdownChannelManager();
     shutdownSSEManager();
