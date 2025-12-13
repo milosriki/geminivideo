@@ -144,10 +144,51 @@ if (!DATABASE_URL) {
 const pgPool = new Pool({ connectionString: DATABASE_URL });
 pgPool.on('error', (err: Error) => console.error('PostgreSQL Pool Error', err));
 
-// Verify database connection
+// Verify database connection and initialize tables
 pgPool.query('SELECT NOW()')
-  .then(() => {
+  .then(async () => {
     console.log('✅ PostgreSQL connected');
+    
+    // Initialize AI Credits tables (GROUP A)
+    try {
+      const createCreditsTablesQuery = `
+        CREATE TABLE IF NOT EXISTS ai_credits (
+          user_id VARCHAR(255) PRIMARY KEY,
+          total_credits INTEGER NOT NULL DEFAULT 10000,
+          used_credits INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS ai_credit_usage (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          credits_used INTEGER NOT NULL,
+          operation VARCHAR(100) NOT NULL,
+          metadata JSONB DEFAULT '{}',
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_credit_usage_user ON ai_credit_usage(user_id);
+        CREATE INDEX IF NOT EXISTS idx_credit_usage_created ON ai_credit_usage(created_at DESC);
+      `;
+
+      await pgPool.query(createCreditsTablesQuery);
+      console.log('✅ AI credits tables initialized');
+
+      // Initialize default user with credits if not exists
+      const initDefaultUserQuery = `
+        INSERT INTO ai_credits (user_id, total_credits, used_credits)
+        VALUES ('default_user', 10000, 0)
+        ON CONFLICT (user_id) DO NOTHING;
+      `;
+
+      await pgPool.query(initDefaultUserQuery);
+      console.log('✅ Default user credits initialized');
+    } catch (error) {
+      console.error('⚠️  Credits table initialization failed:', error);
+    }
+    
     // Initialize monitoring health checks (Agent 28)
     setDatabasePool(pgPool);
   })
@@ -2789,6 +2830,22 @@ import { initializeROASRoutes } from './routes/roas-dashboard';
 const roasDashboardRouter = initializeROASRoutes(pgPool);
 app.use(`${API_PREFIX}/roas-dashboard`, roasDashboardRouter);
 console.log('✅ ROAS Dashboard endpoints mounted at /api/v1/roas-dashboard/*');
+
+// ============================================================================
+// AI CREDITS ENDPOINTS (GROUP A - Credits Management)
+// ============================================================================
+
+import { registerCreditsEndpoints } from './credits-endpoint';
+registerCreditsEndpoints(app, pgPool);
+console.log('✅ AI Credits endpoints mounted at /api/v1/credits/*');
+
+// ============================================================================
+// KNOWLEDGE MANAGEMENT ENDPOINTS (GROUP A - Knowledge Upload/Activation)
+// ============================================================================
+
+import knowledgeRouter from './knowledge';
+app.use(`${API_PREFIX}/knowledge`, knowledgeRouter);
+console.log('✅ Knowledge Management endpoints mounted at /api/v1/knowledge/*');
 
 // ============================================================================
 // ARTERY MODULES - Service Business Intelligence
