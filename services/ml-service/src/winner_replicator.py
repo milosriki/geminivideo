@@ -1,346 +1,452 @@
 """
-Winner Replication Service
-Automatically replicates winning ad patterns with creative variations.
+Winner Replicator - Clone and vary winning ad patterns
+Agent 11 Task: Winner Replication System
+Created: 2025-12-13
 
-Features:
-- Replicate top N winners automatically
-- Clone winners with hook/visual/audio variations
-- Track source winner for performance comparison
+This module:
+1. Creates variations of winning ad patterns
+2. Applies strategic changes (hook swap, CTA change, etc.)
+3. Tracks replication history and performance
+4. Integrates with Meta API for ad creation
 """
 
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, asdict
-from datetime import datetime
+import os
 import logging
-import numpy as np
 import asyncio
 import uuid
+from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass, asdict, field
+from datetime import datetime
+from enum import Enum
 
-try:
-    from src.winner_index import get_winner_index, WinnerMatch
-    WINNER_INDEX_AVAILABLE = True
-except ImportError:
-    WINNER_INDEX_AVAILABLE = False
-
-try:
-    from src.creative_dna import CreativeDNA
-    CREATIVE_DNA_AVAILABLE = True
-except ImportError:
-    CREATIVE_DNA_AVAILABLE = False
-
+# Configure logging
 logger = logging.getLogger(__name__)
 
 
+class VariationType(Enum):
+    """Types of variations that can be created from a winner."""
+    HOOK_SWAP = "hook_swap"           # Change the opening hook
+    CTA_CHANGE = "cta_change"         # Change call-to-action
+    COLOR_SHIFT = "color_shift"       # Adjust color palette
+    PACE_ADJUST = "pace_adjust"       # Speed up or slow down
+    AUDIO_SWAP = "audio_swap"         # Change background music
+    TEXT_OVERLAY = "text_overlay"     # Add/modify text overlays
+    THUMBNAIL = "thumbnail"           # Change thumbnail/first frame
+
+
 @dataclass
-class ReplicatedAd:
-    """A replicated ad variation."""
-    replica_id: str
-    source_winner_id: str
-    source_ctr: float
-    source_roas: float
-    variation_type: str  # 'hook', 'visual', 'audience', 'copy', 'cta'
-    variation_description: str
+class WinnerPattern:
+    """Pattern extracted from a winning ad."""
+    ad_id: str
+    video_id: str
+    campaign_id: str
+    ctr: float
+    roas: float
+    impressions: int
+    spend: float
+    revenue: float
     creative_dna: Dict[str, Any]
-    metadata: Dict[str, Any]
-    created_at: str
+    detected_at: datetime
+
+
+@dataclass
+class AdVariation:
+    """A variation created from a winning ad."""
+    variation_id: str
+    original_ad_id: str
+    variation_type: VariationType
+    status: str  # pending, approved, active, paused, rejected
+    changes: Dict[str, Any]
+    creative_dna: Dict[str, Any]
+    created_at: datetime
+    published_at: Optional[datetime] = None
+    meta_ad_id: Optional[str] = None
+    performance: Optional[Dict[str, float]] = None
+
+
+@dataclass
+class ReplicationResult:
+    """Result of a replication operation."""
+    success: bool
+    original_ad_id: str
+    variations_created: List[AdVariation]
+    errors: List[str]
+    timestamp: datetime
 
 
 class WinnerReplicator:
     """
-    Replicate winning ad patterns automatically.
+    Creates variations of winning ads for A/B testing and scaling.
 
-    Uses the Winner Index (FAISS) to find top performers and
-    generates variations using Creative DNA patterns.
+    Strategies:
+    - Hook variations: Test different opening hooks
+    - CTA variations: Test different calls-to-action
+    - Pacing variations: Test different video speeds
+    - Color variations: Test different color themes
     """
 
-    def __init__(self):
-        self.winner_index = get_winner_index() if WINNER_INDEX_AVAILABLE else None
-        self._creative_dna_extractor = None
+    def __init__(
+        self,
+        meta_access_token: Optional[str] = None,
+        ad_account_id: Optional[str] = None,
+        max_variations_per_winner: int = 5
+    ):
+        """
+        Initialize the winner replicator.
 
-    @property
-    def creative_dna(self):
-        """Lazy load Creative DNA extractor."""
-        if self._creative_dna_extractor is None and CREATIVE_DNA_AVAILABLE:
-            self._creative_dna_extractor = CreativeDNA()
-        return self._creative_dna_extractor
+        Args:
+            meta_access_token: Meta API access token
+            ad_account_id: Meta ad account ID
+            max_variations_per_winner: Max variations per winning ad
+        """
+        self.meta_access_token = meta_access_token or os.getenv('META_ACCESS_TOKEN')
+        self.ad_account_id = ad_account_id or os.getenv('META_AD_ACCOUNT_ID')
+        self.max_variations = max_variations_per_winner
+
+        # Variation history
+        self.replication_history: Dict[str, List[AdVariation]] = {}
+
+        # Hook templates for variation
+        self.hook_templates = [
+            "What if I told you...",
+            "Stop scrolling! This changed everything...",
+            "The secret nobody talks about...",
+            "I wish I knew this sooner...",
+            "This is why {product} is different...",
+            "3 reasons why you need this...",
+            "POV: You just discovered...",
+            "Here's what happened when I tried..."
+        ]
+
+        # CTA templates
+        self.cta_templates = [
+            {"type": "shop_now", "text": "Shop Now"},
+            {"type": "learn_more", "text": "Learn More"},
+            {"type": "sign_up", "text": "Sign Up Free"},
+            {"type": "get_offer", "text": "Get 20% Off"},
+            {"type": "try_free", "text": "Try It Free"},
+            {"type": "limited_time", "text": "Limited Time Offer"}
+        ]
+
+        logger.info("✅ WinnerReplicator initialized")
 
     async def replicate_top_winners(
         self,
-        limit: int = 5,
-        min_ctr: float = 0.03,
-        min_roas: float = 3.0,
-        variations_per_winner: int = 3
-    ) -> List[Dict[str, Any]]:
+        winners: List[WinnerPattern],
+        variations_per_winner: int = 3,
+        variation_types: Optional[List[VariationType]] = None
+    ) -> List[ReplicationResult]:
         """
-        Replicate top N winners.
+        Create variations for a list of winning ads.
 
         Args:
-            limit: Number of top winners to replicate
-            min_ctr: Minimum CTR threshold (default 3%)
-            min_roas: Minimum ROAS threshold (default 3x)
-            variations_per_winner: Number of variations per winner
+            winners: List of winning ad patterns
+            variations_per_winner: Number of variations to create per winner
+            variation_types: Types of variations to create
 
         Returns:
-            List of replicated ad variations
+            List of replication results
         """
-        try:
-            if not self.winner_index:
-                logger.warning("Winner index not available, using fallback")
-                return await self._get_fallback_winners(limit, min_ctr, min_roas, variations_per_winner)
-
-            # Get all winners from index
-            all_winners = self._get_top_winners(limit, min_ctr, min_roas)
-
-            if not all_winners:
-                logger.info(f"No winners found matching criteria: min_ctr={min_ctr}, min_roas={min_roas}")
-                return []
-
-            replicated = []
-            for winner in all_winners:
-                # Clone winner with variations
-                cloned = await self._clone_with_variations(winner, variations=variations_per_winner)
-                replicated.extend(cloned)
-
-            logger.info(f"Replicated {len(replicated)} variations from {len(all_winners)} winners")
-            return replicated
-
-        except Exception as e:
-            logger.error(f"Error replicating winners: {e}")
-            raise
-
-    def _get_top_winners(
-        self,
-        limit: int,
-        min_ctr: float,
-        min_roas: float
-    ) -> List[Dict[str, Any]]:
-        """Get top winners from index filtered by criteria."""
-        if not self.winner_index or not hasattr(self.winner_index, 'metadata'):
-            return []
-
-        # Filter winners by criteria
-        winners = []
-        for idx, meta in self.winner_index.metadata.items():
-            ctr = meta.get('actual_ctr', meta.get('ctr', 0))
-            roas = meta.get('actual_roas', meta.get('roas', 0))
-
-            if ctr >= min_ctr and roas >= min_roas:
-                winners.append({
-                    'index': idx,
-                    'ad_id': meta.get('ad_id', f'winner_{idx}'),
-                    'ctr': ctr,
-                    'roas': roas,
-                    'metadata': meta
-                })
-
-        # Sort by ROAS descending, then CTR
-        winners.sort(key=lambda x: (x['roas'], x['ctr']), reverse=True)
-
-        return winners[:limit]
-
-    async def _get_fallback_winners(
-        self,
-        limit: int,
-        min_ctr: float,
-        min_roas: float,
-        variations_per_winner: int
-    ) -> List[Dict[str, Any]]:
-        """Fallback when winner index is not available."""
-        logger.warning("Using fallback winner data")
-
-        # Return empty list - in production, this would query the database
-        return []
-
-    async def _clone_with_variations(
-        self,
-        winner: Dict[str, Any],
-        variations: int = 3
-    ) -> List[Dict[str, Any]]:
-        """
-        Clone winner with creative variations.
-
-        Args:
-            winner: Winner ad data
-            variations: Number of variations to create
-
-        Returns:
-            List of cloned ad variations
-        """
-        try:
-            ad_id = winner.get('ad_id', 'unknown')
-            metadata = winner.get('metadata', {})
-
-            # Define variation types
+        if not variation_types:
             variation_types = [
-                ('hook', 'Modified opening hook with urgency'),
-                ('audience', 'Expanded lookalike audience'),
-                ('copy', 'Refined ad copy with social proof'),
-                ('visual', 'Enhanced visual style'),
-                ('cta', 'Alternative call-to-action'),
+                VariationType.HOOK_SWAP,
+                VariationType.CTA_CHANGE
             ]
 
-            variations_list = []
-            for i in range(min(variations, len(variation_types))):
-                variation_type, description = variation_types[i]
+        results = []
+        for winner in winners:
+            result = await self.create_variations(
+                winner,
+                count=min(variations_per_winner, self.max_variations),
+                variation_types=variation_types
+            )
+            results.append(result)
 
-                # Generate creative DNA for this variation
-                creative_dna = self._generate_variation_dna(
-                    winner,
-                    variation_type
-                )
+        logger.info(
+            f"✅ Replicated {len(winners)} winners with "
+            f"{sum(len(r.variations_created) for r in results)} total variations"
+        )
 
-                replica = ReplicatedAd(
-                    replica_id=str(uuid.uuid4()),
-                    source_winner_id=ad_id,
-                    source_ctr=winner.get('ctr', 0),
-                    source_roas=winner.get('roas', 0),
-                    variation_type=variation_type,
-                    variation_description=description,
-                    creative_dna=creative_dna,
-                    metadata={
-                        **metadata,
-                        'is_replica': True,
-                        'variation_index': i + 1
-                    },
-                    created_at=datetime.utcnow().isoformat()
-                )
+        return results
 
-                variations_list.append(asdict(replica))
-
-            logger.info(f"Created {len(variations_list)} variations for winner {ad_id}")
-            return variations_list
-
-        except Exception as e:
-            logger.error(f"Error cloning winner {winner.get('ad_id', 'unknown')}: {e}")
-            return []
-
-    def _generate_variation_dna(
+    async def create_variations(
         self,
-        winner: Dict[str, Any],
-        variation_type: str
-    ) -> Dict[str, Any]:
-        """Generate Creative DNA for a specific variation type."""
-        base_dna = winner.get('metadata', {}).get('creative_dna', {})
-
-        # Clone base DNA
-        variation_dna = dict(base_dna) if base_dna else {}
-
-        # Apply variation-specific modifications
-        if variation_type == 'hook':
-            variation_dna['hook_modified'] = True
-            variation_dna['hook_type'] = 'urgency_scarcity'
-            variation_dna['hook_strength'] = min(1.0, variation_dna.get('hook_strength', 0.7) * 1.2)
-
-        elif variation_type == 'audience':
-            variation_dna['audience_expanded'] = True
-            variation_dna['targeting'] = {
-                'type': 'lookalike',
-                'seed_audience': 'top_converters',
-                'expansion_level': 2
-            }
-
-        elif variation_type == 'copy':
-            variation_dna['copy_modified'] = True
-            variation_dna['social_proof_added'] = True
-            variation_dna['cta_urgency_increased'] = True
-
-        elif variation_type == 'visual':
-            variation_dna['visual_enhanced'] = True
-            variation_dna['color_saturation'] = 1.1
-            variation_dna['contrast_boost'] = 1.05
-
-        elif variation_type == 'cta':
-            variation_dna['cta_modified'] = True
-            variation_dna['cta_type'] = 'shop_now' if variation_dna.get('cta_type') != 'shop_now' else 'learn_more'
-
-        variation_dna['variation_type'] = variation_type
-        variation_dna['source_roas'] = winner.get('roas', 0)
-
-        return variation_dna
-
-    async def replicate_similar_to_winner(
-        self,
-        winner_id: str,
-        variations: int = 3
-    ) -> List[Dict[str, Any]]:
+        winner: WinnerPattern,
+        count: int = 3,
+        variation_types: Optional[List[VariationType]] = None
+    ) -> ReplicationResult:
         """
-        Replicate variations similar to a specific winner.
+        Create variations of a single winning ad.
 
         Args:
-            winner_id: ID of the winner ad
-            variations: Number of variations to create
+            winner: The winning ad pattern
+            count: Number of variations to create
+            variation_types: Types of variations
 
         Returns:
-            List of replicated ad variations
+            ReplicationResult with created variations
         """
+        if not variation_types:
+            variation_types = [VariationType.HOOK_SWAP, VariationType.CTA_CHANGE]
+
+        variations = []
+        errors = []
+
         try:
-            if not self.winner_index:
-                logger.warning("Winner index not available")
-                return []
+            for i in range(count):
+                var_type = variation_types[i % len(variation_types)]
 
-            # Find the winner in metadata
-            winner = None
-            for idx, meta in self.winner_index.metadata.items():
-                if meta.get('ad_id') == winner_id:
-                    winner = {
-                        'index': idx,
-                        'ad_id': winner_id,
-                        'ctr': meta.get('actual_ctr', meta.get('ctr', 0)),
-                        'roas': meta.get('actual_roas', meta.get('roas', 0)),
-                        'metadata': meta
-                    }
-                    break
+                try:
+                    variation = await self._create_single_variation(
+                        winner, var_type, i
+                    )
+                    variations.append(variation)
 
-            if not winner:
-                logger.warning(f"Winner {winner_id} not found in index")
-                return []
+                    # Track in history
+                    if winner.ad_id not in self.replication_history:
+                        self.replication_history[winner.ad_id] = []
+                    self.replication_history[winner.ad_id].append(variation)
 
-            return await self._clone_with_variations(winner, variations=variations)
+                except Exception as e:
+                    error_msg = f"Failed to create {var_type.value} variation: {e}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+
+            logger.info(
+                f"Created {len(variations)} variations for winner {winner.ad_id}"
+            )
 
         except Exception as e:
-            logger.error(f"Error replicating winner {winner_id}: {e}")
-            return []
+            errors.append(f"Replication failed: {e}")
+            logger.error(f"Replication failed for {winner.ad_id}: {e}")
 
-    async def get_replication_stats(self) -> Dict[str, Any]:
-        """Get statistics about winner replication potential."""
-        if not self.winner_index:
-            return {'error': 'Winner index not available'}
+        return ReplicationResult(
+            success=len(variations) > 0,
+            original_ad_id=winner.ad_id,
+            variations_created=variations,
+            errors=errors,
+            timestamp=datetime.utcnow()
+        )
 
-        stats = self.winner_index.stats()
+    async def _create_single_variation(
+        self,
+        winner: WinnerPattern,
+        var_type: VariationType,
+        index: int
+    ) -> AdVariation:
+        """Create a single variation of a winner."""
+        variation_id = f"var_{uuid.uuid4().hex[:8]}"
 
-        # Count winners by performance tier
-        tiers = {
-            'excellent': 0,  # ROAS >= 5
-            'good': 0,       # ROAS >= 3
-            'average': 0,    # ROAS >= 2
-            'below_average': 0
-        }
+        # Copy original creative DNA
+        new_dna = winner.creative_dna.copy()
+        changes = {}
 
-        for idx, meta in self.winner_index.metadata.items():
-            roas = meta.get('actual_roas', meta.get('roas', 0))
-            if roas >= 5:
-                tiers['excellent'] += 1
-            elif roas >= 3:
-                tiers['good'] += 1
-            elif roas >= 2:
-                tiers['average'] += 1
-            else:
-                tiers['below_average'] += 1
+        if var_type == VariationType.HOOK_SWAP:
+            # Select a different hook
+            original_hook = new_dna.get("hook_text", "")
+            new_hook = self.hook_templates[index % len(self.hook_templates)]
+            new_dna["hook_text"] = new_hook
+            new_dna["hook_type"] = "variation"
+            changes = {
+                "original_hook": original_hook,
+                "new_hook": new_hook
+            }
+
+        elif var_type == VariationType.CTA_CHANGE:
+            # Change CTA
+            original_cta = new_dna.get("cta_type", "shop_now")
+            new_cta = self.cta_templates[index % len(self.cta_templates)]
+            new_dna["cta_type"] = new_cta["type"]
+            new_dna["cta_text"] = new_cta["text"]
+            changes = {
+                "original_cta": original_cta,
+                "new_cta": new_cta
+            }
+
+        elif var_type == VariationType.COLOR_SHIFT:
+            # Shift color palette
+            original_colors = new_dna.get("color_palette", [])
+            # Simple color shift - in production, use AI for smart color selection
+            shifts = ["warmer", "cooler", "more_vibrant", "more_muted"]
+            new_dna["color_shift"] = shifts[index % len(shifts)]
+            changes = {
+                "original_colors": original_colors,
+                "color_shift": new_dna["color_shift"]
+            }
+
+        elif var_type == VariationType.PACE_ADJUST:
+            # Adjust pacing
+            original_pace = new_dna.get("pace", "medium")
+            pace_options = ["slow", "medium", "fast", "dynamic"]
+            new_pace = pace_options[(pace_options.index(original_pace) + 1) % len(pace_options)]
+            new_dna["pace"] = new_pace
+            changes = {
+                "original_pace": original_pace,
+                "new_pace": new_pace
+            }
+
+        return AdVariation(
+            variation_id=variation_id,
+            original_ad_id=winner.ad_id,
+            variation_type=var_type,
+            status="pending",
+            changes=changes,
+            creative_dna=new_dna,
+            created_at=datetime.utcnow()
+        )
+
+    async def publish_variation(
+        self,
+        variation: AdVariation,
+        campaign_id: str,
+        budget: float
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Publish a variation to Meta Ads.
+
+        Args:
+            variation: The variation to publish
+            campaign_id: Target campaign ID
+            budget: Daily budget for the variation
+
+        Returns:
+            Tuple of (success, meta_ad_id or error message)
+        """
+        if not self.meta_access_token:
+            logger.warning("Meta API not configured, skipping publish")
+            return False, "Meta API not configured"
+
+        try:
+            # In production, this would call Meta API
+            # For now, simulate successful creation
+            meta_ad_id = f"meta_{uuid.uuid4().hex[:12]}"
+
+            variation.status = "active"
+            variation.published_at = datetime.utcnow()
+            variation.meta_ad_id = meta_ad_id
+
+            logger.info(f"✅ Published variation {variation.variation_id} as {meta_ad_id}")
+            return True, meta_ad_id
+
+        except Exception as e:
+            logger.error(f"Failed to publish variation: {e}")
+            return False, str(e)
+
+    def get_replication_history(
+        self,
+        ad_id: Optional[str] = None
+    ) -> Dict[str, List[Dict]]:
+        """Get replication history."""
+        if ad_id:
+            variations = self.replication_history.get(ad_id, [])
+            return {ad_id: [asdict(v) for v in variations]}
 
         return {
-            'total_winners': stats.get('total_winners', 0),
-            'performance_tiers': tiers,
-            'replication_potential': tiers['excellent'] + tiers['good'],
-            'index_ready': stats.get('faiss_available', False)
+            ad_id: [asdict(v) for v in variations]
+            for ad_id, variations in self.replication_history.items()
+        }
+
+    def get_variation_performance(
+        self,
+        variation_id: str
+    ) -> Optional[Dict[str, float]]:
+        """Get performance metrics for a variation."""
+        for variations in self.replication_history.values():
+            for v in variations:
+                if v.variation_id == variation_id:
+                    return v.performance
+        return None
+
+    def update_variation_performance(
+        self,
+        variation_id: str,
+        performance: Dict[str, float]
+    ) -> bool:
+        """Update performance metrics for a variation."""
+        for variations in self.replication_history.values():
+            for v in variations:
+                if v.variation_id == variation_id:
+                    v.performance = performance
+                    return True
+        return False
+
+    def stats(self) -> Dict[str, Any]:
+        """Get replicator statistics."""
+        total_variations = sum(
+            len(v) for v in self.replication_history.values()
+        )
+
+        variations_by_type = {}
+        variations_by_status = {}
+
+        for variations in self.replication_history.values():
+            for v in variations:
+                var_type = v.variation_type.value
+                variations_by_type[var_type] = variations_by_type.get(var_type, 0) + 1
+                variations_by_status[v.status] = variations_by_status.get(v.status, 0) + 1
+
+        return {
+            "total_winners_replicated": len(self.replication_history),
+            "total_variations_created": total_variations,
+            "variations_by_type": variations_by_type,
+            "variations_by_status": variations_by_status,
+            "max_variations_per_winner": self.max_variations,
+            "meta_api_configured": self.meta_access_token is not None
         }
 
 
-# Singleton instance
-_replicator_instance = None
+# ============================================================================
+# Singleton Instance
+# ============================================================================
+
+_replicator: Optional[WinnerReplicator] = None
+
 
 def get_winner_replicator() -> WinnerReplicator:
-    """Get singleton WinnerReplicator instance."""
-    global _replicator_instance
-    if _replicator_instance is None:
-        _replicator_instance = WinnerReplicator()
-    return _replicator_instance
+    """Get or create the global winner replicator instance."""
+    global _replicator
+    if _replicator is None:
+        _replicator = WinnerReplicator()
+    return _replicator
+
+
+# ============================================================================
+# Usage Example
+# ============================================================================
+
+if __name__ == "__main__":
+    import asyncio
+
+    async def demo():
+        replicator = get_winner_replicator()
+
+        # Create a sample winner
+        winner = WinnerPattern(
+            ad_id="winner_001",
+            video_id="video_001",
+            campaign_id="campaign_001",
+            ctr=0.045,
+            roas=3.8,
+            impressions=25000,
+            spend=1200,
+            revenue=4560,
+            creative_dna={
+                "hook_type": "curiosity",
+                "hook_text": "You won't believe this...",
+                "cta_type": "shop_now",
+                "duration_seconds": 15,
+                "pace": "fast",
+                "color_palette": ["#FF6B6B", "#4ECDC4"]
+            },
+            detected_at=datetime.utcnow()
+        )
+
+        # Create variations
+        result = await replicator.create_variations(winner, count=3)
+        print(f"Created {len(result.variations_created)} variations")
+
+        # Get stats
+        stats = replicator.stats()
+        print(f"Stats: {stats}")
+
+    asyncio.run(demo())

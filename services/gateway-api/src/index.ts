@@ -62,6 +62,15 @@ import {
   getTracingConfig
 } from './monitoring/tracing';
 
+// Swagger API Documentation (Agent 15)
+import { setupSwagger } from './docs/swagger';
+
+// Enhanced Error Handler (Agent 17)
+import { enhancedErrorHandler } from './middleware/enhanced-error-handler';
+
+// Winner API Routes (Agent 11)
+import winnersRouter from './routes/winners';
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 
@@ -2873,6 +2882,14 @@ import mlProxyRouter from './routes/ml-proxy';
 app.use(`${API_PREFIX}/ml`, mlProxyRouter);
 console.log('✅ Artery module endpoints mounted at /api/v1/ml/*');
 
+// Winner API Routes (Agent 11)
+app.use(`${API_PREFIX}/winners`, winnersRouter);
+console.log('✅ Winner API endpoints mounted at /api/v1/winners/*');
+
+// Setup Swagger API Documentation (Agent 15)
+setupSwagger(app);
+console.log('✅ Swagger API documentation available at /api/docs');
+
 // ============================================================================
 // HEALTH CHECK & VERSION INFO
 // ============================================================================
@@ -2901,6 +2918,13 @@ app.get(`${API_PREFIX}/realtime/stats`, (req: Request, res: Response) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// ============================================================================
+// ENHANCED ERROR HANDLER (Agent 17)
+// Must be registered after all routes for proper error catching
+// ============================================================================
+app.use(enhancedErrorHandler);
+console.log('✅ Enhanced error handler with fallbacks registered');
 
 const server = app.listen(PORT, async () => {
   console.log(`Gateway API listening on port ${PORT}`);
