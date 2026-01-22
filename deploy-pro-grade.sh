@@ -29,7 +29,7 @@ BOLD='\033[1m'
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$SCRIPT_DIR"  # Script is in project root
 DEPLOYMENT_MODE="${1:-local}"
 
 #################################################################################
@@ -170,7 +170,8 @@ deploy_local() {
     
     # Step 2: Build images
     print_info "Building Docker images (this may take 3-5 minutes)..."
-    export DOCKER_BUILDKIT=0  # Disable BuildKit for npm compatibility
+    # Use BuildKit for faster builds with caching
+    export DOCKER_BUILDKIT=1
     docker-compose build --parallel
     print_success "Images built successfully"
     

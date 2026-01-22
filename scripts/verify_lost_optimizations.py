@@ -194,9 +194,9 @@ class OptimizationVerifier:
         all_passed = all(result for _, result in checks)
         
         if all_passed:
-            return "WORKING", "Cross-learner integrated (method compatibility needs runtime verification)", YELLOW
+            return "WORKING", "Cross-learner integrated (runtime method verification recommended)", YELLOW
         elif cross_learner_exists:
-            return "PARTIAL", "Cross-learner exists but not fully integrated", YELLOW
+            return "PARTIAL", "Cross-learner exists but integration incomplete", YELLOW
         else:
             return "NOT_WORKING", "Cross-learner file not found", RED
     
