@@ -24,20 +24,21 @@ export const publishKeys = {
  * Get publish job status
  * @param jobId - Publish job ID
  */
-export function usePublishStatus(jobId: string, options?: UseQueryOptions<PublishStatus>) {
+export function usePublishStatus(jobId: string, options?: Partial<UseQueryOptions<PublishStatus>>) {
   return useQuery({
     queryKey: publishKeys.status(jobId),
     queryFn: () => apiClient.getPublishStatus(jobId),
     enabled: !!jobId,
     staleTime: 5000, // 5 seconds
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const data = query.state.data as PublishStatus | undefined;
       // Stop polling when job is completed or failed
       if (data?.status === 'completed' || data?.status === 'failed') {
         return false;
       }
       return 5000; // Poll every 5 seconds
     },
-    ...options,
+    ...options as any,
   });
 }
 
@@ -47,14 +48,14 @@ export function usePublishStatus(jobId: string, options?: UseQueryOptions<Publis
  */
 export function useCampaignPublishJobs(
   campaignId: string,
-  options?: UseQueryOptions<PublishStatus[]>
+  options?: Partial<UseQueryOptions<PublishStatus[]>>
 ) {
   return useQuery({
     queryKey: publishKeys.campaignJobs(campaignId),
     queryFn: () => apiClient.getCampaignPublishJobs(campaignId),
     enabled: !!campaignId,
     staleTime: 30000, // 30 seconds
-    ...options,
+    ...options as any,
   });
 }
 
@@ -166,25 +167,29 @@ export function usePublishingProgress(campaignId: string) {
   const jobs = useCampaignPublishJobs(campaignId);
 
   // Get active jobs (pending or processing)
-  const activeJobs = jobs.data?.filter(
-    (job) => job.status === 'pending' || job.status === 'processing'
+  const activeJobs = (jobs.data as PublishStatus[] | undefined)?.filter(
+    (job: PublishStatus) => job.status === 'pending' || job.status === 'processing'
   );
 
   // Poll status for all active jobs
-  const statusQueries = (activeJobs || []).map((job) =>
+  const statusQueries = (activeJobs || []).map((job: PublishStatus) =>
     // eslint-disable-next-line react-hooks/rules-of-hooks
     usePublishStatus(job.jobId)
   );
+  
+  // Need to use statusQueries here to avoid unused var warning if needed, 
+  // but usually it's used for UI feedback.
+  console.log('Active status queries:', statusQueries.length);
 
   return {
-    jobs: jobs.data,
+    jobs: jobs.data as PublishStatus[] | undefined,
     isLoading: jobs.isLoading,
     isError: jobs.isError,
     error: jobs.error,
     activeJobs,
     hasActiveJobs: (activeJobs?.length || 0) > 0,
-    completedJobs: jobs.data?.filter((job) => job.status === 'completed') || [],
-    failedJobs: jobs.data?.filter((job) => job.status === 'failed') || [],
+    completedJobs: (jobs.data as PublishStatus[] | undefined)?.filter((job: PublishStatus) => job.status === 'completed') || [],
+    failedJobs: (jobs.data as PublishStatus[] | undefined)?.filter((job: PublishStatus) => job.status === 'failed') || [],
     refetch: jobs.refetch,
   };
 }
@@ -249,16 +254,18 @@ export function useLaunchAndPublish() {
 export function useIsPublishComplete(jobId?: string) {
   const status = usePublishStatus(jobId || '', {
     enabled: !!jobId,
-  });
+  } as any);
+
+  const data = status.data as PublishStatus | undefined;
 
   return {
-    isComplete: status.data?.status === 'completed',
-    isFailed: status.data?.status === 'failed',
-    isProcessing: status.data?.status === 'processing',
-    isPending: status.data?.status === 'pending',
-    progress: status.data?.progress || 0,
-    message: status.data?.message,
-    error: status.data?.error,
-    externalId: status.data?.externalId,
+    isComplete: data?.status === 'completed',
+    isFailed: data?.status === 'failed',
+    isProcessing: data?.status === 'processing',
+    isPending: data?.status === 'pending',
+    progress: data?.progress || 0,
+    message: data?.message,
+    error: data?.error,
+    externalId: data?.externalId,
   };
 }

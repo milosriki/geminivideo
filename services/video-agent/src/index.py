@@ -511,6 +511,71 @@ async def generate_dco_variants(request: DCORequest, background_tasks: Backgroun
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class URLRemixRequest(BaseModel):
+    url: str
+    jobId: str
+
+@app.post("/api/remix/url")
+async def remix_from_url(request: URLRemixRequest, background_tasks: BackgroundTasks):
+    """
+    Scrape a URL and generate a video remix
+    """
+    try:
+        # Import scraper
+        from src.url_scraper import url_scraper
+        
+        # 1. Scrape Assets
+        scraped_data = url_scraper.scrape(request.url)
+        
+        if scraped_data["status"] == "error":
+            raise HTTPException(status_code=400, detail=f"Failed to scrape URL: {scraped_data['error']}")
+            
+        # 2. Generate Script (Simulated for now, would use LLM)
+        product_name = scraped_data.get("title", "Product")
+        script = f"Introducing {product_name}. {scraped_data.get('description', '')[:100]}... Check it out today!"
+        
+        # 3. Create DCO Config
+        dco_config = DCOConfig(
+            productName=product_name,
+            baseHook=f"Stop scrolling! Check out {product_name}",
+            baseCta="Shop Now",
+            targetAudience="Shoppers",
+            variantCount=1,
+            formats=["reels"]
+        )
+        
+        # 4. Trigger DCO Generation (using the first image as 'video' for now - in real world would animate)
+        # For this demo, we'll just return the scraped data so the frontend can populate the studio
+        
+        return {
+            "status": "success",
+            "jobId": request.jobId,
+            "scraped_data": scraped_data,
+            "suggested_script": script,
+            "suggested_config": dco_config.dict()
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class PredictionRequest(BaseModel):
+    metadata: Dict[str, Any]
+
+@app.post("/api/oracle/predict")
+async def predict_performance(request: PredictionRequest):
+    """
+    Predict ad performance (CTR, ROAS, Viral Score)
+    """
+    try:
+        from src.scoring_engine import OracleScorer
+        scorer = OracleScorer()
+        prediction = scorer.predict(request.metadata)
+        return prediction
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     import os

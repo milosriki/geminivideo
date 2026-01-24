@@ -11,6 +11,7 @@ import {
 } from '../hooks/usePublishing';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useToastStore } from '../stores/toastStore';
+import { PublishStatus } from '../lib/api';
 
 interface PublishingFlowExampleProps {
   campaignId: string;
@@ -57,11 +58,11 @@ export const PublishingFlowExample: React.FC<PublishingFlowExampleProps> = ({ ca
         };
 
         if (platform === 'meta') {
-          await publishToMeta(request);
+          await publishToMeta(request as any);
         } else if (platform === 'google') {
-          await publishToGoogle(request);
+          await publishToGoogle(request as any);
         } else if (platform === 'tiktok') {
-          await publishToTikTok(request);
+          await publishToTikTok(request as any);
         }
 
         addToast({
@@ -151,7 +152,7 @@ export const PublishingFlowExample: React.FC<PublishingFlowExampleProps> = ({ ca
             )}
 
             <div className="space-y-4">
-              {jobs.map((job) => (
+              {jobs.map((job: PublishStatus) => (
                 <PublishJobCard key={job.jobId} jobId={job.jobId} />
               ))}
             </div>
@@ -179,7 +180,8 @@ export const PublishingFlowExample: React.FC<PublishingFlowExampleProps> = ({ ca
 };
 
 const PublishJobCard: React.FC<{ jobId: string }> = ({ jobId }) => {
-  const { data: status, isLoading } = usePublishStatus(jobId);
+  const { data, isLoading } = usePublishStatus(jobId);
+  const status = data as PublishStatus | undefined;
 
   if (isLoading) {
     return (
@@ -194,14 +196,14 @@ const PublishJobCard: React.FC<{ jobId: string }> = ({ jobId }) => {
 
   if (!status) return null;
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     pending: 'bg-yellow-900/20 border-yellow-500/50 text-yellow-400',
     processing: 'bg-blue-900/20 border-blue-500/50 text-blue-400',
     completed: 'bg-green-900/20 border-green-500/50 text-green-400',
     failed: 'bg-red-900/20 border-red-500/50 text-red-400',
   };
 
-  const statusIcons = {
+  const statusIcons: Record<string, string> = {
     pending: '⏳',
     processing: '⚙️',
     completed: '✅',
@@ -209,17 +211,17 @@ const PublishJobCard: React.FC<{ jobId: string }> = ({ jobId }) => {
   };
 
   return (
-    <div className={`p-4 rounded-lg border ${statusColors[status.status]}`}>
+    <div className={`p-4 rounded-lg border ${statusColors[status.status] || ''}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{statusIcons[status.status]}</span>
+          <span className="text-2xl">{statusIcons[status.status] || ''}</span>
           <div>
             <p className="font-semibold text-white capitalize">{status.platform}</p>
             <p className="text-sm text-gray-400">Job ID: {status.jobId}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className={`font-semibold capitalize ${statusColors[status.status]}`}>
+          <p className={`font-semibold capitalize ${statusColors[status.status] || ''}`}>
             {status.status}
           </p>
           {status.progress > 0 && (

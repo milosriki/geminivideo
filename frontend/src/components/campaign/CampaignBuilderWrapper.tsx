@@ -5,7 +5,7 @@
 
 import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CampaignBuilder from '../CampaignBuilder';
+import CampaignBuilder, { Campaign as BuilderCampaign } from '../CampaignBuilder';
 import { Campaign } from '../../lib/api';
 import {
   useCreateCampaign,
@@ -16,7 +16,7 @@ import {
 import { useToastStore } from '../../stores/toastStore';
 
 interface CampaignBuilderWrapperProps {
-  initialCampaign?: Partial<Campaign>;
+  initialCampaign?: Partial<BuilderCampaign>;
   campaignId?: string;
 }
 
@@ -33,7 +33,7 @@ export const CampaignBuilderWrapper: React.FC<CampaignBuilderWrapperProps> = ({
   const uploadCreative = useUploadCreative();
 
   const handleComplete = useCallback(
-    async (campaign: Campaign) => {
+    async (campaign: BuilderCampaign) => {
       try {
         if (campaignId) {
           // Launching existing campaign
@@ -44,8 +44,8 @@ export const CampaignBuilderWrapper: React.FC<CampaignBuilderWrapperProps> = ({
             variant: 'success',
           });
         } else {
-          // Creating and launching new campaign
-          const created = await createCampaign.mutateAsync(campaign);
+          // Creating and launching new campaign - cast to any for structural compatibility
+          const created = await createCampaign.mutateAsync(campaign as any);
           await launchCampaign.mutateAsync(created.id!);
           addToast({
             title: 'Campaign Created and Launched!',

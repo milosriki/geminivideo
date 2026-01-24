@@ -26,7 +26,7 @@ import { formatErrorMessage } from '../utils/error';
 // TYPE DEFINITIONS
 // ============================================================================
 
-interface Campaign {
+export interface Campaign {
   id?: string;
   name: string;
   objective: CampaignObjective;
@@ -41,7 +41,7 @@ interface Campaign {
   updatedAt?: Date;
 }
 
-type CampaignObjective =
+export type CampaignObjective =
   | 'traffic'
   | 'leads'
   | 'sales'
@@ -50,7 +50,7 @@ type CampaignObjective =
   | 'app_installs'
   | 'video_views';
 
-interface CampaignCreative {
+export interface CampaignCreative {
   id: string;
   type: 'video' | 'image';
   url?: string;
@@ -62,7 +62,7 @@ interface CampaignCreative {
   assetId?: string;
 }
 
-interface TargetingConfig {
+export interface TargetingConfig {
   locations: string[];
   ageMin: number;
   ageMax: number;
@@ -74,13 +74,13 @@ interface TargetingConfig {
   detailedTargeting: DetailedTargeting;
 }
 
-interface DetailedTargeting {
+export interface DetailedTargeting {
   demographics: string[];
   interests: string[];
   behaviors: string[];
 }
 
-interface BudgetConfig {
+export interface BudgetConfig {
   type: 'daily' | 'lifetime';
   amount: number;
   bidStrategy: 'lowest_cost' | 'cost_cap' | 'bid_cap';
@@ -88,19 +88,19 @@ interface BudgetConfig {
   spendingLimit?: number;
 }
 
-interface ScheduleConfig {
+export interface ScheduleConfig {
   startDate: string;
   endDate?: string;
   timeZone: string;
   dayParting?: DayPartingConfig[];
 }
 
-interface DayPartingConfig {
+export interface DayPartingConfig {
   days: number[];
   hours: number[];
 }
 
-interface CampaignPredictions {
+export interface CampaignPredictions {
   estimatedReach: number;
   estimatedImpressions: number;
   estimatedClicks: number;
@@ -113,7 +113,7 @@ interface CampaignPredictions {
   recommendations: string[];
 }
 
-interface ABTestConfig {
+export interface ABTestConfig {
   enabled: boolean;
   splitPercentage: number;
   metric: 'ctr' | 'cpa' | 'roas' | 'engagement';

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { useAnalyticsDashboard, useTrends, usePredictionAccuracy } from '../hooks/useAnalytics';
+import { useAnalyticsDashboard } from '../hooks/useAnalytics';
 import { LoadingSpinner, Skeleton } from '../components/ui/LoadingSpinner';
 
 export const AnalyticsDashboardExample: React.FC = () => {
@@ -97,12 +97,12 @@ export const AnalyticsDashboardExample: React.FC = () => {
           <MetricCard
             title="Clicks"
             value={overview.data?.clicks.toLocaleString() || 0}
-            subtitle={`${(overview.data?.ctr * 100).toFixed(2)}% CTR`}
+            subtitle={`${((overview.data?.ctr || 0) * 100).toFixed(2)}% CTR`}
           />
           <MetricCard
             title="Conversions"
             value={overview.data?.conversions.toLocaleString() || 0}
-            subtitle={`$${overview.data?.cpa.toFixed(2)} CPA`}
+            subtitle={`$${(overview.data?.cpa || 0).toFixed(2)} CPA`}
           />
         </div>
 
@@ -148,7 +148,7 @@ export const AnalyticsDashboardExample: React.FC = () => {
             </div>
           ) : predictionAccuracy.data && predictionAccuracy.data.length > 0 ? (
             <div className="space-y-4">
-              {predictionAccuracy.data.map((metric, index) => (
+              {predictionAccuracy.data.map((metric: any, index: number) => (
                 <div key={index} className="flex items-center justify-between p-4 bg-gray-900/50 rounded-lg">
                   <div>
                     <p className="font-semibold text-white">{metric.metric}</p>

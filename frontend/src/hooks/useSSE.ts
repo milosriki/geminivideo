@@ -268,12 +268,21 @@ export function useRenderProgressStream(jobId: string | null) {
   };
 }
 
+export interface CampaignMetrics {
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  spend: number;
+  conversions: number;
+  roas: number;
+}
+
 /**
  * Hook for streaming campaign metrics
  */
 export function useCampaignMetricsStream(campaignId: string | null) {
-  const [metrics, setMetrics] = useState<any>(null);
-  const [change, setChange] = useState<any>(null);
+  const [metrics, setMetrics] = useState<CampaignMetrics | null>(null);
+  const [change, setChange] = useState<Partial<CampaignMetrics> | null>(null);
 
   const url = campaignId ? `/api/stream/campaign-metrics/${campaignId}` : null;
 

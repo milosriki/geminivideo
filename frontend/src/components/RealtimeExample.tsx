@@ -293,8 +293,8 @@ export const LiveMetricsExample: React.FC<{ campaignId: string }> = ({ campaignI
           />
           <MetricCard
             label="CTR"
-            value={`${(metrics.ctr * 100).toFixed(2)}%`}
-            delta={change?.ctr ? (change.ctr * 100).toFixed(2) : undefined}
+            value={`${((metrics.ctr || 0) * 100).toFixed(2)}%`}
+            delta={change?.ctr ? Number((change.ctr * 100).toFixed(2)) : undefined}
           />
           <MetricCard
             label="Spend"

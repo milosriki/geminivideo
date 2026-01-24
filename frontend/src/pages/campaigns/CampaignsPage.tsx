@@ -127,7 +127,7 @@ export function CampaignsPage() {
                       <Badge color={
                         campaign.status === 'active' ? 'green' :
                         campaign.status === 'paused' ? 'yellow' :
-                        campaign.status === 'draft' ? 'gray' : 'blue'
+                        campaign.status === 'draft' ? 'zinc' : 'blue'
                       }>
                         {campaign.status}
                       </Badge>
@@ -149,7 +149,6 @@ export function CampaignsPage() {
                           {campaign.status === 'active' ? 'Pause' : 'Resume'}
                         </Button>
                         <Button
-                          plain
                           color="red"
                           onClick={(e) => {
                             e.stopPropagation()

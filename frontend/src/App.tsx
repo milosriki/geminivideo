@@ -43,6 +43,9 @@ const AdLibraryPage = lazy(() => import('@/pages/AdLibraryPage'))
 const CreativeLibraryPage = lazy(() => import('@/pages/CreativeLibraryPage'))
 const AssetManagerPage = lazy(() => import('@/pages/AssetManagerPage'))
 
+// Antigravity
+const SkillsPage = lazy(() => import('@/pages/SkillsPage'))
+
 // Brand Management
 const BrandKitPage = lazy(() => import('@/pages/BrandKitPage'))
 const StyleGuidePage = lazy(() => import('@/pages/StyleGuidePage'))
@@ -450,6 +453,16 @@ function App() {
                 element={
                   <Suspense fallback={<PageLoader />}>
                     <SettingsPage />
+                  </Suspense>
+                }
+              />
+
+              {/* Antigravity Skills */}
+              <Route
+                path="skills"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <SkillsPage />
                   </Suspense>
                 }
               />

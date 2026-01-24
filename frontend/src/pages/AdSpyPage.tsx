@@ -51,11 +51,15 @@ import { API_BASE_URL } from '../config/api';
 
 interface TrendingAd {
   id: string;
-  brand: string;
-  title: string;
-  views: string;
-  engagement: string;
+  brand_name: string;
+  logo_url: string;
   platform: string;
+  thumbnail_url: string;
+  ad_copy_headline?: string;
+  impressions_estimate: number;
+  ai_analysis?: {
+    hook_score: number;
+  };
 }
 
 function TrendingAdCard({ ad }: { ad: TrendingAd }) {
@@ -64,23 +68,28 @@ function TrendingAdCard({ ad }: { ad: TrendingAd }) {
       whileHover={{ y: -4 }}
       className="rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden cursor-pointer group"
     >
-      <div className="aspect-video bg-gradient-to-br from-zinc-800 to-zinc-900 relative">
+      <div className="aspect-video bg-zinc-800 relative">
+        <img src={ad.thumbnail_url} alt="Ad thumbnail" className="w-full h-full object-cover" />
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
           <PlayIcon className="h-12 w-12 text-white" />
         </div>
-        <Badge color="violet" className="absolute top-3 left-3">{ad.platform}</Badge>
+        <Badge color="violet" className="absolute top-3 left-3 capitalize">{ad.platform}</Badge>
+        {ad.ai_analysis && (
+          <Badge color="emerald" className="absolute top-3 right-3">
+            Hook Score: {ad.ai_analysis.hook_score}
+          </Badge>
+        )}
       </div>
       <div className="p-4">
-        <p className="text-zinc-400 text-xs">{ad.brand}</p>
-        <h3 className="text-white font-medium mt-1">{ad.title}</h3>
+        <div className="flex items-center gap-2 mb-2">
+          {ad.logo_url && <img src={ad.logo_url} alt={ad.brand_name} className="w-5 h-5 rounded-full" />}
+          <p className="text-zinc-400 text-xs">{ad.brand_name}</p>
+        </div>
+        <h3 className="text-white font-medium mt-1 line-clamp-2">{ad.ad_copy_headline || 'No headline'}</h3>
         <div className="flex items-center gap-4 mt-3">
           <div className="flex items-center gap-1 text-zinc-400 text-sm">
             <GlobeAltIcon className="h-4 w-4" />
-            {ad.views}
-          </div>
-          <div className="flex items-center gap-1 text-emerald-400 text-sm">
-            <ArrowTrendingUpIcon className="h-4 w-4" />
-            {ad.engagement}
+            {(ad.impressions_estimate / 1000).toFixed(1)}k Views
           </div>
         </div>
       </div>
@@ -98,7 +107,7 @@ export function AdSpyPage() {
     const fetchTrendingAds = async () => {
       try {
         setError(null)
-        const response = await fetch(`${API_BASE_URL}/api/ads/trending`)
+        const response = await fetch(`${API_BASE_URL}/api/competitors/trending`)
         if (response.ok) {
           const data = await response.json()
           setTrendingAds(data.ads || [])
@@ -202,7 +211,23 @@ export function AdSpyPage() {
           <BookmarkIcon className="h-12 w-12 text-zinc-700 mx-auto" />
           <p className="text-white mt-4">No competitors tracked yet</p>
           <p className="text-zinc-400 text-sm mt-1">Start tracking competitor ad accounts to monitor their creatives.</p>
-          <Button color="violet" className="mt-4">Add First Competitor</Button>
+          <Button color="violet" className="mt-4" onClick={async () => {
+            const brand = prompt("Enter competitor brand name:");
+            const url = prompt("Enter competitor website URL:");
+            if (brand && url) {
+              try {
+                await fetch(`${API_BASE_URL}/api/competitors`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ brandName: brand, websiteUrl: url })
+                });
+                alert("Competitor added! Scraping started...");
+                window.location.reload();
+              } catch (e) {
+                alert("Failed to add competitor");
+              }
+            }
+          }}>Add First Competitor</Button>
         </div>
       </div>
     </div>

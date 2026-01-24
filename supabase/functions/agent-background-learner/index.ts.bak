@@ -1,0 +1,64 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    console.log("🧠 Agent Background Learner started...")
+
+    // 1. Fetch recent logs or interactions to learn from
+    // This is a placeholder for the actual learning logic
+    const { data: logs, error: logsError } = await supabaseClient
+      .from('agent_context')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (logsError) throw logsError
+
+    // 2. Process logs (Mock processing)
+    const insights = logs.map(log => ({
+      id: log.id,
+      insight: `Analyzed context from ${log.created_at}`,
+      status: 'processed'
+    }))
+
+    // 3. Store insights or update models
+    // For now, we just log them
+    console.log(`Processed ${insights.length} interaction logs.`)
+
+    return new Response(
+      JSON.stringify({ 
+        message: "Learning cycle completed successfully",
+        insights_count: insights.length 
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
+      }
+    )
+
+  } catch (error) {
+    console.error("Error in background learner:", error)
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500 
+      }
+    )
+  }
+})

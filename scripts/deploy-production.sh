@@ -51,6 +51,7 @@ SERVICES=(
     "ml-service:16Gi:4"
     "meta-publisher:1Gi:1"
     "titan-core:2Gi:1"
+    "langgraph-app:1Gi:1"
     "frontend:512Mi:1"
 )
 
@@ -158,6 +159,7 @@ build_images() {
         "ml-service"
         "meta-publisher"
         "titan-core"
+        "langgraph-app"
         "frontend"
     )
 
@@ -213,6 +215,7 @@ push_images() {
         "ml-service"
         "meta-publisher"
         "titan-core"
+        "langgraph-app"
         "frontend"
     )
 
@@ -252,6 +255,7 @@ deploy_to_cloud_run() {
     deploy_cloud_run_service "video-agent" "4Gi" "2" "DATABASE_URL=$DATABASE_URL,REDIS_URL=$REDIS_URL"
     deploy_cloud_run_service "meta-publisher" "1Gi" "1" "META_ACCESS_TOKEN=$META_ACCESS_TOKEN,META_AD_ACCOUNT_ID=$META_AD_ACCOUNT_ID,META_APP_ID=$META_APP_ID,META_APP_SECRET=$META_APP_SECRET"
     deploy_cloud_run_service "titan-core" "2Gi" "1" "GEMINI_API_KEY=$GEMINI_API_KEY,META_ACCESS_TOKEN=$META_ACCESS_TOKEN"
+    deploy_cloud_run_service "langgraph-app" "1Gi" "1" "OPENAI_API_KEY=$OPENAI_API_KEY,GEMINI_API_KEY=$GEMINI_API_KEY"
 
     # Get service URLs for gateway
     local drive_url=$(gcloud run services describe drive-intel --region="$REGION" --format='value(status.url)' 2>/dev/null || echo "")
@@ -259,10 +263,11 @@ deploy_to_cloud_run() {
     local ml_url=$(gcloud run services describe ml-service --region="$REGION" --format='value(status.url)' 2>/dev/null || echo "")
     local meta_url=$(gcloud run services describe meta-publisher --region="$REGION" --format='value(status.url)' 2>/dev/null || echo "")
     local titan_url=$(gcloud run services describe titan-core --region="$REGION" --format='value(status.url)' 2>/dev/null || echo "")
+    local langgraph_url=$(gcloud run services describe langgraph-app --region="$REGION" --format='value(status.url)' 2>/dev/null || echo "")
 
     # Deploy gateway with all service URLs
     deploy_cloud_run_service "gateway-api" "2Gi" "2" \
-        "DATABASE_URL=$DATABASE_URL,REDIS_URL=$REDIS_URL,DRIVE_INTEL_URL=$drive_url,VIDEO_AGENT_URL=$video_url,ML_SERVICE_URL=$ml_url,META_PUBLISHER_URL=$meta_url,TITAN_CORE_URL=$titan_url,GEMINI_API_KEY=$GEMINI_API_KEY,JWT_SECRET=$JWT_SECRET,CORS_ORIGINS=$CORS_ORIGINS"
+        "DATABASE_URL=$DATABASE_URL,REDIS_URL=$REDIS_URL,DRIVE_INTEL_URL=$drive_url,VIDEO_AGENT_URL=$video_url,ML_SERVICE_URL=$ml_url,META_PUBLISHER_URL=$meta_url,TITAN_CORE_URL=$titan_url,LANGGRAPH_APP_URL=$langgraph_url,GEMINI_API_KEY=$GEMINI_API_KEY,JWT_SECRET=$JWT_SECRET,CORS_ORIGINS=$CORS_ORIGINS"
 
     # Get gateway URL for frontend
     local gateway_url=$(gcloud run services describe gateway-api --region="$REGION" --format='value(status.url)' 2>/dev/null || echo "")
@@ -358,6 +363,7 @@ verify_health_cloud_run() {
         "ml-service"
         "meta-publisher"
         "titan-core"
+        "langgraph-app"
         "frontend"
     )
 
@@ -464,6 +470,7 @@ display_service_urls() {
             "ml-service"
             "meta-publisher"
             "titan-core"
+            "langgraph-app"
         )
 
         for service in "${services[@]}"; do
@@ -487,6 +494,7 @@ display_service_urls() {
         echo -e "  ${CYAN}ML Service:${NC}     http://localhost:8003"
         echo -e "  ${CYAN}Meta Publisher:${NC} http://localhost:8083"
         echo -e "  ${CYAN}Titan Core:${NC}     http://localhost:8084"
+        echo -e "  ${CYAN}LangGraph App:${NC}  http://localhost:8000"
     fi
 
     echo ""

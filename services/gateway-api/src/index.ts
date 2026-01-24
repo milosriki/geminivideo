@@ -69,6 +69,7 @@ import { setupSwagger } from './swagger';
 import { enhancedErrorHandler } from './middleware/enhanced-error-handler';
 
 // Winner API Routes (Agent 11) - mounted below with createWinnersRouter(pgPool)
+import { createCompetitorRouter } from './routes/competitors';
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -245,6 +246,9 @@ const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
 const TITAN_CORE_URL = process.env.TITAN_CORE_URL || 'http://titan-core:8000';
 const META_PUBLISHER_URL = process.env.META_PUBLISHER_URL || 'http://localhost:8083';
 const GOOGLE_ADS_URL = process.env.GOOGLE_ADS_URL || 'http://localhost:8084';
+
+// Register Competitor Routes (Agent 7.1)
+app.use('/api/competitors', createCompetitorRouter(pgPool));
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
@@ -543,6 +547,53 @@ app.post('/api/render/remix',
       const response = await axios.post(
         `${VIDEO_AGENT_URL}/render/remix`,
         req.body
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
+    }
+  });
+
+// Proxy to video-agent URL remix
+app.post('/api/remix/url',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      url: { type: 'string', required: true, min: 5 },
+      jobId: { type: 'string', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(
+        `${VIDEO_AGENT_URL}/api/remix/url`,
+        req.body,
+        { timeout: 60000 }
+      );
+      res.json(response.data);
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({
+        error: error.message
+      });
+    }
+  });
+
+// Proxy to video-agent Oracle prediction
+app.post('/api/oracle/predict',
+  apiRateLimiter,
+  validateInput({
+    body: {
+      metadata: { type: 'object', required: true }
+    }
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const response = await axios.post(
+        `${VIDEO_AGENT_URL}/api/oracle/predict`,
+        req.body,
+        { timeout: 60000 }
       );
       res.json(response.data);
     } catch (error: any) {

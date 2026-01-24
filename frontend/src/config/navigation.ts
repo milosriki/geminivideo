@@ -19,7 +19,9 @@ import {
   LayoutTemplate,
   Video,
   Sparkles,
-  Wand2
+  Wand2,
+  Zap,
+  Cpu
 } from 'lucide-react';
 
 export interface NavItem {
@@ -80,6 +82,14 @@ export const navigation: NavItem[] = [
       { label: 'Assets', icon: FolderOpen, href: '/library' },
       { label: 'Campaigns', icon: Target, href: '/library/campaigns' },
       { label: 'Templates', icon: LayoutTemplate, href: '/library/templates' }
+    ]
+  },
+  {
+    label: 'Antigravity',
+    icon: Zap,
+    children: [
+      { label: 'Skills Constellation', icon: Cpu, href: '/skills' },
+      { label: 'Agent Status', icon: Sparkles, href: '/skills/status' }
     ]
   },
   {

@@ -6,7 +6,11 @@ export interface Campaign {
   name: string;
   status: 'draft' | 'active' | 'paused' | 'completed';
   objective: string;
-  budget: number;
+  budget: {
+    amount: number;
+    type: 'daily' | 'total';
+  };
+  creatives: any[];
   platforms: string[];
   createdAt: Date;
   updatedAt: Date;

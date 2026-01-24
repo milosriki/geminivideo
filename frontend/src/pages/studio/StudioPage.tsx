@@ -139,6 +139,74 @@ export function StudioPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  const [showRemixModal, setShowRemixModal] = useState(false);
+  const [remixUrl, setRemixUrl] = useState('');
+
+  const [showPredictionModal, setShowPredictionModal] = useState(false);
+  const [predictionResult, setPredictionResult] = useState<any>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+
+  const handlePredict = async () => {
+    setIsPredicting(true);
+    try {
+      // Simulate metadata extraction from current state
+      const metadata = {
+        has_hook: script.length > 0,
+        duration: duration,
+        pacing: 'fast', // Default for now
+        visual_style: 'ugc' // Default
+      };
+
+      const response = await fetch('/api/oracle/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metadata })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPredictionResult(data);
+        setShowPredictionModal(true);
+      } else {
+        alert("Failed to get prediction");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error getting prediction");
+    } finally {
+      setIsPredicting(false);
+    }
+  };
+
+  const handleRemix = async () => {
+    if (!remixUrl) return;
+    setIsGenerating(true);
+    setShowRemixModal(false);
+    
+    try {
+      const jobId = `job-${Date.now()}`;
+      const response = await fetch('/api/remix/url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: remixUrl, jobId })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setScript(data.suggested_script);
+        // In a real app, we would also load the scraped images into the asset library here
+        alert("Assets scraped! Script generated.");
+      } else {
+        alert("Failed to remix URL");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error remixing URL");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!selectedAvatar) {
       alert('Please select an avatar first');
@@ -154,13 +222,23 @@ export function StudioPage() {
     console.log('Generating video with script:', script);
 
     try {
-      // Call real /api/generate endpoint
-      const response = await fetch('/api/generate', {
+      // Call real /api/ads/generate-dco endpoint
+      const jobId = `job-${Date.now()}`;
+      const response = await fetch('/api/ads/generate-dco', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          assets: ['studio_generated.mp4'], // Will be replaced with actual video upload
-          target_audience: 'General audience'
+          jobId: jobId,
+          sourceVideoPath: '/assets/demo/source.mp4', // Placeholder for now
+          outputDir: `/outputs/${jobId}`,
+          config: {
+            productName: 'Fitness Pro', // Should be dynamic
+            baseHook: script.substring(0, 50), // Use first part of script as hook
+            baseCta: 'Sign Up Now',
+            targetAudience: 'Fitness Enthusiasts',
+            variantCount: 3,
+            formats: [exportFormat === '9:16' ? 'reels' : 'feed']
+          }
         })
       });
 
@@ -201,6 +279,23 @@ export function StudioPage() {
           <Button outline className="gap-2">
             <SparklesIcon className="h-4 w-4" />
             AI Enhance
+          </Button>
+          <Button 
+            outline 
+            className="gap-2 border-zinc-700 hover:bg-zinc-800 text-zinc-300"
+            onClick={handlePredict}
+            disabled={isPredicting}
+          >
+            <ChartBarIcon className="h-4 w-4" />
+            {isPredicting ? 'Predicting...' : 'Oracle Predict'}
+          </Button>
+          <Button 
+            outline 
+            className="gap-2 border-zinc-700 hover:bg-zinc-800 text-zinc-300"
+            onClick={() => setShowRemixModal(true)}
+          >
+            <LinkIcon className="h-4 w-4" />
+            Remix URL
           </Button>
           <Button color="violet" className="gap-2" onClick={() => setIsExportOpen(true)}>
             <ArrowDownTrayIcon className="h-4 w-4" />
@@ -397,6 +492,76 @@ export function StudioPage() {
         </div>
       </div>
 
+
+
+      {/* Remix Modal */}
+      {showRemixModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-2">Remix from URL</h3>
+            <p className="text-zinc-400 text-sm mb-4">
+              Enter a product page or competitor ad URL. We'll extract assets and generate a unique video.
+            </p>
+            <input
+              type="url"
+              placeholder="https://..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-white mb-4 focus:ring-2 focus:ring-violet-500 outline-none"
+              value={remixUrl}
+              onChange={(e) => setRemixUrl(e.target.value)}
+            />
+            <div className="flex gap-3 justify-end">
+              <Button plain onClick={() => setShowRemixModal(false)}>Cancel</Button>
+              <Button color="violet" onClick={handleRemix} disabled={!remixUrl}>
+                {isGenerating ? 'Scraping...' : 'Remix Magic ✨'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prediction Modal */}
+      {showPredictionModal && predictionResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center gap-2 mb-4">
+              <ChartBarIcon className="h-6 w-6 text-violet-500" />
+              <h3 className="text-xl font-bold text-white">Oracle Prediction</h3>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 text-center">
+                <p className="text-zinc-400 text-xs mb-1">CTR</p>
+                <p className="text-2xl font-bold text-green-400">{(predictionResult.predicted_ctr * 100).toFixed(1)}%</p>
+              </div>
+              <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 text-center">
+                <p className="text-zinc-400 text-xs mb-1">ROAS</p>
+                <p className="text-2xl font-bold text-blue-400">{predictionResult.predicted_roas}x</p>
+              </div>
+              <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 text-center">
+                <p className="text-zinc-400 text-xs mb-1">Viral Score</p>
+                <p className="text-2xl font-bold text-purple-400">{predictionResult.viral_potential}</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-white mb-2">AI Insights</h4>
+              <ul className="space-y-2">
+                {predictionResult.insights.map((insight: string, i: number) => (
+                  <li key={i} className="text-sm text-zinc-300 flex gap-2">
+                    <span>•</span>
+                    {insight}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="flex justify-end">
+              <Button color="violet" onClick={() => setShowPredictionModal(false)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Export Dialog */}
       <Dialog open={isExportOpen} onClose={() => setIsExportOpen(false)} size="md">
         <DialogTitle>Export Video</DialogTitle>
@@ -416,6 +581,30 @@ export function StudioPage() {
           <Button color="violet">Export Video</Button>
         </DialogActions>
       </Dialog>
+      {/* Remix Modal */}
+      {showRemixModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-2">Remix from URL</h3>
+            <p className="text-zinc-400 text-sm mb-4">
+              Enter a product page or competitor ad URL. We'll extract assets and generate a unique video.
+            </p>
+            <input
+              type="url"
+              placeholder="https://..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-white mb-4 focus:ring-2 focus:ring-violet-500 outline-none"
+              value={remixUrl}
+              onChange={(e) => setRemixUrl(e.target.value)}
+            />
+            <div className="flex gap-3 justify-end">
+              <Button plain onClick={() => setShowRemixModal(false)}>Cancel</Button>
+              <Button color="violet" onClick={handleRemix} disabled={!remixUrl}>
+                {isGenerating ? 'Scraping...' : 'Remix Magic ✨'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

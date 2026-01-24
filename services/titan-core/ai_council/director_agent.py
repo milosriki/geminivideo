@@ -97,7 +97,7 @@ class DirectorAgentV2:
         self.thinking_model_fallback = GEMINI_MODEL_FALLBACK  # Fallback: Gemini 2.0 Flash Thinking
         self.fast_model = GEMINI_FLASH_MODEL_ID  # Flash for variations
         
-        # Hook templates from historical winners
+        # Hook templates (will be updated from meta_insights.json if available)
         self.hook_templates = [
             {"type": "pattern_interrupt", "template": "STOP scrolling if you {pain_point}"},
             {"type": "pattern_interrupt", "template": "This is exactly why {pain_point}"},
@@ -112,6 +112,27 @@ class DirectorAgentV2:
             {"type": "authority", "template": "As a {credential}, I've seen {observation}"},
             {"type": "urgency", "template": "Only {number} spots left for {offer}"},
         ]
+        
+        # Load real insights if available
+        self._load_historical_winners()
+
+    def _load_historical_winners(self):
+        """Load winning patterns from Meta Learner insights"""
+        try:
+            insights_path = os.getenv("META_INSIGHTS_PATH", "data/meta_insights.json")
+            if os.path.exists(insights_path):
+                with open(insights_path, 'r') as f:
+                    data = json.load(f)
+                    
+                if "winning_hooks" in data:
+                    # Merge real winners with templates
+                    real_winners = data["winning_hooks"]
+                    print(f"🎬 DIRECTOR: Loaded {len(real_winners)} winning patterns from Meta Learner")
+                    
+                    # Prioritize real winners by prepending them
+                    self.hook_templates = real_winners + self.hook_templates
+        except Exception as e:
+            print(f"⚠️ DIRECTOR: Could not load meta insights: {e}")
     
     async def generate_blueprints(
         self, 

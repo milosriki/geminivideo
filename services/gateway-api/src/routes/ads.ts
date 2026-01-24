@@ -10,6 +10,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { httpClient } from "../index";
@@ -20,6 +21,7 @@ const router = Router();
 // Service URLs
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8003';
 const TITAN_CORE_URL = process.env.TITAN_CORE_URL || 'http://localhost:8004';
+const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || 'http://localhost:8002';
 
 /**
  * Create ads router with database connection
@@ -140,6 +142,43 @@ export function createAdsRouter(pgPool: Pool): Router {
         res.status(500).json({
           error: 'Failed to create ad',
           message: error.message
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /api/ads/generate-dco
+   * Generate Dynamic Creative Optimization variants
+   */
+  router.post(
+    '/generate-dco',
+    uploadRateLimiter,
+    validateInput({
+      body: {
+        jobId: { type: 'string', required: true },
+        sourceVideoPath: { type: 'string', required: true },
+        outputDir: { type: 'string', required: true },
+        config: { type: 'object', required: true }
+      }
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        console.log(`[DCO] Generating variants for job: ${req.body.jobId}`);
+
+        const response = await axios.post(
+          `${VIDEO_AGENT_URL}/api/dco/generate-variants`,
+          req.body,
+          { timeout: 300000 } // 5 minutes timeout
+        );
+
+        res.json(response.data);
+      } catch (error: any) {
+        console.error('[DCO] Generation error:', error.message);
+        res.status(error.response?.status || 500).json({
+          error: 'DCO generation failed',
+          message: error.message,
+          details: error.response?.data
         });
       }
     }
