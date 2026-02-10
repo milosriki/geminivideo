@@ -171,7 +171,7 @@ class CompoundLearningScheduler:
                 next_run = jobs[0].next_run
                 if next_run:
                     return next_run.isoformat()
-        except:
+        except Exception:
             pass
         return None
 

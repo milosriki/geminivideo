@@ -47,7 +47,7 @@ export function createPredictionsRouter(pgPool: Pool): Router {
         console.log(`Predicting CTR: video_id=${video_id}, clip_ids=${clip_ids?.length || 0}`);
 
         // Forward to ML service
-        const mlResponse = await axios.post(
+        const mlResponse = await httpClient.post(
           `${ML_SERVICE_URL}/api/ml/predict-ctr`,
           {
             clip_data: clip_data || {
@@ -153,7 +153,7 @@ export function createPredictionsRouter(pgPool: Pool): Router {
         console.log(`Predicting ROAS: campaign=${campaign_id}, budget=$${budget}, platform=${platform}`);
 
         // Forward to ML service
-        const mlResponse = await axios.post(
+        const mlResponse = await httpClient.post(
           `${ML_SERVICE_URL}/api/ml/predict-roas`,
           {
             campaign_id,
@@ -214,7 +214,7 @@ export function createPredictionsRouter(pgPool: Pool): Router {
         console.log(`Predicting campaign performance: ${prediction_days} days`);
 
         // Forward to Titan Core Oracle for comprehensive predictions
-        const oracleResponse = await axios.post(
+        const oracleResponse = await httpClient.post(
           `${TITAN_CORE_URL}/oracle/predict`,
           {
             campaign_data,
@@ -370,7 +370,7 @@ export function createPredictionsRouter(pgPool: Pool): Router {
         console.log(`Batch predicting CTR for ${creatives.length} creatives`);
 
         // Forward to ML service
-        const mlResponse = await axios.post(
+        const mlResponse = await httpClient.post(
           `${ML_SERVICE_URL}/api/ml/predict-ctr-batch`,
           { creatives },
           { timeout: 60000 } // 60 second timeout for batch

@@ -16,7 +16,7 @@ logger = None
 try:
     import logging
     logger = logging.getLogger(__name__)
-except:
+except Exception:
     pass
 
 

@@ -1061,7 +1061,7 @@ class SelfLearningEngine:
             # R-squared (handle edge cases)
             try:
                 r2 = r2_score(actuals, predictions)
-            except:
+            except Exception:
                 r2 = 0.0
 
             # MAPE (avoiding division by zero)

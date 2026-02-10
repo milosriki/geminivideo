@@ -70,6 +70,7 @@ class PromptEngine:
             "psychology_used": "Explanation of why this works"
         }}
         """
+        return base_prompt
 
     @staticmethod
     def get_critic_system_message(niche: str = "fitness") -> str:
@@ -82,8 +83,18 @@ class PromptEngine:
         1. Does the first 3 seconds break a pattern? (Visual Shock)
         2. Is the pain point visceral? (Does it hurt?)
         3. Is the solution credible?
-        
-        OUTPUT FORMAT:
+
+        OUTPUT FORMAT (Strict JSON):
+        {{
+            "score": 0-100,
+            "hook_score": 0-100,
+            "pain_score": 0-100,
+            "credibility_score": 0-100,
+            "verdict": "PASS or FAIL",
+            "feedback": "Specific critique"
+        }}
+        """
+
     @staticmethod
     def get_reflection_prompt(critique: str) -> str:
         """

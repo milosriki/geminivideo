@@ -414,7 +414,7 @@ export function asyncHandlerWithRecovery(
         if (cached) {
           monitoring.log('info', `Serving cached response for ${req.path}`);
           return res.json({
-            ...cached,
+            ...(cached as Record<string, any>),
             _meta: {
               source: 'cache',
               warning: 'This response was served from cache due to a service issue'

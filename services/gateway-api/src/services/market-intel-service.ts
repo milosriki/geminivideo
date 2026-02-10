@@ -143,7 +143,10 @@ async function fetchCompetitorAds(pageIds: string[]): Promise<CompetitorAd[]> {
       `${TITAN_CORE_URL}/meta/ads-library/competitor/${pageIdsStr}`,
       {
         params: { days_back: 30 },
-        timeout: 30000
+        timeout: 30000,
+        headers: {
+          'X-Internal-API-Key': process.env.INTERNAL_API_KEY || ''
+        }
       }
     );
 
@@ -184,7 +187,12 @@ async function trackCompetitorAd(ad: CompetitorAd): Promise<void> {
         url: ad.url,
         creative_type: ad.creative_type
       },
-      { timeout: 5000 }
+      { 
+        timeout: 5000,
+        headers: {
+          'X-Internal-API-Key': process.env.INTERNAL_API_KEY || ''
+        }
+      }
     );
 
   } catch (error: any) {
@@ -202,7 +210,12 @@ async function analyzeAndUpdateTrends(): Promise<void> {
     await axios.post(
       `${ML_SERVICE_URL}/api/ml/market-intel/analyze-trends`,
       { days: 30 },
-      { timeout: 10000 }
+      { 
+        timeout: 10000,
+        headers: {
+          'X-Internal-API-Key': process.env.INTERNAL_API_KEY || ''
+        }
+      }
     );
 
   } catch (error: any) {

@@ -107,7 +107,7 @@ router.post('/rules', async (req: Request, res: Response) => {
   try {
     logger.info(`Creating alert rule: ${req.body.rule_id}`);
 
-    const response = await axios.post(`${ML_SERVICE_URL}/api/alerts/rules`, req.body);
+    const response = await httpClient.post(`${ML_SERVICE_URL}/api/alerts/rules`, req.body);
 
     res.json(response.data);
   } catch (error: any) {
@@ -127,7 +127,7 @@ router.get('/rules', async (req: Request, res: Response) => {
   try {
     const enabledOnly = req.query.enabled_only === 'true';
 
-    const response = await axios.get(`${ML_SERVICE_URL}/api/alerts/rules`, {
+    const response = await httpClient.get(`${ML_SERVICE_URL}/api/alerts/rules`, {
       params: { enabled_only: enabledOnly }
     });
 
@@ -149,7 +149,7 @@ router.get('/rules/:ruleId', async (req: Request, res: Response) => {
   try {
     const { ruleId } = req.params;
 
-    const response = await axios.get(`${ML_SERVICE_URL}/api/alerts/rules/${ruleId}`);
+    const response = await httpClient.get(`${ML_SERVICE_URL}/api/alerts/rules/${ruleId}`);
 
     res.json(response.data);
   } catch (error: any) {
@@ -169,7 +169,7 @@ router.delete('/rules/:ruleId', async (req: Request, res: Response) => {
   try {
     const { ruleId } = req.params;
 
-    const response = await axios.delete(`${ML_SERVICE_URL}/api/alerts/rules/${ruleId}`);
+    const response = await httpClient.delete(`${ML_SERVICE_URL}/api/alerts/rules/${ruleId}`);
 
     res.json(response.data);
   } catch (error: any) {
@@ -189,7 +189,7 @@ router.put('/rules/:ruleId/enable', async (req: Request, res: Response) => {
   try {
     const { ruleId } = req.params;
 
-    const response = await axios.put(`${ML_SERVICE_URL}/api/alerts/rules/${ruleId}/enable`);
+    const response = await httpClient.put(`${ML_SERVICE_URL}/api/alerts/rules/${ruleId}/enable`);
 
     res.json(response.data);
   } catch (error: any) {
@@ -209,7 +209,7 @@ router.put('/rules/:ruleId/disable', async (req: Request, res: Response) => {
   try {
     const { ruleId } = req.params;
 
-    const response = await axios.put(`${ML_SERVICE_URL}/api/alerts/rules/${ruleId}/disable`);
+    const response = await httpClient.put(`${ML_SERVICE_URL}/api/alerts/rules/${ruleId}/disable`);
 
     res.json(response.data);
   } catch (error: any) {
@@ -235,7 +235,7 @@ router.post('/check', async (req: Request, res: Response) => {
   try {
     logger.info(`Checking metric: ${req.body.metric_name} for campaign ${req.body.campaign_id}`);
 
-    const response = await axios.post(`${ML_SERVICE_URL}/api/alerts/check`, req.body);
+    const response = await httpClient.post(`${ML_SERVICE_URL}/api/alerts/check`, req.body);
 
     // If alerts were triggered, broadcast to WebSocket clients
     if (response.data.alerts_triggered > 0) {
@@ -262,7 +262,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { campaign_id, alert_type, severity, limit } = req.query;
 
-    const response = await axios.get(`${ML_SERVICE_URL}/api/alerts`, {
+    const response = await httpClient.get(`${ML_SERVICE_URL}/api/alerts`, {
       params: {
         campaign_id,
         alert_type,
@@ -289,7 +289,7 @@ router.get('/history', async (req: Request, res: Response) => {
   try {
     const { campaign_id, days_back, limit } = req.query;
 
-    const response = await axios.get(`${ML_SERVICE_URL}/api/alerts/history`, {
+    const response = await httpClient.get(`${ML_SERVICE_URL}/api/alerts/history`, {
       params: {
         campaign_id,
         days_back: days_back || 7,
@@ -315,7 +315,7 @@ router.get('/stats', async (req: Request, res: Response) => {
   try {
     const { campaign_id } = req.query;
 
-    const response = await axios.get(`${ML_SERVICE_URL}/api/alerts/stats`, {
+    const response = await httpClient.get(`${ML_SERVICE_URL}/api/alerts/stats`, {
       params: { campaign_id }
     });
 
@@ -337,7 +337,7 @@ router.get('/:alertId', async (req: Request, res: Response) => {
   try {
     const { alertId } = req.params;
 
-    const response = await axios.get(`${ML_SERVICE_URL}/api/alerts/${alertId}`);
+    const response = await httpClient.get(`${ML_SERVICE_URL}/api/alerts/${alertId}`);
 
     res.json(response.data);
   } catch (error: any) {
@@ -358,7 +358,7 @@ router.put('/:alertId/acknowledge', async (req: Request, res: Response) => {
     const { alertId } = req.params;
     const { user_id } = req.body;
 
-    const response = await axios.put(
+    const response = await httpClient.put(
       `${ML_SERVICE_URL}/api/alerts/${alertId}/acknowledge`,
       { user_id }
     );
@@ -389,7 +389,7 @@ router.put('/:alertId/resolve', async (req: Request, res: Response) => {
   try {
     const { alertId } = req.params;
 
-    const response = await axios.put(`${ML_SERVICE_URL}/api/alerts/${alertId}/resolve`);
+    const response = await httpClient.put(`${ML_SERVICE_URL}/api/alerts/${alertId}/resolve`);
 
     // Broadcast resolution to WebSocket clients
     broadcastAlert({
@@ -416,7 +416,7 @@ router.post('/test', async (req: Request, res: Response) => {
   try {
     const { channel } = req.body;
 
-    const response = await axios.post(`${ML_SERVICE_URL}/api/alerts/test`, null, {
+    const response = await httpClient.post(`${ML_SERVICE_URL}/api/alerts/test`, null, {
       params: { channel: channel || 'slack' }
     });
 
@@ -442,7 +442,7 @@ router.post('/check/roas', async (req: Request, res: Response) => {
   try {
     const { campaign_id, campaign_name, roas, context } = req.body;
 
-    const response = await axios.post(`${ML_SERVICE_URL}/api/alerts/check`, {
+    const response = await httpClient.post(`${ML_SERVICE_URL}/api/alerts/check`, {
       metric_name: 'roas',
       metric_value: roas,
       campaign_id,
@@ -476,7 +476,7 @@ router.post('/check/budget', async (req: Request, res: Response) => {
   try {
     const { campaign_id, campaign_name, budget_spent_pct, context } = req.body;
 
-    const response = await axios.post(`${ML_SERVICE_URL}/api/alerts/check`, {
+    const response = await httpClient.post(`${ML_SERVICE_URL}/api/alerts/check`, {
       metric_name: 'budget_spent_pct',
       metric_value: budget_spent_pct,
       campaign_id,
@@ -510,7 +510,7 @@ router.post('/check/ctr', async (req: Request, res: Response) => {
   try {
     const { campaign_id, campaign_name, ctr_drop_pct, context } = req.body;
 
-    const response = await axios.post(`${ML_SERVICE_URL}/api/alerts/check`, {
+    const response = await httpClient.post(`${ML_SERVICE_URL}/api/alerts/check`, {
       metric_name: 'ctr_drop_pct',
       metric_value: ctr_drop_pct,
       campaign_id,

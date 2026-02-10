@@ -88,7 +88,7 @@ def validate_implementation():
                     hints = get_type_hints(method_obj)
                     if hints:
                         print(f"      Type hints: {len(hints)} parameters")
-                except:
+                except Exception:
                     warnings.append(f"Method '{method}' missing type hints")
         else:
             error = f"Missing method: {method}"

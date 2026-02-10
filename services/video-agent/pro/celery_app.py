@@ -446,7 +446,7 @@ def render_video_task(self, job_data: Dict[str, Any]) -> Dict[str, Any]:
                     time_str = line.split('Duration:')[1].split(',')[0].strip()
                     h, m, s = time_str.split(':')
                     duration_total = float(h) * 3600 + float(m) * 60 + float(s)
-                except:
+                except (ValueError, IndexError):
                     pass
 
             if 'time=' in line and duration_total > 0:
@@ -456,7 +456,7 @@ def render_video_task(self, job_data: Dict[str, Any]) -> Dict[str, Any]:
                     time_current = float(h) * 3600 + float(m) * 60 + float(s)
                     progress = min(30 + (time_current / duration_total * 60), 90)
                     publish_progress(task_id, progress, 'processing', f'Rendering: {int(progress)}%')
-                except:
+                except (ValueError, IndexError):
                     pass
 
         process.wait()
@@ -676,7 +676,7 @@ def transcode_task(self, input_path: str, output_format: Dict[str, Any]) -> Dict
                     time_str = line.split('Duration:')[1].split(',')[0].strip()
                     h, m, s = time_str.split(':')
                     duration_total = float(h) * 3600 + float(m) * 60 + float(s)
-                except:
+                except (ValueError, IndexError):
                     pass
 
             if 'time=' in line and duration_total > 0:
@@ -686,7 +686,7 @@ def transcode_task(self, input_path: str, output_format: Dict[str, Any]) -> Dict
                     time_current = float(h) * 3600 + float(m) * 60 + float(s)
                     progress = min(20 + (time_current / duration_total * 70), 90)
                     publish_progress(task_id, progress, 'processing', f'Transcoding: {int(progress)}%')
-                except:
+                except (ValueError, IndexError):
                     pass
 
         process.wait()

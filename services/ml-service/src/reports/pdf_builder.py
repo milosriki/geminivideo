@@ -172,7 +172,7 @@ class PDFBuilder:
                 logo.hAlign = 'CENTER'
                 elements.append(logo)
                 elements.append(Spacer(1, 0.5*inch))
-            except:
+            except Exception:
                 logger.warning("Could not load company logo")
 
         # Add spacer to center content

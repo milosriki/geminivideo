@@ -69,7 +69,7 @@ export function createCampaignsRouter(pgPool: Pool): Router {
         // If campaign is active, notify ML service for tracking
         if (status === 'active') {
           try {
-            await axios.post(`${ML_SERVICE_URL}/api/ml/campaigns/track`, {
+            await httpClient.post(`${ML_SERVICE_URL}/api/ml/campaigns/track`, {
               campaign_id: campaignId,
               name,
               budget: budget_daily,
@@ -549,7 +549,7 @@ export function createCampaignsRouter(pgPool: Pool): Router {
         for (const platform of platforms) {
           try {
             if (platform === 'meta') {
-              const response = await axios.post(`${META_PUBLISHER_URL}/campaigns/activate`, {
+              const response = await httpClient.post(`${META_PUBLISHER_URL}/campaigns/activate`, {
                 campaign_id: id,
                 name: campaign.name,
                 budget: budget_allocation?.meta || campaign.budget_daily

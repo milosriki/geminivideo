@@ -219,7 +219,7 @@ class ThompsonSamplingOptimizer:
                 days_old = (datetime.utcnow() - last_update_dt).days
                 if days_old < 7:  # Recent data
                     boost += 0.05
-            except:
+            except (ValueError, TypeError):
                 pass
 
         return min(boost, 0.5)  # Cap at 50% boost

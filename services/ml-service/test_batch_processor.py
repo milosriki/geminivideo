@@ -162,7 +162,7 @@ async def test_health():
             batch.redis.ping()
             redis_ok = True
             print("✅ Redis connection: OK")
-        except:
+        except Exception:
             print("❌ Redis connection: FAILED")
 
         # Check queue

@@ -115,10 +115,20 @@ def add_feedback(feedback: Dict[str, Any]) -> None:
         feedback_store[:evict_count] = []
         logger.info(f"Evicted {evict_count} oldest feedback entries (store size: {len(feedback_store)})")
 
+# Import Auth (Zero-Trust)
+from fastapi import Security
+try:
+    from gemini_common.auth import verify_internal_api_key
+    AUTH_ENABLED = True
+except ImportError:
+    logger.warning("gemini-common auth not available - security disabled")
+    AUTH_ENABLED = False
+
 app = FastAPI(
     title="ML Service",
     description="XGBoost CTR Prediction & Vowpal Wabbit A/B Testing",
-    version="1.0.0"
+    version="1.0.0",
+    dependencies=[Security(verify_internal_api_key)] if AUTH_ENABLED else []
 )
 
 # Production safety check - prevent debug mode in production
@@ -800,7 +810,7 @@ async def get_experiment_variants(experiment_id: str):
                     variant['alpha'],
                     variant['beta']
                 )
-            except:
+            except Exception:
                 ci_lower, ci_upper = variant.get('ctr_ci_lower', 0), variant.get('ctr_ci_upper', 0)
 
             enhanced_variants.append({
@@ -2731,7 +2741,7 @@ async def get_rag_memory_stats():
                     "used_memory_mb": round(redis_info.get('used_memory', 0) / 1024 / 1024, 2),
                     "total_keys": rag_redis.dbsize()
                 }
-            except:
+            except Exception:
                 redis_stats = {"connected": False}
 
         return {

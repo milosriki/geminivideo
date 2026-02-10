@@ -669,7 +669,7 @@ class VoiceGenerator:
         # Remove original file
         try:
             os.remove(input_path)
-        except:
+        except OSError:
             pass
 
         return output_path

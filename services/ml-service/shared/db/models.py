@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, DateTime, JSON, Boolean, Text, ForeignKey, Date, Numeric
+from sqlalchemy import Column, String, Float, Integer, DateTime, JSON, Boolean, Text, ForeignKey, Date, Numeric, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -17,57 +17,102 @@ class Campaign(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    videos = relationship("Video", back_populates="campaign")
+    assets = relationship("Asset", back_populates="campaign")
 
-class Video(Base):
-    __tablename__ = "videos"
+class Asset(Base):
+    __tablename__ = "assets"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"))
-    title = Column(String)
-    description = Column(Text)
-    script_content = Column(JSON)
-    video_url = Column(String)
+    id = Column(String, primary_key=True)  # UUID as string
+    user_id = Column(String, index=True)
+    campaign_id = Column(String, ForeignKey("campaigns.id"))
+    
+    # File info
+    filename = Column(String)
+    original_name = Column(String)
+    mime_type = Column(String)
+    file_size = Column(Integer)  # BigInt in Prisma
+    
+    # Storage
+    gcs_url = Column(String, unique=True)
+    gcs_bucket = Column(String)
+    gcs_path = Column(String)
     thumbnail_url = Column(String)
-    status = Column(String, default="processing")
-    duration_seconds = Column(Float)
+    
+    # Metadata
+    duration = Column(Float)
+    width = Column(Integer)
+    height = Column(Integer)
+    fps = Column(Float)
+    bitrate = Column(Integer)
+    codec = Column(String)
+    
+    status = Column(String, default="PENDING")
+    processing_error = Column(String)
+    metadata = Column(JSON, default={})
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    meta_platform_id = Column(String)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True))
 
-    campaign = relationship("Campaign", back_populates="videos")
-    scenes = relationship("Scene", back_populates="video")
-    metrics = relationship("PerformanceMetric", back_populates="video")
+    campaign = relationship("Campaign", back_populates="assets")
+    clips = relationship("Clip", back_populates="asset")
+    metrics = relationship("PerformanceMetric", back_populates="asset")
 
-class Scene(Base):
-    __tablename__ = "scenes"
+class Clip(Base):
+    __tablename__ = "clips"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    video_id = Column(UUID(as_uuid=True), ForeignKey("videos.id"))
+    id = Column(String, primary_key=True)
+    asset_id = Column(String, ForeignKey("assets.id"))
+    
     start_time = Column(Float, nullable=False)
     end_time = Column(Float, nullable=False)
-    description = Column(Text)
-    visual_tags = Column(JSON)
-    emotion_score = Column(JSON)
+    duration = Column(Float)
+    
+    clip_url = Column(String)
+    thumbnail_url = Column(String)
+    
+    # AI features
+    features = Column(JSON, default={})
+    face_count = Column(Integer)
+    has_text = Column(Boolean, default=False)
+    has_speech = Column(Boolean, default=False)
+    has_music = Column(Boolean, default=False)
+    
+    # Scoring
+    score = Column(Float)
+    viral_score = Column(Float)
+    engagement_score = Column(Float)
+    brand_safety_score = Column(Float)
+    
+    rank = Column(Integer)
+    status = Column(String, default="PENDING")
+    metadata = Column(JSON, default={})
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True))
 
-    video = relationship("Video", back_populates="scenes")
+    asset = relationship("Asset", back_populates="clips")
+    predictions = relationship("Prediction", back_populates="clip")
 
 class PerformanceMetric(Base):
     __tablename__ = "performance_metrics"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    video_id = Column(UUID(as_uuid=True), ForeignKey("videos.id"))
+    asset_id = Column(String, ForeignKey("assets.id"))  # Changed from video_id
     platform = Column(String, default="meta")
     date = Column(Date, nullable=False)
     impressions = Column(Integer, default=0)
     clicks = Column(Integer, default=0)
     spend = Column(Numeric(10, 2), default=0.0)
+    revenue = Column(Numeric(10, 2), default=0.0)
+    roas = Column(Numeric(10, 2), default=0.0)
     ctr = Column(Numeric(5, 4))
     conversions = Column(Integer, default=0)
     raw_data = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    video = relationship("Video", back_populates="metrics")
+    asset = relationship("Asset", back_populates="metrics")
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
@@ -89,7 +134,7 @@ class Prediction(Base):
     __tablename__ = "predictions"
 
     id = Column(String, primary_key=True)  # UUID as string
-    video_id = Column(String, nullable=False, index=True)
+    clip_id = Column(String, nullable=False, index=True)
     ad_id = Column(String, nullable=False)
     platform = Column(String, nullable=False, index=True)
 
@@ -110,6 +155,7 @@ class Prediction(Base):
 
     # Model metadata
     council_score = Column(Float, nullable=False)  # AI council confidence
+    confidence = Column(Float, nullable=True)
     hook_type = Column(String, nullable=False, index=True)
     template_type = Column(String, nullable=False)
     metadata = Column(JSON, default={})  # Additional context and calculated metrics
@@ -156,8 +202,10 @@ class AccountInsight(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    @@index(['niche', 'opted_in'])
-    @@index(['account_id', 'extracted_at'])
+    __table_args__ = (
+        Index('idx_account_opted', 'niche', 'opted_in'),
+        Index('idx_account_extracted', 'account_id', 'extracted_at'),
+    )
 
 
 class NichePattern(Base):
@@ -192,7 +240,9 @@ class NichePattern(Base):
     last_updated = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    @@index(['niche', 'sample_size'])
+    __table_args__ = (
+        Index('idx_niche_sample', 'niche', 'sample_size'),
+    )
 
 
 class CrossLearningEvent(Base):
@@ -215,8 +265,10 @@ class CrossLearningEvent(Base):
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    @@index(['account_id', 'created_at'])
-    @@index(['niche', 'event_type'])
+    __table_args__ = (
+        Index('idx_account_created', 'account_id', 'created_at'),
+        Index('idx_niche_event', 'niche', 'event_type'),
+    )
 
 
 class CreativeFormula(Base):

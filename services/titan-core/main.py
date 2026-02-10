@@ -15,7 +15,19 @@ except Exception as e:
 # Track startup time for uptime calculation
 _start_time = time.time()
 
-app = FastAPI(title="Titan Core Service")
+# Import Auth (Zero-Trust)
+from fastapi import Security
+try:
+    from gemini_common.auth import verify_internal_api_key
+    AUTH_ENABLED = True
+except ImportError:
+    print("gemini-common auth not available - security disabled")
+    AUTH_ENABLED = False
+
+app = FastAPI(
+    title="Titan Core Service",
+    dependencies=[Security(verify_internal_api_key)] if AUTH_ENABLED else []
+)
 
 # Production safety check - prevent debug mode in production
 if app.debug and os.environ.get('ENVIRONMENT') == 'production':

@@ -69,42 +69,67 @@ from services.google_drive import GoogleDriveService
 import cv2
 import tempfile
 from pathlib import Path
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-app = FastAPI(title="Drive Intel Service", version="1.0.0")
+# Shared Library Imports
+from gemini_common.db.database import get_db
+from gemini_common.db.models import Asset as DBAsset, Clip as DBClip
 
-# In-memory storage for development (replace with database in production)
-# ⚠️ WARNING: This loses all data on restart! Use PostgreSQL in production.
-assets_db: Dict[str, Any] = {}
-clips_db: Dict[str, List[Any]] = {}
+# Import Auth (Zero-Trust)
+from fastapi import Security
+try:
+    from gemini_common.auth import verify_internal_api_key
+    AUTH_ENABLED = True
+except ImportError:
+    print("gwemini-common auth not available - security disabled")
+    AUTH_ENABLED = False
+
+app = FastAPI(
+    title="Drive Intel Service",
+    version="1.0.0",
+    dependencies=[Security(verify_internal_api_key)] if AUTH_ENABLED else []
+)
+
+# ⚠️ STORAGE MIGRATED TO POSTGRESQL (gemini-common)
+# Legacy in-memory dicts removed.
 
 
 class IngestRequest(BaseModel):
     path: str
     recursive: bool = True
     filters: Optional[Dict[str, Any]] = None
+    user_id: str = "default_user"  # Added for unified schema compatibility
+    campaign_id: Optional[str] = None
 
 
-class Asset(BaseModel):
-    asset_id: str
-    path: str
+class AssetResponse(BaseModel):
+    id: str  # Changed from asset_id to id to match DB
+    userId: str
+    path: Optional[str] = None # gcsPath in DB
     filename: str
-    size_bytes: int
-    duration_seconds: float
-    resolution: str
-    format: str
-    ingested_at: str
+    size_bytes: int # fileSize in DB map
+    duration_seconds: float # duration in DB
+    resolution: Optional[str] = None # Derived from width/height
     status: str
+    ingested_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 
-class Clip(BaseModel):
-    clip_id: str
-    asset_id: str
-    start_time: float
-    end_time: float
+class ClipResponse(BaseModel):
+    id: str # clip_id
+    assetId: str
+    startTime: float
+    endTime: float
     duration: float
-    scene_score: float
-    features: Dict[str, Any]
-    thumbnail_url: Optional[str] = None
+    score: Optional[float] = None # scene_score
+    features: Dict[str, Any] = {}
+    thumbnailUrl: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 
 @app.get("/health")
@@ -118,13 +143,10 @@ async def health_check():
     }
 
 
-@app.post("/ingest/local/folder")
+@app.post("/ingest/local/folder", response_model=Dict[str, Any])
 async def ingest_local_folder(request: IngestRequest):
     """
-    Ingest video files from local folder
-    - Scans directory for video files
-    - Extracts metadata
-    - Triggers scene detection and feature extraction
+    Ingest video files from local folder -> Postgres
     """
     try:
         # Validate path exists
@@ -150,67 +172,78 @@ async def ingest_local_folder(request: IngestRequest):
         if not video_files:
             raise HTTPException(status_code=400, detail="No video files found in path")
 
-        ingested_assets = []
+        ingested_ids = []
 
-        # Process each video file
-        for video_path in video_files:
-            try:
-                asset_id = str(uuid.uuid4())
+        async with get_db() as db:
+            # Process each video file
+            for video_path in video_files:
+                try:
+                    # Extract REAL video metadata using OpenCV
+                    cap = cv2.VideoCapture(video_path)
 
-                # Extract REAL video metadata using OpenCV
-                cap = cv2.VideoCapture(video_path)
+                    if not cap.isOpened():
+                        print(f"Warning: Could not open video: {video_path}")
+                        continue
 
-                if not cap.isOpened():
-                    print(f"Warning: Could not open video: {video_path}")
+                    # Get real metadata
+                    fps = cap.get(cv2.CAP_PROP_FPS)
+                    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    duration = frame_count / fps if fps > 0 else 0.0
+                    file_size = os.path.getsize(video_path)
+
+                    cap.release()
+
+                    # Get format from file extension
+                    format_ext = Path(video_path).suffix.lstrip('.')
+                    filename = os.path.basename(video_path)
+
+                    # Create DB Asset
+                    # MAPPING: Map local attributes to unified schema
+                    # gcsUrl is mandatory in schema but for local ingest we use path as URI
+                    new_asset = DBAsset(
+                        id=str(uuid.uuid4()),
+                        userId=request.user_id,
+                        filename=filename,
+                        originalName=filename,
+                        mimeType=f"video/{format_ext}",
+                        fileSize=file_size,
+                        # For local files, we cheat and put path in gcsUrl/gcsPath so we can find it
+                        gcsUrl=f"file://{video_path}", 
+                        gcsBucket="local",
+                        gcsPath=video_path,
+                        duration=duration,
+                        width=width,
+                        height=height,
+                        fps=fps,
+                        status="PROCESSING"
+                    )
+
+                    db.add(new_asset)
+                    ingested_ids.append(new_asset.id)
+                    
+                    # Trigger background processing
+                    # Pass ID to background task
+                    asyncio.create_task(process_asset(new_asset.id))
+
+                except Exception as e:
+                    print(f"Error ingesting {video_path}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
+            
+            await db.commit()
 
-                # Get real metadata
-                fps = cap.get(cv2.CAP_PROP_FPS)
-                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                duration = frame_count / fps if fps > 0 else 0.0
-                file_size = os.path.getsize(video_path)
-
-                cap.release()
-
-                # Get format from file extension
-                format_ext = Path(video_path).suffix.lstrip('.')
-
-                # Create asset with REAL metadata
-                asset = {
-                    "asset_id": asset_id,
-                    "path": video_path,
-                    "filename": os.path.basename(video_path),
-                    "size_bytes": file_size,
-                    "duration_seconds": duration,
-                    "resolution": f"{width}x{height}",
-                    "fps": fps,
-                    "format": format_ext,
-                    "ingested_at": datetime.utcnow().isoformat(),
-                    "status": "processing",
-                    "source": "local"
-                }
-
-                assets_db[asset_id] = asset
-                ingested_assets.append(asset_id)
-
-                # Trigger background processing
-                asyncio.create_task(process_asset(asset_id))
-
-            except Exception as e:
-                print(f"Error ingesting {video_path}: {e}")
-                continue
-
-        if not ingested_assets:
+        if not ingested_ids:
             raise HTTPException(status_code=500, detail="Failed to ingest any videos")
 
         return {
-            "asset_ids": ingested_assets,
+            "asset_ids": ingested_ids,
             "status": "processing",
-            "message": f"Ingestion started for {len(ingested_assets)} video(s) from {request.path}",
+            "message": f"Ingestion started for {len(ingested_ids)} video(s) from {request.path}",
             "total_videos": len(video_files),
-            "successful": len(ingested_assets)
+            "successful": len(ingested_ids)
         }
 
     except HTTPException:
@@ -222,11 +255,7 @@ async def ingest_local_folder(request: IngestRequest):
 @app.post("/ingest/drive/folder")
 async def ingest_drive_folder(request: IngestRequest):
     """
-    Ingest video files from Google Drive folder
-    - Authenticates with Google Drive API
-    - Downloads videos to temp directory
-    - Extracts real metadata
-    - Triggers processing pipeline
+    Ingest video files from Google Drive folder -> Postgres
     """
     try:
         # Get Google Drive credentials path from environment
@@ -246,7 +275,6 @@ async def ingest_drive_folder(request: IngestRequest):
         folder_id = request.path
         if 'drive.google.com' in request.path:
             # Extract folder ID from URL
-            # Format: https://drive.google.com/drive/folders/{folder_id}
             parts = request.path.split('/')
             if 'folders' in parts:
                 folder_id = parts[parts.index('folders') + 1].split('?')[0]
@@ -266,88 +294,95 @@ async def ingest_drive_folder(request: IngestRequest):
         temp_dir = tempfile.mkdtemp(prefix='drive_intel_')
         print(f"Created temp directory: {temp_dir}")
 
-        ingested_assets = []
+        ingested_ids = []
 
-        # Process each video
-        for idx, drive_file in enumerate(drive_videos, 1):
-            try:
-                asset_id = drive_file.id  # Use Drive file ID as asset ID
+        async with get_db() as db:
+            # Process each video
+            for idx, drive_file in enumerate(drive_videos, 1):
+                try:
+                    asset_id = str(uuid.uuid4()) # Generate UUID, don't use Drive ID as PK to avoid collisions
 
-                print(f"[{idx}/{len(drive_videos)}] Processing: {drive_file.name}")
+                    print(f"[{idx}/{len(drive_videos)}] Processing: {drive_file.name}")
 
-                # Download video to temp directory
-                download_path = os.path.join(temp_dir, drive_file.name)
-                print(f"  Downloading to: {download_path}")
+                    # Download video to temp directory
+                    download_path = os.path.join(temp_dir, drive_file.name)
+                    print(f"  Downloading to: {download_path}")
 
-                drive_service.download_file(drive_file.id, download_path)
+                    drive_service.download_file(drive_file.id, download_path)
 
-                # Extract REAL video metadata using OpenCV
-                cap = cv2.VideoCapture(download_path)
+                    # Extract REAL video metadata using OpenCV
+                    cap = cv2.VideoCapture(download_path)
 
-                if not cap.isOpened():
-                    print(f"  Warning: Could not open video: {drive_file.name}")
+                    width = 0
+                    height = 0
+                    duration = 0.0
+                    fps = 0.0
+                    
+                    if cap.isOpened():
+                        fps = cap.get(cv2.CAP_PROP_FPS)
+                        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        duration = frame_count / fps if fps > 0 else 0.0
+                        cap.release()
+                    
+                    # Use Drive metadata as fallback
+                    if duration == 0.0 and drive_file.duration_ms:
+                        duration = drive_file.duration_ms / 1000.0
+                    
+                    if (width == 0 or height == 0) and drive_file.width and drive_file.height:
+                        width = drive_file.width
+                        height = drive_file.height
+
+                    # Create DB Asset
+                    new_asset = DBAsset(
+                        id=asset_id,
+                        userId=request.user_id,
+                        filename=drive_file.name,
+                        originalName=drive_file.name,
+                        mimeType=drive_file.mime_type,
+                        fileSize=drive_file.size,
+                        # Store Drive ID in metadata, gcsUrl as local path for now
+                        gcsUrl=f"file://{download_path}", 
+                        gcsBucket="google_drive",
+                        gcsPath=download_path,
+                        thumbnailUrl=drive_file.thumbnail_link,
+                        duration=duration,
+                        width=width,
+                        height=height,
+                        fps=fps,
+                        status="PROCESSING",
+                        metadata_={
+                            "drive_file_id": drive_file.id,
+                            "drive_web_link": drive_file.web_view_link,
+                            "source": "google_drive"
+                        }
+                    )
+                    
+                    db.add(new_asset)
+                    ingested_ids.append(asset_id)
+                    
+                    asyncio.create_task(process_asset(asset_id))
+                    print(f"  ✓ Asset {asset_id} queued for processing")
+
+                except Exception as e:
+                    print(f"  Error processing {drive_file.name}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
+            
+            await db.commit()
 
-                # Get real metadata from video file
-                fps = cap.get(cv2.CAP_PROP_FPS)
-                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                duration = frame_count / fps if fps > 0 else 0.0
-
-                cap.release()
-
-                # Use Drive metadata as fallback for duration and resolution
-                if duration == 0.0 and drive_file.duration_ms:
-                    duration = drive_file.duration_ms / 1000.0
-
-                if (width == 0 or height == 0) and drive_file.width and drive_file.height:
-                    width = drive_file.width
-                    height = drive_file.height
-
-                # Create asset with REAL metadata from both Drive and video analysis
-                asset = {
-                    "asset_id": asset_id,
-                    "path": download_path,  # Local path to downloaded video
-                    "filename": drive_file.name,
-                    "size_bytes": drive_file.size,
-                    "duration_seconds": duration,
-                    "resolution": f"{width}x{height}",
-                    "fps": fps,
-                    "format": drive_file.mime_type.split('/')[-1],
-                    "ingested_at": datetime.utcnow().isoformat(),
-                    "status": "processing",
-                    "source": "google_drive",
-                    "drive_file_id": drive_file.id,
-                    "drive_web_link": drive_file.web_view_link,
-                    "drive_created_time": drive_file.created_time,
-                    "drive_modified_time": drive_file.modified_time
-                }
-
-                assets_db[asset_id] = asset
-                ingested_assets.append(asset_id)
-
-                # Trigger background processing
-                asyncio.create_task(process_asset(asset_id))
-
-                print(f"  ✓ Asset {asset_id} queued for processing")
-
-            except Exception as e:
-                print(f"  Error processing {drive_file.name}: {e}")
-                import traceback
-                traceback.print_exc()
-                continue
-
-        if not ingested_assets:
+        if not ingested_ids:
             raise HTTPException(status_code=500, detail="Failed to ingest any videos from Drive")
 
         return {
-            "asset_ids": ingested_assets,
+            "asset_ids": ingested_ids,
             "status": "processing",
-            "message": f"Drive ingestion started for {len(ingested_assets)} video(s) from folder {folder_id}",
+            "message": f"Drive ingestion started for {len(ingested_ids)} video(s) from folder {folder_id}",
             "folder_id": folder_id,
             "total_videos": len(drive_videos),
-            "successful": len(ingested_assets),
+            "successful": len(ingested_ids),
             "temp_directory": temp_dir
         }
 
@@ -359,155 +394,172 @@ async def ingest_drive_folder(request: IngestRequest):
         raise HTTPException(status_code=500, detail=f"Drive ingestion failed: {str(e)}")
 
 
-@app.get("/assets")
+@app.get("/assets", response_model=Dict[str, Any])
 async def list_assets(
     status: Optional[str] = Query(None, description="Filter by status"),
     limit: int = Query(50, ge=1, le=100)
 ):
     """
-    List all ingested assets
+    List all ingested assets -> Postgres
     """
-    assets = list(assets_db.values())
-    
-    if status:
-        assets = [a for a in assets if a.get("status") == status]
-    
-    return {
-        "assets": assets[:limit],
-        "count": len(assets),
-        "total": len(assets_db)
-    }
+    async with get_db() as db:
+        query = select(DBAsset).limit(limit)
+        
+        if status:
+            # Handle status mapping if needed (DB uses uppercase)
+            query = query.where(DBAsset.status == status.upper())
+            
+        result = await db.execute(query)
+        assets = result.scalars().all()
+        
+        # Count total
+        # For simplicity in this endpoint we won't do a full count query unless needed
+        
+        # Convert to response format
+        return {
+            "assets": [AssetResponse.model_validate(a) for a in assets],
+            "count": len(assets),
+            "total": len(assets) # Placeholder since we limit
+        }
 
 
-@app.get("/assets/{asset_id}/clips")
+@app.get("/assets/{asset_id}/clips", response_model=Dict[str, Any])
 async def get_asset_clips(
     asset_id: str,
     ranked: bool = Query(False, description="Return ranked clips"),
     top: int = Query(10, ge=1, le=50, description="Number of top clips to return")
 ):
     """
-    Get clips for an asset
-    - Returns detected scenes/clips
-    - Can return ranked by composite score
-    - Supports pagination via 'top' parameter
+    Get clips for an asset -> Postgres
     """
-    if asset_id not in assets_db:
-        raise HTTPException(status_code=404, detail="Asset not found")
-    
-    clips = clips_db.get(asset_id, [])
-    
-    if ranked:
-        # Sort by scene_score descending
-        clips = sorted(clips, key=lambda x: x.get("scene_score", 0), reverse=True)
-    
-    clips = clips[:top]
-    
-    return {
-        "asset_id": asset_id,
-        "clips": clips,
-        "count": len(clips),
-        "ranked": ranked
-    }
+    async with get_db() as db:
+        query = select(DBClip).where(DBClip.assetId == asset_id)
+        
+        if ranked:
+            query = query.order_by(DBClip.score.desc())
+        
+        query = query.limit(top)
+        
+        result = await db.execute(query)
+        clips = result.scalars().all()
+        
+        if not clips and not await db.scalar(select(DBAsset).where(DBAsset.id == asset_id)):
+             raise HTTPException(status_code=404, detail="Asset not found")
+
+        return {
+            "asset_id": asset_id,
+            "clips": [ClipResponse.model_validate(c) for c in clips],
+            "count": len(clips),
+            "ranked": ranked
+        }
 
 
 async def process_asset(asset_id: str):
     """
-    Background processing task for asset
+    Background processing task for asset -> Postgres
     - REAL Scene detection using PySceneDetect
     - REAL Feature extraction (motion, YOLO, OCR, embeddings)
     - REAL clip analysis
-
-    ✅ NOW USING REAL SERVICES - No more mocks!
     """
-    try:
-        # Get asset from database
-        if asset_id not in assets_db:
-            print(f"Error: Asset {asset_id} not found in database")
-            return
+    async with get_db() as db:
+        try:
+            # Get asset from database
+            result = await db.execute(select(DBAsset).where(DBAsset.id == asset_id))
+            asset = result.scalar_one_or_none()
 
-        asset = assets_db[asset_id]
-        video_path = asset["path"]
+            if not asset:
+                print(f"Error: Asset {asset_id} not found in database")
+                return
 
-        # Verify video file exists
-        if not os.path.exists(video_path):
-            print(f"Error: Video file not found: {video_path}")
-            assets_db[asset_id]["status"] = "error"
-            assets_db[asset_id]["error"] = f"File not found: {video_path}"
-            return
+            video_path = asset.gcsPath # We stored local path here
 
-        print(f"Processing asset {asset_id}: {video_path}")
+            # Verify video file exists
+            if not os.path.exists(video_path):
+                print(f"Error: Video file not found: {video_path}")
+                asset.status = "FAILED"
+                asset.processingError = f"File not found: {video_path}"
+                await db.commit()
+                return
 
-        # REAL SCENE DETECTION using PySceneDetect
-        detector = SceneDetectorService(threshold=27.0)
-        scenes = detector.detect_scenes(video_path)
-        print(f"Detected {len(scenes)} scenes")
+            print(f"Processing asset {asset_id}: {video_path}")
 
-        # Get video metadata
-        video_info = detector.get_video_info(video_path)
-        assets_db[asset_id].update({
-            "duration_seconds": video_info["duration"],
-            "resolution": f"{video_info['resolution'][0]}x{video_info['resolution'][1]}",
-            "fps": video_info["fps"],
-            "size_bytes": video_info["file_size"]
-        })
+            # REAL SCENE DETECTION using PySceneDetect
+            # Note: SceneDetectorService might need to run in threadpool if it blocks loop
+            # For now keeping it simple
+            detector = SceneDetectorService(threshold=27.0)
+            scenes = detector.detect_scenes(video_path)
+            print(f"Detected {len(scenes)} scenes")
 
-        # REAL FEATURE EXTRACTION using YOLO + OCR
-        extractor = FeatureExtractorService()
+            # Get video metadata and update DB
+            video_info = detector.get_video_info(video_path)
+            
+            asset.duration = video_info["duration"]
+            asset.width = video_info['resolution'][0]
+            asset.height = video_info['resolution'][1]
+            asset.fps = video_info["fps"]
+            asset.fileSize = video_info["file_size"]
+            
+            # REAL FEATURE EXTRACTION using YOLO + OCR
+            extractor = FeatureExtractorService()
 
-        clips = []
-        for i, (start_time, end_time) in enumerate(scenes):
-            clip_id = str(uuid.uuid4())
-            duration = end_time - start_time
+            clips_to_add = []
+            for i, (start_time, end_time) in enumerate(scenes):
+                duration = end_time - start_time
 
-            print(f"Extracting features for scene {i+1}/{len(scenes)} ({start_time:.2f}s - {end_time:.2f}s)")
+                print(f"Extracting features for scene {i+1}/{len(scenes)} ({start_time:.2f}s - {end_time:.2f}s)")
 
-            # REAL feature extraction - no more fake formulas!
-            clip_features = extractor.extract_features(video_path, start_time, end_time)
+                # REAL feature extraction
+                clip_features = extractor.extract_features(video_path, start_time, end_time)
 
-            # Convert ClipFeatures to dict for storage
-            features_dict = {
-                "motion_score": clip_features.motion_score,
-                "objects": clip_features.objects,
-                "object_counts": clip_features.object_counts,
-                "text_detected": clip_features.text_detected,
-                "transcript": clip_features.transcript,
-                "embedding": clip_features.embedding,
-                "technical_quality": clip_features.technical_quality
-            }
+                # Convert ClipFeatures to dict for storage
+                features_dict = {
+                    "motion_score": clip_features.motion_score,
+                    "objects": clip_features.objects,
+                    "object_counts": clip_features.object_counts,
+                    "text_detected": clip_features.text_detected,
+                    "transcript": clip_features.transcript,
+                    "embedding": clip_features.embedding,
+                    "technical_quality": clip_features.technical_quality
+                }
 
-            # Calculate scene score based on REAL features
-            scene_score = calculate_scene_score(clip_features)
+                # Calculate scene score based on REAL features
+                scene_score = calculate_scene_score(clip_features)
 
-            clip = {
-                "clip_id": clip_id,
-                "asset_id": asset_id,
-                "start_time": start_time,
-                "end_time": end_time,
-                "duration": duration,
-                "scene_score": scene_score,
-                "features": features_dict,
-                "thumbnail_url": f"/thumbnails/{clip_id}.jpg"
-            }
+                new_clip = DBClip(
+                    id=str(uuid.uuid4()),
+                    assetId=asset_id,
+                    startTime=start_time,
+                    endTime=end_time,
+                    duration=duration,
+                    score=scene_score,
+                    features=features_dict,
+                    # thumbnail would be generated here in a real storage system
+                    status="READY"
+                )
+                
+                clips_to_add.append(new_clip)
 
-            clips.append(clip)
+            # Store clips in database
+            if clips_to_add:
+                db.add_all(clips_to_add)
 
-        # Store clips in database
-        clips_db[asset_id] = clips
+            # Update asset status to completed
+            asset.status = "READY" # Matched Prisma Enum
+            
+            await db.commit()
+            print(f"✅ Asset {asset_id} processing complete: {len(clips_to_add)} clips extracted")
 
-        # Update asset status to completed
-        assets_db[asset_id]["status"] = "completed"
-        assets_db[asset_id]["num_clips"] = len(clips)
+        except Exception as e:
+            print(f"Error processing asset {asset_id}: {e}")
+            import traceback
+            traceback.print_exc()
 
-        print(f"✅ Asset {asset_id} processing complete: {len(clips)} clips extracted")
-
-    except Exception as e:
-        print(f"Error processing asset {asset_id}: {e}")
-        import traceback
-        traceback.print_exc()
-
-        if asset_id in assets_db:
-            assets_db[asset_id]["status"] = "error"
-            assets_db[asset_id]["error"] = str(e)
+            try:
+                asset.status = "FAILED"
+                asset.processingError = str(e)
+                await db.commit()
+            except Exception as db_err:
+                logger.error(f"Failed to update asset error status: {db_err}")
 
 
 def calculate_scene_score(features) -> float:

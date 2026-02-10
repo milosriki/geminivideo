@@ -9,6 +9,7 @@ import pandas as pd
 from typing import Tuple, Optional
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from src.feature_engineering import feature_extractor
 
 logger = logging.getLogger(__name__)
 
@@ -43,43 +44,45 @@ class TrainingDataLoader:
     
     def fetch_training_data(self, min_impressions: int = 100) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Fetch training data from videos table
+        Fetch training data from assets table using unified feature extraction
         
         Args:
-            min_impressions: Minimum impressions required for a video to be included
+            min_impressions: Minimum impressions required for an asset to be included
         
         Returns:
-            Tuple of (X, y) where X is feature matrix and y is actual CTR values
+            Tuple of (X, y) where X is feature matrix (75+ features) and y is actual CTR values
         """
         logger.info(f"Fetching training data from database (min_impressions={min_impressions})")
         
         session = self.Session()
         
         try:
-            # Query to get videos with performance data
+            # Query to get assets with performance data and clip features
             query = text("""
                 SELECT 
-                    v.id,
-                    v.impressions,
-                    v.clicks,
-                    v.conversions,
-                    v.actual_roas,
-                    v.duration_seconds,
-                    v.platform,
-                    b.council_score,
-                    b.predicted_roas,
-                    b.confidence,
-                    b.hook_text,
-                    b.hook_type,
-                    c.product_name,
-                    c.target_avatar
-                FROM videos v
-                JOIN blueprints b ON v.blueprint_id = b.id
-                JOIN campaigns c ON v.campaign_id = c.id
-                WHERE v.impressions >= :min_impressions
-                  AND v.clicks IS NOT NULL
-                  AND v.impressions > 0
-                ORDER BY v.created_at DESC
+                    a.id,
+                    pm.impressions,
+                    pm.clicks,
+                    pm.conversions,
+                    pm.roas as actual_roas,
+                    a.duration,
+                    pm.platform,
+                    p.council_score,
+                    p.predicted_roas,
+                    p.confidence as confidence,
+                    cl.features as clip_features,
+                    p.hook_type,
+                    c.name as product_name,
+                    c.target_audience->>'avatar' as target_avatar
+                FROM assets a
+                JOIN performance_metrics pm ON pm.asset_id = a.id
+                JOIN clips cl ON cl.asset_id = a.id
+                LEFT JOIN predictions p ON p.clip_id = cl.id
+                LEFT JOIN campaigns c ON a.campaign_id = c.id
+                WHERE pm.impressions >= :min_impressions
+                  AND pm.clicks IS NOT NULL
+                  AND pm.impressions > 0
+                ORDER BY a.created_at DESC
                 LIMIT 10000
             """)
             
@@ -96,38 +99,40 @@ class TrainingDataLoader:
             df = pd.DataFrame(rows, columns=[
                 'id', 'impressions', 'clicks', 'conversions', 'actual_roas',
                 'duration_seconds', 'platform', 'council_score', 'predicted_roas',
-                'confidence', 'hook_text', 'hook_type', 'product_name', 'target_avatar'
+                'confidence', 'clip_features', 'hook_type', 'product_name', 'target_avatar'
             ])
             
             # Calculate actual CTR
             df['actual_ctr'] = df['clicks'] / df['impressions']
             
-            # Feature engineering (simplified for now)
-            # In a real system, we'd use the full feature_engineering.py
-            features = []
+            # Prepare data for feature extractor
+            clips_data_list = []
             
             for _, row in df.iterrows():
-                feature_vec = [
-                    row['council_score'] or 0.5,
-                    row['predicted_roas'] or 0.0,
-                    row['confidence'] or 0.5,
-                    row['duration_seconds'] or 30.0,
-                    1.0 if row['platform'] == 'reels' else 0.0,
-                    1.0 if row['platform'] == 'feed' else 0.0,
-                    1.0 if row['platform'] == 'stories' else 0.0,
-                    len(row['hook_text']) if row['hook_text'] else 0,
-                    1.0 if row['hook_type'] == 'question' else 0.0,
-                    1.0 if row['hook_type'] == 'statement' else 0.0,
-                    # Add 30 more features to match expected 40 features
-                    # For now, use zeros as placeholders
-                    *[0.0] * 30
-                ]
-                features.append(feature_vec)
+                # Start with stored features (from feature extraction time)
+                base_features = row['clip_features'] if row['clip_features'] else {}
+                
+                # Create a copy to avoid modifying original
+                clip_data = base_features.copy()
+                
+                # Merge current metadata overrides ensuring critical fields exist
+                clip_data.update({
+                    'duration_seconds': float(row['duration_seconds']) if row['duration_seconds'] else 30.0,
+                    'platform': row['platform'],
+                    'council_score': float(row['council_score']) if row['council_score'] else 0.5,
+                    'hook_type': row['hook_type'],
+                    # Ensure minimal keys exist if base_features was empty
+                    'scene_count': base_features.get('scene_count', 1),
+                })
+                
+                clips_data_list.append(clip_data)
             
-            X = np.array(features)
+            # Use shared feature extractor (Unified Logic)
+            # This ensures we get the exact same feature vector as the prediction endpoint
+            X = feature_extractor.extract_batch_features(clips_data_list)
             y = df['actual_ctr'].values
             
-            logger.info(f"Created feature matrix: {X.shape}, target shape: {y.shape}")
+            logger.info(f"Created unified feature matrix: {X.shape}, target shape: {y.shape}")
             logger.info(f"CTR range: {y.min():.4f} - {y.max():.4f}, mean: {y.mean():.4f}")
             
             return X, y
@@ -146,11 +151,12 @@ class TrainingDataLoader:
             query = text("""
                 SELECT 
                     COUNT(*) as total_videos,
-                    COUNT(CASE WHEN impressions >= 100 THEN 1 END) as videos_with_min_impressions,
-                    AVG(impressions) as avg_impressions,
-                    AVG(CASE WHEN impressions > 0 THEN clicks::float / impressions END) as avg_ctr
-                FROM videos
-                WHERE impressions IS NOT NULL
+                    COUNT(CASE WHEN pm.impressions >= 100 THEN 1 END) as videos_with_min_impressions,
+                    AVG(pm.impressions) as avg_impressions,
+                    AVG(CASE WHEN pm.impressions > 0 THEN pm.clicks::float / pm.impressions END) as avg_ctr
+                FROM assets a
+                JOIN performance_metrics pm ON pm.asset_id = a.id
+                WHERE pm.impressions IS NOT NULL
             """)
             
             result = session.execute(query)

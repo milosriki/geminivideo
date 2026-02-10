@@ -551,7 +551,7 @@ async def health_check():
         try:
             batch_processor.redis.ping()
             redis_connected = True
-        except:
+        except Exception:
             pass
 
         # Get system status

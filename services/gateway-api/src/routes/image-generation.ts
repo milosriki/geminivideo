@@ -71,7 +71,7 @@ export function createImageGenerationRouter(pgPool: Pool): Router {
         console.log(`[Image Gen] Generating image: provider=${provider}, aspect=${aspect_ratio}`);
 
         // Forward to Python image generator service
-        const response = await axios.post(`${VIDEO_AGENT_URL}/api/image/generate`, {
+        const response = await httpClient.post(`${VIDEO_AGENT_URL}/api/image/generate`, {
           prompt,
           config: {
             provider,
@@ -154,7 +154,7 @@ export function createImageGenerationRouter(pgPool: Pool): Router {
 
         console.log(`[Product Shot] Generating: ${product_desc.substring(0, 50)}...`);
 
-        const response = await axios.post(`${VIDEO_AGENT_URL}/api/image/product-shot`, {
+        const response = await httpClient.post(`${VIDEO_AGENT_URL}/api/image/product-shot`, {
           product_desc,
           style,
           background,
@@ -233,7 +233,7 @@ export function createImageGenerationRouter(pgPool: Pool): Router {
 
         console.log(`[Lifestyle] Generating: ${scene_desc.substring(0, 50)}...`);
 
-        const response = await axios.post(`${VIDEO_AGENT_URL}/api/image/lifestyle`, {
+        const response = await httpClient.post(`${VIDEO_AGENT_URL}/api/image/lifestyle`, {
           scene_desc,
           brand_style,
           config: {
@@ -312,7 +312,7 @@ export function createImageGenerationRouter(pgPool: Pool): Router {
 
         console.log(`[Thumbnail] Generating for ${platform}: ${video_summary.substring(0, 50)}...`);
 
-        const response = await axios.post(`${VIDEO_AGENT_URL}/api/image/thumbnail`, {
+        const response = await httpClient.post(`${VIDEO_AGENT_URL}/api/image/thumbnail`, {
           video_summary,
           style,
           platform
@@ -387,7 +387,7 @@ export function createImageGenerationRouter(pgPool: Pool): Router {
 
         console.log(`[Extend] Extending ${image_path} to ${target_aspect_ratio}`);
 
-        const response = await axios.post(`${VIDEO_AGENT_URL}/api/image/extend`, {
+        const response = await httpClient.post(`${VIDEO_AGENT_URL}/api/image/extend`, {
           image_path,
           direction,
           target_aspect_ratio
@@ -440,7 +440,7 @@ export function createImageGenerationRouter(pgPool: Pool): Router {
 
         console.log(`[Batch Variants] Generating ${num_variants} variants`);
 
-        const response = await axios.post(`${VIDEO_AGENT_URL}/api/image/batch-variants`, {
+        const response = await httpClient.post(`${VIDEO_AGENT_URL}/api/image/batch-variants`, {
           base_prompt,
           num_variants,
           config: {
@@ -493,7 +493,7 @@ export function createImageGenerationRouter(pgPool: Pool): Router {
 
         console.log(`[Platform Batch] Generating for: ${platforms.join(', ')}`);
 
-        const response = await axios.post(`${VIDEO_AGENT_URL}/api/image/platform-batch`, {
+        const response = await httpClient.post(`${VIDEO_AGENT_URL}/api/image/platform-batch`, {
           prompt,
           platforms
         }, {
@@ -526,7 +526,7 @@ export function createImageGenerationRouter(pgPool: Pool): Router {
     apiRateLimiter,
     async (req: Request, res: Response) => {
       try {
-        const response = await axios.get(`${VIDEO_AGENT_URL}/api/image/providers`, {
+        const response = await httpClient.get(`${VIDEO_AGENT_URL}/api/image/providers`, {
           timeout: 10000
         });
 

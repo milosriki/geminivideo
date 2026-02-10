@@ -552,7 +552,7 @@ async def health_check():
         # Check Redis connection
         await redis_client.ping()
         redis_status = "healthy"
-    except:
+    except Exception:
         redis_status = "unhealthy"
 
     # Check workers
@@ -561,7 +561,7 @@ async def health_check():
         stats = inspect.stats()
         worker_count = len(stats) if stats else 0
         worker_status = "healthy" if worker_count > 0 else "no_workers"
-    except:
+    except Exception:
         worker_count = 0
         worker_status = "unhealthy"
 

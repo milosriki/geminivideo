@@ -152,7 +152,8 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
                     outcome="success",
                     lesson=f"Score {critique['final_score']}: {critique.get('feedback', 'Good script')}"
                 )
-            except: pass
+            except Exception as e:
+                print(f"⚠️ Memory storage (success) failed: {e}")
             # -------------------------------
             break
             
@@ -193,7 +194,8 @@ async def run_titan_flow(video_context: str, niche: str = "fitness"):
                     outcome="failure",
                     lesson=f"Failed with score {critique['final_score']}. Mistake: {reflection}"
                 )
-            except: pass
+            except Exception as e:
+                print(f"⚠️ Memory storage (failure) failed: {e}")
             # -------------------------------
     
     return {

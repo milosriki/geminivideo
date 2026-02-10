@@ -146,7 +146,7 @@ export class CompetitorService {
 
   // --- SIMULATION LOGIC ---
   
-  private async simulateScrape(competitorId: UUID) {
+  private async simulateScrape(competitorId: string) {
     console.log(`[Scraper] Starting scrape for competitor ${competitorId}...`);
     
     // Simulate delay

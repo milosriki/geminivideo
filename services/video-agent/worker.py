@@ -6,7 +6,17 @@ import os
 import sys
 import time
 import json
+import asyncio
+import tempfile
+import traceback
+from types import SimpleNamespace
+from typing import List, Dict, Any, Optional
+from urllib.parse import urlparse
+
+# Third-party imports
 import redis
+import aiohttp
+import aiofiles
 from sqlalchemy.orm import Session
 
 # Add parent directory to path for imports
@@ -14,7 +24,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.db import SessionLocal, Clip, init_db
 from services.renderer import VideoRenderer
-from src.compliance_checker import compliance_checker
+from services.overlay_generator import OverlayGenerator
+from services.subtitle_generator import SubtitleGenerator
+from services.compliance_checker import ComplianceChecker
 
 # Try to import Pro modules (70,000+ lines of Hollywood-grade video code)
 try:
@@ -42,8 +54,7 @@ def get_video_generator():
         return AIVideoGenerator()
     else:
         # Fallback to basic generator
-        from services.renderer import VideoRenderer
-        return VideoRenderer()  # Using renderer as fallback
+        return VideoRenderer()
 
 
 class VideoWorker:
@@ -56,49 +67,90 @@ class VideoWorker:
 
         self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
         self.renderer = VideoRenderer()
+        
+        # Initialize helper services
+        # Note: Ideally these should be initialized once per worker, 
+        # but if they hold request-specific state, they might need to be per-job.
+        # Assuming stateless or safe to reuse for now based on typical usage.
+        self.overlay_generator = OverlayGenerator({}) 
+        self.subtitle_generator = SubtitleGenerator()
+        self.compliance_checker = ComplianceChecker()
 
         # Initialize database
         init_db()
         print(f"✅ Video Worker initialized")
         print(f"   Redis: {self.redis_url}")
     
-    async def process_render_job(self, job_data: dict, db: Session):
-        """Process a single render job with full pipeline"""
+    async def _download_audio(self, audio_url: str) -> Optional[str]:
+        """
+        Download audio from URL to a temporary file.
+        Includes SSRF protection (basic scheme check) and resource management.
+        Returns path to temp file or None if failed.
+        """
+        if not audio_url:
+            return None
+
+        # SSRF Protection: Scheme check
+        parsed = urlparse(audio_url)
+        if parsed.scheme not in ('http', 'https'):
+            print(f"⚠️ Invalid audio URL scheme: {audio_url}")
+            return None
+            
+        # SSRF Protection: Localhost/Private IP check needed for high security 
+        # (Skipped for now, but recommended for future)
+
         try:
-            # Reconstruct request object from dict
-            # We use a simple object or dict access since we don't have the Pydantic model here easily
-            # or we can import it. Let's use dict access for simplicity and robustness.
+            print(f"🎵 Downloading audio for beat sync: {audio_url}")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(audio_url) as response:
+                    if response.status == 200:
+                        # Use delete=False so we can close the file handle but keep the file 
+                        # for the renderer to use. Caller MUST unlink.
+                        fd, audio_path = tempfile.mkstemp(suffix=".mp3")
+                        os.close(fd) # Close file descriptor immediately
+                        
+                        async with aiofiles.open(audio_path, mode='wb') as f:
+                            await f.write(await response.read())
+                            
+                        return audio_path
+                    else:
+                        print(f"⚠️ Failed to download audio (status {response.status}): {audio_url}")
+                        return None
+        except Exception as e:
+            print(f"⚠️ Audio download failed: {e}")
+            return None
+
+    def _parse_scenes(self, raw_scenes: List[Any]) -> List[SimpleNamespace]:
+        """Safely parse raw scenes into objects."""
+        scenes_objs = []
+        if not raw_scenes:
+            return []
             
-            job_id = job_data.get('job_id')
-            request_data = job_data.get('request', {})
-            
-            print(f"🎬 Processing job {job_id}...")
-            
-            # Initialize services (lazy init or per-job if needed, but better in __init__)
-            # For now, we instantiate them here to match main.py logic or assume they are available.
-            # worker.py only has self.renderer. We need others.
-            from services.overlay_generator import OverlayGenerator
-            from services.subtitle_generator import SubtitleGenerator
-            from services.compliance_checker import ComplianceChecker
-            
-            # Load config for hooks (simplified)
-            # In a real worker, we should load this once in __init__
-            # For now, using defaults or simple init
-            overlay_generator = OverlayGenerator({}) 
-            subtitle_generator = SubtitleGenerator()
-            compliance_checker = ComplianceChecker()
-            
-            # Parse scenes
-            scenes = []
-            # We need to convert dict scenes back to objects if services expect objects
-            # Or ensure services handle dicts. 
-            # main.py uses Pydantic models. 
-            # Let's assume we need to adapt or services handle dicts.
-            # Looking at main.py, services take `request.scenes`.
-            
-            # ... (Logic porting is complex without seeing service signatures)
-            # Let's trust that we can pass the data.
-            
+        for i, s in enumerate(raw_scenes):
+            try:
+                if isinstance(s, dict):
+                    scenes_objs.append(SimpleNamespace(**s))
+                else:
+                    print(f"⚠️ Warning: Skipping invalid scene at index {i} (not a dict)")
+            except Exception as e:
+                print(f"⚠️ Error parsing scene at index {i}: {e}")
+                
+        return scenes_objs
+
+    async def _process_render_job(self, job_data: dict, db: Session):
+        """Process a single render job with full pipeline"""
+        job_id = job_data.get('job_id')
+        request_data = job_data.get('request', {})
+        print(f"🎬 Processing job {job_id}...")
+
+        audio_path = None
+        
+        try:
+            # 1. Parse Scenes
+            scenes_objs = self._parse_scenes(request_data.get('scenes', []))
+            if not scenes_objs:
+                raise ValueError("No valid scenes provided")
+
             variant = request_data.get('variant', 'reels')
             
             # Determine output format
@@ -111,91 +163,77 @@ class VideoWorker:
             
             output_dir = os.getenv("OUTPUT_DIR", "/tmp/outputs")
             os.makedirs(output_dir, exist_ok=True)
-            
             output_path = os.path.join(output_dir, f"remix_{job_id}_{variant}.mp4")
             
-            # Step 1: Concatenate (using self.renderer)
-            # We need to construct 'scenes' list expected by renderer
-            # If renderer expects Pydantic objects, we might need to mock them or change renderer.
-            # For now, let's assume we pass the raw list and renderer handles it or we convert.
-            raw_scenes = request_data.get('scenes', [])
-            
-            # ...
-            # Actually, to be safe and "Top Grade", I should import the models.
-            from main import SceneInput # This might cause circular import if main imports worker
-            # Better to move models to a shared file.
-            # But for now, let's define a simple class or use SimpleNamespace
-            from types import SimpleNamespace
-            scenes_objs = [SimpleNamespace(**s) for s in raw_scenes]
-
-            # Step 0: Smart Audio Sync (The Ears)
+            # 2. Smart Audio Sync (The Ears)
             audio_url = request_data.get('driver_signals', {}).get('audio_url')
-            audio_path = None
             
-            if audio_url:
+            # Download audio safely
+            audio_path = await self._download_audio(audio_url)
+            
+            if audio_path:
                 try:
-                    import requests
-                    import tempfile
+                    # Detect beats
+                    beats = await self.renderer.detect_beats(audio_path)
                     
-                    # Download audio
-                    print(f"🎵 Downloading audio for beat sync: {audio_url}")
-                    response = requests.get(audio_url)
-                    if response.status_code == 200:
-                        fd, audio_path = tempfile.mkstemp(suffix=".mp3")
-                        os.write(fd, response.content)
-                        os.close(fd)
-                        
-                        # Detect beats
-                        beats = await self.renderer.detect_beats(audio_path)
-                        
-                        if beats:
-                            print(f"🎵 Syncing {len(scenes_objs)} scenes to {len(beats)} beats...")
-                            # Simple sync: Snap each scene end to nearest beat
-                            current_time = 0
-                            for i, scene in enumerate(scenes_objs):
-                                scene_dur = scene.end_time - scene.start_time
-                                target_end = current_time + scene_dur
+                    if beats:
+                        print(f"🎵 Syncing {len(scenes_objs)} scenes to {len(beats)} beats...")
+                        # Simple sync: Snap each scene end to nearest beat
+                        current_time = 0
+                        for i, scene in enumerate(scenes_objs):
+                            # Ensure scene has start/end time attributes
+                            if not hasattr(scene, 'start_time') or not hasattr(scene, 'end_time'):
+                                continue
                                 
-                                # Find nearest beat to target_end
-                                nearest_beat = min(beats, key=lambda x: abs(x - target_end))
-                                
-                                # Adjust duration (min 1s)
-                                new_end = max(nearest_beat, current_time + 1.0)
-                                new_dur = new_end - current_time
-                                
-                                # Update scene
-                                scene.end_time = scene.start_time + new_dur
-                                current_time = new_end
-                                
-                            print("✅ Scenes synced to beats")
+                            scene_dur = scene.end_time - scene.start_time
+                            target_end = current_time + scene_dur
+                            
+                            # Find nearest beat to target_end
+                            nearest_beat = min(beats, key=lambda x: abs(x - target_end))
+                            
+                            # Adjust duration (min 1s)
+                            new_end = max(nearest_beat, current_time + 1.0)
+                            new_dur = new_end - current_time
+                            
+                            # Update scene
+                            scene.end_time = scene.start_time + new_dur
+                            current_time = new_end
+                            
+                        print("✅ Scenes synced to beats")
                 except Exception as e:
-                    print(f"⚠️ Audio sync failed: {e}")
+                    print(f"⚠️ Audio sync processing failed: {e}")
 
-            # Step 1: Concatenate
+            # 3. Concatenate
             concatenated_path = await self.renderer.concatenate_scenes(
                 scenes=scenes_objs,
                 enable_transitions=request_data.get('enable_transitions', True)
             )
             
-            # Step 2: Overlays
+            # 4. Overlays
             overlay_path = None
             if request_data.get('enable_overlays', True):
-                overlay_path = overlay_generator.generate_overlays(
-                    scenes=scenes_objs,
-                    driver_signals=request_data.get('driver_signals', {}),
-                    template_id=request_data.get('template_id'),
-                    duration=sum(s.end_time - s.start_time for s in scenes_objs)
-                )
+                try:
+                    overlay_path = self.overlay_generator.generate_overlays(
+                        scenes=scenes_objs,
+                        driver_signals=request_data.get('driver_signals', {}),
+                        template_id=request_data.get('template_id'),
+                        duration=sum((s.end_time - s.start_time) for s in scenes_objs if hasattr(s, 'end_time') and hasattr(s, 'start_time'))
+                    )
+                except Exception as e:
+                    print(f"⚠️ Overlay generation failed: {e}")
 
-            # Step 3: Subtitles
+            # 5. Subtitles
             subtitle_path = None
             if request_data.get('enable_subtitles', True):
-                subtitle_path = subtitle_generator.generate_subtitles(
-                    scenes=scenes_objs,
-                    driver_signals=request_data.get('driver_signals', {})
-                )
+                try:
+                    subtitle_path = self.subtitle_generator.generate_subtitles(
+                        scenes=scenes_objs,
+                        driver_signals=request_data.get('driver_signals', {})
+                    )
+                except Exception as e:
+                    print(f"⚠️ Subtitle generation failed: {e}")
 
-            # Step 4: Final Composition
+            # 6. Final Composition
             await self.renderer.compose_final_video(
                 input_path=concatenated_path,
                 output_path=output_path,
@@ -204,20 +242,26 @@ class VideoWorker:
                 subtitle_path=subtitle_path
             )
 
-            # Step 5: Compliance
-            creative_data = {
-                "hook": request_data.get("hook", ""),
-                "cta": request_data.get("cta", ""),
-                "script": request_data.get("script", ""),
-                "duration_seconds": sum(s.end_time - s.start_time for s in scenes_objs),
-                "resolution": f"{output_format['width']}x{output_format['height']}"
-            }
-            
-            compliance_result = compliance_checker.check_compliance(
-                creative_data,
-                platform="meta",
-                variant=variant
-            )
+            # 7. Compliance
+            # Note: Compliance checking might be CPU intensive or sync. 
+            # If strictly sync, consider running in executor.
+            try:
+                creative_data = {
+                    "hook": request_data.get("hook", ""),
+                    "cta": request_data.get("cta", ""),
+                    "script": request_data.get("script", ""),
+                    "duration_seconds": sum((s.end_time - s.start_time) for s in scenes_objs if hasattr(s, 'end_time') and hasattr(s, 'start_time')),
+                    "resolution": f"{output_format['width']}x{output_format['height']}"
+                }
+                
+                compliance_result = self.compliance_checker.check_compliance(
+                    creative_data,
+                    platform="meta",
+                    variant=variant
+                )
+            except Exception as e:
+                print(f"⚠️ Compliance check failed: {e}")
+                compliance_result = {"status": "error", "error": str(e)}
 
             print(f"✅ Rendering complete: {output_path}")
             print(f"   Compliance: {compliance_result}")
@@ -235,16 +279,22 @@ class VideoWorker:
             
         except Exception as e:
             print(f"❌ Error processing render job: {e}")
-            import traceback
             traceback.print_exc()
             # Store error in Redis
-            job_id = job_data.get('job_id')
             if job_id:
                 self.redis_client.setex(
                     f"render_result:{job_id}",
                     3600,
                     json.dumps({"status": "failed", "error": str(e)})
                 )
+        finally:
+            # Resource cleanup
+            if audio_path and os.path.exists(audio_path):
+                try:
+                    os.remove(audio_path)
+                    print(f"🧹 Cleaned up temporary audio: {audio_path}")
+                except OSError as e:
+                    print(f"⚠️ Failed to delete temp audio {audio_path}: {e}")
     
     def start_health_server(self):
         """Start a dummy HTTP server for Cloud Run health checks"""
@@ -268,36 +318,41 @@ class VideoWorker:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
 
-    def run(self):
-        """Main worker loop - blocks and processes jobs"""
-        # Start health check server for Cloud Run
-        self.start_health_server()
-
+    async def _worker_loop(self):
+        """Async worker loop"""
         print("🚀 Video Worker started, waiting for jobs...")
         print("   Queue: render_queue")
         
-        import asyncio
-        
         while True:
             try:
-                # Block and wait for job from Redis queue
-                result = self.redis_client.blpop('render_queue', timeout=5)
+                # Use Redis blocking pop compatible with async if available, 
+                # or run sync blpop in executor to avoid blocking the loop
+                # loop = asyncio.get_running_loop()
+                # result = await loop.run_in_executor(None, self.redis_client.blpop, 'render_queue', 5)
+                
+                # For simplicity and since we are processing one job at a time per worker instance here anyway:
+                # We can just use the sync call, but it blocks heartbeats.
+                # Better: usage of run_in_executor
+                loop = asyncio.get_running_loop()
+                result = await loop.run_in_executor(None, lambda: self.redis_client.blpop('render_queue', timeout=5))
                 
                 if result:
                     queue_name, job_json = result
                     print(f"\n📥 Received render job")
                     
-                    # Parse job data
-                    job_data = json.loads(job_json)
-                    
-                    # Process the job
-                    db = SessionLocal()
                     try:
-                        asyncio.run(self.process_render_job(job_data, db))
-                    finally:
-                        db.close()
+                        job_data = json.loads(job_json)
+                        
+                        # Process the job
+                        db = SessionLocal()
+                        try:
+                            await self._process_render_job(job_data, db)
+                        finally:
+                            db.close()
+                    except json.JSONDecodeError:
+                        print("❌ Failed to decode job JSON")
                 else:
-                    # Timeout - just loop again
+                    # Timeout
                     pass
                     
             except KeyboardInterrupt:
@@ -305,10 +360,19 @@ class VideoWorker:
                 break
             except Exception as e:
                 print(f"❌ Worker error: {e}")
-                import traceback
                 traceback.print_exc()
-                time.sleep(1)  # Avoid tight loop on persistent errors
+                await asyncio.sleep(1)
 
+    def run(self):
+        """Main entry point"""
+        # Start health check server for Cloud Run
+        self.start_health_server()
+        
+        # Run async loop
+        try:
+            asyncio.run(self._worker_loop())
+        except KeyboardInterrupt:
+            pass
 
 if __name__ == "__main__":
     worker = VideoWorker()

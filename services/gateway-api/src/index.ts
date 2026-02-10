@@ -9,6 +9,21 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import axios from 'axios';
+
+// Configured HTTP client for internal service-to-service calls
+// Automatically includes X-Internal-API-Key header for Zero-Trust auth
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+if (!INTERNAL_API_KEY) {
+  console.warn('⚠️  INTERNAL_API_KEY env var is not set. Service-to-service calls will fail auth.');
+}
+export const httpClient = axios.create({
+  headers: {
+    'X-Internal-API-Key': INTERNAL_API_KEY || '',
+    'Content-Type': 'application/json',
+  },
+  timeout: 30000, // 30s default timeout for internal calls
+});
+
 import { createClient } from 'redis';
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
@@ -340,8 +355,8 @@ app.get('/api/assets', async (req: Request, res: Response) => {
     if (!validateServiceUrl(DRIVE_INTEL_URL)) {
       throw new Error('Invalid service URL');
     }
-    const response = await axios.get(`${DRIVE_INTEL_URL}/assets`, {
-      params: req.query
+    const response = await httpClient.get(`${DRIVE_INTEL_URL}/assets`, {
+      params: req.query,
     });
     res.json(response.data);
   } catch (error: any) {
@@ -353,7 +368,7 @@ app.get('/api/assets', async (req: Request, res: Response) => {
 
 app.get('/api/assets/:assetId/clips', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(
+    const response = await httpClient.get(
       `${DRIVE_INTEL_URL}/assets/${req.params.assetId}/clips`,
       { params: req.query }
     );

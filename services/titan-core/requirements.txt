@@ -18,6 +18,10 @@ google-cloud-storage>=2.14.0
 facebook-business>=19.0.0
 hubspot-api-client>=8.0.0
 
+# Future Ad Platforms (Unlock when implementing)
+# business-api-sdk>=1.0.0  # TikTok
+# google-ads>=23.0.0       # Google Ads
+
 # ML/Deep Learning
 deepctr-torch>=0.2.9
 torch>=2.1.0

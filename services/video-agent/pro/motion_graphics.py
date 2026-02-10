@@ -2409,12 +2409,12 @@ class SocialMediaElement(MotionGraphic):
         # Parse position_x and position_y if they are numeric strings
         try:
             pos_x = int(self.params.position_x) if isinstance(self.params.position_x, str) and self.params.position_x.isdigit() else 100
-        except:
+        except (ValueError, TypeError):
             pos_x = 100
 
         try:
             pos_y = int(self.params.position_y) if isinstance(self.params.position_y, str) and self.params.position_y.isdigit() else 100
-        except:
+        except (ValueError, TypeError):
             pos_y = 100
 
         return f"""

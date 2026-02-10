@@ -511,7 +511,7 @@ export class AgentTrigger {
             conceptCount: analysis.newConcepts.length,
           },
           embedding: [], // Will be populated by RAG service
-        },
+        } as any,
       });
 
       logger.info(`Stored analysis for winner ${winnerId}`, {

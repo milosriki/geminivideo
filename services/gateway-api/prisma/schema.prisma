@@ -81,6 +81,7 @@ model Asset {
   // Relationships
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   clips           Clip[]
+  metrics         PerformanceMetric[]
 
   @@index([userId])
   @@index([status])
@@ -410,4 +411,31 @@ model KnowledgeDocument {
   @@index([version])
   @@index([createdAt])
   @@map("knowledge_documents")
+}
+
+// ============================================================================
+// Performance Metrics
+// ============================================================================
+
+model PerformanceMetric {
+  id          String   @id @default(uuid())
+  assetId     String   @map("asset_id") // Map to match SQLAlchemy foreign key column
+  platform    String   @default("meta")
+  date        DateTime @db.Date
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  spend       Decimal  @default(0.0) @db.Decimal(10, 2)
+  revenue     Decimal  @default(0.0) @db.Decimal(10, 2)
+  roas        Decimal  @default(0.0) @db.Decimal(10, 2)
+  ctr         Decimal? @db.Decimal(5, 4)
+  conversions Int      @default(0)
+  rawData     Json?    @map("raw_data")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([date])
+  @@index([platform])
+  @@map("performance_metrics")
 }

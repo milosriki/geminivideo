@@ -424,8 +424,8 @@ class CompoundLearner:
                     cycle_log.completed_at = datetime.utcnow()
                     db.commit()
                 db.close()
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Failed to update learning cycle log: {e}")
 
             return self._empty_cycle_result()
 
@@ -966,7 +966,7 @@ class CompoundLearner:
                 first_date = datetime.strptime(initial.date, '%Y-%m-%d')
                 last_date = datetime.strptime(current.date, '%Y-%m-%d')
                 days = (last_date - first_date).days
-            except:
+            except (ValueError, TypeError):
                 days = len(snapshots)
 
             if days == 0:

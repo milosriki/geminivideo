@@ -39,7 +39,20 @@ from pro.preview_generator import PreviewGenerator, ProxyQuality
 from pro.asset_library import AssetLibrary, AssetType, AssetCategory
 from pro.voice_generator import VoiceGenerator, VoiceProvider, OpenAIVoice, VoiceSettings, VoiceCloneConfig
 
-app = FastAPI(title="Video Agent Service", version="1.0.0")
+# Import Auth (Zero-Trust)
+from fastapi import Security
+try:
+    from gemini_common.auth import verify_internal_api_key
+    AUTH_ENABLED = True
+except ImportError:
+    print("gemini-common auth not available - security disabled")
+    AUTH_ENABLED = False
+
+app = FastAPI(
+    title="Video Agent Service",
+    version="1.0.0",
+    dependencies=[Security(verify_internal_api_key)] if AUTH_ENABLED else []
+)
 
 # Production safety check - prevent debug mode in production
 if app.debug and os.environ.get('ENVIRONMENT') == 'production':
@@ -2054,7 +2067,7 @@ async def get_voice_library(provider: Optional[str] = None):
             # Try to get ElevenLabs voices (may fail if no API key)
             try:
                 elevenlabs_voices = await voice_generator.get_available_voices(VoiceProvider.ELEVENLABS)
-            except:
+            except Exception:
                 elevenlabs_voices = []
 
             voices = openai_voices + elevenlabs_voices
