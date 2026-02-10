@@ -185,4 +185,136 @@ export const getPredictionHistory = async (limit = 50) => {
   return response.data;
 };
 
+// Titan Core - AI Intelligence API
+export const titanAPI = {
+  // Council of Titans - Multi-model evaluation
+  evaluateWithCouncil: async (data: {
+    video_url?: string;
+    script?: string;
+    niche: string;
+    target_audience?: string;
+  }): Promise<{
+    council_score: number;
+    breakdown: Record<string, number>;
+    recommendations: string[];
+    confidence: number;
+  }> => {
+    const response = await api.post('/api/council/evaluate', data);
+    return response.data;
+  },
+
+  // Oracle - Performance prediction
+  predictPerformance: async (data: {
+    creative_features: {
+      hook_type: string;
+      duration: number;
+      has_captions: boolean;
+      music_tempo: string;
+      color_scheme: string;
+    };
+    historical_data?: unknown[];
+  }): Promise<{
+    predicted_ctr: number;
+    predicted_cpa: number;
+    predicted_roas: number;
+    confidence: number;
+    confidence_breakdown: Record<string, number>;
+  }> => {
+    const response = await api.post('/api/oracle/predict', data);
+    return response.data;
+  },
+
+  // Director - Script generation
+  generateScript: async (data: {
+    niche: string;
+    style: string;
+    duration: number;
+    hooks?: string[];
+    target_emotion?: string;
+  }): Promise<{
+    script: string;
+    hooks: string[];
+    call_to_action: string;
+    estimated_impact: number;
+  }> => {
+    const response = await api.post('/api/director/generate', data);
+    return response.data;
+  },
+
+  // Full Pipeline - Generate winning ad
+  generateWinningAd: async (data: {
+    niche: string;
+    style: string;
+    duration?: number;
+    music_style?: string;
+    caption_style?: string;
+    target_audience?: string;
+  }): Promise<{
+    job_id: string;
+    status: string;
+    message: string;
+  }> => {
+    const response = await api.post('/api/pipeline/generate-campaign', data);
+    return response.data;
+  },
+
+  // Get job status with progress
+  getJobStatus: async (jobId: string): Promise<{
+    job_id: string;
+    status: string;
+    progress: number;
+    stage: string;
+    output_url?: string;
+    video_url?: string;
+    error?: string;
+    metadata?: Record<string, unknown>;
+  }> => {
+    const response = await api.get(`/api/pipeline/job/${jobId}/status`);
+    return response.data;
+  },
+
+  // Download generated video
+  getVideoDownloadUrl: async (videoId: string): Promise<string> => {
+    const response = await api.get(`/api/videos/${videoId}/download`);
+    return response.data.url;
+  }
+};
+
+// Pro Video API
+export const proVideoAPI = {
+  // Generate captions
+  generateCaptions: async (data: {
+    video_path: string;
+    style: 'instagram' | 'tiktok' | 'karaoke' | 'youtube' | 'hormozi';
+    language?: string;
+    word_level?: boolean;
+  }) => {
+    const response = await api.post('/api/pro/caption', data);
+    return response.data;
+  },
+
+  // Color grading
+  applyColorGrade: async (data: {
+    video_path: string;
+    preset: string;
+    intensity?: number;
+  }) => {
+    const response = await api.post('/api/pro/color-grade', data);
+    return response.data;
+  },
+
+  // Render with all pro features
+  renderProVideo: async (data: {
+    job_id?: string;
+    video_path: string;
+    captions?: boolean;
+    color_grade?: string;
+    music_path?: string;
+    transitions?: string[];
+  }) => {
+    const response = await api.post('/api/pro/render', data);
+    return response.data;
+  }
+};
+
 export default api;
