@@ -115,6 +115,25 @@ class FeatureExtractor:
         frame_count = clip_data.get('frame_count', duration * 30) # Assume 30fps if missing
         features.append(total_objects / max(frame_count, 1)) # object_density
 
+        # Visual pattern features from CNN (ResNet-50) — 4 features
+        visual_data = clip_data.get('visual_pattern_data', {})
+        features.append(visual_data.get('visual_energy', 0.5))  # 0-1 energy score
+        features.append(visual_data.get('primary_confidence', 0.0))  # classifier confidence
+
+        # Encode pattern type as numeric (hash to 0-1 range)
+        pattern_type = visual_data.get('primary_pattern', '')
+        VISUAL_PATTERNS = [
+            'product_showcase', 'lifestyle', 'text_heavy', 'testimonial',
+            'before_after', 'tutorial', 'unboxing', 'comparison',
+            'behind_scenes', 'ugc_style'
+        ]
+        pattern_idx = VISUAL_PATTERNS.index(pattern_type) if pattern_type in VISUAL_PATTERNS else -1
+        features.append((pattern_idx + 1) / len(VISUAL_PATTERNS))  # 0 = unknown, 0.1-1.0 = known
+
+        # Number of secondary patterns (visual complexity indicator)
+        secondary = visual_data.get('secondary_patterns', [])
+        features.append(len(secondary) / 5.0)  # Normalize by max expected
+
         return np.array(features, dtype=np.float32)
 
     def extract_batch_features(self, clip_data_list: List[Dict[str, Any]]) -> np.ndarray:
@@ -219,7 +238,13 @@ class FeatureExtractor:
 
             # Advanced features
             'scene_change_rate',
-            'object_density'
+            'object_density',
+
+            # Visual pattern features (CNN)
+            'visual_energy',
+            'visual_confidence',
+            'visual_pattern_encoded',
+            'visual_secondary_count'
         ]
 
     def get_feature_count(self) -> int:

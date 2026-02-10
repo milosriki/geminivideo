@@ -519,7 +519,12 @@ async def process_asset(asset_id: str):
                     "text_detected": clip_features.text_detected,
                     "transcript": clip_features.transcript,
                     "embedding": clip_features.embedding,
-                    "technical_quality": clip_features.technical_quality
+                    "technical_quality": clip_features.technical_quality,
+                    "visual_pattern_data": {
+                        "primary_pattern": getattr(clip_features, 'visual_pattern', None),
+                        "primary_confidence": getattr(clip_features, 'visual_confidence', None),
+                        "visual_energy": getattr(clip_features, 'visual_energy', None),
+                    }
                 }
 
                 # Calculate scene score based on REAL features

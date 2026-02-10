@@ -94,6 +94,15 @@ export class ScoringEngine {
 
     const winProbability = this.calculateWinProbability(compositeScore);
 
+    // Extract visual pattern data from scenes (if available from CNN)
+    const visualPatterns = scenes
+      .filter((s: any) => s.features?.visual_pattern_data)
+      .map((s: any) => s.features.visual_pattern_data);
+
+    const dominantPattern = visualPatterns.length > 0
+      ? this.getDominantVisualPattern(visualPatterns)
+      : null;
+
     return {
       psychology_score: psychologyScore,
       hook_strength: hookScore,
@@ -103,7 +112,35 @@ export class ScoringEngine {
       composite_score: compositeScore,
       win_probability: winProbability,
       predicted_band: winProbability.band,
-      confidence: winProbability.confidence
+      confidence: winProbability.confidence,
+      visual_analysis: dominantPattern
+    };
+  }
+
+  private getDominantVisualPattern(patterns: any[]): any {
+    if (!patterns.length) return null;
+
+    // Count pattern types across all scenes
+    const patternCounts: Record<string, number> = {};
+    let totalEnergy = 0;
+    let totalConfidence = 0;
+
+    for (const p of patterns) {
+      const type = p.primary_pattern || 'unknown';
+      patternCounts[type] = (patternCounts[type] || 0) + 1;
+      totalEnergy += p.visual_energy || 0;
+      totalConfidence += p.primary_confidence || 0;
+    }
+
+    const dominant = Object.entries(patternCounts)
+      .sort((a, b) => b[1] - a[1])[0];
+
+    return {
+      dominant_pattern: dominant?.[0] || 'unknown',
+      pattern_distribution: patternCounts,
+      avg_visual_energy: totalEnergy / patterns.length,
+      avg_confidence: totalConfidence / patterns.length,
+      scenes_analyzed: patterns.length
     };
   }
 
